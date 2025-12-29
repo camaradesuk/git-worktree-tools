@@ -16,7 +16,8 @@ describe('git integration', () => {
 
   // Create temp directory and git repo before all tests
   beforeAll(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-worktree-tools-test-'));
+    // Use realpathSync to resolve symlinks (e.g., /var -> /private/var on macOS)
+    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-worktree-tools-test-')));
     repoDir = path.join(tempDir, 'test-repo');
     fs.mkdirSync(repoDir);
 
