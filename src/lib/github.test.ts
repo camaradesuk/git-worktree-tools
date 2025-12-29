@@ -97,7 +97,7 @@ describe('github', () => {
       const result = github.createPr({ title: 'My PR' });
 
       expect(mockExecSync).toHaveBeenCalledWith(
-        expect.stringContaining('gh pr create --title My PR'),
+        expect.stringContaining('gh pr create --title "My PR"'),
         expect.any(Object)
       );
       expect(result).toEqual({
@@ -132,7 +132,7 @@ describe('github', () => {
       });
 
       expect(mockExecSync).toHaveBeenCalledWith(
-        expect.stringMatching(/--title Draft PR.*--body PR description.*--base develop.*--head feature\/draft.*--draft.*--repo org\/repo/),
+        expect.stringMatching(/--title "Draft PR".*--body "PR description".*--base develop.*--head feature\/draft.*--draft.*--repo org\/repo/),
         expect.any(Object)
       );
     });

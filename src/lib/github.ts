@@ -1,6 +1,17 @@
 import { execSync, ExecSyncOptions } from 'child_process';
 
 /**
+ * Shell-escape a string for use in a command
+ */
+function shellEscape(str: string): string {
+  // If string contains spaces or special chars, wrap in quotes and escape internal quotes
+  if (/[\s"'\\]/.test(str)) {
+    return `"${str.replace(/["\\]/g, '\\$&')}"`;
+  }
+  return str;
+}
+
+/**
  * PR creation options
  */
 export interface CreatePrOptions {
@@ -39,7 +50,8 @@ export interface RepoInfo {
  * Execute a gh command and return output
  */
 function exec(args: string[], options: { cwd?: string; silent?: boolean } = {}): string {
-  const cmd = `gh ${args.join(' ')}`;
+  const escapedArgs = args.map(shellEscape);
+  const cmd = `gh ${escapedArgs.join(' ')}`;
   const execOptions: ExecSyncOptions = {
     encoding: 'utf8',
     cwd: options.cwd,

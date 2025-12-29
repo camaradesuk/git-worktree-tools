@@ -11,6 +11,7 @@ export * as colors from './lib/colors.js';
 export * as prompts from './lib/prompts.js';
 export * as config from './lib/config.js';
 export * as stateDetection from './lib/state-detection.js';
+export * as errors from './lib/errors.js';
 
 // Export key types
 export type {
@@ -43,3 +44,17 @@ export type {
 export type {
   PromptOption,
 } from './lib/prompts.js';
+
+// Export error classes for direct use
+export {
+  WorktreeToolsError,
+  GitCommandError,
+  GitHubCliError,
+  ConfigurationError,
+  WorktreeError,
+  ManifestError,
+  UserCancelledError,
+  isWorktreeToolsError,
+  isGitCommandError,
+  isGitHubCliError,
+} from './lib/errors.js';
