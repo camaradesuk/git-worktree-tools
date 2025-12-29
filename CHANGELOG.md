@@ -1,3 +1,11 @@
+## [1.0.4](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.3...v1.0.4) (2025-12-29)
+
+
+### Bug Fixes
+
+* **tests:** handle nullable getCurrentBranch return type ([907cf99](https://github.com/camaradesuk/git-worktree-tools/commit/907cf9921d33cc77164632116e4daeab86744ba4))
+* **tests:** resolve Windows 8.3 short path and default branch issues ([66be848](https://github.com/camaradesuk/git-worktree-tools/commit/66be848e98ec0095d8caf3f6fd784b7e216a924b))
+
 ## [1.0.3](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.2...v1.0.3) (2025-12-29)
 
 
