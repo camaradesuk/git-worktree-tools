@@ -1,0 +1,55 @@
+{
+  "name": "@camaradesuk/git-worktree-tools",
+  "version": "0.1.0",
+  "description": "Git worktree workflow tools: create PRs, manage worktrees, sync configs. Cross-platform CLI for Windows, macOS, and Linux.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "newpr": "./dist/cli/newpr.js",
+    "cleanpr": "./dist/cli/cleanpr.js",
+    "lswt": "./dist/cli/lswt.js",
+    "wtlink": "./dist/cli/wtlink.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "git",
+    "worktree",
+    "pr",
+    "pull-request",
+    "github",
+    "workflow",
+    "cli",
+    "cross-platform"
+  ],
+  "author": "CAMARADES UK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/camaradesuk/git-worktree-tools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/camaradesuk/git-worktree-tools/issues"
+  },
+  "homepage": "https://github.com/camaradesuk/git-worktree-tools#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.19.27",
+    "typescript": "^5.3.0",
+    "vitest": "^2.1.9"
+  }
+}
