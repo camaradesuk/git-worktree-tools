@@ -1,3 +1,11 @@
+## [1.0.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.0...v1.0.1) (2025-12-29)
+
+
+### Bug Fixes
+
+* **ci:** remove registry-url to fix npm auth conflict ([15d6c3f](https://github.com/camaradesuk/git-worktree-tools/commit/15d6c3f87c64e483268a93ba399b6c3421b8a8a4))
+* **tests:** improve cross-platform path handling in integration tests ([68f92f5](https://github.com/camaradesuk/git-worktree-tools/commit/68f92f54ffa718587bcf9044f3290c15f8b00319))
+
 # 1.0.0 (2025-12-29)
 
 
