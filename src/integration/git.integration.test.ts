@@ -385,7 +385,7 @@ describe('git integration', () => {
 
     beforeEach(() => {
       execSync('git checkout -- .', { cwd: repoDir, stdio: 'ignore' });
-      initialBranch = git.getCurrentBranch(repoDir);
+      initialBranch = git.getCurrentBranch(repoDir) ?? 'main';
     });
 
     it('switches branches', () => {
