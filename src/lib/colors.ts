@@ -27,6 +27,16 @@ export const codes = {
   brightMagenta: '\x1b[95m',
   brightCyan: '\x1b[96m',
   brightWhite: '\x1b[97m',
+
+  // Background colors
+  bgBlack: '\x1b[40m',
+  bgRed: '\x1b[41m',
+  bgGreen: '\x1b[42m',
+  bgYellow: '\x1b[43m',
+  bgBlue: '\x1b[44m',
+  bgMagenta: '\x1b[45m',
+  bgCyan: '\x1b[46m',
+  bgWhite: '\x1b[47m',
 } as const;
 
 /**
@@ -90,6 +100,27 @@ export function white(text: string): string {
 
 export function gray(text: string): string {
   return colorize(text, codes.brightBlack);
+}
+
+export function black(text: string): string {
+  return colorize(text, codes.black);
+}
+
+// Background color functions
+export function bgBlue(text: string): string {
+  return colorize(text, codes.bgBlue);
+}
+
+export function bgYellow(text: string): string {
+  return colorize(text, codes.bgYellow);
+}
+
+export function bgRed(text: string): string {
+  return colorize(text, codes.bgRed);
+}
+
+export function bgGreen(text: string): string {
+  return colorize(text, codes.bgGreen);
 }
 
 // Style functions
