@@ -1,5 +1,9 @@
 # git-worktree-tools
 
+[![npm version](https://img.shields.io/npm/v/@camaradesuk/git-worktree-tools)](https://www.npmjs.com/package/@camaradesuk/git-worktree-tools)
+[![CI](https://github.com/camaradesuk/git-worktree-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/camaradesuk/git-worktree-tools/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/camaradesuk/git-worktree-tools/graph/badge.svg?token=gJG6TuHvPK)](https://codecov.io/gh/camaradesuk/git-worktree-tools)
+
 Cross-platform CLI tools for git worktree workflow management. Create PRs with dedicated worktrees, sync gitignored files, and manage your development workflow.
 
 ## Features
