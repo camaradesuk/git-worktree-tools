@@ -71,6 +71,56 @@ describe('state-detection', () => {
       expect(detectScenario(state)).toBe('main_changes_ahead');
     });
 
+    // Tests for 'behind' state on main branch (Bug fix: should respect working tree status)
+    it('should detect main_clean_same scenario when behind origin', () => {
+      const state = createState({
+        commitRelationship: 'behind',
+        workingTreeStatus: 'clean',
+      });
+      expect(detectScenario(state)).toBe('main_clean_same');
+    });
+
+    it('should detect main_unstaged_same scenario when behind origin with unstaged changes', () => {
+      const state = createState({
+        commitRelationship: 'behind',
+        workingTreeStatus: 'unstaged_only',
+      });
+      expect(detectScenario(state)).toBe('main_unstaged_same');
+    });
+
+    it('should detect main_staged_same scenario when behind origin with staged changes', () => {
+      const state = createState({
+        commitRelationship: 'behind',
+        workingTreeStatus: 'staged_only',
+      });
+      expect(detectScenario(state)).toBe('main_staged_same');
+    });
+
+    it('should detect main_both_same scenario when behind origin with both changes', () => {
+      const state = createState({
+        commitRelationship: 'behind',
+        workingTreeStatus: 'both',
+      });
+      expect(detectScenario(state)).toBe('main_both_same');
+    });
+
+    // Tests for 'divergent' state on main branch
+    it('should detect main_clean_ahead scenario when divergent on main', () => {
+      const state = createState({
+        commitRelationship: 'divergent',
+        workingTreeStatus: 'clean',
+      });
+      expect(detectScenario(state)).toBe('main_clean_ahead');
+    });
+
+    it('should detect main_changes_ahead scenario when divergent on main with changes', () => {
+      const state = createState({
+        commitRelationship: 'divergent',
+        workingTreeStatus: 'unstaged_only',
+      });
+      expect(detectScenario(state)).toBe('main_changes_ahead');
+    });
+
     it('should detect branch_same_as_main scenario', () => {
       const state = createState({
         branchType: 'other',

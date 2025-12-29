@@ -116,8 +116,8 @@ function resolveWorktreePaths(
   return { sourceDir, destDir };
 }
 
-function isIgnored(filePath: string): boolean {
-  return git.isGitIgnored(filePath);
+function isIgnored(filePath: string, cwd?: string): boolean {
+  return git.isGitIgnored(filePath, cwd);
 }
 
 function isAlreadyLinked(sourcePath: string, destPath: string): boolean {
@@ -521,7 +521,8 @@ export async function run(argv: LinkArgv): Promise<void> {
     }
 
     // CRITICAL SAFETY CHECK: Do not link files that are not git-ignored.
-    if (!isIgnored(sourcePath)) {
+    // Pass sourceDir as cwd to ensure gitignore check works correctly in worktree context.
+    if (!isIgnored(sourcePath, sourceDir)) {
       console.error(
         colors.red(
           colors.bold(`  - DANGER: File is not ignored by git, skipping for safety: ${file}`)
