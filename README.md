@@ -90,6 +90,27 @@ wtlink link ../my-app.pr42  # Link to specific worktree
 wtlink validate           # Verify manifest integrity
 ```
 
+**Command options:**
+
+```bash
+# manage - Discover and manage the manifest
+wtlink manage                   # Interactive mode
+wtlink manage --non-interactive # Auto-add new files as commented
+wtlink manage --clean           # Remove stale entries automatically
+wtlink manage --dry-run         # Preview changes without writing
+wtlink manage --backup          # Create .wtlinkrc.bak before updating
+
+# link - Create links between worktrees
+wtlink link [source] [dest]     # Link from source to destination
+wtlink link --dry-run           # Preview what would be linked
+wtlink link --type symbolic     # Use symlinks instead of hard links
+wtlink link --yes               # Skip confirmation prompts
+
+# validate - Check manifest integrity
+wtlink validate                 # Validate against current worktree
+wtlink validate ../other-wt     # Validate against specific source
+```
+
 **How it works:**
 
 1. **Discover** — Scans for git-ignored files in your repository
@@ -102,11 +123,26 @@ wtlink validate           # Verify manifest integrity
 | Key | Action |
 | --- | ------ |
 | ↑/↓ | Navigate file list |
-| A | Mark file as "Will Link" |
-| C | Mark file as "Track (Commented)" |
-| S | Mark file as "Won't Link" |
+| ←/→ | Navigate into/out of folders (hierarchical view) |
+| A | Mark as "Will Link" (added to manifest) |
+| C | Mark as "Track" (commented in manifest) |
+| S | Mark as "Skip" (not in manifest) |
+| 0 | Toggle showing undecided items |
+| 1 | Toggle showing "Will Link" items |
+| 2 | Toggle showing "Track" items |
+| 3 | Toggle showing "Skip" items |
 | V | Toggle hierarchical/flat view |
 | ? | Show help |
+| Q | Save and quit |
+| X | Cancel without saving |
+
+**Folder operations:** Actions on folders apply to all files inside. The UI shows a breakdown of child states for each folder.
+
+**Conflict detection:** When linking, if a file already exists at the destination with different content, you'll be prompted to:
+
+- **Replace** — Delete destination and create link
+- **Ignore** — Keep destination file as-is
+- **Remove** — Remove entry from manifest
 
 **Manifest format (`.wtlinkrc`):**
 
@@ -121,6 +157,7 @@ The manifest lives in your repository root and tracks which files to share:
 
 - Active entries (no `#`) are hard-linked between worktrees
 - Commented entries (`#`) are tracked but not currently linked
+- Files marked "Skip" are not added to the manifest at all
 
 **Best practices:**
 
