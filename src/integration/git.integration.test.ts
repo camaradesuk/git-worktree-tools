@@ -16,8 +16,9 @@ import * as git from '../lib/git.js';
  */
 function normalizePath(p: string): string {
   try {
-    // fs.realpathSync resolves symlinks and normalizes paths
-    return path.normalize(fs.realpathSync(p)).toLowerCase();
+    // fs.realpathSync.native uses the OS-native realpath which properly resolves
+    // Windows 8.3 short paths (e.g., RUNNER~1 -> runneradmin)
+    return path.normalize(fs.realpathSync.native(p)).toLowerCase();
   } catch {
     // If path doesn't exist, just normalize it
     return path.normalize(p).toLowerCase();
@@ -30,8 +31,8 @@ describe('git integration', () => {
 
   // Create temp directory and git repo before all tests
   beforeAll(() => {
-    // Use realpathSync to resolve symlinks (e.g., /var -> /private/var on macOS)
-    tempDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'git-worktree-tools-test-')));
+    // Use realpathSync.native to resolve symlinks and Windows 8.3 short paths
+    tempDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'git-worktree-tools-test-')));
     repoDir = path.join(tempDir, 'test-repo');
     fs.mkdirSync(repoDir);
 
@@ -380,8 +381,11 @@ describe('git integration', () => {
   });
 
   describe('checkout', () => {
+    let initialBranch: string;
+
     beforeEach(() => {
       execSync('git checkout -- .', { cwd: repoDir, stdio: 'ignore' });
+      initialBranch = git.getCurrentBranch(repoDir);
     });
 
     it('switches branches', () => {
@@ -390,8 +394,8 @@ describe('git integration', () => {
       git.checkout('checkout-test', repoDir);
       expect(git.getCurrentBranch(repoDir)).toBe('checkout-test');
 
-      // Switch back
-      git.checkout('main', repoDir);
+      // Switch back to initial branch (could be 'main' or 'master')
+      git.checkout(initialBranch, repoDir);
 
       // Clean up
       git.deleteBranch('checkout-test', { cwd: repoDir });
