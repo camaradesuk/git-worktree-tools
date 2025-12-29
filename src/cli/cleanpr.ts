@@ -122,7 +122,10 @@ ${colors.bold('WHAT IT REMOVES')}
 /**
  * Extract PR number from worktree path if it matches pattern
  */
-function extractPrNumber(worktreePath: string, config: ReturnType<typeof loadConfig>): number | null {
+function extractPrNumber(
+  worktreePath: string,
+  config: ReturnType<typeof loadConfig>
+): number | null {
   const name = path.basename(worktreePath);
 
   // Match patterns like "repo.pr123" or custom patterns
@@ -141,10 +144,10 @@ function extractPrNumber(worktreePath: string, config: ReturnType<typeof loadCon
 
   // Fallback: try common patterns
   const patterns = [
-    /\.pr(\d+)$/,           // repo.pr123
-    /\.pr-(\d+)$/,          // repo.pr-123
-    /-pr(\d+)$/,            // repo-pr123
-    /_pr(\d+)$/,            // repo_pr123
+    /\.pr(\d+)$/, // repo.pr123
+    /\.pr-(\d+)$/, // repo.pr-123
+    /-pr(\d+)$/, // repo-pr123
+    /_pr(\d+)$/, // repo_pr123
   ];
 
   for (const p of patterns) {
@@ -193,7 +196,10 @@ async function getPrState(prNumber: number): Promise<'OPEN' | 'CLOSED' | 'MERGED
 /**
  * Get detailed info about all PR worktrees
  */
-async function getWorktreeInfoList(repoRoot: string, config: ReturnType<typeof loadConfig>): Promise<WorktreeInfo[]> {
+async function getWorktreeInfoList(
+  repoRoot: string,
+  config: ReturnType<typeof loadConfig>
+): Promise<WorktreeInfo[]> {
   const worktrees = await git.listWorktrees();
   const result: WorktreeInfo[] = [];
 
@@ -254,7 +260,9 @@ async function cleanWorktree(
         });
         console.log(colors.success(`${prLabel}: Local branch deleted`));
       } catch {
-        console.log(colors.warning(`${prLabel}: Could not delete local branch (may already be deleted)`));
+        console.log(
+          colors.warning(`${prLabel}: Could not delete local branch (may already be deleted)`)
+        );
       }
 
       // Delete remote branch if requested
@@ -268,7 +276,9 @@ async function cleanWorktree(
           });
           console.log(colors.success(`${prLabel}: Remote branch deleted`));
         } catch {
-          console.log(colors.warning(`${prLabel}: Could not delete remote branch (may already be deleted)`));
+          console.log(
+            colors.warning(`${prLabel}: Could not delete remote branch (may already be deleted)`)
+          );
         }
       }
     }
@@ -287,7 +297,11 @@ async function cleanWorktree(
 /**
  * Interactive mode - let user select worktrees to clean
  */
-async function interactiveClean(repoRoot: string, config: ReturnType<typeof loadConfig>, options: CleanOptions): Promise<void> {
+async function interactiveClean(
+  repoRoot: string,
+  config: ReturnType<typeof loadConfig>,
+  options: CleanOptions
+): Promise<void> {
   console.log(colors.info('Scanning worktrees...'));
 
   const worktrees = await getWorktreeInfoList(repoRoot, config);
@@ -298,10 +312,10 @@ async function interactiveClean(repoRoot: string, config: ReturnType<typeof load
   }
 
   // Group by status
-  const merged = worktrees.filter(w => w.prState === 'MERGED');
-  const closed = worktrees.filter(w => w.prState === 'CLOSED');
-  const open = worktrees.filter(w => w.prState === 'OPEN');
-  const unknown = worktrees.filter(w => w.prState === 'UNKNOWN');
+  const merged = worktrees.filter((w) => w.prState === 'MERGED');
+  const closed = worktrees.filter((w) => w.prState === 'CLOSED');
+  const open = worktrees.filter((w) => w.prState === 'OPEN');
+  const unknown = worktrees.filter((w) => w.prState === 'UNKNOWN');
 
   console.log('');
   console.log(colors.bold('PR Worktrees:'));
@@ -425,11 +439,15 @@ async function interactiveClean(repoRoot: string, config: ReturnType<typeof load
 /**
  * Clean all merged/closed PRs automatically
  */
-async function cleanAll(repoRoot: string, config: ReturnType<typeof loadConfig>, options: CleanOptions): Promise<void> {
+async function cleanAll(
+  repoRoot: string,
+  config: ReturnType<typeof loadConfig>,
+  options: CleanOptions
+): Promise<void> {
   console.log(colors.info('Scanning for merged/closed PR worktrees...'));
 
   const worktrees = await getWorktreeInfoList(repoRoot, config);
-  const cleanable = worktrees.filter(w => w.prState === 'MERGED' || w.prState === 'CLOSED');
+  const cleanable = worktrees.filter((w) => w.prState === 'MERGED' || w.prState === 'CLOSED');
 
   if (cleanable.length === 0) {
     console.log(colors.info('No merged or closed PR worktrees found.'));
@@ -460,7 +478,7 @@ async function cleanSpecific(
   options: CleanOptions
 ): Promise<void> {
   const worktrees = await getWorktreeInfoList(repoRoot, config);
-  const target = worktrees.find(w => w.prNumber === prNumber);
+  const target = worktrees.find((w) => w.prNumber === prNumber);
 
   if (!target) {
     // Try to find by pattern

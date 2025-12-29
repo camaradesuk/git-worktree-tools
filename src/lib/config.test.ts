@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  getDefaultConfig,
-  generateBranchName,
-  generateWorktreePath,
-} from './config.js';
+import { getDefaultConfig, generateBranchName, generateWorktreePath } from './config.js';
 import * as path from 'path';
 
 // Helper to normalize paths for cross-platform testing
@@ -45,7 +41,8 @@ describe('config', () => {
     });
 
     it('should truncate long descriptions', () => {
-      const longDesc = 'This is a very long description that should be truncated to a reasonable length for a git branch name';
+      const longDesc =
+        'This is a very long description that should be truncated to a reasonable length for a git branch name';
       const branch = generateBranchName(config, longDesc);
       // Branch name should not exceed ~100 chars total
       expect(branch.length).toBeLessThan(100);
@@ -68,12 +65,7 @@ describe('config', () => {
     const config = getDefaultConfig();
 
     it('should generate worktree path with default pattern', () => {
-      const result = generateWorktreePath(
-        config,
-        '/home/user/repos/myproject',
-        'myproject',
-        123
-      );
+      const result = generateWorktreePath(config, '/home/user/repos/myproject', 'myproject', 123);
       // Normalize paths for cross-platform comparison
       expect(normalizePath(result)).toBe('/home/user/repos/myproject.pr123');
     });

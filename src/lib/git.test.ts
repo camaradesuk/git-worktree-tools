@@ -204,13 +204,13 @@ describe('git', () => {
     it('parses worktree list porcelain output', () => {
       mockExecSync.mockReturnValue(
         'worktree /home/user/repo\n' +
-        'HEAD abc123def456\n' +
-        'branch refs/heads/main\n' +
-        '\n' +
-        'worktree /home/user/repo.pr42\n' +
-        'HEAD def456abc123\n' +
-        'branch refs/heads/feature/test\n' +
-        '\n'
+          'HEAD abc123def456\n' +
+          'branch refs/heads/main\n' +
+          '\n' +
+          'worktree /home/user/repo.pr42\n' +
+          'HEAD def456abc123\n' +
+          'branch refs/heads/feature/test\n' +
+          '\n'
       );
 
       const result = git.listWorktrees();
@@ -236,11 +236,7 @@ describe('git', () => {
     });
 
     it('handles bare repository', () => {
-      mockExecSync.mockReturnValue(
-        'worktree /home/user/repo.git\n' +
-        'bare\n' +
-        '\n'
-      );
+      mockExecSync.mockReturnValue('worktree /home/user/repo.git\n' + 'bare\n' + '\n');
 
       const result = git.listWorktrees();
       expect(result[0].isBare).toBe(true);
@@ -250,11 +246,11 @@ describe('git', () => {
     it('handles locked and prunable worktrees', () => {
       mockExecSync.mockReturnValue(
         'worktree /home/user/repo.pr1\n' +
-        'HEAD abc123\n' +
-        'branch refs/heads/test\n' +
-        'locked\n' +
-        'prunable\n' +
-        '\n'
+          'HEAD abc123\n' +
+          'branch refs/heads/test\n' +
+          'locked\n' +
+          'prunable\n' +
+          '\n'
       );
 
       const result = git.listWorktrees();
@@ -264,10 +260,7 @@ describe('git', () => {
 
     it('handles detached HEAD in worktree', () => {
       mockExecSync.mockReturnValue(
-        'worktree /home/user/repo\n' +
-        'HEAD abc123\n' +
-        'detached\n' +
-        '\n'
+        'worktree /home/user/repo\n' + 'HEAD abc123\n' + 'detached\n' + '\n'
       );
 
       const result = git.listWorktrees();
@@ -369,10 +362,7 @@ describe('git', () => {
     it('creates branch from HEAD', () => {
       mockExecSync.mockReturnValue('');
       git.createBranch('new-branch');
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'git branch new-branch',
-        expect.any(Object)
-      );
+      expect(mockExecSync).toHaveBeenCalledWith('git branch new-branch', expect.any(Object));
     });
 
     it('creates branch from start point', () => {
@@ -389,19 +379,13 @@ describe('git', () => {
     it('deletes branch with -d flag', () => {
       mockExecSync.mockReturnValue('');
       git.deleteBranch('old-branch');
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'git branch -d old-branch',
-        expect.any(Object)
-      );
+      expect(mockExecSync).toHaveBeenCalledWith('git branch -d old-branch', expect.any(Object));
     });
 
     it('force deletes branch with -D flag', () => {
       mockExecSync.mockReturnValue('');
       git.deleteBranch('old-branch', { force: true });
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'git branch -D old-branch',
-        expect.any(Object)
-      );
+      expect(mockExecSync).toHaveBeenCalledWith('git branch -D old-branch', expect.any(Object));
     });
   });
 
@@ -411,17 +395,12 @@ describe('git', () => {
         .mockReturnValueOnce('') // commit
         .mockReturnValueOnce('abc123'); // getHeadCommit
       const result = git.commit({ message: 'Test commit' });
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'git commit -m "Test commit"',
-        expect.any(Object)
-      );
+      expect(mockExecSync).toHaveBeenCalledWith('git commit -m "Test commit"', expect.any(Object));
       expect(result).toBe('abc123');
     });
 
     it('creates commit with all flag', () => {
-      mockExecSync
-        .mockReturnValueOnce('')
-        .mockReturnValueOnce('abc123');
+      mockExecSync.mockReturnValueOnce('').mockReturnValueOnce('abc123');
       git.commit({ message: 'Test commit', all: true });
       expect(mockExecSync).toHaveBeenCalledWith(
         'git commit -a -m "Test commit"',
@@ -430,9 +409,7 @@ describe('git', () => {
     });
 
     it('creates empty commit when allowed', () => {
-      mockExecSync
-        .mockReturnValueOnce('')
-        .mockReturnValueOnce('abc123');
+      mockExecSync.mockReturnValueOnce('').mockReturnValueOnce('abc123');
       git.commit({ message: 'Empty commit', allowEmpty: true });
       expect(mockExecSync).toHaveBeenCalledWith(
         'git commit --allow-empty -m "Empty commit"',
@@ -451,19 +428,13 @@ describe('git', () => {
     it('pushes with upstream flag', () => {
       mockExecSync.mockReturnValue('');
       git.push({ setUpstream: true, remote: 'origin', branch: 'feature' });
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'git push -u origin feature',
-        expect.any(Object)
-      );
+      expect(mockExecSync).toHaveBeenCalledWith('git push -u origin feature', expect.any(Object));
     });
 
     it('force pushes', () => {
       mockExecSync.mockReturnValue('');
       git.push({ force: true });
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'git push --force',
-        expect.any(Object)
-      );
+      expect(mockExecSync).toHaveBeenCalledWith('git push --force', expect.any(Object));
     });
   });
 
@@ -483,10 +454,7 @@ describe('git', () => {
     it('stashes with keep-index flag', () => {
       mockExecSync.mockReturnValue('Saved');
       git.stash({ keepIndex: true });
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'git stash push --keep-index',
-        expect.any(Object)
-      );
+      expect(mockExecSync).toHaveBeenCalledWith('git stash push --keep-index', expect.any(Object));
     });
 
     it('stashes with message', () => {

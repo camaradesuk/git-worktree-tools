@@ -107,15 +107,7 @@ export function isAuthenticated(): boolean {
  * Get repository information
  */
 export function getRepoInfo(cwd?: string): RepoInfo | null {
-  const result = execSafe(
-    [
-      'repo',
-      'view',
-      '--json',
-      'owner,name,defaultBranchRef,url',
-    ],
-    { cwd }
-  );
+  const result = execSafe(['repo', 'view', '--json', 'owner,name,defaultBranchRef,url'], { cwd });
 
   if (!result) {
     return null;
@@ -236,13 +228,7 @@ export function getPr(prNumber: number, cwd?: string): PrInfo | null {
  */
 export function getPrByBranch(branch: string, cwd?: string): PrInfo | null {
   const result = execSafe(
-    [
-      'pr',
-      'view',
-      branch,
-      '--json',
-      'number,title,state,url,headRefName,baseRefName,isDraft',
-    ],
+    ['pr', 'view', branch, '--json', 'number,title,state,url,headRefName,baseRefName,isDraft'],
     { cwd }
   );
 

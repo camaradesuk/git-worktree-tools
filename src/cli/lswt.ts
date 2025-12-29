@@ -99,16 +99,14 @@ ${colors.bold('OUTPUT')}
 /**
  * Extract PR number from worktree path
  */
-function extractPrNumber(worktreePath: string, config: ReturnType<typeof loadConfig>): number | null {
+function extractPrNumber(
+  worktreePath: string,
+  config: ReturnType<typeof loadConfig>
+): number | null {
   const name = path.basename(worktreePath);
 
   // Try common patterns
-  const patterns = [
-    /\.pr(\d+)$/,
-    /\.pr-(\d+)$/,
-    /-pr(\d+)$/,
-    /_pr(\d+)$/,
-  ];
+  const patterns = [/\.pr(\d+)$/, /\.pr-(\d+)$/, /-pr(\d+)$/, /_pr(\d+)$/];
 
   for (const p of patterns) {
     const match = name.match(p);
@@ -289,9 +287,9 @@ function printTable(worktrees: WorktreeDisplay[], options: ListOptions): void {
   }
 
   // Summary
-  const prCount = worktrees.filter(w => w.type === 'pr').length;
-  const openCount = worktrees.filter(w => w.prState === 'OPEN').length;
-  const changesCount = worktrees.filter(w => w.hasChanges).length;
+  const prCount = worktrees.filter((w) => w.type === 'pr').length;
+  const openCount = worktrees.filter((w) => w.prState === 'OPEN').length;
+  const changesCount = worktrees.filter((w) => w.hasChanges).length;
 
   const parts: string[] = [`${worktrees.length} worktrees`];
   if (prCount > 0) {
@@ -312,7 +310,7 @@ function printTable(worktrees: WorktreeDisplay[], options: ListOptions): void {
  * Print worktrees as JSON
  */
 function printJson(worktrees: WorktreeDisplay[]): void {
-  const output = worktrees.map(wt => ({
+  const output = worktrees.map((wt) => ({
     path: wt.path,
     name: wt.name,
     branch: wt.branch,

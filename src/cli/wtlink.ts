@@ -61,22 +61,19 @@ yargs(hideBin(process.argv))
         .option('non-interactive', {
           alias: 'n',
           type: 'boolean',
-          description:
-            'Run in non-interactive mode, adding new files as commented out',
+          description: 'Run in non-interactive mode, adding new files as commented out',
           default: false,
         })
         .option('clean', {
           alias: 'c',
           type: 'boolean',
-          description:
-            'Run in clean mode, removing stale entries automatically',
+          description: 'Run in clean mode, removing stale entries automatically',
           default: false,
         })
         .option('dry-run', {
           alias: 'd',
           type: 'boolean',
-          description:
-            'Show what changes would be made without writing any files',
+          description: 'Show what changes would be made without writing any files',
           default: false,
         })
         .option('backup', {
@@ -96,20 +93,17 @@ yargs(hideBin(process.argv))
     (yargs) => {
       return yargs
         .positional('source', {
-          describe:
-            'The source worktree directory containing the real config files',
+          describe: 'The source worktree directory containing the real config files',
           type: 'string',
         })
         .positional('destination', {
-          describe:
-            'The destination worktree directory to link the files into',
+          describe: 'The destination worktree directory to link the files into',
           type: 'string',
         })
         .option('dry-run', {
           alias: 'd',
           type: 'boolean',
-          description:
-            'Show what links would be created without modifying the filesystem',
+          description: 'Show what links would be created without modifying the filesystem',
           default: false,
         })
         .option('type', {
@@ -134,8 +128,7 @@ yargs(hideBin(process.argv))
     'Validate that manifest entries exist and are safely ignored',
     (yargs) => {
       return yargs.positional('source', {
-        describe:
-          'Optional source worktree to validate against (defaults to current worktree)',
+        describe: 'Optional source worktree to validate against (defaults to current worktree)',
         type: 'string',
       });
     },

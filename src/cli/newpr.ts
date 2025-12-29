@@ -14,7 +14,12 @@ import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as colors from '../lib/colors.js';
 import { promptChoiceIndex, promptConfirm } from '../lib/prompts.js';
-import { loadConfig, generateBranchName, generateWorktreePath, type WorktreeConfig } from '../lib/config.js';
+import {
+  loadConfig,
+  generateBranchName,
+  generateWorktreePath,
+  type WorktreeConfig,
+} from '../lib/config.js';
 import {
   analyzeGitState,
   detectScenario,
@@ -740,7 +745,10 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
   // Create worktree
   console.log(colors.info(`Creating worktree at ${worktreePath}...`));
   try {
-    git.addWorktree(worktreePath, pr.headBranch, { createBranch: true, startPoint: `origin/${pr.headBranch}` });
+    git.addWorktree(worktreePath, pr.headBranch, {
+      createBranch: true,
+      startPoint: `origin/${pr.headBranch}`,
+    });
   } catch {
     // Branch might already exist locally
     git.addWorktree(worktreePath, pr.headBranch);
@@ -827,7 +835,10 @@ PR created from existing branch: \`${branchName}\`
   // Create worktree
   console.log(colors.info(`Creating worktree at ${worktreePath}...`));
   try {
-    git.addWorktree(worktreePath, branchName, { createBranch: true, startPoint: `origin/${branchName}` });
+    git.addWorktree(worktreePath, branchName, {
+      createBranch: true,
+      startPoint: `origin/${branchName}`,
+    });
   } catch {
     git.addWorktree(worktreePath, branchName);
   }
@@ -923,7 +934,10 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   let unstagedStashRef: string | null = null;
   if (action.stashUnstaged) {
     console.log(colors.info('Stashing unstaged changes (will move to worktree)...'));
-    unstagedStashRef = git.stash({ keepIndex: true, message: 'newpr: unstaged changes for worktree' });
+    unstagedStashRef = git.stash({
+      keepIndex: true,
+      message: 'newpr: unstaged changes for worktree',
+    });
   }
 
   try {

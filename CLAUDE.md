@@ -54,6 +54,7 @@ To publish to npm, the user needs to:
    - Value: (paste the npm token)
 
 4. **Create a version tag to trigger release**:
+
    ```bash
    git tag v0.1.0
    git push origin v0.1.0
@@ -107,20 +108,20 @@ git-worktree-tools/
 
 The newpr tool handles 10 git state scenarios intelligently:
 
-| # | State | Description |
-|---|-------|-------------|
-| 1 | main_clean_same | On main, same as origin/main, clean |
-| 2a | main_staged_same | On main, same as origin/main, staged changes |
-| 2b | main_unstaged_same | On main, same as origin/main, unstaged changes |
-| 2c | main_both_same | On main, same as origin/main, both staged and unstaged |
-| 3 | main_clean_ahead | On main, ahead of origin/main, clean |
-| 4 | main_changes_ahead | On main, ahead of origin/main, with changes |
-| 5 | branch_same_as_main | On feature branch at same commit as main |
-| 6 | branch_ancestor | On feature branch already merged into main |
-| 7 | branch_divergent | On feature branch with commits not in main |
-| 8 | branch_with_changes | On feature branch with uncommitted changes |
-| 9 | detached_head | In detached HEAD state |
-| 10 | pr_worktree | Running from a PR worktree |
+| #   | State               | Description                                            |
+| --- | ------------------- | ------------------------------------------------------ |
+| 1   | main_clean_same     | On main, same as origin/main, clean                    |
+| 2a  | main_staged_same    | On main, same as origin/main, staged changes           |
+| 2b  | main_unstaged_same  | On main, same as origin/main, unstaged changes         |
+| 2c  | main_both_same      | On main, same as origin/main, both staged and unstaged |
+| 3   | main_clean_ahead    | On main, ahead of origin/main, clean                   |
+| 4   | main_changes_ahead  | On main, ahead of origin/main, with changes            |
+| 5   | branch_same_as_main | On feature branch at same commit as main               |
+| 6   | branch_ancestor     | On feature branch already merged into main             |
+| 7   | branch_divergent    | On feature branch with commits not in main             |
+| 8   | branch_with_changes | On feature branch with uncommitted changes             |
+| 9   | detached_head       | In detached HEAD state                                 |
+| 10  | pr_worktree         | Running from a PR worktree                             |
 
 ## Development Commands
 
@@ -159,6 +160,7 @@ Users can create a `.worktreerc` or `.worktreerc.json` in their repo root:
 ## Source Scripts Reference
 
 The TypeScript implementations were ported from bash scripts in `/home/chris/workspace/syrf/scripts/`:
+
 - `newpr` → `src/cli/newpr.ts`
 - `cleanpr` → `src/cli/cleanpr.ts`
 - `lswt` → `src/cli/lswt.ts`

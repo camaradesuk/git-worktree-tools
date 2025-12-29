@@ -43,9 +43,7 @@ describe('CLI e2e tests', () => {
     // Ensure CLI is built
     const wtlinkPath = path.join(CLI_DIR, 'wtlink.js');
     if (!fs.existsSync(wtlinkPath)) {
-      throw new Error(
-        'CLI not built. Run "npm run build" before running e2e tests.'
-      );
+      throw new Error('CLI not built. Run "npm run build" before running e2e tests.');
     }
 
     // Create temp directory structure
@@ -151,11 +149,9 @@ describe('CLI e2e tests', () => {
       });
 
       it('shows dry-run output without creating links', () => {
-        const result = runCli(
-          'wtlink',
-          ['link', repoDir, worktreeDir, '--dry-run', '--yes'],
-          { cwd: repoDir }
-        );
+        const result = runCli('wtlink', ['link', repoDir, worktreeDir, '--dry-run', '--yes'], {
+          cwd: repoDir,
+        });
 
         // Should show what would be done
         expect(result.stdout).toContain('.env.test');
@@ -188,11 +184,9 @@ describe('CLI e2e tests', () => {
       });
 
       it('runs in non-interactive dry-run mode', () => {
-        const result = runCli(
-          'wtlink',
-          ['manage', '--non-interactive', '--dry-run'],
-          { cwd: repoDir }
-        );
+        const result = runCli('wtlink', ['manage', '--non-interactive', '--dry-run'], {
+          cwd: repoDir,
+        });
 
         // Should complete without error (may have no output if no ignored files)
         expect(result.exitCode).toBe(0);

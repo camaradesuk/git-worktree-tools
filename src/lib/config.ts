@@ -145,12 +145,9 @@ export function generateWorktreePath(
 /**
  * Generate branch name from description
  */
-export function generateBranchName(
-  config: Required<WorktreeConfig>,
-  description: string
-): string {
+export function generateBranchName(config: Required<WorktreeConfig>, description: string): string {
   // Convert to lowercase, replace spaces and special chars with hyphens
-  let slug = description
+  const slug = description
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens

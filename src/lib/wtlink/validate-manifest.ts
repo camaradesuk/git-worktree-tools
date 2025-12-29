@@ -20,9 +20,7 @@ export function run(argv: ValidateArgv): void {
   const sourceDir = argv.source ? path.resolve(argv.source) : gitRoot;
 
   if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
-    throw new Error(
-      `Source directory does not exist or is not a directory: ${sourceDir}`
-    );
+    throw new Error(`Source directory does not exist or is not a directory: ${sourceDir}`);
   }
 
   const manifestLines = fs
@@ -67,8 +65,6 @@ export function run(argv: ValidateArgv): void {
   }
 
   console.log(
-    colors.green(
-      `Manifest ${argv.manifestFile} is valid. Checked ${checkedCount} entries.`
-    )
+    colors.green(`Manifest ${argv.manifestFile} is valid. Checked ${checkedCount} entries.`)
   );
 }

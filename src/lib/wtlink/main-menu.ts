@@ -12,23 +12,17 @@ export async function showMainMenu(): Promise<void> {
     console.clear();
     console.log(
       colors.cyan(
-        colors.bold(
-          '\n╔═══════════════════════════════════════════════════════════════════════╗'
-        )
+        colors.bold('\n╔═══════════════════════════════════════════════════════════════════════╗')
       )
     );
     console.log(
       colors.cyan(colors.bold('║')) +
-        colors.bold(
-          '          Worktree Config Link Manager                             '
-        ) +
+        colors.bold('          Worktree Config Link Manager                             ') +
         colors.cyan(colors.bold('║'))
     );
     console.log(
       colors.cyan(
-        colors.bold(
-          '╚═══════════════════════════════════════════════════════════════════════╝\n'
-        )
+        colors.bold('╚═══════════════════════════════════════════════════════════════════════╝\n')
       )
     );
 
@@ -84,8 +78,7 @@ export async function showMainMenu(): Promise<void> {
           break;
       }
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(colors.red('\nError:'), errorMessage);
       await pressAnyKey();
     }
@@ -142,62 +135,40 @@ function showHelp(): void {
   console.clear();
   console.log(
     colors.cyan(
-      colors.bold(
-        '\n╔═══════════════════════════════════════════════════════════════════════╗'
-      )
+      colors.bold('\n╔═══════════════════════════════════════════════════════════════════════╗')
     )
   );
   console.log(
     colors.cyan(colors.bold('║')) +
-      colors.bold(
-        '          wtlink Help                                               '
-      ) +
+      colors.bold('          wtlink Help                                               ') +
       colors.cyan(colors.bold('║'))
   );
   console.log(
     colors.cyan(
-      colors.bold(
-        '╚═══════════════════════════════════════════════════════════════════════╝\n'
-      )
+      colors.bold('╚═══════════════════════════════════════════════════════════════════════╝\n')
     )
   );
 
   console.log(colors.bold('About wtlink:'));
-  console.log(
-    '  wtlink helps you share configuration files between git worktrees'
-  );
+  console.log('  wtlink helps you share configuration files between git worktrees');
   console.log('  by creating hard links or symbolic links.\n');
 
   console.log(colors.bold('Common Workflow:'));
   console.log(
-    '  1. ' +
-      colors.green('Manage') +
-      ' - Discover git-ignored files and select which to link'
+    '  1. ' + colors.green('Manage') + ' - Discover git-ignored files and select which to link'
   );
   console.log(
-    '  2. ' +
-      colors.blue('Link') +
-      ' - Create links from source worktree to destination\n'
+    '  2. ' + colors.blue('Link') + ' - Create links from source worktree to destination\n'
   );
 
   console.log(colors.bold('Commands:'));
-  console.log(
-    '  ' + colors.green('wtlink') + '              Show this interactive menu'
-  );
-  console.log(
-    '  ' + colors.green('wtlink manage') + '       Manage manifest interactively'
-  );
-  console.log(
-    '  ' + colors.green('wtlink link') + '         Link configs between worktrees'
-  );
-  console.log(
-    '  ' + colors.green('wtlink validate') + '     Validate manifest file\n'
-  );
+  console.log('  ' + colors.green('wtlink') + '              Show this interactive menu');
+  console.log('  ' + colors.green('wtlink manage') + '       Manage manifest interactively');
+  console.log('  ' + colors.green('wtlink link') + '         Link configs between worktrees');
+  console.log('  ' + colors.green('wtlink validate') + '     Validate manifest file\n');
 
   console.log(colors.bold('Manifest File:'));
-  console.log(
-    `  Default location: ${colors.cyan('.wtlinkrc')} (in repository root)`
-  );
+  console.log(`  Default location: ${colors.cyan('.wtlinkrc')} (in repository root)`);
   console.log(`  The manifest lists which files should be linked\n`);
 
   console.log(colors.bold('Documentation:'));

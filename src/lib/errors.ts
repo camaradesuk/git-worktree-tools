@@ -25,10 +25,7 @@ export class GitCommandError extends WorktreeToolsError {
   public readonly exitCode?: number;
   public readonly stderr?: string;
 
-  constructor(
-    message: string,
-    options: { command: string; exitCode?: number; stderr?: string }
-  ) {
+  constructor(message: string, options: { command: string; exitCode?: number; stderr?: string }) {
     super(message);
     this.name = 'GitCommandError';
     this.command = options.command;
@@ -59,10 +56,7 @@ export class ConfigurationError extends WorktreeToolsError {
   public readonly configFile?: string;
   public readonly field?: string;
 
-  constructor(
-    message: string,
-    options: { configFile?: string; field?: string } = {}
-  ) {
+  constructor(message: string, options: { configFile?: string; field?: string } = {}) {
     super(message);
     this.name = 'ConfigurationError';
     this.configFile = options.configFile;
@@ -77,10 +71,7 @@ export class WorktreeError extends WorktreeToolsError {
   public readonly worktreePath?: string;
   public readonly branch?: string;
 
-  constructor(
-    message: string,
-    options: { worktreePath?: string; branch?: string } = {}
-  ) {
+  constructor(message: string, options: { worktreePath?: string; branch?: string } = {}) {
     super(message);
     this.name = 'WorktreeError';
     this.worktreePath = options.worktreePath;
@@ -95,10 +86,7 @@ export class ManifestError extends WorktreeToolsError {
   public readonly manifestPath?: string;
   public readonly issues?: string[];
 
-  constructor(
-    message: string,
-    options: { manifestPath?: string; issues?: string[] } = {}
-  ) {
+  constructor(message: string, options: { manifestPath?: string; issues?: string[] } = {}) {
     super(message);
     this.name = 'ManifestError';
     this.manifestPath = options.manifestPath;
@@ -119,9 +107,7 @@ export class UserCancelledError extends WorktreeToolsError {
 /**
  * Type guard to check if error is a WorktreeToolsError
  */
-export function isWorktreeToolsError(
-  error: unknown
-): error is WorktreeToolsError {
+export function isWorktreeToolsError(error: unknown): error is WorktreeToolsError {
   return error instanceof WorktreeToolsError;
 }
 

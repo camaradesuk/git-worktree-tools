@@ -4,13 +4,13 @@
 
 > **Last Updated**: 2025-12-29
 
-| Phase | Status | Notes |
-|-------|--------|-------|
-| Setup | ✅ Complete | TypeScript project configured, CI/CD workflows created |
-| Core Libraries | ✅ Complete | All 6 libraries implemented with tests |
-| CLI Tools | ✅ Complete | newpr, cleanpr, lswt, wtlink all ported |
-| Testing | ✅ Complete | 231 tests passing, cross-platform CI green |
-| npm Publishing | ⏳ Pending | Requires NPM_TOKEN secret, then create v0.1.0 tag |
+| Phase          | Status      | Notes                                                  |
+| -------------- | ----------- | ------------------------------------------------------ |
+| Setup          | ✅ Complete | TypeScript project configured, CI/CD workflows created |
+| Core Libraries | ✅ Complete | All 6 libraries implemented with tests                 |
+| CLI Tools      | ✅ Complete | newpr, cleanpr, lswt, wtlink all ported                |
+| Testing        | ✅ Complete | 231 tests passing, cross-platform CI green             |
+| npm Publishing | ⏳ Pending  | Requires NPM_TOKEN secret, then create v0.1.0 tag      |
 
 ## Overview
 
@@ -70,11 +70,13 @@ git-worktree-tools/
 ### Dependencies
 
 **Runtime dependencies**:
+
 - `yargs` ^17.7.2 - CLI argument parsing (wtlink subcommands)
 - `inquirer` ^9.3.7 - Interactive prompts
 - `@preact/signals-core` ^1.8.0 - Reactive state for wtlink TUI
 
 **Built-in APIs used**:
+
 - `child_process.execSync` / `spawn` - Run git/gh commands
 - `fs` - File operations
 - `path` - Cross-platform paths
@@ -82,6 +84,7 @@ git-worktree-tools/
 - `process.stdout.write` - ANSI colors
 
 **Dev dependencies**:
+
 - `typescript` ^5.3.0
 - `vitest` ^2.1.9
 - `@types/node` ^20.0.0
@@ -96,52 +99,52 @@ Git operations wrapper providing cross-platform git command execution.
 
 ```typescript
 // Key functions
-export function getRepoRoot(cwd?: string): string
-export function getRepoName(repoRoot: string): string
-export function getCurrentBranch(cwd?: string): string
-export function isDetachedHead(cwd?: string): boolean
-export function getRemoteUrl(remote?: string, cwd?: string): string
-export function fetch(remote?: string, cwd?: string): void
-export function getCommitRelationship(baseBranch?: string, cwd?: string): CommitRelationship
-export function getWorkingTreeStatus(cwd?: string): WorkingTreeStatus
-export function listWorktrees(cwd?: string): Worktree[]
-export function addWorktree(path: string, branch: string, cwd?: string): void
-export function removeWorktree(path: string, force?: boolean): void
-export function stash(options?: StashOptions): string | null
-export function stashApply(stashRef?: string, cwd?: string): void
-export function stashDrop(stashRef?: string, cwd?: string): void
-export function createBranch(name: string, startPoint?: string, cwd?: string): void
-export function checkout(ref: string, cwd?: string): void
-export function commit(message: string, options?: CommitOptions): string
-export function push(remote?: string, branch?: string, options?: PushOptions): void
-export function getCommitLog(range: string, format?: string, cwd?: string): string[]
+export function getRepoRoot(cwd?: string): string;
+export function getRepoName(repoRoot: string): string;
+export function getCurrentBranch(cwd?: string): string;
+export function isDetachedHead(cwd?: string): boolean;
+export function getRemoteUrl(remote?: string, cwd?: string): string;
+export function fetch(remote?: string, cwd?: string): void;
+export function getCommitRelationship(baseBranch?: string, cwd?: string): CommitRelationship;
+export function getWorkingTreeStatus(cwd?: string): WorkingTreeStatus;
+export function listWorktrees(cwd?: string): Worktree[];
+export function addWorktree(path: string, branch: string, cwd?: string): void;
+export function removeWorktree(path: string, force?: boolean): void;
+export function stash(options?: StashOptions): string | null;
+export function stashApply(stashRef?: string, cwd?: string): void;
+export function stashDrop(stashRef?: string, cwd?: string): void;
+export function createBranch(name: string, startPoint?: string, cwd?: string): void;
+export function checkout(ref: string, cwd?: string): void;
+export function commit(message: string, options?: CommitOptions): string;
+export function push(remote?: string, branch?: string, options?: PushOptions): void;
+export function getCommitLog(range: string, format?: string, cwd?: string): string[];
 
 // Types
-export type CommitRelationship = 'same' | 'ahead' | 'behind' | 'ancestor' | 'divergent'
-export type WorkingTreeStatus = 'clean' | 'staged_only' | 'unstaged_only' | 'both'
+export type CommitRelationship = 'same' | 'ahead' | 'behind' | 'ancestor' | 'divergent';
+export type WorkingTreeStatus = 'clean' | 'staged_only' | 'unstaged_only' | 'both';
 
 export interface Worktree {
-  path: string
-  branch: string | null
-  commit: string
-  isMain: boolean
-  isBare: boolean
+  path: string;
+  branch: string | null;
+  commit: string;
+  isMain: boolean;
+  isBare: boolean;
 }
 
 export interface StashOptions {
-  keepIndex?: boolean
-  message?: string
-  includeUntracked?: boolean
+  keepIndex?: boolean;
+  message?: string;
+  includeUntracked?: boolean;
 }
 
 export interface CommitOptions {
-  all?: boolean
-  allowEmpty?: boolean
+  all?: boolean;
+  allowEmpty?: boolean;
 }
 
 export interface PushOptions {
-  setUpstream?: boolean
-  force?: boolean
+  setUpstream?: boolean;
+  force?: boolean;
 }
 ```
 
@@ -151,37 +154,37 @@ GitHub CLI (gh) wrapper for PR and repo operations.
 
 ```typescript
 // Key functions
-export function isGhInstalled(): boolean
-export function isAuthenticated(): boolean
-export function createPr(options: CreatePrOptions): PrInfo
-export function getPrStatus(prNumber: number, repo?: string): PrStatus
-export function listPrs(options?: ListPrsOptions): PrInfo[]
-export function getRepoInfo(): RepoInfo
+export function isGhInstalled(): boolean;
+export function isAuthenticated(): boolean;
+export function createPr(options: CreatePrOptions): PrInfo;
+export function getPrStatus(prNumber: number, repo?: string): PrStatus;
+export function listPrs(options?: ListPrsOptions): PrInfo[];
+export function getRepoInfo(): RepoInfo;
 
 // Types
 export interface CreatePrOptions {
-  title: string
-  body?: string
-  base?: string
-  head?: string
-  draft?: boolean
-  repo?: string
+  title: string;
+  body?: string;
+  base?: string;
+  head?: string;
+  draft?: boolean;
+  repo?: string;
 }
 
 export interface PrInfo {
-  number: number
-  title: string
-  state: 'open' | 'closed' | 'merged'
-  url: string
-  headBranch: string
-  baseBranch: string
+  number: number;
+  title: string;
+  state: 'open' | 'closed' | 'merged';
+  url: string;
+  headBranch: string;
+  baseBranch: string;
 }
 
 export interface RepoInfo {
-  owner: string
-  name: string
-  defaultBranch: string
-  url: string
+  owner: string;
+  name: string;
+  defaultBranch: string;
+  url: string;
 }
 ```
 
@@ -191,14 +194,14 @@ Cross-platform interactive prompts using Node.js readline.
 
 ```typescript
 // Key functions
-export function promptChoice(prompt: string, options: PromptOption[]): Promise<number>
-export function promptConfirm(prompt: string, defaultValue?: boolean): Promise<boolean>
-export function promptInput(prompt: string, defaultValue?: string): Promise<string>
+export function promptChoice(prompt: string, options: PromptOption[]): Promise<number>;
+export function promptConfirm(prompt: string, defaultValue?: boolean): Promise<boolean>;
+export function promptInput(prompt: string, defaultValue?: string): Promise<string>;
 
 // Types
 export interface PromptOption {
-  label: string
-  description?: string
+  label: string;
+  description?: string;
 }
 ```
 
@@ -208,28 +211,28 @@ Configuration loading from `.worktreerc` files.
 
 ```typescript
 // Key functions
-export function loadConfig(repoRoot: string): WorktreeConfig
-export function getDefaultConfig(): WorktreeConfig
+export function loadConfig(repoRoot: string): WorktreeConfig;
+export function getDefaultConfig(): WorktreeConfig;
 
 // Types
 export interface WorktreeConfig {
   // Sibling repos to also create worktrees for (e.g., ["cluster-gitops"])
-  sharedRepos?: string[]
+  sharedRepos?: string[];
 
   // Base branch for new PRs (default: "main")
-  baseBranch?: string
+  baseBranch?: string;
 
   // Create PRs as draft by default
-  draftPr?: boolean
+  draftPr?: boolean;
 
   // Worktree directory pattern (default: "{repo}.pr{number}")
-  worktreePattern?: string
+  worktreePattern?: string;
 
   // Parent directory for worktrees (default: same parent as main repo)
-  worktreeParent?: string
+  worktreeParent?: string;
 
   // Branch name prefix for auto-generated branches (default: "claude")
-  branchPrefix?: string
+  branchPrefix?: string;
 }
 ```
 
@@ -247,19 +250,19 @@ export const colors = {
   yellow: '\x1b[33m',
   blue: '\x1b[34m',
   cyan: '\x1b[36m',
-}
+};
 
-export function red(text: string): string
-export function green(text: string): string
-export function yellow(text: string): string
-export function blue(text: string): string
-export function cyan(text: string): string
-export function bold(text: string): string
-export function dim(text: string): string
-export function success(text: string): string  // ✓ prefix + green
-export function warning(text: string): string  // ⚠ prefix + yellow
-export function error(text: string): string    // ✗ prefix + red
-export function info(text: string): string     // ℹ prefix + blue
+export function red(text: string): string;
+export function green(text: string): string;
+export function yellow(text: string): string;
+export function blue(text: string): string;
+export function cyan(text: string): string;
+export function bold(text: string): string;
+export function dim(text: string): string;
+export function success(text: string): string; // ✓ prefix + green
+export function warning(text: string): string; // ⚠ prefix + yellow
+export function error(text: string): string; // ✗ prefix + red
+export function info(text: string): string; // ℹ prefix + blue
 ```
 
 ### lib/state-detection.ts
@@ -268,34 +271,34 @@ Git state analysis for intelligent scenario handling.
 
 ```typescript
 // Key functions
-export function analyzeGitState(cwd?: string): GitState
-export function detectScenario(state: GitState): Scenario
+export function analyzeGitState(cwd?: string): GitState;
+export function detectScenario(state: GitState): Scenario;
 
 // Types
 export interface GitState {
-  worktreeType: 'main_worktree' | 'pr_worktree' | 'other'
-  branchType: 'main' | 'other' | 'detached'
-  currentBranch: string | null
-  commitRelationship: CommitRelationship
-  workingTreeStatus: WorkingTreeStatus
-  localCommits: string[]  // Commit hashes ahead of origin/main
-  stagedFiles: string[]
-  unstagedFiles: string[]
+  worktreeType: 'main_worktree' | 'pr_worktree' | 'other';
+  branchType: 'main' | 'other' | 'detached';
+  currentBranch: string | null;
+  commitRelationship: CommitRelationship;
+  workingTreeStatus: WorkingTreeStatus;
+  localCommits: string[]; // Commit hashes ahead of origin/main
+  stagedFiles: string[];
+  unstagedFiles: string[];
 }
 
 export type Scenario =
-  | 'main_clean_same'           // Scenario 1
-  | 'main_staged_same'          // Scenario 2a
-  | 'main_unstaged_same'        // Scenario 2b
-  | 'main_both_same'            // Scenario 2c
-  | 'main_clean_ahead'          // Scenario 3
-  | 'main_changes_ahead'        // Scenario 4
-  | 'branch_same_as_main'       // Scenario 5
-  | 'branch_ancestor'           // Scenario 6
-  | 'branch_divergent'          // Scenario 7
-  | 'branch_with_changes'       // Scenario 8
-  | 'detached_head'             // Scenario 9
-  | 'pr_worktree'               // Scenario 10
+  | 'main_clean_same' // Scenario 1
+  | 'main_staged_same' // Scenario 2a
+  | 'main_unstaged_same' // Scenario 2b
+  | 'main_both_same' // Scenario 2c
+  | 'main_clean_ahead' // Scenario 3
+  | 'main_changes_ahead' // Scenario 4
+  | 'branch_same_as_main' // Scenario 5
+  | 'branch_ancestor' // Scenario 6
+  | 'branch_divergent' // Scenario 7
+  | 'branch_with_changes' // Scenario 8
+  | 'detached_head' // Scenario 9
+  | 'pr_worktree'; // Scenario 10
 ```
 
 ---
@@ -307,6 +310,7 @@ The `newpr` tool handles 10 git state scenarios with intelligent user prompts:
 ### Scenario 1: On main, same commit as origin/main, clean working tree
 
 **Detection**:
+
 ```
 current_branch == "main" &&
 HEAD == origin/main &&
@@ -314,6 +318,7 @@ working tree is clean
 ```
 
 **User prompt**:
+
 ```
 ⚠ No changes detected from main branch.
 
@@ -330,6 +335,7 @@ How would you like to proceed?
 ### Scenario 2a: On main, same commit as origin/main, staged changes only
 
 **User prompt**:
+
 ```
 ℹ You have staged changes ready to commit:
 
@@ -347,6 +353,7 @@ How would you like to proceed?
 ### Scenario 2b: On main, same commit as origin/main, unstaged changes only
 
 **User prompt**:
+
 ```
 ℹ You have unstaged changes:
 
@@ -365,6 +372,7 @@ How would you like to proceed?
 ### Scenario 2c: On main, same commit as origin/main, both staged and unstaged
 
 **User prompt**:
+
 ```
 ℹ You have both staged and unstaged changes:
 
@@ -384,6 +392,7 @@ How would you like to proceed?
 ```
 
 **Implementation for option 1 (move unstaged to worktree)**:
+
 1. Stash unstaged changes: `git stash push --keep-index -m "newpr: unstaged changes"`
 2. Commit staged changes to new branch
 3. Create PR and worktree
@@ -395,6 +404,7 @@ How would you like to proceed?
 ### Scenario 3: On main, ahead of origin/main (local commits), clean
 
 **User prompt**:
+
 ```
 ℹ You have local commits on 'main' not yet pushed:
 
@@ -415,6 +425,7 @@ How would you like to proceed?
 ### Scenario 4: On main, ahead of origin/main, has uncommitted changes
 
 **User prompt**:
+
 ```
 ℹ You have local commits AND uncommitted changes:
 
@@ -436,6 +447,7 @@ How would you like to proceed?
 ### Scenario 5: On different branch, same commit as main, clean
 
 **User prompt**:
+
 ```
 ⚠ Branch 'feat/old-feature' is at the same commit as main.
 
@@ -451,6 +463,7 @@ How would you like to proceed?
 ### Scenario 6: On different branch, commits already in main's history (merged/rebased)
 
 **User prompt**:
+
 ```
 ⚠ Branch 'feat/old-feature' appears to be already merged into main.
 
@@ -467,6 +480,7 @@ How would you like to proceed?
 ### Scenario 7: On different branch, divergent commits (not in main), clean
 
 **User prompt**:
+
 ```
 ℹ You are on branch 'feat/existing-work' with commits not in main:
 
@@ -490,6 +504,7 @@ Combines Scenario 7 logic with Scenario 2 change handling. Options depend on whe
 ### Scenario 9: Detached HEAD state
 
 **User prompt**:
+
 ```
 ⚠ You are in detached HEAD state at commit abc1234.
 
@@ -506,6 +521,7 @@ How would you like to proceed?
 **Detection**: Current directory matches worktree naming pattern (e.g., `*.pr[0-9]*`)
 
 **User prompt**:
+
 ```
 ⚠ You are in a PR worktree (syrf.pr1234), not the main worktree.
 
@@ -525,6 +541,7 @@ How would you like to proceed?
 Create a new PR with associated worktree.
 
 **Usage**:
+
 ```bash
 newpr "Description of the feature"
 newpr --branch my-feature "Feature description"
@@ -532,6 +549,7 @@ newpr --pr 123  # Work on existing PR
 ```
 
 **Arguments**:
+
 - `description` - PR title / feature description
 - `--branch`, `-b` - Custom branch name (otherwise auto-generated)
 - `--pr`, `-p` - Existing PR number to work on
@@ -539,6 +557,7 @@ newpr --pr 123  # Work on existing PR
 - `--no-worktree` - Skip worktree creation
 
 **Workflow**:
+
 1. Analyze git state (detect scenario)
 2. Present appropriate options based on scenario
 3. Handle user choice (commit, stash, etc.)
@@ -555,6 +574,7 @@ newpr --pr 123  # Work on existing PR
 Clean up worktrees for merged/closed PRs.
 
 **Usage**:
+
 ```bash
 cleanpr           # Interactive cleanup
 cleanpr --all     # Clean all merged/closed
@@ -562,6 +582,7 @@ cleanpr --force   # Force remove even if not merged
 ```
 
 **Workflow**:
+
 1. List all PR worktrees
 2. Check PR status for each via `gh pr view`
 3. Show list of cleanable worktrees
@@ -575,6 +596,7 @@ cleanpr --force   # Force remove even if not merged
 List worktrees with status information.
 
 **Usage**:
+
 ```bash
 lswt              # List all worktrees
 lswt --status     # Include PR status (requires gh)
@@ -583,6 +605,7 @@ lswt --verbose    # Show more details (commit hashes, full paths)
 ```
 
 **Output**:
+
 ```
 WORKTREE                    BRANCH              PR     STATUS
 /home/user/repo             main                -      -
@@ -597,6 +620,7 @@ WORKTREE                    BRANCH              PR     STATUS
 Interactive CLI for managing configuration file links between git worktrees. Uses hard links and a `.wtlinkrc` manifest to share config files while keeping build artifacts separate.
 
 **Usage**:
+
 ```bash
 wtlink                    # Interactive main menu
 wtlink manage             # Interactive file browser to select files to share
@@ -647,11 +671,7 @@ Per-repository configuration file:
   "draftPr": true,
   "worktreePattern": "{repo}.pr{number}",
   "worktreeParent": "..",
-  "syncPatterns": [
-    "node_modules",
-    ".env.local",
-    "coverage"
-  ]
+  "syncPatterns": ["node_modules", ".env.local", "coverage"]
 }
 ```
 
@@ -661,29 +681,29 @@ Per-repository configuration file:
 
 ### Unit Tests (colocated with source in `src/lib/`)
 
-| File                              | Tests | Description                           |
-| --------------------------------- | ----- | ------------------------------------- |
-| `colors.test.ts`                  | 12    | ANSI color formatting                 |
-| `config.test.ts`                  | 11    | Config loading and defaults           |
-| `state-detection.test.ts`         | 24    | Git state analysis (10 scenarios)     |
-| `git.test.ts`                     | 59    | Git operations (mocked execSync)      |
-| `github.test.ts`                  | 24    | GitHub CLI operations (mocked)        |
-| `prompts.test.ts`                 | 27    | Interactive prompts (mocked readline) |
-| `errors.test.ts`                  | 14    | Custom error classes                  |
-| `wtlink/validate-manifest.test.ts`| 8     | Manifest validation                   |
-| `wtlink/link-configs.test.ts`     | 10    | Hard link creation                    |
+| File                               | Tests | Description                           |
+| ---------------------------------- | ----- | ------------------------------------- |
+| `colors.test.ts`                   | 12    | ANSI color formatting                 |
+| `config.test.ts`                   | 11    | Config loading and defaults           |
+| `state-detection.test.ts`          | 24    | Git state analysis (10 scenarios)     |
+| `git.test.ts`                      | 59    | Git operations (mocked execSync)      |
+| `github.test.ts`                   | 24    | GitHub CLI operations (mocked)        |
+| `prompts.test.ts`                  | 27    | Interactive prompts (mocked readline) |
+| `errors.test.ts`                   | 14    | Custom error classes                  |
+| `wtlink/validate-manifest.test.ts` | 8     | Manifest validation                   |
+| `wtlink/link-configs.test.ts`      | 10    | Hard link creation                    |
 
 ### Integration Tests (`src/integration/`)
 
-| File                       | Tests | Description                      |
-| -------------------------- | ----- | -------------------------------- |
-| `git.integration.test.ts`  | 26    | Real git operations in temp repo |
+| File                      | Tests | Description                      |
+| ------------------------- | ----- | -------------------------------- |
+| `git.integration.test.ts` | 26    | Real git operations in temp repo |
 
 ### End-to-End Tests (`src/e2e/`)
 
-| File               | Tests | Description                         |
-| ------------------ | ----- | ----------------------------------- |
-| `cli.e2e.test.ts`  | 16    | Full CLI command testing with real git repos |
+| File              | Tests | Description                                  |
+| ----------------- | ----- | -------------------------------------------- |
+| `cli.e2e.test.ts` | 16    | Full CLI command testing with real git repos |
 
 **Integration test coverage:**
 

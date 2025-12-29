@@ -142,10 +142,7 @@ function getFolderStateBreakdown(
  * An item is visible if it has at least one state matching the active filters
  * Default: only 'undecided' filter is active (shows undecided items)
  */
-function isItemVisible(
-  item: DisplayItem,
-  activeFilters: ReadonlySet<ItemState>
-): boolean {
+function isItemVisible(item: DisplayItem, activeFilters: ReadonlySet<ItemState>): boolean {
   // If no filters active, nothing is visible (edge case)
   if (activeFilters.size === 0) {
     return false;
@@ -315,11 +312,7 @@ function getVisibleItems(state: AppState): DisplayItem[] {
   const allItems =
     state.viewMode === 'flat'
       ? getFlatViewItems(state.fileTree, state.decisions)
-      : getHierarchicalViewItems(
-          state.fileTree,
-          state.navigationStack,
-          state.decisions
-        );
+      : getHierarchicalViewItems(state.fileTree, state.navigationStack, state.decisions);
 
   // Filter based on active filters (no duplication possible)
   return allItems.filter((item) => isItemVisible(item, state.activeFilters));
@@ -358,13 +351,8 @@ function getDisplayItems(state: AppState): DisplayItem[] {
 
 // These functions provide a functional API for state updates but are not currently used
 // They're kept for potential future use or for testing purposes
-/* eslint-disable @typescript-eslint/no-unused-vars */
 
-function _updateDecision(
-  state: AppState,
-  item: DisplayItem,
-  decision: FileDecision
-): AppState {
+function _updateDecision(state: AppState, item: DisplayItem, decision: FileDecision): AppState {
   const newDecisions = new Map(state.decisions);
 
   if (item.isDirectory && item.node) {
@@ -413,10 +401,7 @@ function _toggleHelp(state: AppState): AppState {
 
 function _moveCursor(state: AppState, delta: number): AppState {
   const displayItems = getDisplayItems(state);
-  const newIndex = Math.max(
-    0,
-    Math.min(displayItems.length - 1, state.cursorIndex + delta)
-  );
+  const newIndex = Math.max(0, Math.min(displayItems.length - 1, state.cursorIndex + delta));
   return { ...state, cursorIndex: newIndex };
 }
 
@@ -471,10 +456,7 @@ function _updateScroll(state: AppState): AppState {
   const terminalHeight = process.stdout.rows || 24;
   const headerLines = 8;
   const footerLines = 3;
-  const maxVisibleItems = Math.max(
-    5,
-    terminalHeight - headerLines - footerLines
-  );
+  const maxVisibleItems = Math.max(5, terminalHeight - headerLines - footerLines);
 
   let { scrollOffset, cursorIndex } = state;
 
@@ -493,8 +475,6 @@ function _updateScroll(state: AppState): AppState {
 
   return { ...state, scrollOffset };
 }
-
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 // ============================================================================
 // COMMON DIRECTORIES
@@ -530,24 +510,14 @@ function isCommonIgnoreDir(dirPath: string): boolean {
 // RENDERING - Pure render functions
 // ============================================================================
 
-function renderStatusHeader(
-  state: AppState,
-  allFiles: string[],
-  gitRoot: string
-): void {
+function renderStatusHeader(state: AppState, allFiles: string[], gitRoot: string): void {
   const totalFiles = allFiles.length;
   const decidedCount = state.decisions.size;
   const remainingCount = totalFiles - decidedCount;
 
-  const addedCount = Array.from(state.decisions.values()).filter(
-    (d) => d === 'add'
-  ).length;
-  const commentedCount = Array.from(state.decisions.values()).filter(
-    (d) => d === 'comment'
-  ).length;
-  const skippedCount = Array.from(state.decisions.values()).filter(
-    (d) => d === 'skip'
-  ).length;
+  const addedCount = Array.from(state.decisions.values()).filter((d) => d === 'add').length;
+  const commentedCount = Array.from(state.decisions.values()).filter((d) => d === 'comment').length;
+  const skippedCount = Array.from(state.decisions.values()).filter((d) => d === 'skip').length;
 
   const boxWidth = 110;
   const horizontalLine = '═'.repeat(boxWidth - 2);
@@ -556,13 +526,9 @@ function renderStatusHeader(
   const title = 'Worktree Config Link Manager';
   const titlePadding = Math.floor((boxWidth - 2 - title.length) / 2);
   const titleLine =
-    ' '.repeat(titlePadding) +
-    title +
-    ' '.repeat(boxWidth - 2 - titlePadding - title.length);
+    ' '.repeat(titlePadding) + title + ' '.repeat(boxWidth - 2 - titlePadding - title.length);
   console.log(
-    colors.bold(colors.cyan('║')) +
-      colors.bold(titleLine) +
-      colors.bold(colors.cyan('║'))
+    colors.bold(colors.cyan('║')) + colors.bold(titleLine) + colors.bold(colors.cyan('║'))
   );
 
   console.log(colors.bold(colors.cyan(`╚${horizontalLine}╝`)));
@@ -570,10 +536,8 @@ function renderStatusHeader(
   // Stats spread out horizontally with more spacing
   console.log('');
   const stats = [
-    colors.bold(colors.green('✓ Will Link: ')) +
-      colors.green(addedCount.toString().padStart(4)),
-    colors.bold(colors.blue('◎ Tracked: ')) +
-      colors.blue(commentedCount.toString().padStart(4)),
+    colors.bold(colors.green('✓ Will Link: ')) + colors.green(addedCount.toString().padStart(4)),
+    colors.bold(colors.blue('◎ Tracked: ')) + colors.blue(commentedCount.toString().padStart(4)),
     colors.bold(colors.yellow('✗ Skipped: ')) +
       colors.bold(colors.yellow(skippedCount.toString().padStart(4))),
     colors.bold('⋯ Undecided: ') + remainingCount.toString().padStart(4),
@@ -582,22 +546,13 @@ function renderStatusHeader(
 
   // View status with better spacing and visual separator
   const viewModes: string[] = [];
-  if (state.activeFilters.has('undecided'))
-    viewModes.push(colors.bold('Undecided'));
-  if (state.activeFilters.has('add'))
-    viewModes.push(colors.bold(colors.green('Added')));
-  if (state.activeFilters.has('comment'))
-    viewModes.push(colors.bold(colors.blue('Tracked')));
-  if (state.activeFilters.has('skip'))
-    viewModes.push(colors.bold(colors.yellow('Skipped')));
+  if (state.activeFilters.has('undecided')) viewModes.push(colors.bold('Undecided'));
+  if (state.activeFilters.has('add')) viewModes.push(colors.bold(colors.green('Added')));
+  if (state.activeFilters.has('comment')) viewModes.push(colors.bold(colors.blue('Tracked')));
+  if (state.activeFilters.has('skip')) viewModes.push(colors.bold(colors.yellow('Skipped')));
   const viewModeStr =
-    viewModes.length > 0
-      ? viewModes.join(colors.dim(', '))
-      : colors.dim('None (no items visible)');
-  const layoutMode =
-    state.viewMode === 'flat'
-      ? colors.cyan('Flat')
-      : colors.cyan('Hierarchical');
+    viewModes.length > 0 ? viewModes.join(colors.dim(', ')) : colors.dim('None (no items visible)');
+  const layoutMode = state.viewMode === 'flat' ? colors.cyan('Flat') : colors.cyan('Hierarchical');
 
   console.log('');
   console.log(colors.dim('  ┌─ ') + colors.bold('Viewing: ') + viewModeStr);
@@ -619,9 +574,7 @@ function renderStatusHeader(
     state.navigationStack.length > 0
       ? colors.bold(colors.cyan('/' + state.navigationStack.join('/')))
       : colors.dim('/');
-  console.log(
-    colors.dim('  └─ ') + colors.bold('Path:    ') + basePath + navigatedPath
-  );
+  console.log(colors.dim('  └─ ') + colors.bold('Path:    ') + basePath + navigatedPath);
   console.log('');
 }
 
@@ -629,25 +582,14 @@ function renderStatusHeader(
  * Render action hint for selected item (shown at top of file list)
  * Always renders a fixed-height panel (2 lines) to prevent layout shifting
  */
-function renderActionHint(
-  selectedItem: DisplayItem | undefined,
-  state: AppState
-): void {
+function renderActionHint(selectedItem: DisplayItem | undefined, state: AppState): void {
   // Check if we should show info
   let showInfo = false;
   let infoText = '';
 
-  if (
-    selectedItem &&
-    selectedItem.path !== '..' &&
-    selectedItem.isDirectory &&
-    selectedItem.node
-  ) {
+  if (selectedItem && selectedItem.path !== '..' && selectedItem.isDirectory && selectedItem.node) {
     if (selectedItem.states.has('undecided')) {
-      const breakdown = getFolderStateBreakdown(
-        selectedItem.node,
-        state.decisions
-      );
+      const breakdown = getFolderStateBreakdown(selectedItem.node, state.decisions);
       if (breakdown.undecided > 0) {
         const displayName =
           state.viewMode === 'hierarchical'
@@ -656,9 +598,7 @@ function renderActionHint(
 
         // Truncate long directory names to prevent wrapping (max 50 chars with more horizontal space)
         const truncatedName =
-          displayName.length > 50
-            ? displayName.substring(0, 47) + '...'
-            : displayName;
+          displayName.length > 50 ? displayName.substring(0, 47) + '...' : displayName;
 
         const fileWord = breakdown.undecided === 1 ? 'file' : 'files';
 
@@ -669,9 +609,7 @@ function renderActionHint(
           ' ' +
           colors.bold(colors.yellow(`${truncatedName}`)) +
           colors.dim(' │ ') +
-          colors.yellow(
-            `${breakdown.undecided.toLocaleString()} undecided ${fileWord} inside`
-          );
+          colors.yellow(`${breakdown.undecided.toLocaleString()} undecided ${fileWord} inside`);
         showInfo = true;
       }
     }
@@ -690,9 +628,7 @@ function renderActionHint(
 function renderHelp(): void {
   console.log(
     colors.bold(
-      colors.cyan(
-        '╔═══ HELP ════════════════════════════════════════════════════════════════════╗'
-      )
+      colors.cyan('╔═══ HELP ════════════════════════════════════════════════════════════════════╗')
     )
   );
   console.log(
@@ -882,18 +818,12 @@ function renderHelp(): void {
   );
   console.log(
     colors.bold(
-      colors.cyan(
-        '╚═════════════════════════════════════════════════════════════════════════════╝'
-      )
+      colors.cyan('╚═════════════════════════════════════════════════════════════════════════════╝')
     )
   );
 }
 
-function renderItem(
-  item: DisplayItem,
-  isSelected: boolean,
-  state: AppState
-): string {
+function renderItem(item: DisplayItem, isSelected: boolean, state: AppState): string {
   const cursor = isSelected ? colors.bgBlue(' ▶ ') : '   ';
 
   if (item.path === '..') {
@@ -970,24 +900,15 @@ function renderItem(
   return label;
 }
 
-function renderItems(
-  state: AppState,
-  cachedDisplayItems: DisplayItem[]
-): void {
+function renderItems(state: AppState, cachedDisplayItems: DisplayItem[]): void {
   const displayItems = cachedDisplayItems; // Use pre-computed cached items!
   const terminalHeight = process.stdout.rows || 24;
   const headerLines = 13; // Header (11 lines) + Action hint panel (2 lines)
   const footerLines = 3;
-  const maxVisibleItems = Math.max(
-    5,
-    terminalHeight - headerLines - footerLines
-  );
+  const maxVisibleItems = Math.max(5, terminalHeight - headerLines - footerLines);
 
   const visibleStart = state.scrollOffset;
-  const visibleEnd = Math.min(
-    displayItems.length,
-    state.scrollOffset + maxVisibleItems
-  );
+  const visibleEnd = Math.min(displayItems.length, state.scrollOffset + maxVisibleItems);
   const hasMoreAbove = visibleStart > 0;
   const hasMoreBelow = visibleEnd < displayItems.length;
 
@@ -1018,8 +939,7 @@ function renderFooter(state: AppState): void {
     navParts.push(colors.dim('←') + ' Back');
     navParts.push(colors.dim('→') + ' Drill In');
   }
-  const navigation =
-    colors.bold('Navigation: ') + navParts.join(colors.dim(' │ '));
+  const navigation = colors.bold('Navigation: ') + navParts.join(colors.dim(' │ '));
 
   // Actions - colorful and spaced out
   const actions =
@@ -1038,28 +958,21 @@ function renderFooter(state: AppState): void {
   // Filters - show active state with better spacing
   const filterParts: string[] = [];
   filterParts.push(
-    (state.activeFilters.has('undecided') ? colors.bold('0') : colors.dim('0')) +
-      ' Undecided'
+    (state.activeFilters.has('undecided') ? colors.bold('0') : colors.dim('0')) + ' Undecided'
   );
   filterParts.push(
-    (state.activeFilters.has('add')
-      ? colors.bold(colors.green('1'))
-      : colors.dim('1')) + ' Added'
+    (state.activeFilters.has('add') ? colors.bold(colors.green('1')) : colors.dim('1')) + ' Added'
   );
   filterParts.push(
-    (state.activeFilters.has('comment')
-      ? colors.bold(colors.blue('2'))
-      : colors.dim('2')) + ' Tracked'
+    (state.activeFilters.has('comment') ? colors.bold(colors.blue('2')) : colors.dim('2')) +
+      ' Tracked'
   );
   filterParts.push(
-    (state.activeFilters.has('skip')
-      ? colors.bold(colors.yellow('3'))
-      : colors.dim('3')) + ' Skipped'
+    (state.activeFilters.has('skip') ? colors.bold(colors.yellow('3')) : colors.dim('3')) +
+      ' Skipped'
   );
   filterParts.push(
-    (state.viewMode === 'flat'
-      ? colors.bold(colors.cyan('V'))
-      : colors.dim('V')) + ' Flat'
+    (state.viewMode === 'flat' ? colors.bold(colors.cyan('V')) : colors.dim('V')) + ' Flat'
   );
 
   const filters = colors.bold('View: ') + filterParts.join(colors.dim(' │ '));
@@ -1162,13 +1075,8 @@ async function interactiveManage(
     const activeFilters = activeFilters$.value;
 
     // Add back navigation in hierarchical view when in default undecided-only mode
-    const showingUndecidedOnly =
-      activeFilters.size === 1 && activeFilters.has('undecided');
-    if (
-      viewMode === 'hierarchical' &&
-      navigationStack.length > 0 &&
-      showingUndecidedOnly
-    ) {
+    const showingUndecidedOnly = activeFilters.size === 1 && activeFilters.has('undecided');
+    if (viewMode === 'hierarchical' && navigationStack.length > 0 && showingUndecidedOnly) {
       return [
         {
           path: '..',
@@ -1205,13 +1113,10 @@ async function interactiveManage(
       const terminalHeight = process.stdout.rows || 24;
       const headerLines = 13; // Header (11 lines) + Action hint panel (2 lines)
       const footerLines = 3;
-      const maxVisibleItems = Math.max(
-        5,
-        terminalHeight - headerLines - footerLines
-      );
+      const maxVisibleItems = Math.max(5, terminalHeight - headerLines - footerLines);
 
       let scrollOffset = scrollOffset$.value;
-      let cursorIndex = cursorIndex$.value;
+      const cursorIndex = cursorIndex$.value;
 
       // Auto-scroll to keep cursor in view
       if (cursorIndex < scrollOffset) {
@@ -1242,10 +1147,7 @@ async function interactiveManage(
       process.stdin.removeListener('keypress', onKeypress);
     };
 
-    const onKeypress = (
-      str: string,
-      key: { name?: string; ctrl?: boolean }
-    ) => {
+    const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
       const displayItems = displayItems$.value; // Cached!
 
       if (key.name === 'up') {
@@ -1253,10 +1155,7 @@ async function interactiveManage(
         cursorIndex$.value = newIndex;
         renderCurrent();
       } else if (key.name === 'down') {
-        const newIndex = Math.min(
-          displayItems.length - 1,
-          cursorIndex$.value + 1
-        );
+        const newIndex = Math.min(displayItems.length - 1, cursorIndex$.value + 1);
         cursorIndex$.value = newIndex;
         renderCurrent();
       } else if (key.name === 'right') {
@@ -1272,20 +1171,13 @@ async function interactiveManage(
           scrollOffset$.value = 0;
         } else if (selectedItem.isDirectory) {
           // Navigate into any directory regardless of state
-          navigationStack$.value = [
-            ...navigationStack$.value,
-            selectedItem.path,
-          ];
+          navigationStack$.value = [...navigationStack$.value, selectedItem.path];
           cursorIndex$.value = 0;
           scrollOffset$.value = 0;
         }
         renderCurrent();
       } else if (key.name === 'left') {
-        if (
-          viewMode$.value === 'flat' ||
-          navigationStack$.value.length === 0
-        )
-          return;
+        if (viewMode$.value === 'flat' || navigationStack$.value.length === 0) return;
 
         const stack = navigationStack$.value;
         navigationStack$.value = stack.slice(0, -1);
@@ -1348,11 +1240,7 @@ async function interactiveManage(
         console.log(colors.green('✓ Saving decisions...'));
         cleanup();
         resolve(decisions$.value);
-      } else if (
-        str === 'x' ||
-        str === 'X' ||
-        (key.ctrl && key.name === 'c')
-      ) {
+      } else if (str === 'x' || str === 'X' || (key.ctrl && key.name === 'c')) {
         console.clear();
         console.log(colors.yellow('✗ Cancelled - no changes saved'));
         cleanup();
@@ -1405,8 +1293,7 @@ async function interactiveManage(
         scrollOffset$.value = 0;
         renderCurrent();
       } else if (str === 'v' || str === 'V') {
-        viewMode$.value =
-          viewMode$.value === 'flat' ? 'hierarchical' : 'flat';
+        viewMode$.value = viewMode$.value === 'flat' ? 'hierarchical' : 'flat';
         navigationStack$.value = [];
         cursorIndex$.value = 0;
         scrollOffset$.value = 0;
@@ -1425,9 +1312,7 @@ async function interactiveManage(
 
 function checkGitInstalled(): void {
   if (!git.checkGitInstalled()) {
-    throw new Error(
-      'Git is not installed or not found in your PATH. This tool requires Git.'
-    );
+    throw new Error('Git is not installed or not found in your PATH. This tool requires Git.');
   }
 }
 
@@ -1445,19 +1330,17 @@ function isIgnored(filePath: string, gitRoot: string): boolean {
 
 function getIgnoredFiles(gitRoot: string, manifestFile: string): string[] {
   try {
-    const ignored = execSync(
-      'git ls-files --ignored --exclude-standard --others',
-      { cwd: gitRoot, maxBuffer: 50 * 1024 * 1024 }
-    )
+    const ignored = execSync('git ls-files --ignored --exclude-standard --others', {
+      cwd: gitRoot,
+      maxBuffer: 50 * 1024 * 1024,
+    })
       .toString()
       .trim();
     if (!ignored) return [];
     return ignored.split('\n').filter((f) => f && !f.includes(manifestFile));
   } catch {
     console.error(
-      colors.yellow(
-        'Warning: Could not run `git ls-files`. This may be a new repository.'
-      )
+      colors.yellow('Warning: Could not run `git ls-files`. This may be a new repository.')
     );
     return [];
   }
@@ -1472,10 +1355,7 @@ function getManifestEntries(gitRoot: string, manifestFile: string): string[] {
     .filter((x) => x.trim() && !x.startsWith('#'));
 }
 
-function getManifestDecisions(
-  gitRoot: string,
-  manifestFile: string
-): Map<string, FileDecision> {
+function getManifestDecisions(gitRoot: string, manifestFile: string): Map<string, FileDecision> {
   const manifestPath = path.join(gitRoot, manifestFile);
   const decisions = new Map<string, FileDecision>();
 
@@ -1494,9 +1374,7 @@ function getManifestDecisions(
       let filePath = commentContent;
 
       // Strip prefixes like "TRACKED:", "DELETED:", "STALE:"
-      const prefixMatch = commentContent.match(
-        /^(TRACKED|DELETED|STALE):\s*(.+)/
-      );
+      const prefixMatch = commentContent.match(/^(TRACKED|DELETED|STALE):\s*(.+)/);
       if (prefixMatch) {
         filePath = prefixMatch[2];
       }
@@ -1542,16 +1420,8 @@ export async function run(argv: ManageArgv): Promise<void> {
     }
   }
 
-  if (
-    newFiles.length === 0 &&
-    trackedEntries.length === 0 &&
-    deletedEntries.length === 0
-  ) {
-    console.log(
-      colors.green(
-        'Manifest is up to date. No new files or stale entries found.'
-      )
-    );
+  if (newFiles.length === 0 && trackedEntries.length === 0 && deletedEntries.length === 0) {
+    console.log(colors.green('Manifest is up to date. No new files or stale entries found.'));
     return;
   }
 
@@ -1560,18 +1430,14 @@ export async function run(argv: ManageArgv): Promise<void> {
   // Handle tracked entries (now tracked by git)
   if (trackedEntries.length > 0) {
     console.log(
-      colors.bold(
-        colors.red('\n⚠️  Warning: Files in manifest are now TRACKED by git\n')
-      )
+      colors.bold(colors.red('\n⚠️  Warning: Files in manifest are now TRACKED by git\n'))
     );
     console.log(
       colors.yellow(
         'These files are no longer git-ignored and linking them could cause git conflicts:'
       )
     );
-    trackedEntries.forEach((f) =>
-      console.log(colors.yellow(`  - ${f} (now tracked)`))
-    );
+    trackedEntries.forEach((f) => console.log(colors.yellow(`  - ${f} (now tracked)`)));
 
     let trackedChoice: 'remove' | 'comment' | 'leave' = 'remove';
     if (argv.clean) {
@@ -1607,9 +1473,7 @@ export async function run(argv: ManageArgv): Promise<void> {
       finalEntries = finalEntries.filter((f) => !trackedEntries.includes(f));
       console.log(colors.red('Removed tracked entries from manifest.'));
     } else if (trackedChoice === 'comment') {
-      finalEntries = finalEntries.map((f) =>
-        trackedEntries.includes(f) ? `# TRACKED: ${f}` : f
-      );
+      finalEntries = finalEntries.map((f) => (trackedEntries.includes(f) ? `# TRACKED: ${f}` : f));
       console.log(colors.blue('Commented out tracked entries.'));
     } else {
       console.log(colors.yellow('Left tracked entries unchanged.'));
@@ -1618,14 +1482,8 @@ export async function run(argv: ManageArgv): Promise<void> {
 
   // Handle deleted entries (no longer exist)
   if (deletedEntries.length > 0) {
-    console.log(
-      colors.bold(
-        colors.cyan('\nℹ️  Info: Files in manifest no longer exist\n')
-      )
-    );
-    console.log(
-      colors.dim('These files have been deleted from the filesystem:')
-    );
+    console.log(colors.bold(colors.cyan('\nℹ️  Info: Files in manifest no longer exist\n')));
+    console.log(colors.dim('These files have been deleted from the filesystem:'));
     deletedEntries.forEach((f) => console.log(colors.dim(`  - ${f}`)));
 
     let deletedChoice: 'remove' | 'comment' | 'leave' = 'remove';
@@ -1653,9 +1511,7 @@ export async function run(argv: ManageArgv): Promise<void> {
       finalEntries = finalEntries.filter((f) => !deletedEntries.includes(f));
       console.log(colors.red('Removed deleted entries from manifest.'));
     } else if (deletedChoice === 'comment') {
-      finalEntries = finalEntries.map((f) =>
-        deletedEntries.includes(f) ? `# DELETED: ${f}` : f
-      );
+      finalEntries = finalEntries.map((f) => (deletedEntries.includes(f) ? `# DELETED: ${f}` : f));
       console.log(colors.blue('Commented out deleted entries.'));
     } else {
       console.log(colors.dim('Left deleted entries unchanged.'));
@@ -1665,9 +1521,7 @@ export async function run(argv: ManageArgv): Promise<void> {
   // Launch interactive manage with ALL ignored files and pre-populated decisions
   if (argv.nonInteractive || argv.dryRun) {
     const mode = argv.dryRun ? 'Dry run' : 'Non-interactive';
-    console.log(
-      colors.blue(`\n${mode} mode: Adding new files as commented out.`)
-    );
+    console.log(colors.blue(`\n${mode} mode: Adding new files as commented out.`));
     finalEntries.push(...newFiles.map((f) => `# ${f}`));
   } else {
     console.log(colors.green('\nInteractive file management:'));
@@ -1680,11 +1534,7 @@ export async function run(argv: ManageArgv): Promise<void> {
     // Pre-populate decisions from existing manifest
     const initialDecisions = getManifestDecisions(gitRoot, manifestFile);
 
-    const decisions = await interactiveManage(
-      ignoredFiles,
-      gitRoot,
-      initialDecisions
-    );
+    const decisions = await interactiveManage(ignoredFiles, gitRoot, initialDecisions);
 
     if (decisions.size === 0 && ignoredFiles.length > 0) {
       console.log(colors.yellow('Operation cancelled.'));
@@ -1720,19 +1570,11 @@ export async function run(argv: ManageArgv): Promise<void> {
 
   // Write manifest
   if (argv.dryRun) {
-    console.log(
-      colors.cyan(
-        '\n[DRY RUN] The following changes would be made to the manifest:'
-      )
-    );
+    console.log(colors.cyan('\n[DRY RUN] The following changes would be made to the manifest:'));
     if (fs.existsSync(manifestPath)) {
-      console.log(
-        colors.cyan(`- Backup existing manifest to ${manifestBackupFile}`)
-      );
+      console.log(colors.cyan(`- Backup existing manifest to ${manifestBackupFile}`));
     }
-    console.log(
-      colors.cyan(`- Write the following content to ${manifestFile}:`)
-    );
+    console.log(colors.cyan(`- Write the following content to ${manifestFile}:`));
     console.log(colors.dim(finalEntries.join('\n') + '\n'));
   } else {
     if (argv.backup && fs.existsSync(manifestPath)) {

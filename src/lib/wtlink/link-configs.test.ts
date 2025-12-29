@@ -80,11 +80,7 @@ detached
 .vscode/settings.json
 config/local.json`;
       const entries = parseManifestHelper(manifest);
-      expect(entries.active).toEqual([
-        '.env',
-        '.vscode/settings.json',
-        'config/local.json',
-      ]);
+      expect(entries.active).toEqual(['.env', '.vscode/settings.json', 'config/local.json']);
       expect(entries.commented).toEqual([]);
     });
 
@@ -202,8 +198,12 @@ function parseManifestHelper(content: string): { active: string[]; commented: st
 
       // Only count as a commented file entry if it looks like a file path
       // (starts with . or / or contains / or has a file extension)
-      if (filePath.startsWith('.') || filePath.startsWith('/') ||
-          filePath.includes('/') || /\.\w+$/.test(filePath)) {
+      if (
+        filePath.startsWith('.') ||
+        filePath.startsWith('/') ||
+        filePath.includes('/') ||
+        /\.\w+$/.test(filePath)
+      ) {
         commented.push(filePath);
       }
       // Otherwise it's a descriptive comment, skip it

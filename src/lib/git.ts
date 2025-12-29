@@ -229,10 +229,7 @@ export function getCommitRelationship(
 /**
  * Get list of commits ahead of base
  */
-export function getCommitsAhead(
-  baseBranch: string = DEFAULT_BASE_BRANCH,
-  cwd?: string
-): string[] {
+export function getCommitsAhead(baseBranch: string = DEFAULT_BASE_BRANCH, cwd?: string): string[] {
   const remote = DEFAULT_REMOTE;
   const baseRef = `${remote}/${baseBranch}`;
 
@@ -402,9 +399,7 @@ export function getMainWorktree(cwd?: string): Worktree | null {
 export function isWorktree(cwd?: string): boolean {
   const repoRoot = getRepoRoot(cwd);
   const worktrees = listWorktrees(cwd);
-  const current = worktrees.find(
-    (w) => path.normalize(w.path) === path.normalize(repoRoot)
-  );
+  const current = worktrees.find((w) => path.normalize(w.path) === path.normalize(repoRoot));
   return current ? !current.isMain : false;
 }
 
@@ -457,11 +452,7 @@ export function pruneWorktrees(cwd?: string): void {
 /**
  * Create a new branch
  */
-export function createBranch(
-  name: string,
-  startPoint?: string,
-  cwd?: string
-): void {
+export function createBranch(name: string, startPoint?: string, cwd?: string): void {
   const args = ['branch', name];
   if (startPoint) {
     args.push(startPoint);
@@ -472,10 +463,7 @@ export function createBranch(
 /**
  * Delete a branch
  */
-export function deleteBranch(
-  name: string,
-  options: { force?: boolean; cwd?: string } = {}
-): void {
+export function deleteBranch(name: string, options: { force?: boolean; cwd?: string } = {}): void {
   const flag = options.force ? '-D' : '-d';
   exec(['branch', flag, name], { cwd: options.cwd });
 }
@@ -677,8 +665,7 @@ export function getMainWorktreeRoot(cwd?: string): string {
   // The common dir is like: /main-worktree/.git/worktrees/feature-branch
   // We need to go up to .git, then to parent directory
   const gitDir =
-    commonDirPath.includes('/worktrees/') ||
-    commonDirPath.includes('\\worktrees\\')
+    commonDirPath.includes('/worktrees/') || commonDirPath.includes('\\worktrees\\')
       ? path.dirname(path.dirname(commonDirPath)) // .git/worktrees/name → .git
       : commonDirPath;
 

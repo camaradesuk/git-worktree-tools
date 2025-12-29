@@ -24,10 +24,7 @@ function createInterface(): readline.Interface {
  * Prompt user to select from a list of simple string options
  * Returns 1-based index of selected option
  */
-export async function promptChoiceIndex(
-  prompt: string,
-  options: string[]
-): Promise<number> {
+export async function promptChoiceIndex(prompt: string, options: string[]): Promise<number> {
   const rl = createInterface();
 
   return new Promise((resolve, reject) => {
@@ -61,7 +58,9 @@ export async function promptChoiceIndex(
         const choice = parseInt(trimmed, 10);
 
         if (isNaN(choice) || choice < 1 || choice > options.length) {
-          console.log(red(`Invalid choice. Please enter a number between 1 and ${options.length}.`));
+          console.log(
+            red(`Invalid choice. Please enter a number between 1 and ${options.length}.`)
+          );
           ask();
           return;
         }
@@ -89,10 +88,7 @@ export async function promptChoiceIndex(
  * Prompt user to select from a list of options with values
  * Returns the value of the selected option
  */
-export async function promptChoice<T>(
-  prompt: string,
-  options: PromptOption<T>[]
-): Promise<T> {
+export async function promptChoice<T>(prompt: string, options: PromptOption<T>[]): Promise<T> {
   const rl = createInterface();
 
   return new Promise((resolve, reject) => {
@@ -129,7 +125,9 @@ export async function promptChoice<T>(
         const choice = parseInt(trimmed, 10);
 
         if (isNaN(choice) || choice < 1 || choice > options.length) {
-          console.log(red(`Invalid choice. Please enter a number between 1 and ${options.length}.`));
+          console.log(
+            red(`Invalid choice. Please enter a number between 1 and ${options.length}.`)
+          );
           ask();
           return;
         }
@@ -199,10 +197,7 @@ export async function promptConfirm(
 /**
  * Prompt user for text input
  */
-export async function promptInput(
-  prompt: string,
-  defaultValue?: string
-): Promise<string> {
+export async function promptInput(prompt: string, defaultValue?: string): Promise<string> {
   const rl = createInterface();
 
   const hint = defaultValue ? dim(` [${defaultValue}]`) : '';
@@ -231,10 +226,7 @@ export async function promptInput(
 /**
  * Display a spinner while an async operation runs
  */
-export async function withSpinner<T>(
-  message: string,
-  operation: () => Promise<T>
-): Promise<T> {
+export async function withSpinner<T>(message: string, operation: () => Promise<T>): Promise<T> {
   const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   let frameIndex = 0;
   let interval: NodeJS.Timeout | null = null;

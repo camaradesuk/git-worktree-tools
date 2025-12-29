@@ -85,9 +85,7 @@ function detectSourceWorktree(destinationDir: string): string {
 
   const worktrees = parseWorktreeList(worktreeOutput);
   const destinationResolved = path.resolve(destinationDir);
-  const candidates = worktrees.filter(
-    (wt) => path.resolve(wt.path) !== destinationResolved
-  );
+  const candidates = worktrees.filter((wt) => path.resolve(wt.path) !== destinationResolved);
 
   if (candidates.length === 0) {
     throw new Error(
@@ -113,9 +111,7 @@ function resolveWorktreePaths(
 } {
   const destDir = argv.destination ? path.resolve(argv.destination) : currentRoot;
 
-  const sourceDir = argv.source
-    ? path.resolve(argv.source)
-    : detectSourceWorktree(destDir);
+  const sourceDir = argv.source ? path.resolve(argv.source) : detectSourceWorktree(destDir);
 
   return { sourceDir, destDir };
 }
@@ -265,9 +261,7 @@ async function interactiveConflictResolver(
   );
 
   console.log(
-    colors.yellow(
-      'The following files exist at the destination with different content:\n'
-    )
+    colors.yellow('The following files exist at the destination with different content:\n')
   );
 
   // Show conflicts grouped by folder
@@ -295,17 +289,9 @@ async function interactiveConflictResolver(
   }
 
   console.log(colors.bold('Resolution Options:'));
-  console.log(
-    colors.green('  R') +
-      ' - Replace destination file (delete existing, create link)'
-  );
-  console.log(
-    colors.blue('  I') + " - Ignore (keep destination file as-is, don't link)"
-  );
-  console.log(
-    colors.red('  M') +
-      " - Remove from manifest (won't link now or in future)"
-  );
+  console.log(colors.green('  R') + ' - Replace destination file (delete existing, create link)');
+  console.log(colors.blue('  I') + " - Ignore (keep destination file as-is, don't link)");
+  console.log(colors.red('  M') + " - Remove from manifest (won't link now or in future)");
   console.log('');
   console.log(
     colors.dim(
@@ -373,9 +359,7 @@ async function interactiveConflictResolver(
 
 export async function run(argv: LinkArgv): Promise<void> {
   if (!git.checkGitInstalled()) {
-    throw new Error(
-      'Git is not installed or not found in your PATH. This tool requires Git.'
-    );
+    throw new Error('Git is not installed or not found in your PATH. This tool requires Git.');
   }
   const gitRoot = git.getRepoRoot(); // Current worktree root
   const mainWorktreeRoot = git.getMainWorktreeRoot(); // Main worktree root (for manifest location)
@@ -389,15 +373,11 @@ export async function run(argv: LinkArgv): Promise<void> {
   }
 
   if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
-    throw new Error(
-      `Source directory does not exist or is not a directory: ${sourceDir}`
-    );
+    throw new Error(`Source directory does not exist or is not a directory: ${sourceDir}`);
   }
 
   if (!fs.existsSync(destDir) || !fs.statSync(destDir).isDirectory()) {
-    throw new Error(
-      `Destination directory does not exist or is not a directory: ${destDir}`
-    );
+    throw new Error(`Destination directory does not exist or is not a directory: ${destDir}`);
   }
 
   const filesToLink = fs
@@ -424,9 +404,7 @@ export async function run(argv: LinkArgv): Promise<void> {
 
   if (conflictReport.conflicts.length > 0 && !argv.yes && !argv.dryRun) {
     console.log(
-      colors.yellow(
-        `\n⚠️  Found ${conflictReport.conflicts.length} conflicting files\n`
-      )
+      colors.yellow(`\n⚠️  Found ${conflictReport.conflicts.length} conflicting files\n`)
     );
     console.log(colors.dim('Launching interactive conflict resolver...\n'));
 
@@ -463,47 +441,33 @@ export async function run(argv: LinkArgv): Promise<void> {
 
   // Show final confirmation prompt with summary
   if (!argv.yes && !argv.dryRun) {
-    console.log(
-      colors.cyan(colors.bold('\n═══════════════════════════════════════'))
-    );
+    console.log(colors.cyan(colors.bold('\n═══════════════════════════════════════')));
     console.log(colors.cyan(colors.bold('  Conflict Resolution Complete!')));
-    console.log(
-      colors.cyan(colors.bold('═══════════════════════════════════════\n'))
-    );
+    console.log(colors.cyan(colors.bold('═══════════════════════════════════════\n')));
 
     console.log(colors.bold('Summary:'));
     if (conflictReport.alreadyLinked.length > 0) {
       console.log(
-        colors.dim(
-          `  ✓ Already linked: ${conflictReport.alreadyLinked.length} files (will skip)`
-        )
+        colors.dim(`  ✓ Already linked: ${conflictReport.alreadyLinked.length} files (will skip)`)
       );
     }
     if (replaceFiles.length > 0) {
       console.log(
-        colors.yellow(
-          `  ⚠  Replace: ${replaceFiles.length} files (will overwrite and link)`
-        )
+        colors.yellow(`  ⚠  Replace: ${replaceFiles.length} files (will overwrite and link)`)
       );
     }
     if (ignoreFiles.length > 0) {
       console.log(
-        colors.blue(
-          `  ℹ  Ignore: ${ignoreFiles.length} files (will skip, keep destination)`
-        )
+        colors.blue(`  ℹ  Ignore: ${ignoreFiles.length} files (will skip, keep destination)`)
       );
     }
     if (filesToRemoveFromManifest.length > 0) {
       console.log(
-        colors.red(
-          `  ✗ Remove: ${filesToRemoveFromManifest.length} files (removed from manifest)`
-        )
+        colors.red(`  ✗ Remove: ${filesToRemoveFromManifest.length} files (removed from manifest)`)
       );
     }
     if (safeFiles.length > 0) {
-      console.log(
-        colors.green(`  ✓ Safe: ${safeFiles.length} files (no conflict)`)
-      );
+      console.log(colors.green(`  ✓ Safe: ${safeFiles.length} files (no conflict)`));
     }
 
     console.log('');
@@ -517,9 +481,7 @@ export async function run(argv: LinkArgv): Promise<void> {
 
     let message = `Proceed with linking ${totalToLink} files?`;
     if (replaceFiles.length > 0) {
-      message += colors.yellow(
-        ` (${replaceFiles.length} will overwrite existing files)`
-      );
+      message += colors.yellow(` (${replaceFiles.length} will overwrite existing files)`);
     }
 
     const confirmAnswers = await inquirer.prompt<{ proceed: boolean }>([
@@ -542,9 +504,7 @@ export async function run(argv: LinkArgv): Promise<void> {
   if (filesToRemoveFromManifest.length > 0) {
     updateManifest(manifestPath, filesToRemoveFromManifest);
     console.log(
-      colors.red(
-        `Updated manifest: removed ${filesToRemoveFromManifest.length} files\n`
-      )
+      colors.red(`Updated manifest: removed ${filesToRemoveFromManifest.length} files\n`)
     );
   }
 
@@ -556,9 +516,7 @@ export async function run(argv: LinkArgv): Promise<void> {
     const destPath = path.join(destDir, file);
 
     if (!fs.existsSync(sourcePath)) {
-      console.warn(
-        colors.yellow(`  - WARNING: Source file not found, skipping: ${sourcePath}`)
-      );
+      console.warn(colors.yellow(`  - WARNING: Source file not found, skipping: ${sourcePath}`));
       continue;
     }
 
@@ -566,9 +524,7 @@ export async function run(argv: LinkArgv): Promise<void> {
     if (!isIgnored(sourcePath)) {
       console.error(
         colors.red(
-          colors.bold(
-            `  - DANGER: File is not ignored by git, skipping for safety: ${file}`
-          )
+          colors.bold(`  - DANGER: File is not ignored by git, skipping for safety: ${file}`)
         )
       );
       errorCount++;
@@ -576,9 +532,7 @@ export async function run(argv: LinkArgv): Promise<void> {
     }
 
     if (argv.dryRun) {
-      console.log(
-        colors.cyan(`  - [DRY RUN] Would link: ${sourcePath} -> ${destPath}`)
-      );
+      console.log(colors.cyan(`  - [DRY RUN] Would link: ${sourcePath} -> ${destPath}`));
       linkedCount++;
       continue;
     }
@@ -608,9 +562,7 @@ export async function run(argv: LinkArgv): Promise<void> {
   }
 
   console.log('\n-------------------');
-  console.log(
-    colors.green(colors.bold(`Link process complete. Linked ${linkedCount} files.`))
-  );
+  console.log(colors.green(colors.bold(`Link process complete. Linked ${linkedCount} files.`)));
   if (errorCount > 0) {
     console.log(colors.red(colors.bold(`Encountered ${errorCount} errors.`)));
   }

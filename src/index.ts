@@ -24,27 +24,13 @@ export type {
   PushOptions,
 } from './lib/git.js';
 
-export type {
-  CreatePrOptions,
-  PrInfo,
-  RepoInfo,
-  ListPrsOptions,
-} from './lib/github.js';
+export type { CreatePrOptions, PrInfo, RepoInfo, ListPrsOptions } from './lib/github.js';
 
-export type {
-  WorktreeConfig,
-} from './lib/config.js';
+export type { WorktreeConfig } from './lib/config.js';
 
-export type {
-  GitState,
-  Scenario,
-  WorktreeType,
-  BranchType,
-} from './lib/state-detection.js';
+export type { GitState, Scenario, WorktreeType, BranchType } from './lib/state-detection.js';
 
-export type {
-  PromptOption,
-} from './lib/prompts.js';
+export type { PromptOption } from './lib/prompts.js';
 
 // Export error classes for direct use
 export {

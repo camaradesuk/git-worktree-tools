@@ -122,21 +122,21 @@ wtlink validate ../other-wt     # Validate against specific source
 
 **Interactive UI navigation:**
 
-| Key | Action |
-| --- | ------ |
-| ↑/↓ | Navigate file list |
+| Key | Action                                           |
+| --- | ------------------------------------------------ |
+| ↑/↓ | Navigate file list                               |
 | ←/→ | Navigate into/out of folders (hierarchical view) |
-| A | Mark as "Will Link" (added to manifest) |
-| C | Mark as "Track" (commented in manifest) |
-| S | Mark as "Skip" (not in manifest) |
-| 0 | Toggle showing undecided items |
-| 1 | Toggle showing "Will Link" items |
-| 2 | Toggle showing "Track" items |
-| 3 | Toggle showing "Skip" items |
-| V | Toggle hierarchical/flat view |
-| ? | Show help |
-| Q | Save and quit |
-| X | Cancel without saving |
+| A   | Mark as "Will Link" (added to manifest)          |
+| C   | Mark as "Track" (commented in manifest)          |
+| S   | Mark as "Skip" (not in manifest)                 |
+| 0   | Toggle showing undecided items                   |
+| 1   | Toggle showing "Will Link" items                 |
+| 2   | Toggle showing "Track" items                     |
+| 3   | Toggle showing "Skip" items                      |
+| V   | Toggle hierarchical/flat view                    |
+| ?   | Show help                                        |
+| Q   | Save and quit                                    |
+| X   | Cancel without saving                            |
 
 **Folder operations:** Actions on folders apply to all files inside. The UI shows a breakdown of child states for each folder.
 
