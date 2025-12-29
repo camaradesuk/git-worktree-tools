@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.4...v1.0.5) (2025-12-29)
+
+
+### Bug Fixes
+
+* add stdin.resume() for wtlink manage on Ubuntu ([ebc0ecd](https://github.com/camaradesuk/git-worktree-tools/commit/ebc0ecdd629c26aae55cec4057a3239561ab4f5f))
+
 ## [1.0.4](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.3...v1.0.4) (2025-12-29)
 
 ### Bug Fixes
