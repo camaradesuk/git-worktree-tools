@@ -10,6 +10,20 @@ import * as git from '../lib/git.js';
  * These tests create a temporary git repo and perform actual git operations.
  */
 
+/**
+ * Normalize a path for cross-platform comparison.
+ * Handles: macOS symlinks (/var -> /private/var), Windows short paths (RUNNER~1 -> runneradmin)
+ */
+function normalizePath(p: string): string {
+  try {
+    // fs.realpathSync resolves symlinks and normalizes paths
+    return path.normalize(fs.realpathSync(p)).toLowerCase();
+  } catch {
+    // If path doesn't exist, just normalize it
+    return path.normalize(p).toLowerCase();
+  }
+}
+
 describe('git integration', () => {
   let tempDir: string;
   let repoDir: string;
@@ -48,7 +62,7 @@ describe('git integration', () => {
   describe('getRepoRoot', () => {
     it('returns repo root directory', () => {
       const result = git.getRepoRoot(repoDir);
-      expect(path.normalize(result)).toBe(path.normalize(repoDir));
+      expect(normalizePath(result)).toBe(normalizePath(repoDir));
     });
 
     it('works from subdirectory', () => {
@@ -56,7 +70,7 @@ describe('git integration', () => {
       fs.mkdirSync(subDir, { recursive: true });
 
       const result = git.getRepoRoot(subDir);
-      expect(path.normalize(result)).toBe(path.normalize(repoDir));
+      expect(normalizePath(result)).toBe(normalizePath(repoDir));
     });
 
     it('throws for non-repo directory', () => {
@@ -248,7 +262,7 @@ describe('git integration', () => {
 
       expect(worktrees.length).toBeGreaterThanOrEqual(1);
       expect(worktrees[0].isMain).toBe(true);
-      expect(path.normalize(worktrees[0].path)).toBe(path.normalize(repoDir));
+      expect(normalizePath(worktrees[0].path)).toBe(normalizePath(repoDir));
     });
 
     it('creates and removes worktree', () => {
@@ -262,7 +276,7 @@ describe('git integration', () => {
 
       const worktrees = git.listWorktrees(repoDir);
       const newWorktree = worktrees.find(
-        (w) => path.normalize(w.path) === path.normalize(worktreePath)
+        (w) => normalizePath(w.path) === normalizePath(worktreePath)
       );
       expect(newWorktree).toBeDefined();
       expect(newWorktree?.branch).toBe('worktree-branch');
@@ -273,7 +287,7 @@ describe('git integration', () => {
       // Verify worktree removed
       const afterWorktrees = git.listWorktrees(repoDir);
       const removed = afterWorktrees.find(
-        (w) => path.normalize(w.path) === path.normalize(worktreePath)
+        (w) => normalizePath(w.path) === normalizePath(worktreePath)
       );
       expect(removed).toBeUndefined();
     });
@@ -283,7 +297,7 @@ describe('git integration', () => {
 
       expect(mainWorktree).toBeDefined();
       expect(mainWorktree?.isMain).toBe(true);
-      expect(path.normalize(mainWorktree!.path)).toBe(path.normalize(repoDir));
+      expect(normalizePath(mainWorktree!.path)).toBe(normalizePath(repoDir));
     });
 
     it('detects if current directory is a worktree', () => {
@@ -352,7 +366,8 @@ describe('git integration', () => {
 
       // README should be reverted to its last committed state (unstaged changes stashed)
       const readmeContent = fs.readFileSync(path.join(repoDir, 'README.md'), 'utf8');
-      expect(readmeContent).toBe('# Test Repo\n');
+      // Normalize line endings for cross-platform compatibility
+      expect(readmeContent.replace(/\r\n/g, '\n')).toBe('# Test Repo\n');
 
       // Clean up
       git.stashDrop(undefined, repoDir);
