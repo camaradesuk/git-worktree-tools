@@ -76,6 +76,8 @@ List all worktrees with status information.
 ```bash
 lswt              # List all worktrees
 lswt --status     # Include PR status (open/merged/closed)
+lswt --json       # Output as JSON for scripting
+lswt --verbose    # Show more details (commit hashes, full paths)
 ```
 
 ### wtlink
@@ -194,6 +196,7 @@ Create a `.worktreerc` file in your repository root:
 | `draftPr`         | boolean  | `false`               | Create PRs as drafts by default            |
 | `worktreePattern` | string   | `"{repo}.pr{number}"` | Worktree directory naming pattern          |
 | `worktreeParent`  | string   | `".."`                | Parent directory for worktrees             |
+| `branchPrefix`    | string   | `"claude"`            | Prefix for auto-generated branch names     |
 
 > **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 

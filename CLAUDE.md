@@ -29,8 +29,8 @@
   - `src/cli/newpr.ts` - Create PRs with worktree management
   - `src/cli/cleanpr.ts` - Clean up merged/closed PR worktrees
   - `src/cli/lswt.ts` - List worktrees with PR status
-  - `src/cli/wtlink.ts` - Sync gitignored files via symlinks
-- [x] Unit tests (47 tests passing)
+  - `src/cli/wtlink.ts` - Manage gitignored files via hard links
+- [x] Unit tests (231 tests passing)
 - [x] CI/CD workflows:
   - `.github/workflows/ci.yml` - Cross-platform testing (Ubuntu/macOS/Windows, Node 18/20/22)
   - `.github/workflows/release.yml` - npm publish on version tags
@@ -86,7 +86,16 @@ git-worktree-tools/
 │   │   ├── config.ts       # Config file handling
 │   │   ├── colors.ts       # ANSI colors
 │   │   ├── state-detection.ts  # Git state analysis
+│   │   ├── errors.ts       # Custom error classes
+│   │   ├── constants.ts    # Centralized defaults
+│   │   ├── wtlink/         # wtlink submodules
+│   │   │   ├── link-configs.ts      # Hard link creation
+│   │   │   ├── manage-manifest.ts   # Interactive TUI
+│   │   │   ├── validate-manifest.ts # Manifest validation
+│   │   │   └── main-menu.ts         # Interactive menu
 │   │   └── *.test.ts       # Unit tests
+│   ├── e2e/                # End-to-end tests
+│   ├── integration/        # Integration tests
 │   └── index.ts            # Library exports
 ├── package.json
 ├── tsconfig.json
@@ -143,8 +152,7 @@ Users can create a `.worktreerc` or `.worktreerc.json` in their repo root:
   "worktreePattern": "{repo}.pr{number}",
   "worktreeParent": "..",
   "branchPrefix": "claude",
-  "sharedRepos": ["cluster-gitops"],
-  "syncPatterns": ["node_modules", ".env.local"]
+  "sharedRepos": ["cluster-gitops"]
 }
 ```
 

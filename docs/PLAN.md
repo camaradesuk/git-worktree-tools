@@ -9,7 +9,7 @@
 | Setup | ✅ Complete | TypeScript project configured, CI/CD workflows created |
 | Core Libraries | ✅ Complete | All 6 libraries implemented with tests |
 | CLI Tools | ✅ Complete | newpr, cleanpr, lswt, wtlink all ported |
-| Testing | ✅ Complete | 183 tests passing, cross-platform CI green |
+| Testing | ✅ Complete | 231 tests passing, cross-platform CI green |
 | npm Publishing | ⏳ Pending | Requires NPM_TOKEN secret, then create v0.1.0 tag |
 
 ## Overview
@@ -38,35 +38,44 @@ git-worktree-tools/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml              # Test on all platforms
-│       └── publish.yml         # npm publish on release
+│       └── release.yml         # npm publish on release
 ├── src/
 │   ├── cli/
 │   │   ├── newpr.ts            # Create PR + worktree
 │   │   ├── cleanpr.ts          # Clean up worktrees
 │   │   ├── lswt.ts             # List worktrees
-│   │   └── wtlink.ts           # Sync gitignored files
+│   │   └── wtlink.ts           # Sync gitignored files (yargs CLI)
 │   ├── lib/
 │   │   ├── git.ts              # Git operations wrapper
 │   │   ├── github.ts           # GitHub CLI (gh) wrapper
 │   │   ├── prompts.ts          # Interactive prompts (cross-platform)
 │   │   ├── config.ts           # .worktreerc loading
-│   │   ├── config.test.ts      # Tests colocated with source
 │   │   ├── colors.ts           # Terminal colors (ANSI)
-│   │   ├── colors.test.ts
+│   │   ├── errors.ts           # Custom error classes
+│   │   ├── constants.ts        # Centralized defaults
 │   │   ├── state-detection.ts  # Git state analysis (10 scenarios)
-│   │   └── state-detection.test.ts
-│   └── index.ts                # Programmatic API (optional)
+│   │   ├── wtlink/             # wtlink submodules
+│   │   │   ├── link-configs.ts      # Hard link creation
+│   │   │   ├── manage-manifest.ts   # Interactive TUI
+│   │   │   ├── validate-manifest.ts # Manifest validation
+│   │   │   └── main-menu.ts         # Interactive menu
+│   │   └── *.test.ts           # Tests colocated with source
+│   ├── integration/            # Integration tests
+│   ├── e2e/                    # End-to-end tests
+│   └── index.ts                # Programmatic API exports
 └── docs/
     └── PLAN.md                 # This file
 ```
 
 ### Dependencies
 
-**Runtime dependencies**: None (uses built-in Node.js APIs only)
+**Runtime dependencies**:
+- `yargs` ^17.7.2 - CLI argument parsing (wtlink subcommands)
+- `inquirer` ^9.3.7 - Interactive prompts
+- `@preact/signals-core` ^1.8.0 - Reactive state for wtlink TUI
 
 **Built-in APIs used**:
 - `child_process.execSync` / `spawn` - Run git/gh commands
-- `readline` - Interactive prompts
 - `fs` - File operations
 - `path` - Cross-platform paths
 - `os` - Platform detection
@@ -74,7 +83,7 @@ git-worktree-tools/
 
 **Dev dependencies**:
 - `typescript` ^5.3.0
-- `vitest` ^2.0.0
+- `vitest` ^2.1.9
 - `@types/node` ^20.0.0
 
 ---
@@ -219,8 +228,8 @@ export interface WorktreeConfig {
   // Parent directory for worktrees (default: same parent as main repo)
   worktreeParent?: string
 
-  // Files/patterns to sync between worktrees (like wtlink)
-  syncPatterns?: string[]
+  // Branch name prefix for auto-generated branches (default: "claude")
+  branchPrefix?: string
 }
 ```
 
@@ -568,8 +577,9 @@ List worktrees with status information.
 **Usage**:
 ```bash
 lswt              # List all worktrees
-lswt --pr         # List only PR worktrees
 lswt --status     # Include PR status (requires gh)
+lswt --json       # Output as JSON for scripting
+lswt --verbose    # Show more details (commit hashes, full paths)
 ```
 
 **Output**:
@@ -651,20 +661,29 @@ Per-repository configuration file:
 
 ### Unit Tests (colocated with source in `src/lib/`)
 
-| File                       | Tests | Description                           |
-| -------------------------- | ----- | ------------------------------------- |
-| `colors.test.ts`           | 12    | ANSI color formatting                 |
-| `config.test.ts`           | 11    | Config loading and defaults           |
-| `state-detection.test.ts`  | 24    | Git state analysis (10 scenarios)     |
-| `git.test.ts`              | 59    | Git operations (mocked execSync)      |
-| `github.test.ts`           | 24    | GitHub CLI operations (mocked)        |
-| `prompts.test.ts`          | 27    | Interactive prompts (mocked readline) |
+| File                              | Tests | Description                           |
+| --------------------------------- | ----- | ------------------------------------- |
+| `colors.test.ts`                  | 12    | ANSI color formatting                 |
+| `config.test.ts`                  | 11    | Config loading and defaults           |
+| `state-detection.test.ts`         | 24    | Git state analysis (10 scenarios)     |
+| `git.test.ts`                     | 59    | Git operations (mocked execSync)      |
+| `github.test.ts`                  | 24    | GitHub CLI operations (mocked)        |
+| `prompts.test.ts`                 | 27    | Interactive prompts (mocked readline) |
+| `errors.test.ts`                  | 14    | Custom error classes                  |
+| `wtlink/validate-manifest.test.ts`| 8     | Manifest validation                   |
+| `wtlink/link-configs.test.ts`     | 10    | Hard link creation                    |
 
 ### Integration Tests (`src/integration/`)
 
 | File                       | Tests | Description                      |
 | -------------------------- | ----- | -------------------------------- |
 | `git.integration.test.ts`  | 26    | Real git operations in temp repo |
+
+### End-to-End Tests (`src/e2e/`)
+
+| File               | Tests | Description                         |
+| ------------------ | ----- | ----------------------------------- |
+| `cli.e2e.test.ts`  | 16    | Full CLI command testing with real git repos |
 
 **Integration test coverage:**
 
