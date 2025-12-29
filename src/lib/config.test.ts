@@ -6,6 +6,11 @@ import {
 } from './config.js';
 import * as path from 'path';
 
+// Helper to normalize paths for cross-platform testing
+function normalizePath(p: string): string {
+  return p.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
+}
+
 describe('config', () => {
   describe('getDefaultConfig', () => {
     it('should return default configuration', () => {
@@ -69,7 +74,8 @@ describe('config', () => {
         'myproject',
         123
       );
-      expect(result).toBe(path.join('/home/user/repos', 'myproject.pr123'));
+      // Normalize paths for cross-platform comparison
+      expect(normalizePath(result)).toBe('/home/user/repos/myproject.pr123');
     });
 
     it('should use custom worktree pattern', () => {
@@ -83,7 +89,7 @@ describe('config', () => {
         'myproject',
         456
       );
-      expect(result).toBe(path.join('/home/user/repos', 'myproject-pr-456'));
+      expect(normalizePath(result)).toBe('/home/user/repos/myproject-pr-456');
     });
 
     it('should use custom parent directory', () => {
@@ -97,7 +103,7 @@ describe('config', () => {
         'myproject',
         789
       );
-      expect(result).toBe(path.join('/tmp/worktrees', 'myproject.pr789'));
+      expect(normalizePath(result)).toBe('/tmp/worktrees/myproject.pr789');
     });
 
     it('should include branch name when pattern uses it', () => {
@@ -112,7 +118,7 @@ describe('config', () => {
         123,
         'feature-x'
       );
-      expect(result).toBe(path.join('/home/user/repos', 'myproject.feature-x'));
+      expect(normalizePath(result)).toBe('/home/user/repos/myproject.feature-x');
     });
   });
 });
