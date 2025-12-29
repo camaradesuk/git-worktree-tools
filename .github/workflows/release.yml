@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -51,3 +51,15 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: npx semantic-release
+
+      - name: Format CHANGELOG after release
+        run: |
+          git pull origin main
+          npm run format -- CHANGELOG.md
+          if ! git diff --quiet CHANGELOG.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "style: format CHANGELOG.md [skip ci]"
+            git push
+          fi
