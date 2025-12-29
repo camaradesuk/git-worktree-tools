@@ -47,8 +47,15 @@
     "README.md",
     "LICENSE"
   ],
+  "dependencies": {
+    "@preact/signals-core": "^1.8.0",
+    "inquirer": "^9.3.7",
+    "yargs": "^17.7.2"
+  },
   "devDependencies": {
+    "@types/inquirer": "^9.0.7",
     "@types/node": "^20.19.27",
+    "@types/yargs": "^17.0.33",
     "typescript": "^5.3.0",
     "vitest": "^2.1.9"
   }
