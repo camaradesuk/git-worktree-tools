@@ -1095,6 +1095,7 @@ async function interactiveManage(
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
     }
+    process.stdin.resume();
 
     const buildState = (): AppState => ({
       fileTree,
@@ -1141,6 +1142,7 @@ async function interactiveManage(
     };
 
     const cleanup = () => {
+      process.stdin.pause();
       if (process.stdin.isTTY) {
         process.stdin.setRawMode(false);
       }
