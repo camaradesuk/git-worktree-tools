@@ -1,5 +1,6 @@
 import * as git from './git.js';
 import type { CommitRelationship, WorkingTreeStatus } from './git.js';
+import { DEFAULT_BASE_BRANCH } from './constants.js';
 
 /**
  * Worktree type based on directory naming pattern
@@ -88,7 +89,7 @@ export function detectBranchType(baseBranch: string, cwd?: string): BranchType {
 /**
  * Analyze complete git state
  */
-export function analyzeGitState(baseBranch: string = 'main', cwd?: string): GitState {
+export function analyzeGitState(baseBranch: string = DEFAULT_BASE_BRANCH, cwd?: string): GitState {
   const repoRoot = git.getRepoRoot(cwd);
   const repoName = git.getRepoName(repoRoot);
 

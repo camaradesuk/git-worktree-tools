@@ -18,6 +18,7 @@ import * as colors from '../lib/colors.js';
 import * as manage from '../lib/wtlink/manage-manifest.js';
 import * as link from '../lib/wtlink/link-configs.js';
 import * as validate from '../lib/wtlink/validate-manifest.js';
+import { DEFAULT_MANIFEST_FILE } from '../lib/constants.js';
 
 // Define interfaces for command arguments for type safety
 interface GlobalOptions {
@@ -50,7 +51,7 @@ yargs(hideBin(process.argv))
   .option('manifest-file', {
     description: 'The name of the manifest file.',
     type: 'string',
-    default: '.wtlinkrc',
+    default: DEFAULT_MANIFEST_FILE,
   })
   .command<ManageArgv>(
     'manage',

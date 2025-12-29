@@ -1,6 +1,7 @@
 import { execSync, ExecSyncOptions } from 'child_process';
 import path from 'path';
 import os from 'os';
+import { DEFAULT_REMOTE, DEFAULT_BASE_BRANCH } from './constants.js';
 
 /**
  * Commit relationship to base branch
@@ -163,7 +164,7 @@ export function getShortCommit(cwd?: string, ref: string = 'HEAD'): string {
 /**
  * Check if a remote exists
  */
-export function hasRemote(remote: string = 'origin', cwd?: string): boolean {
+export function hasRemote(remote: string = DEFAULT_REMOTE, cwd?: string): boolean {
   const result = execSafe(['remote', 'get-url', remote], { cwd });
   return result !== null;
 }
@@ -171,7 +172,7 @@ export function hasRemote(remote: string = 'origin', cwd?: string): boolean {
 /**
  * Fetch from remote
  */
-export function fetch(remote: string = 'origin', cwd?: string): void {
+export function fetch(remote: string = DEFAULT_REMOTE, cwd?: string): void {
   exec(['fetch', remote], { cwd, silent: true });
 }
 
@@ -186,10 +187,10 @@ export function getRefCommit(ref: string, cwd?: string): string | null {
  * Determine commit relationship to base branch
  */
 export function getCommitRelationship(
-  baseBranch: string = 'main',
+  baseBranch: string = DEFAULT_BASE_BRANCH,
   cwd?: string
 ): CommitRelationship {
-  const remote = 'origin';
+  const remote = DEFAULT_REMOTE;
   const baseRef = `${remote}/${baseBranch}`;
 
   const headCommit = getHeadCommit(cwd);
@@ -229,10 +230,10 @@ export function getCommitRelationship(
  * Get list of commits ahead of base
  */
 export function getCommitsAhead(
-  baseBranch: string = 'main',
+  baseBranch: string = DEFAULT_BASE_BRANCH,
   cwd?: string
 ): string[] {
-  const remote = 'origin';
+  const remote = DEFAULT_REMOTE;
   const baseRef = `${remote}/${baseBranch}`;
 
   const result = execSafe(['rev-list', `${baseRef}..HEAD`, '--oneline'], { cwd });
@@ -632,9 +633,62 @@ export function branchExists(name: string, cwd?: string): boolean {
  */
 export function remoteBranchExists(
   name: string,
-  remote: string = 'origin',
+  remote: string = DEFAULT_REMOTE,
   cwd?: string
 ): boolean {
   const result = execSafe(['rev-parse', '--verify', `refs/remotes/${remote}/${name}`], { cwd });
   return result !== null;
+}
+
+/**
+ * Check if git is installed and accessible
+ */
+export function checkGitInstalled(): boolean {
+  try {
+    execSync('git --version', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the main worktree root (not the current worktree).
+ * Useful when you need to access files that should be in the main worktree
+ * regardless of which worktree you're currently in.
+ */
+export function getMainWorktreeRoot(cwd?: string): string {
+  // Get the common git directory (shared across all worktrees)
+  const commonDir = execSafe(['rev-parse', '--git-common-dir'], { cwd });
+
+  if (!commonDir) {
+    // Fallback to current repo root
+    return getRepoRoot(cwd);
+  }
+
+  const commonDirPath = path.resolve(commonDir);
+
+  // If git-common-dir returns ".git", we're in the main worktree
+  if (path.basename(commonDirPath) === '.git') {
+    return path.dirname(commonDirPath);
+  }
+
+  // Otherwise, we're in a linked worktree
+  // The common dir is like: /main-worktree/.git/worktrees/feature-branch
+  // We need to go up to .git, then to parent directory
+  const gitDir =
+    commonDirPath.includes('/worktrees/') ||
+    commonDirPath.includes('\\worktrees\\')
+      ? path.dirname(path.dirname(commonDirPath)) // .git/worktrees/name → .git
+      : commonDirPath;
+
+  return path.dirname(gitDir);
+}
+
+/**
+ * Check if a file is ignored by git
+ */
+export function isGitIgnored(filePath: string, cwd?: string): boolean {
+  const result = execSafe(['check-ignore', filePath], { cwd });
+  return result !== null && result.trim().length > 0;
 }

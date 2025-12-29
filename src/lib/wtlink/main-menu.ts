@@ -1,10 +1,9 @@
 import inquirer from 'inquirer';
 import * as colors from '../colors.js';
+import { DEFAULT_MANIFEST_FILE } from '../constants.js';
 import * as manage from './manage-manifest.js';
 import * as link from './link-configs.js';
 import * as validate from './validate-manifest.js';
-
-const DEFAULT_MANIFEST = '.wtlinkrc';
 
 export async function showMainMenu(): Promise<void> {
   let running = true;
@@ -99,7 +98,7 @@ async function runManage(): Promise<void> {
     nonInteractive: false,
     clean: false,
     dryRun: false,
-    manifestFile: DEFAULT_MANIFEST,
+    manifestFile: DEFAULT_MANIFEST_FILE,
     backup: false,
   });
 
@@ -123,7 +122,7 @@ async function runManage(): Promise<void> {
 async function runLink(): Promise<void> {
   console.log('\n');
   await link.run({
-    manifestFile: DEFAULT_MANIFEST,
+    manifestFile: DEFAULT_MANIFEST_FILE,
     dryRun: false,
     type: 'hard',
     yes: false,
@@ -134,7 +133,7 @@ async function runLink(): Promise<void> {
 async function runValidate(): Promise<void> {
   console.log('\n');
   validate.run({
-    manifestFile: DEFAULT_MANIFEST,
+    manifestFile: DEFAULT_MANIFEST_FILE,
   });
   await pressAnyKey();
 }

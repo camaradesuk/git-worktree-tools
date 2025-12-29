@@ -1,5 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import {
+  DEFAULT_BASE_BRANCH,
+  DEFAULT_WORKTREE_PATTERN,
+  DEFAULT_WORKTREE_PARENT,
+  DEFAULT_BRANCH_PREFIX,
+  CONFIG_FILE_NAMES,
+} from './constants.js';
 
 /**
  * Configuration for git-worktree-tools
@@ -54,19 +61,14 @@ export interface WorktreeConfig {
 export function getDefaultConfig(): Required<WorktreeConfig> {
   return {
     sharedRepos: [],
-    baseBranch: 'main',
+    baseBranch: DEFAULT_BASE_BRANCH,
     draftPr: false,
-    worktreePattern: '{repo}.pr{number}',
-    worktreeParent: '..',
+    worktreePattern: DEFAULT_WORKTREE_PATTERN,
+    worktreeParent: DEFAULT_WORKTREE_PARENT,
     syncPatterns: [],
-    branchPrefix: 'claude',
+    branchPrefix: DEFAULT_BRANCH_PREFIX,
   };
 }
-
-/**
- * Config file names to look for (in order of priority)
- */
-const CONFIG_FILE_NAMES = ['.worktreerc', '.worktreerc.json'];
 
 /**
  * Find config file in repository

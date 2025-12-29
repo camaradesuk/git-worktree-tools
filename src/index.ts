@@ -12,6 +12,7 @@ export * as prompts from './lib/prompts.js';
 export * as config from './lib/config.js';
 export * as stateDetection from './lib/state-detection.js';
 export * as errors from './lib/errors.js';
+export * as constants from './lib/constants.js';
 
 // Export key types
 export type {

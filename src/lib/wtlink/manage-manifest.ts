@@ -4,6 +4,7 @@ import os from 'os';
 import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import * as colors from '../colors.js';
+import * as git from '../git.js';
 import * as readline from 'readline';
 import { signal, computed } from '@preact/signals-core';
 
@@ -1419,13 +1420,11 @@ async function interactiveManage(
 }
 
 // ============================================================================
-// GIT OPERATIONS
+// GIT OPERATIONS - Using central git.ts utilities
 // ============================================================================
 
 function checkGitInstalled(): void {
-  try {
-    execSync('git --version', { stdio: 'ignore' });
-  } catch {
+  if (!git.checkGitInstalled()) {
     throw new Error(
       'Git is not installed or not found in your PATH. This tool requires Git.'
     );
@@ -1433,57 +1432,15 @@ function checkGitInstalled(): void {
 }
 
 function getGitRoot(): string {
-  const gitRoot = execSync('git rev-parse --show-toplevel').toString().trim();
-  return path.normalize(gitRoot);
+  return git.getRepoRoot();
 }
 
-/**
- * Get the main worktree root (not the current worktree).
- * This ensures the manifest is always stored in the main worktree and shared across all worktrees.
- */
 function getMainWorktreeRoot(): string {
-  try {
-    // Get the common git directory (shared across all worktrees)
-    const gitCommonDir = execSync('git rev-parse --git-common-dir')
-      .toString()
-      .trim();
-
-    const commonDirPath = path.resolve(gitCommonDir);
-
-    // If git-common-dir returns ".git", we're in the main worktree
-    if (path.basename(commonDirPath) === '.git') {
-      return path.dirname(commonDirPath);
-    }
-
-    // Otherwise, we're in a linked worktree
-    // The common dir is like: /main-worktree/.git/worktrees/feature-branch
-    // We need to go up to .git, then to parent directory
-    const gitDir =
-      commonDirPath.includes('/worktrees/') ||
-      commonDirPath.includes('\\worktrees\\')
-        ? path.dirname(path.dirname(commonDirPath)) // .git/worktrees/name → .git
-        : commonDirPath;
-
-    return path.dirname(gitDir);
-  } catch {
-    // Fallback to current git root if command fails
-    return getGitRoot();
-  }
+  return git.getMainWorktreeRoot();
 }
 
 function isIgnored(filePath: string, gitRoot: string): boolean {
-  try {
-    const result = execSync(`git check-ignore "${filePath}"`, {
-      cwd: gitRoot,
-      stdio: ['pipe', 'pipe', 'ignore'], // Suppress stderr
-    })
-      .toString()
-      .trim();
-    return result.length > 0;
-  } catch {
-    // git check-ignore returns non-zero exit code if file is not ignored
-    return false;
-  }
+  return git.isGitIgnored(filePath, gitRoot);
 }
 
 function getIgnoredFiles(gitRoot: string, manifestFile: string): string[] {
