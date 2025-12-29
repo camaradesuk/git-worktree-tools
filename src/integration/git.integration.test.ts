@@ -32,7 +32,9 @@ describe('git integration', () => {
   // Create temp directory and git repo before all tests
   beforeAll(() => {
     // Use realpathSync.native to resolve symlinks and Windows 8.3 short paths
-    tempDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'git-worktree-tools-test-')));
+    tempDir = fs.realpathSync.native(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'git-worktree-tools-test-'))
+    );
     repoDir = path.join(tempDir, 'test-repo');
     fs.mkdirSync(repoDir);
 
