@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.1...v1.0.2) (2025-12-29)
+
+
+### Bug Fixes
+
+* **ci:** set npm access to public for scoped package ([01a1cf1](https://github.com/camaradesuk/git-worktree-tools/commit/01a1cf1813da4c215edc93f3fdb61e88b4442665))
+
 ## [1.0.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.0...v1.0.1) (2025-12-29)
 
 
