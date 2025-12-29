@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.2...v1.0.3) (2025-12-29)
+
+
+### Bug Fixes
+
+* add publishConfig for public npm access ([60f6633](https://github.com/camaradesuk/git-worktree-tools/commit/60f66339aca9249ab8cefe41586c7379c9c99fd8))
+
 ## [1.0.2](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.1...v1.0.2) (2025-12-29)
 
 
