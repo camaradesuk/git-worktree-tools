@@ -8,7 +8,7 @@ Cross-platform CLI tools for git worktree workflow management. Create PRs with d
 - **Smart State Detection**: Intelligently handles 10+ git scenarios (uncommitted changes, local commits, existing branches, etc.)
 - **PR + Worktree Workflow**: Create PRs and dedicated worktrees in one command
 - **Shared Repos**: Automatically create worktrees in related repositories
-- **File Syncing**: Sync gitignored files (node_modules, .env, etc.) between worktrees
+- **Config Syncing**: Share gitignored config files (.env, .vscode, etc.) between worktrees via hard links
 - **Configurable**: Per-repo settings via `.worktreerc`
 
 ## Installation
@@ -35,8 +35,8 @@ lswt
 # Clean up merged/closed PR worktrees
 cleanpr
 
-# Sync gitignored files between worktrees
-wtlink node_modules
+# Manage shared config files between worktrees
+wtlink
 ```
 
 ## Commands
@@ -80,13 +80,61 @@ lswt --status     # Include PR status (open/merged/closed)
 
 ### wtlink
 
-Sync gitignored files between worktrees using symlinks.
+Interactive CLI for managing configuration file links between git worktrees. Share config files while keeping build artifacts separate using hard links and a manifest file.
 
 ```bash
-wtlink                    # Sync based on .worktreerc config
-wtlink node_modules       # Sync specific directory
-wtlink --restore          # Convert symlinks back to real files
+wtlink                    # Interactive main menu
+wtlink manage             # Interactive file browser to select files to share
+wtlink link               # Create hard links based on manifest
+wtlink link ../my-app.pr42  # Link to specific worktree
+wtlink validate           # Verify manifest integrity
 ```
+
+**How it works:**
+
+1. **Discover** — Scans for git-ignored files in your repository
+2. **Decide** — Interactive UI to categorize each file (link, track, or skip)
+3. **Link** — Creates hard links from main worktree to feature worktrees
+4. **Validate** — Ensures manifest entries exist and remain git-ignored
+
+**Interactive UI navigation:**
+
+| Key | Action |
+| --- | ------ |
+| ↑/↓ | Navigate file list |
+| A | Mark file as "Will Link" |
+| C | Mark file as "Track (Commented)" |
+| S | Mark file as "Won't Link" |
+| V | Toggle hierarchical/flat view |
+| ? | Show help |
+
+**Manifest format (`.wtlinkrc`):**
+
+The manifest lives in your repository root and tracks which files to share:
+
+```text
+.vscode/settings.json
+.editorconfig
+.env.local
+# .vscode/launch.json
+```
+
+- Active entries (no `#`) are hard-linked between worktrees
+- Commented entries (`#`) are tracked but not currently linked
+
+**Best practices:**
+
+✅ **Good candidates for linking:**
+
+- `.vscode/settings.json`, `.editorconfig` — Editor config
+- `.env.local`, `.env.development` — Local environment variables
+- `certificates/`, `credentials/` — Local dev certificates
+
+❌ **Not suitable for linking:**
+
+- `node_modules/` — Use [pnpm](https://pnpm.io) for shared dependencies instead
+- `dist/`, `build/` — Build artifacts should be separate per worktree
+- `.git/` — Never link git internals
 
 ## Configuration
 
@@ -96,21 +144,21 @@ Create a `.worktreerc` file in your repository root:
 {
   "sharedRepos": ["cluster-gitops", "infrastructure"],
   "baseBranch": "main",
-  "draftPr": true,
-  "syncPatterns": ["node_modules", ".env.local"]
+  "draftPr": true
 }
 ```
 
 ### Options
 
-| Option            | Type     | Default                | Description                                  |
-| ----------------- | -------- | ---------------------- | -------------------------------------------- |
-| `sharedRepos`     | string[] | `[]`                   | Sibling repos to also create worktrees for   |
-| `baseBranch`      | string   | `"main"`               | Base branch for new PRs                      |
-| `draftPr`         | boolean  | `false`                | Create PRs as drafts by default              |
-| `worktreePattern` | string   | `"{repo}.pr{number}"`  | Worktree directory naming pattern            |
-| `worktreeParent`  | string   | `".."`                 | Parent directory for worktrees               |
-| `syncPatterns`    | string[] | `[]`                   | Files/directories to sync between worktrees  |
+| Option            | Type     | Default               | Description                                |
+| ----------------- | -------- | --------------------- | ------------------------------------------ |
+| `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for |
+| `baseBranch`      | string   | `"main"`              | Base branch for new PRs                    |
+| `draftPr`         | boolean  | `false`               | Create PRs as drafts by default            |
+| `worktreePattern` | string   | `"{repo}.pr{number}"` | Worktree directory naming pattern          |
+| `worktreeParent`  | string   | `".."`                | Parent directory for worktrees             |
+
+> **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 
 ## Example Workflow
 

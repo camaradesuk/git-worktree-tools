@@ -9,7 +9,7 @@
 | Setup | ✅ Complete | TypeScript project configured, CI/CD workflows created |
 | Core Libraries | ✅ Complete | All 6 libraries implemented with tests |
 | CLI Tools | ✅ Complete | newpr, cleanpr, lswt, wtlink all ported |
-| Testing | ✅ Complete | 47 tests passing, cross-platform CI green |
+| Testing | ✅ Complete | 183 tests passing, cross-platform CI green |
 | npm Publishing | ⏳ Pending | Requires NPM_TOKEN secret, then create v0.1.0 tag |
 
 ## Overview
@@ -34,6 +34,7 @@ This document provides the comprehensive implementation plan for `@camaradesuk/g
 git-worktree-tools/
 ├── package.json
 ├── tsconfig.json
+├── vitest.config.ts
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml              # Test on all platforms
@@ -49,13 +50,12 @@ git-worktree-tools/
 │   │   ├── github.ts           # GitHub CLI (gh) wrapper
 │   │   ├── prompts.ts          # Interactive prompts (cross-platform)
 │   │   ├── config.ts           # .worktreerc loading
+│   │   ├── config.test.ts      # Tests colocated with source
 │   │   ├── colors.ts           # Terminal colors (ANSI)
-│   │   └── state-detection.ts  # Git state analysis (10 scenarios)
+│   │   ├── colors.test.ts
+│   │   ├── state-detection.ts  # Git state analysis (10 scenarios)
+│   │   └── state-detection.test.ts
 │   └── index.ts                # Programmatic API (optional)
-├── tests/
-│   ├── git.test.ts
-│   ├── prompts.test.ts
-│   └── integration/
 └── docs/
     └── PLAN.md                 # This file
 ```
@@ -584,21 +584,45 @@ WORKTREE                    BRANCH              PR     STATUS
 
 ### wtlink
 
-Sync gitignored files between worktrees using symlinks (or copies on Windows).
+Interactive CLI for managing configuration file links between git worktrees. Uses hard links and a `.wtlinkrc` manifest to share config files while keeping build artifacts separate.
 
 **Usage**:
 ```bash
-wtlink                    # Sync based on .worktreerc patterns
-wtlink node_modules       # Sync specific path
-wtlink --restore          # Convert symlinks back to real files
+wtlink                    # Interactive main menu
+wtlink manage             # Interactive file browser to select files to share
+wtlink link               # Create hard links based on manifest
+wtlink link ../repo.pr42  # Link to specific worktree
+wtlink validate           # Verify manifest integrity
 ```
 
 **Workflow**:
-1. Find main worktree
-2. Find all PR worktrees
-3. For each pattern in config:
-   - Create symlink (Unix) or junction (Windows) from main to PR worktree
-   - Or copy if symlinks not supported
+
+1. **Discover** — Scan for git-ignored files in repository
+2. **Decide** — Interactive UI to categorize each file (link, track, or skip)
+3. **Link** — Create hard links from main worktree to feature worktrees
+4. **Validate** — Ensure manifest entries exist and remain git-ignored
+
+**Manifest format (`.wtlinkrc`)**:
+
+```text
+.vscode/settings.json
+.editorconfig
+.env.local
+# .vscode/launch.json
+```
+
+- Active entries (no `#`) are hard-linked between worktrees
+- Commented entries (`#`) are tracked but not currently linked
+
+**Best candidates for linking**:
+
+- `.vscode/settings.json`, `.editorconfig` — Editor config
+- `.env.local`, `.env.development` — Local environment variables
+
+**Not suitable for linking**:
+
+- `node_modules/` — Use pnpm for shared dependencies instead
+- `dist/`, `build/` — Build artifacts should be separate per worktree
 
 ---
 
@@ -625,19 +649,32 @@ Per-repository configuration file:
 
 ## Testing Plan
 
-### Unit Tests
+### Unit Tests (colocated with source in `src/lib/`)
 
-- `git.test.ts` - Mock execSync, test parsing logic
-- `github.test.ts` - Mock gh commands
-- `prompts.test.ts` - Mock readline
-- `config.test.ts` - Test config loading/defaults
-- `state-detection.test.ts` - Test all 10 scenarios
+| File                       | Tests | Description                           |
+| -------------------------- | ----- | ------------------------------------- |
+| `colors.test.ts`           | 12    | ANSI color formatting                 |
+| `config.test.ts`           | 11    | Config loading and defaults           |
+| `state-detection.test.ts`  | 24    | Git state analysis (10 scenarios)     |
+| `git.test.ts`              | 59    | Git operations (mocked execSync)      |
+| `github.test.ts`           | 24    | GitHub CLI operations (mocked)        |
+| `prompts.test.ts`          | 27    | Interactive prompts (mocked readline) |
 
-### Integration Tests
+### Integration Tests (`src/integration/`)
 
-- Create temp git repo
-- Test full newpr/cleanpr/lswt workflows
-- Test on Windows, macOS, Linux
+| File                       | Tests | Description                      |
+| -------------------------- | ----- | -------------------------------- |
+| `git.integration.test.ts`  | 26    | Real git operations in temp repo |
+
+**Integration test coverage:**
+
+- Repository operations (getRepoRoot, getRepoName)
+- Branch operations (create, delete, checkout)
+- Working tree status detection
+- Staged/unstaged file detection
+- Worktree operations (add, remove, list)
+- Stash operations (push, pop, keep-index)
+- Commit operations with proper shell escaping
 
 ### CI/CD (.github/workflows/ci.yml)
 

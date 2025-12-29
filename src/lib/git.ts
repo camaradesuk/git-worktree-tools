@@ -54,10 +54,22 @@ export interface PushOptions {
 }
 
 /**
+ * Shell-escape a string for use in a command
+ */
+function shellEscape(str: string): string {
+  // If string contains spaces or special chars, wrap in quotes and escape internal quotes
+  if (/[\s"'\\]/.test(str)) {
+    return `"${str.replace(/["\\]/g, '\\$&')}"`;
+  }
+  return str;
+}
+
+/**
  * Execute a git command and return output
  */
 export function exec(args: string[], options: { cwd?: string; silent?: boolean } = {}): string {
-  const cmd = `git ${args.join(' ')}`;
+  const escapedArgs = args.map(shellEscape);
+  const cmd = `git ${escapedArgs.join(' ')}`;
   const execOptions: ExecSyncOptions = {
     encoding: 'utf8',
     cwd: options.cwd,
@@ -66,7 +78,8 @@ export function exec(args: string[], options: { cwd?: string; silent?: boolean }
 
   try {
     const result = execSync(cmd, execOptions) as string;
-    return result.trim();
+    // Use trimEnd to preserve leading whitespace (significant in git status output)
+    return result.trimEnd();
   } catch (error) {
     if (error instanceof Error && 'stderr' in error) {
       const stderr = (error as { stderr?: Buffer | string }).stderr;
