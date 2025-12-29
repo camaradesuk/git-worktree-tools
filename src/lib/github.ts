@@ -4,9 +4,10 @@ import { execSync, ExecSyncOptions } from 'child_process';
  * Shell-escape a string for use in a command
  */
 function shellEscape(str: string): string {
-  // If string contains spaces or special chars, wrap in quotes and escape internal quotes
-  if (/[\s"'\\]/.test(str)) {
-    return `"${str.replace(/["\\]/g, '\\$&')}"`;
+  // Quote any string containing shell metacharacters or special chars
+  // This includes: spaces, quotes, backslashes, slashes, commas, and other special chars
+  if (/[\s"'\\/:,;|&$!`(){}[\]*?<>~#]/.test(str)) {
+    return `"${str.replace(/["\\$`]/g, '\\$&')}"`;
   }
   return str;
 }
