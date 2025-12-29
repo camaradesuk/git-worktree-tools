@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   detectScenario,
   getScenarioDescription,
@@ -6,8 +6,28 @@ import {
   hasLocalCommits,
   formatFileList,
   formatCommitList,
+  detectWorktreeType,
+  detectBranchType,
+  analyzeGitState,
   type GitState,
+  type Scenario,
 } from './state-detection.js';
+import * as git from './git.js';
+
+// Mock the git module
+vi.mock('./git.js', () => ({
+  listWorktrees: vi.fn(),
+  isWorktree: vi.fn(),
+  isDetachedHead: vi.fn(),
+  getCurrentBranch: vi.fn(),
+  getRepoRoot: vi.fn(),
+  getRepoName: vi.fn(),
+  getCommitRelationship: vi.fn(),
+  getWorkingTreeStatus: vi.fn(),
+  getCommitsAhead: vi.fn(),
+  getStagedFiles: vi.fn(),
+  getUnstagedFiles: vi.fn(),
+}));
 
 describe('state-detection', () => {
   // Helper to create a minimal GitState for testing
@@ -191,6 +211,194 @@ describe('state-detection', () => {
     it('should format commit list with indentation', () => {
       const result = formatCommitList(['abc123 First commit', 'def456 Second commit']);
       expect(result).toBe('  abc123 First commit\n  def456 Second commit');
+    });
+  });
+
+  describe('detectScenario - additional edge cases', () => {
+    it('should treat main branch behind as main_clean_same', () => {
+      const state = createState({
+        branchType: 'main',
+        commitRelationship: 'behind',
+      });
+      expect(detectScenario(state)).toBe('main_clean_same');
+    });
+
+    it('should treat main branch divergent as main_clean_same', () => {
+      const state = createState({
+        branchType: 'main',
+        commitRelationship: 'divergent',
+      });
+      expect(detectScenario(state)).toBe('main_clean_same');
+    });
+
+    it('should treat branch behind as branch_same_as_main', () => {
+      const state = createState({
+        branchType: 'other',
+        currentBranch: 'feature-branch',
+        commitRelationship: 'behind',
+      });
+      expect(detectScenario(state)).toBe('branch_same_as_main');
+    });
+
+    it('should detect branch_divergent for ahead relationship', () => {
+      const state = createState({
+        branchType: 'other',
+        currentBranch: 'feature-branch',
+        commitRelationship: 'ahead',
+        localCommits: ['abc123 Some commit'],
+      });
+      expect(detectScenario(state)).toBe('branch_divergent');
+    });
+  });
+
+  describe('getScenarioDescription - all scenarios', () => {
+    const scenarios: Scenario[] = [
+      'main_clean_same',
+      'main_staged_same',
+      'main_unstaged_same',
+      'main_both_same',
+      'main_clean_ahead',
+      'main_changes_ahead',
+      'branch_same_as_main',
+      'branch_ancestor',
+      'branch_divergent',
+      'branch_with_changes',
+      'detached_head',
+      'pr_worktree',
+    ];
+
+    it.each(scenarios)('should return description for %s', (scenario) => {
+      const description = getScenarioDescription(scenario);
+      expect(description).toBeTruthy();
+      expect(typeof description).toBe('string');
+      expect(description.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('detectWorktreeType', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should detect pr_worktree from path pattern', () => {
+      const result = detectWorktreeType('/home/user/project.pr123');
+      expect(result).toBe('pr_worktree');
+    });
+
+    it('should detect main_worktree when isMain is true', () => {
+      vi.mocked(git.listWorktrees).mockReturnValue([
+        { path: '/home/user/project', branch: 'main', isMain: true, head: 'abc123' },
+      ]);
+      vi.mocked(git.isWorktree).mockReturnValue(false);
+
+      const result = detectWorktreeType('/home/user/project');
+      expect(result).toBe('main_worktree');
+    });
+
+    it('should detect pr_worktree for secondary worktree', () => {
+      vi.mocked(git.listWorktrees).mockReturnValue([
+        { path: '/home/user/project', branch: 'main', isMain: true, head: 'abc123' },
+        { path: '/home/user/project-feature', branch: 'feature', isMain: false, head: 'def456' },
+      ]);
+      vi.mocked(git.isWorktree).mockReturnValue(true);
+
+      const result = detectWorktreeType('/home/user/project-feature');
+      expect(result).toBe('pr_worktree');
+    });
+
+    it('should default to main_worktree for unknown path', () => {
+      vi.mocked(git.listWorktrees).mockReturnValue([]);
+      vi.mocked(git.isWorktree).mockReturnValue(false);
+
+      const result = detectWorktreeType('/home/user/unknown');
+      expect(result).toBe('main_worktree');
+    });
+  });
+
+  describe('detectBranchType', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should detect detached state', () => {
+      vi.mocked(git.isDetachedHead).mockReturnValue(true);
+      vi.mocked(git.getCurrentBranch).mockReturnValue(null);
+
+      const result = detectBranchType('main');
+      expect(result).toBe('detached');
+    });
+
+    it('should detect main branch', () => {
+      vi.mocked(git.isDetachedHead).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+
+      const result = detectBranchType('main');
+      expect(result).toBe('main');
+    });
+
+    it('should detect other branch', () => {
+      vi.mocked(git.isDetachedHead).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('feature-branch');
+
+      const result = detectBranchType('main');
+      expect(result).toBe('other');
+    });
+  });
+
+  describe('analyzeGitState', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/project');
+      vi.mocked(git.getRepoName).mockReturnValue('project');
+      vi.mocked(git.listWorktrees).mockReturnValue([
+        { path: '/home/user/project', branch: 'main', isMain: true, head: 'abc123' },
+      ]);
+      vi.mocked(git.isWorktree).mockReturnValue(false);
+      vi.mocked(git.isDetachedHead).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getCommitRelationship).mockReturnValue('same');
+      vi.mocked(git.getWorkingTreeStatus).mockReturnValue('clean');
+      vi.mocked(git.getCommitsAhead).mockReturnValue([]);
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(git.getUnstagedFiles).mockReturnValue([]);
+    });
+
+    it('should return complete git state', () => {
+      const state = analyzeGitState('main');
+
+      expect(state.worktreeType).toBe('main_worktree');
+      expect(state.branchType).toBe('main');
+      expect(state.currentBranch).toBe('main');
+      expect(state.commitRelationship).toBe('same');
+      expect(state.workingTreeStatus).toBe('clean');
+      expect(state.localCommits).toEqual([]);
+      expect(state.stagedFiles).toEqual([]);
+      expect(state.unstagedFiles).toEqual([]);
+      expect(state.repoRoot).toBe('/home/user/project');
+      expect(state.repoName).toBe('project');
+    });
+
+    it('should handle feature branch state', () => {
+      vi.mocked(git.getCurrentBranch).mockReturnValue('feature-branch');
+      vi.mocked(git.getCommitRelationship).mockReturnValue('ahead');
+      vi.mocked(git.getCommitsAhead).mockReturnValue(['abc123 Add feature']);
+      vi.mocked(git.getWorkingTreeStatus).mockReturnValue('staged_only');
+      vi.mocked(git.getStagedFiles).mockReturnValue(['src/feature.ts']);
+
+      const state = analyzeGitState('main');
+
+      expect(state.branchType).toBe('other');
+      expect(state.currentBranch).toBe('feature-branch');
+      expect(state.commitRelationship).toBe('ahead');
+      expect(state.localCommits).toEqual(['abc123 Add feature']);
+      expect(state.stagedFiles).toEqual(['src/feature.ts']);
+    });
+
+    it('should use default base branch when not provided', () => {
+      const state = analyzeGitState();
+
+      expect(state).toBeDefined();
+      expect(git.getCommitRelationship).toHaveBeenCalled();
     });
   });
 });
