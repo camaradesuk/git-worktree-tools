@@ -219,28 +219,16 @@ async function confirmWorktrees(
       colors.yellow(colors.bold('  ⚠️  WARNING: Source is not on a base branch (main/master)'))
     );
     console.log(
-      colors.yellow(
-        '      Typically, config files should be linked FROM main TO feature branches.'
-      )
+      colors.yellow('      Typically, config files should be linked FROM main TO feature branches.')
     );
-    console.log(
-      colors.yellow('      Make sure this is what you intend before proceeding.\n')
-    );
+    console.log(colors.yellow('      Make sure this is what you intend before proceeding.\n'));
   }
 
   // Warn if destination is main/master
   if (isBaseBranch(destBranch)) {
-    console.log(
-      colors.red(colors.bold('  ⚠️  WARNING: Destination is your main worktree!'))
-    );
-    console.log(
-      colors.red(
-        '      This will overwrite config files in your main branch.'
-      )
-    );
-    console.log(
-      colors.red('      This is usually NOT what you want.\n')
-    );
+    console.log(colors.red(colors.bold('  ⚠️  WARNING: Destination is your main worktree!')));
+    console.log(colors.red('      This will overwrite config files in your main branch.'));
+    console.log(colors.red('      This is usually NOT what you want.\n'));
   }
 
   if (dryRun) {
