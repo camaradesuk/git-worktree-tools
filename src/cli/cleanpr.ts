@@ -12,7 +12,6 @@
 
 import { execSync } from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs';
 
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
@@ -74,14 +73,16 @@ function parseArgs(): { prNumber: number | null; options: CleanOptions } {
           console.error(colors.error(`Unknown option: ${arg}`));
           process.exit(1);
         }
-        // Must be PR number
-        const num = parseInt(arg, 10);
-        if (isNaN(num)) {
-          console.error(colors.error(`Invalid PR number: ${arg}`));
-          process.exit(1);
+        {
+          // Must be PR number
+          const num = parseInt(arg, 10);
+          if (isNaN(num)) {
+            console.error(colors.error(`Invalid PR number: ${arg}`));
+            process.exit(1);
+          }
+          prNumber = num;
+          options.interactive = false;
         }
-        prNumber = num;
-        options.interactive = false;
     }
     i++;
   }

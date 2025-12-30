@@ -1,6 +1,5 @@
 import { execSync, ExecSyncOptions } from 'child_process';
 import path from 'path';
-import os from 'os';
 import { DEFAULT_REMOTE, DEFAULT_BASE_BRANCH } from './constants.js';
 
 /**

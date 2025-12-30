@@ -13,7 +13,7 @@ import fs from 'fs';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as colors from '../lib/colors.js';
-import { promptChoiceIndex, promptConfirm } from '../lib/prompts.js';
+import { promptChoiceIndex } from '../lib/prompts.js';
 import {
   loadConfig,
   generateBranchName,
@@ -645,7 +645,7 @@ function executeStateAction(
 async function setupWorktree(
   worktreePath: string,
   config: Required<WorktreeConfig>,
-  options: Options
+  _options: Options
 ): Promise<void> {
   const repoRoot = git.getRepoRoot();
   const parentDir = path.dirname(repoRoot);

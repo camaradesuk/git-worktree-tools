@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as path from 'path';
 import {
   findDuplicates,
   countActiveEntries,
@@ -121,8 +122,9 @@ config/local.json`;
       const entries = ['.env', '.vscode/settings.json'];
       const sourceDir = '/home/user/project';
 
-      const existingFiles = new Set(['.env']);
-      const fileExists = (path: string) => existingFiles.has(path.replace(sourceDir + '/', ''));
+      // Build a Set of absolute paths that "exist" using path.join for cross-platform compatibility
+      const existingFiles = new Set([path.join(sourceDir, '.env')]);
+      const fileExists = (p: string) => existingFiles.has(p);
       const missing = findMissingFiles(entries, sourceDir, fileExists);
 
       expect(missing).toEqual(['.vscode/settings.json']);
@@ -132,8 +134,12 @@ config/local.json`;
       const entries = ['.env', '.vscode/settings.json'];
       const sourceDir = '/home/user/project';
 
-      const existingFiles = new Set(['.env', '.vscode/settings.json']);
-      const fileExists = (path: string) => existingFiles.has(path.replace(sourceDir + '/', ''));
+      // Build a Set of absolute paths that "exist" using path.join for cross-platform compatibility
+      const existingFiles = new Set([
+        path.join(sourceDir, '.env'),
+        path.join(sourceDir, '.vscode/settings.json'),
+      ]);
+      const fileExists = (p: string) => existingFiles.has(p);
       const missing = findMissingFiles(entries, sourceDir, fileExists);
 
       expect(missing).toEqual([]);
@@ -173,8 +179,9 @@ config/local.json`;
       const manifest = `.env
 .vscode/settings.json`;
       const sourceDir = '/home/user/project';
-      const existingFiles = new Set(['/home/user/project/.env']);
-      const fileExists = (path: string) => existingFiles.has(path);
+      // Use path.join for cross-platform compatibility
+      const existingFiles = new Set([path.join(sourceDir, '.env')]);
+      const fileExists = (p: string) => existingFiles.has(p);
       const isGitIgnored = () => true;
 
       const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
@@ -188,8 +195,9 @@ config/local.json`;
 .vscode/settings.json`;
       const sourceDir = '/home/user/project';
       const fileExists = () => true;
-      const ignoredFiles = new Set(['/home/user/project/.env']);
-      const isGitIgnored = (path: string) => ignoredFiles.has(path);
+      // Use path.join for cross-platform compatibility
+      const ignoredFiles = new Set([path.join(sourceDir, '.env')]);
+      const isGitIgnored = (p: string) => ignoredFiles.has(p);
 
       const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
 
@@ -256,18 +264,20 @@ config/local.json`;
       const manifest = `.env
 missing-file.txt`;
       const sourceDir = '/home/user/project';
-      const existingFiles = new Set(['/home/user/project/.env']);
-      const fileExists = (path: string) => existingFiles.has(path);
-      let gitIgnoredCalls: string[] = [];
-      const isGitIgnored = (path: string) => {
-        gitIgnoredCalls.push(path);
+      // Use path.join for cross-platform compatibility
+      const envPath = path.join(sourceDir, '.env');
+      const existingFiles = new Set([envPath]);
+      const fileExists = (p: string) => existingFiles.has(p);
+      const gitIgnoredCalls: string[] = [];
+      const isGitIgnored = (p: string) => {
+        gitIgnoredCalls.push(p);
         return true;
       };
 
       validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
 
       // Only .env should be checked for git ignored (not missing-file.txt)
-      expect(gitIgnoredCalls).toEqual(['/home/user/project/.env']);
+      expect(gitIgnoredCalls).toEqual([envPath]);
     });
   });
 });

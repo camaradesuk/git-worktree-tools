@@ -157,7 +157,7 @@ describe('CLI e2e tests', () => {
         expect(result.stdout).toContain('.env.test');
 
         // File should not exist in worktree (dry run)
-        const destPath = path.join(worktreeDir, '.env.test');
+        const _destPath = path.join(worktreeDir, '.env.test');
         // Note: File might or might not exist depending on git worktree behavior
       });
 

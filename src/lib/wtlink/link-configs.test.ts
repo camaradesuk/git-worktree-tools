@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -8,7 +8,6 @@ import {
   isAlreadyLinked,
   detectConflicts,
   updateManifest,
-  type WorktreeEntry,
 } from './link-configs.js';
 
 describe('wtlink/link-configs', () => {
@@ -288,7 +287,11 @@ config/local.json`;
       fs.writeFileSync(path.join(sourceDir, 'conflict.txt'), 'source');
       fs.writeFileSync(path.join(destDir, 'conflict.txt'), 'dest');
 
-      const report = detectConflicts(['safe.txt', 'linked.txt', 'conflict.txt'], sourceDir, destDir);
+      const report = detectConflicts(
+        ['safe.txt', 'linked.txt', 'conflict.txt'],
+        sourceDir,
+        destDir
+      );
 
       expect(report.safe).toHaveLength(1);
       expect(report.safe[0].file).toBe('safe.txt');

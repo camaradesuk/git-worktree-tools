@@ -458,7 +458,8 @@ function _updateScroll(state: AppState): AppState {
   const footerLines = 3;
   const maxVisibleItems = Math.max(5, terminalHeight - headerLines - footerLines);
 
-  let { scrollOffset, cursorIndex } = state;
+  const { cursorIndex } = state;
+  let { scrollOffset } = state;
 
   // Auto-scroll to keep cursor in view
   if (cursorIndex < scrollOffset) {

@@ -8,6 +8,7 @@
  *   lswt --json       Output as JSON
  */
 
+import { execSync } from 'child_process';
 import * as path from 'path';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
@@ -101,7 +102,7 @@ ${colors.bold('OUTPUT')}
  */
 function extractPrNumber(
   worktreePath: string,
-  config: ReturnType<typeof loadConfig>
+  _config: ReturnType<typeof loadConfig>
 ): number | null {
   const name = path.basename(worktreePath);
 
@@ -130,7 +131,6 @@ function isMainWorktree(worktreePath: string, repoRoot: string): boolean {
  */
 function hasUncommittedChanges(worktreePath: string): boolean {
   try {
-    const { execSync } = require('child_process');
     const status = execSync('git status --porcelain', {
       cwd: worktreePath,
       encoding: 'utf-8',
@@ -166,7 +166,7 @@ function formatTypeLabel(display: WorktreeDisplay): string {
   switch (display.type) {
     case 'main':
       return colors.cyan('[main]');
-    case 'pr':
+    case 'pr': {
       const prLabel = `PR #${display.prNumber}`;
       if (display.prState === 'OPEN') {
         return colors.green(`[${prLabel} OPEN]`);
@@ -177,6 +177,7 @@ function formatTypeLabel(display: WorktreeDisplay): string {
       } else {
         return colors.dim(`[${prLabel}]`);
       }
+    }
     case 'branch':
       return colors.blue('[branch]');
     case 'detached':

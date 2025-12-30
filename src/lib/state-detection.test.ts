@@ -338,7 +338,15 @@ describe('state-detection', () => {
 
     it('should detect main_worktree when isMain is true', () => {
       vi.mocked(git.listWorktrees).mockReturnValue([
-        { path: '/home/user/project', branch: 'main', isMain: true, commit: 'abc123', isBare: false, isLocked: false, isPrunable: false },
+        {
+          path: '/home/user/project',
+          branch: 'main',
+          isMain: true,
+          commit: 'abc123',
+          isBare: false,
+          isLocked: false,
+          isPrunable: false,
+        },
       ]);
       vi.mocked(git.isWorktree).mockReturnValue(false);
 
@@ -348,8 +356,24 @@ describe('state-detection', () => {
 
     it('should detect pr_worktree for secondary worktree', () => {
       vi.mocked(git.listWorktrees).mockReturnValue([
-        { path: '/home/user/project', branch: 'main', isMain: true, commit: 'abc123', isBare: false, isLocked: false, isPrunable: false },
-        { path: '/home/user/project-feature', branch: 'feature', isMain: false, commit: 'def456', isBare: false, isLocked: false, isPrunable: false },
+        {
+          path: '/home/user/project',
+          branch: 'main',
+          isMain: true,
+          commit: 'abc123',
+          isBare: false,
+          isLocked: false,
+          isPrunable: false,
+        },
+        {
+          path: '/home/user/project-feature',
+          branch: 'feature',
+          isMain: false,
+          commit: 'def456',
+          isBare: false,
+          isLocked: false,
+          isPrunable: false,
+        },
       ]);
       vi.mocked(git.isWorktree).mockReturnValue(true);
 
@@ -402,7 +426,15 @@ describe('state-detection', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/project');
       vi.mocked(git.getRepoName).mockReturnValue('project');
       vi.mocked(git.listWorktrees).mockReturnValue([
-        { path: '/home/user/project', branch: 'main', isMain: true, commit: 'abc123', isBare: false, isLocked: false, isPrunable: false },
+        {
+          path: '/home/user/project',
+          branch: 'main',
+          isMain: true,
+          commit: 'abc123',
+          isBare: false,
+          isLocked: false,
+          isPrunable: false,
+        },
       ]);
       vi.mocked(git.isWorktree).mockReturnValue(false);
       vi.mocked(git.isDetachedHead).mockReturnValue(false);
