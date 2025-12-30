@@ -90,19 +90,17 @@ describe('github', () => {
     it('creates PR and fetches details via pr view', () => {
       // First call: gh pr create returns URL
       // Second call: gh pr view returns JSON details
-      mockExecSync
-        .mockReturnValueOnce('https://github.com/org/repo/pull/42\n')
-        .mockReturnValueOnce(
-          JSON.stringify({
-            number: 42,
-            title: 'My PR',
-            state: 'OPEN',
-            url: 'https://github.com/org/repo/pull/42',
-            headRefName: 'feature/test',
-            baseRefName: 'main',
-            isDraft: false,
-          })
-        );
+      mockExecSync.mockReturnValueOnce('https://github.com/org/repo/pull/42\n').mockReturnValueOnce(
+        JSON.stringify({
+          number: 42,
+          title: 'My PR',
+          state: 'OPEN',
+          url: 'https://github.com/org/repo/pull/42',
+          headRefName: 'feature/test',
+          baseRefName: 'main',
+          isDraft: false,
+        })
+      );
 
       const result = github.createPr({ title: 'My PR' });
 
@@ -137,19 +135,17 @@ describe('github', () => {
     });
 
     it('creates PR with all options', () => {
-      mockExecSync
-        .mockReturnValueOnce('https://github.com/org/repo/pull/43\n')
-        .mockReturnValueOnce(
-          JSON.stringify({
-            number: 43,
-            title: 'Draft PR',
-            state: 'OPEN',
-            url: 'https://github.com/org/repo/pull/43',
-            headRefName: 'feature/draft',
-            baseRefName: 'develop',
-            isDraft: true,
-          })
-        );
+      mockExecSync.mockReturnValueOnce('https://github.com/org/repo/pull/43\n').mockReturnValueOnce(
+        JSON.stringify({
+          number: 43,
+          title: 'Draft PR',
+          state: 'OPEN',
+          url: 'https://github.com/org/repo/pull/43',
+          headRefName: 'feature/draft',
+          baseRefName: 'develop',
+          isDraft: true,
+        })
+      );
 
       const result = github.createPr({
         title: 'Draft PR',
