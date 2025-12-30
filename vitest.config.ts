@@ -7,10 +7,10 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     coverage: {
       reporter: ['text', 'json', 'html'],
-      include: ['src/lib/**/*.ts', 'src/cli/**/*.ts'],
+      include: ['src/lib/**/*.ts'],
       exclude: [
         'src/lib/**/*.test.ts',
-        // Highly interactive CLI modules
+        // Highly interactive CLI modules - tested via e2e tests
         'src/lib/wtlink/main-menu.ts',
         'src/lib/wtlink/manage-manifest.ts',
         'src/lib/wtlink/link-configs.ts',
