@@ -8,6 +8,7 @@ import {
   isAlreadyLinked,
   detectConflicts,
   updateManifest,
+  isBaseBranch,
 } from './link-configs.js';
 
 describe('wtlink/link-configs', () => {
@@ -387,6 +388,38 @@ config/local.json`);
 
       const result = fs.readFileSync(manifestPath, 'utf-8');
       expect(result).toBe(original);
+    });
+  });
+
+  describe('isBaseBranch', () => {
+    it('should return true for main branch', () => {
+      expect(isBaseBranch('main')).toBe(true);
+    });
+
+    it('should return true for master branch', () => {
+      expect(isBaseBranch('master')).toBe(true);
+    });
+
+    it('should return true for develop branch', () => {
+      expect(isBaseBranch('develop')).toBe(true);
+    });
+
+    it('should return false for feature branches', () => {
+      expect(isBaseBranch('feature/auth')).toBe(false);
+      expect(isBaseBranch('feature-123')).toBe(false);
+    });
+
+    it('should return false for PR branches', () => {
+      expect(isBaseBranch('claude/fix-issue-123')).toBe(false);
+      expect(isBaseBranch('pr-42')).toBe(false);
+    });
+
+    it('should return false for null', () => {
+      expect(isBaseBranch(null)).toBe(false);
+    });
+
+    it('should return false for empty string', () => {
+      expect(isBaseBranch('')).toBe(false);
     });
   });
 });

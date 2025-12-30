@@ -166,7 +166,7 @@ function resolveWorktreePaths(
 /**
  * Get the branch name for a worktree path
  */
-function getWorktreeBranch(worktreePath: string): string | null {
+export function getWorktreeBranch(worktreePath: string): string | null {
   try {
     const worktreeOutput = git.exec(['worktree', 'list', '--porcelain']);
     const worktrees = parseWorktreeList(worktreeOutput);
@@ -184,7 +184,7 @@ function getWorktreeBranch(worktreePath: string): string | null {
 /**
  * Check if branch is a common base branch (main, master, develop, etc.)
  */
-function isBaseBranch(branch: string | null): boolean {
+export function isBaseBranch(branch: string | null): boolean {
   if (!branch) return false;
   return COMMON_BASE_BRANCHES.includes(branch);
 }
