@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getDefaultConfig, generateBranchName, generateWorktreePath, loadConfig } from './config.js';
+import {
+  getDefaultConfig,
+  generateBranchName,
+  generateWorktreePath,
+  loadConfig,
+} from './config.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';

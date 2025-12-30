@@ -13,20 +13,20 @@ import { signal, computed } from '@preact/signals-core';
 // ============================================================================
 
 // User decisions for files (stored in decisions map)
-type FileDecision = 'add' | 'comment' | 'skip';
+export type FileDecision = 'add' | 'comment' | 'skip';
 
 // Computed states (includes explicit 'undecided' for items not in decisions map)
-type ItemState = FileDecision | 'undecided';
+export type ItemState = FileDecision | 'undecided';
 
-type ViewMode = 'flat' | 'hierarchical';
+export type ViewMode = 'flat' | 'hierarchical';
 
-interface FileNode {
+export interface FileNode {
   readonly path: string;
   readonly isDirectory: boolean;
   readonly children: ReadonlyArray<FileNode>;
 }
 
-interface AppState {
+export interface AppState {
   readonly fileTree: FileNode;
   readonly decisions: ReadonlyMap<string, FileDecision>; // only decided files (undecided files NOT in map)
   readonly viewMode: ViewMode;
@@ -37,7 +37,7 @@ interface AppState {
   readonly scrollOffset: number;
 }
 
-interface DisplayItem {
+export interface DisplayItem {
   readonly path: string;
   readonly isDirectory: boolean;
   readonly node?: FileNode;
@@ -59,7 +59,7 @@ export interface ManageArgv {
 /**
  * Get all file paths from a node (recursively)
  */
-function getAllFiles(node: FileNode): string[] {
+export function getAllFiles(node: FileNode): string[] {
   if (!node.isDirectory) {
     return [node.path];
   }
@@ -69,7 +69,7 @@ function getAllFiles(node: FileNode): string[] {
 /**
  * Get all directory nodes from a tree (recursively)
  */
-function getAllDirectories(node: FileNode): FileNode[] {
+export function getAllDirectories(node: FileNode): FileNode[] {
   if (!node.isDirectory) {
     return [];
   }
@@ -88,7 +88,7 @@ function getAllDirectories(node: FileNode): FileNode[] {
  * Get the computed state for a single file
  * Returns 'undecided' (explicit state) if file not in decisions map
  */
-function getFileDecision(
+export function getFileDecision(
   decisions: ReadonlyMap<string, FileDecision>,
   filePath: string
 ): ItemState {
@@ -101,7 +101,7 @@ function getFileDecision(
  * This is DERIVED from children - folders don't have their own decision
  * 'undecided' is an explicit state for items with no decision
  */
-function getFolderStates(
+export function getFolderStates(
   node: FileNode,
   decisions: ReadonlyMap<string, FileDecision>
 ): ReadonlySet<ItemState> {
@@ -122,7 +122,7 @@ function getFolderStates(
 /**
  * Get state breakdown counts for a folder
  */
-function getFolderStateBreakdown(
+export function getFolderStateBreakdown(
   node: FileNode,
   decisions: ReadonlyMap<string, FileDecision>
 ): { add: number; comment: number; skip: number; undecided: number } {
@@ -142,7 +142,7 @@ function getFolderStateBreakdown(
  * An item is visible if it has at least one state matching the active filters
  * Default: only 'undecided' filter is active (shows undecided items)
  */
-function isItemVisible(item: DisplayItem, activeFilters: ReadonlySet<ItemState>): boolean {
+export function isItemVisible(item: DisplayItem, activeFilters: ReadonlySet<ItemState>): boolean {
   // If no filters active, nothing is visible (edge case)
   if (activeFilters.size === 0) {
     return false;
@@ -161,7 +161,7 @@ function isItemVisible(item: DisplayItem, activeFilters: ReadonlySet<ItemState>)
 /**
  * Build file tree from flat list of file paths
  */
-function buildFileTree(filePaths: string[]): FileNode {
+export function buildFileTree(filePaths: string[]): FileNode {
   interface MutableFileNode {
     path: string;
     isDirectory: boolean;
@@ -218,7 +218,7 @@ function buildFileTree(filePaths: string[]): FileNode {
 /**
  * Find a node by path in the tree
  */
-function findNodeByPath(tree: FileNode, targetPath: string): FileNode | null {
+export function findNodeByPath(tree: FileNode, targetPath: string): FileNode | null {
   if (tree.path === targetPath) {
     return tree;
   }
@@ -235,7 +235,7 @@ function findNodeByPath(tree: FileNode, targetPath: string): FileNode | null {
  * Get items to display in hierarchical view
  * Folders appear first, then files (both alphabetically sorted within their groups)
  */
-function getHierarchicalViewItems(
+export function getHierarchicalViewItems(
   tree: FileNode,
   navigationStack: ReadonlyArray<string>,
   decisions: ReadonlyMap<string, FileDecision>
@@ -272,7 +272,7 @@ function getHierarchicalViewItems(
 /**
  * Get items to display in flat view
  */
-function getFlatViewItems(
+export function getFlatViewItems(
   tree: FileNode,
   decisions: ReadonlyMap<string, FileDecision>
 ): DisplayItem[] {
@@ -307,7 +307,7 @@ function getFlatViewItems(
 /**
  * Get all visible items for current state (SINGLE SOURCE OF TRUTH)
  */
-function getVisibleItems(state: AppState): DisplayItem[] {
+export function getVisibleItems(state: AppState): DisplayItem[] {
   // Get items based on view mode
   const allItems =
     state.viewMode === 'flat'
@@ -321,7 +321,7 @@ function getVisibleItems(state: AppState): DisplayItem[] {
 /**
  * Get display items with back navigation if needed
  */
-function getDisplayItems(state: AppState): DisplayItem[] {
+export function getDisplayItems(state: AppState): DisplayItem[] {
   const items = getVisibleItems(state);
 
   // Add back navigation in hierarchical view when in default undecided-only mode
@@ -458,7 +458,8 @@ function _updateScroll(state: AppState): AppState {
   const footerLines = 3;
   const maxVisibleItems = Math.max(5, terminalHeight - headerLines - footerLines);
 
-  let { scrollOffset, cursorIndex } = state;
+  const { cursorIndex } = state;
+  let { scrollOffset } = state;
 
   // Auto-scroll to keep cursor in view
   if (cursorIndex < scrollOffset) {
@@ -480,7 +481,7 @@ function _updateScroll(state: AppState): AppState {
 // COMMON DIRECTORIES
 // ============================================================================
 
-const COMMON_IGNORE_DIRS = [
+export const COMMON_IGNORE_DIRS = [
   'node_modules',
   'bin',
   'obj',
@@ -501,7 +502,7 @@ const COMMON_IGNORE_DIRS = [
   'vendor',
 ];
 
-function isCommonIgnoreDir(dirPath: string): boolean {
+export function isCommonIgnoreDir(dirPath: string): boolean {
   const parts = dirPath.split('/');
   return COMMON_IGNORE_DIRS.some((ignoreDir) => parts.includes(ignoreDir));
 }

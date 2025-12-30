@@ -134,8 +134,8 @@ export function detectScenario(state: GitState): Scenario {
 
   // On main branch scenarios (1-4)
   if (branchType === 'main') {
-    if (commitRelationship === 'same') {
-      // Same as origin/main
+    if (commitRelationship === 'same' || commitRelationship === 'behind') {
+      // Same as origin/main, or behind origin/main (both can branch from origin/main)
       switch (workingTreeStatus) {
         case 'clean':
           return 'main_clean_same'; // Scenario 1
@@ -153,8 +153,15 @@ export function detectScenario(state: GitState): Scenario {
       } else {
         return 'main_changes_ahead'; // Scenario 4
       }
+    } else if (commitRelationship === 'divergent') {
+      // Divergent from origin/main - has both ahead and behind commits
+      if (workingTreeStatus === 'clean') {
+        return 'main_clean_ahead'; // Treat like ahead for user options
+      } else {
+        return 'main_changes_ahead'; // Scenario 4
+      }
     }
-    // Behind or divergent on main - treat like same (unusual state)
+    // Fallback (shouldn't reach here)
     return 'main_clean_same';
   }
 

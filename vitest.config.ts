@@ -10,12 +10,14 @@ export default defineConfig({
       include: ['src/lib/**/*.ts', 'src/cli/**/*.ts'],
       exclude: [
         'src/lib/**/*.test.ts',
-        // Highly interactive CLI modules
+        'src/cli/**/*.test.ts',
+        // TUI modules with interactive terminal I/O (not unit testable)
         'src/lib/wtlink/main-menu.ts',
         'src/lib/wtlink/manage-manifest.ts',
         'src/lib/wtlink/link-configs.ts',
-        'src/lib/wtlink/index.ts',
-        'src/lib/prompts.ts',
+        // Type-only files (no runtime code)
+        'src/lib/**/types.ts',
+        'src/lib/**/index.ts',
       ],
       thresholds: {
         statements: 80,

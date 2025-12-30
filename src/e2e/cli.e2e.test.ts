@@ -157,7 +157,7 @@ describe('CLI e2e tests', () => {
         expect(result.stdout).toContain('.env.test');
 
         // File should not exist in worktree (dry run)
-        const destPath = path.join(worktreeDir, '.env.test');
+        const _destPath = path.join(worktreeDir, '.env.test');
         // Note: File might or might not exist depending on git worktree behavior
       });
 
@@ -253,6 +253,24 @@ describe('CLI e2e tests', () => {
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('newpr');
     });
+
+    it('fails when gh is not installed (if gh unavailable)', () => {
+      // This test may pass or fail depending on whether gh is installed
+      // Just verify it doesn't crash with unexpected error
+      const result = runCli('newpr', ['test-description'], { cwd: repoDir });
+
+      // Either exits with error about gh or auth, which is expected
+      if (result.exitCode !== 0) {
+        expect(result.stderr.toLowerCase()).toMatch(/github|auth|not authenticated|gh/i);
+      }
+    });
+
+    it('shows error for invalid PR number in --pr mode', () => {
+      const result = runCli('newpr', ['--pr', 'not-a-number'], { cwd: repoDir });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('PR number must be numeric');
+    });
   });
 
   describe('cleanpr', () => {
@@ -261,6 +279,45 @@ describe('CLI e2e tests', () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('cleanpr');
+    });
+
+    it('fails when gh is not installed (if gh unavailable)', () => {
+      // This test may pass or fail depending on whether gh is installed
+      // Just verify it doesn't crash with unexpected error
+      const result = runCli('cleanpr', ['--all'], { cwd: repoDir });
+
+      // Either exits with error about gh or succeeds
+      if (result.exitCode !== 0) {
+        expect(result.stderr.toLowerCase()).toMatch(/github|gh/i);
+      }
+    });
+
+    it('shows error for invalid PR number', () => {
+      const result = runCli('cleanpr', ['not-a-number'], { cwd: repoDir });
+
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('shows help with -h flag', () => {
+      const result = runCli('cleanpr', ['-h']);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('cleanpr');
+    });
+  });
+
+  describe('lswt (additional)', () => {
+    it('fails outside of git repo', () => {
+      const result = runCli('lswt', [], { cwd: os.tmpdir() });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr.toLowerCase()).toContain('git');
+    });
+
+    it('shows error for unknown option', () => {
+      const result = runCli('lswt', ['--unknown-flag'], { cwd: repoDir });
+
+      expect(result.exitCode).toBe(1);
     });
   });
 });

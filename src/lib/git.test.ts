@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execSync } from 'child_process';
 import * as git from './git.js';
 
@@ -311,7 +311,7 @@ describe('git', () => {
       mockExecSync.mockReturnValue('');
       git.addWorktree('/path/to/worktree', 'feature-branch');
       expect(mockExecSync).toHaveBeenCalledWith(
-        'git worktree add /path/to/worktree feature-branch',
+        'git worktree add "/path/to/worktree" feature-branch',
         expect.any(Object)
       );
     });
@@ -320,7 +320,7 @@ describe('git', () => {
       mockExecSync.mockReturnValue('');
       git.addWorktree('/path/to/worktree', 'new-branch', { createBranch: true });
       expect(mockExecSync).toHaveBeenCalledWith(
-        'git worktree add -b new-branch /path/to/worktree',
+        'git worktree add -b new-branch "/path/to/worktree"',
         expect.any(Object)
       );
     });
@@ -332,7 +332,7 @@ describe('git', () => {
         startPoint: 'origin/main',
       });
       expect(mockExecSync).toHaveBeenCalledWith(
-        'git worktree add -b new-branch /path/to/worktree origin/main',
+        'git worktree add -b new-branch "/path/to/worktree" "origin/main"',
         expect.any(Object)
       );
     });
@@ -343,7 +343,7 @@ describe('git', () => {
       mockExecSync.mockReturnValue('');
       git.removeWorktree('/path/to/worktree');
       expect(mockExecSync).toHaveBeenCalledWith(
-        'git worktree remove /path/to/worktree',
+        'git worktree remove "/path/to/worktree"',
         expect.any(Object)
       );
     });
@@ -352,7 +352,7 @@ describe('git', () => {
       mockExecSync.mockReturnValue('');
       git.removeWorktree('/path/to/worktree', { force: true });
       expect(mockExecSync).toHaveBeenCalledWith(
-        'git worktree remove --force /path/to/worktree',
+        'git worktree remove --force "/path/to/worktree"',
         expect.any(Object)
       );
     });
@@ -369,7 +369,7 @@ describe('git', () => {
       mockExecSync.mockReturnValue('');
       git.createBranch('new-branch', 'origin/main');
       expect(mockExecSync).toHaveBeenCalledWith(
-        'git branch new-branch origin/main',
+        'git branch new-branch "origin/main"',
         expect.any(Object)
       );
     });
@@ -507,7 +507,7 @@ describe('git', () => {
       mockExecSync.mockReturnValue('abc123');
       git.remoteBranchExists('main', 'upstream');
       expect(mockExecSync).toHaveBeenCalledWith(
-        'git rev-parse --verify refs/remotes/upstream/main',
+        'git rev-parse --verify "refs/remotes/upstream/main"',
         expect.any(Object)
       );
     });

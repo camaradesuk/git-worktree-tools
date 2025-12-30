@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -8,7 +8,7 @@ import {
   isAlreadyLinked,
   detectConflicts,
   updateManifest,
-  type WorktreeEntry,
+  isBaseBranch,
 } from './link-configs.js';
 
 describe('wtlink/link-configs', () => {
@@ -288,7 +288,11 @@ config/local.json`;
       fs.writeFileSync(path.join(sourceDir, 'conflict.txt'), 'source');
       fs.writeFileSync(path.join(destDir, 'conflict.txt'), 'dest');
 
-      const report = detectConflicts(['safe.txt', 'linked.txt', 'conflict.txt'], sourceDir, destDir);
+      const report = detectConflicts(
+        ['safe.txt', 'linked.txt', 'conflict.txt'],
+        sourceDir,
+        destDir
+      );
 
       expect(report.safe).toHaveLength(1);
       expect(report.safe[0].file).toBe('safe.txt');
@@ -384,6 +388,38 @@ config/local.json`);
 
       const result = fs.readFileSync(manifestPath, 'utf-8');
       expect(result).toBe(original);
+    });
+  });
+
+  describe('isBaseBranch', () => {
+    it('should return true for main branch', () => {
+      expect(isBaseBranch('main')).toBe(true);
+    });
+
+    it('should return true for master branch', () => {
+      expect(isBaseBranch('master')).toBe(true);
+    });
+
+    it('should return true for develop branch', () => {
+      expect(isBaseBranch('develop')).toBe(true);
+    });
+
+    it('should return false for feature branches', () => {
+      expect(isBaseBranch('feature/auth')).toBe(false);
+      expect(isBaseBranch('feature-123')).toBe(false);
+    });
+
+    it('should return false for PR branches', () => {
+      expect(isBaseBranch('claude/fix-issue-123')).toBe(false);
+      expect(isBaseBranch('pr-42')).toBe(false);
+    });
+
+    it('should return false for null', () => {
+      expect(isBaseBranch(null)).toBe(false);
+    });
+
+    it('should return false for empty string', () => {
+      expect(isBaseBranch('')).toBe(false);
     });
   });
 });

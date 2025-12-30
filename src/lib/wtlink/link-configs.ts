@@ -163,8 +163,97 @@ function resolveWorktreePaths(
   return { sourceDir, destDir };
 }
 
-function isIgnored(filePath: string): boolean {
-  return git.isGitIgnored(filePath);
+/**
+ * Get the branch name for a worktree path
+ */
+export function getWorktreeBranch(worktreePath: string): string | null {
+  try {
+    const worktreeOutput = git.exec(['worktree', 'list', '--porcelain']);
+    const worktrees = parseWorktreeList(worktreeOutput);
+    const resolved = path.resolve(worktreePath);
+    const wt = worktrees.find((w) => path.resolve(w.path) === resolved);
+    if (wt?.branch) {
+      return wt.branch.replace('refs/heads/', '');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if branch is a common base branch (main, master, develop, etc.)
+ */
+export function isBaseBranch(branch: string | null): boolean {
+  if (!branch) return false;
+  return COMMON_BASE_BRANCHES.includes(branch);
+}
+
+/**
+ * Confirm source and destination worktrees with the user
+ * Warns if source is not a base branch (main/master)
+ */
+async function confirmWorktrees(
+  sourceDir: string,
+  destDir: string,
+  skipConfirm: boolean,
+  dryRun: boolean
+): Promise<boolean> {
+  const sourceBranch = getWorktreeBranch(sourceDir);
+  const destBranch = getWorktreeBranch(destDir);
+
+  const sourceLabel = sourceBranch ? `${path.basename(sourceDir)} (${sourceBranch})` : sourceDir;
+  const destLabel = destBranch ? `${path.basename(destDir)} (${destBranch})` : destDir;
+
+  console.log(colors.cyan(colors.bold('\n═══════════════════════════════════════')));
+  console.log(colors.cyan(colors.bold('  Worktree Link Configuration')));
+  console.log(colors.cyan(colors.bold('═══════════════════════════════════════\n')));
+
+  console.log(colors.bold('  Source:      ') + colors.green(sourceLabel));
+  console.log(colors.bold('  Destination: ') + colors.blue(destLabel));
+  console.log('');
+
+  // Warn if source is not a base branch
+  if (!isBaseBranch(sourceBranch)) {
+    console.log(
+      colors.yellow(colors.bold('  ⚠️  WARNING: Source is not on a base branch (main/master)'))
+    );
+    console.log(
+      colors.yellow('      Typically, config files should be linked FROM main TO feature branches.')
+    );
+    console.log(colors.yellow('      Make sure this is what you intend before proceeding.\n'));
+  }
+
+  // Warn if destination is main/master
+  if (isBaseBranch(destBranch)) {
+    console.log(colors.red(colors.bold('  ⚠️  WARNING: Destination is your main worktree!')));
+    console.log(colors.red('      This will overwrite config files in your main branch.'));
+    console.log(colors.red('      This is usually NOT what you want.\n'));
+  }
+
+  if (dryRun) {
+    console.log(colors.dim('  (dry-run mode - no changes will be made)\n'));
+    return true;
+  }
+
+  if (skipConfirm) {
+    return true;
+  }
+
+  const answers = await inquirer.prompt<{ proceed: boolean }>([
+    {
+      type: 'confirm',
+      name: 'proceed',
+      message: 'Proceed with these worktrees?',
+      default: isBaseBranch(sourceBranch) && !isBaseBranch(destBranch),
+    },
+  ]);
+
+  return answers.proceed;
+}
+
+function isIgnored(filePath: string, cwd?: string): boolean {
+  return git.isGitIgnored(filePath, cwd);
 }
 
 export function isAlreadyLinked(sourcePath: string, destPath: string): boolean {
@@ -415,16 +504,23 @@ export async function run(argv: LinkArgv): Promise<void> {
 
   const { sourceDir, destDir } = resolveWorktreePaths(argv, gitRoot);
 
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Manifest file not found at ${manifestPath}`);
-  }
-
   if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
     throw new Error(`Source directory does not exist or is not a directory: ${sourceDir}`);
   }
 
   if (!fs.existsSync(destDir) || !fs.statSync(destDir).isDirectory()) {
     throw new Error(`Destination directory does not exist or is not a directory: ${destDir}`);
+  }
+
+  // Confirm source and destination worktrees (warns if source is not main/master)
+  const confirmed = await confirmWorktrees(sourceDir, destDir, argv.yes, argv.dryRun);
+  if (!confirmed) {
+    console.log(colors.yellow('\nOperation cancelled.'));
+    return;
+  }
+
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`Manifest file not found at ${manifestPath}`);
   }
 
   const filesToLink = fs
@@ -438,7 +534,7 @@ export async function run(argv: LinkArgv): Promise<void> {
     return;
   }
 
-  console.log(`\nDetecting conflicts...`);
+  console.log(`Detecting conflicts...`);
 
   // Detect conflicts BEFORE any linking
   const conflictReport = detectConflicts(filesToLink, sourceDir, destDir);
@@ -568,7 +664,8 @@ export async function run(argv: LinkArgv): Promise<void> {
     }
 
     // CRITICAL SAFETY CHECK: Do not link files that are not git-ignored.
-    if (!isIgnored(sourcePath)) {
+    // Pass sourceDir as cwd to ensure gitignore check works correctly in worktree context.
+    if (!isIgnored(sourcePath, sourceDir)) {
       console.error(
         colors.red(
           colors.bold(`  - DANGER: File is not ignored by git, skipping for safety: ${file}`)

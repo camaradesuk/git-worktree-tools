@@ -141,7 +141,7 @@ describe('github', () => {
 
       expect(mockExecSync).toHaveBeenCalledWith(
         expect.stringMatching(
-          /--title "Draft PR".*--body "PR description".*--base develop.*--head feature\/draft.*--draft.*--repo org\/repo/
+          /--title "Draft PR".*--body "PR description".*--base develop.*--head "feature\/draft".*--draft.*--repo "org\/repo"/
         ),
         expect.any(Object)
       );
@@ -211,7 +211,7 @@ describe('github', () => {
       const result = github.getPrByBranch('feature/test');
 
       expect(mockExecSync).toHaveBeenCalledWith(
-        expect.stringContaining('gh pr view feature/test'),
+        expect.stringContaining('gh pr view "feature/test"'),
         expect.any(Object)
       );
       expect(result?.number).toBe(42);
