@@ -2,12 +2,7 @@
 /**
  * cleanpr - Clean up PR worktrees after merge/close
  *
- * Usage:
- *   cleanpr                    # Interactive cleanup of merged/closed PRs
- *   cleanpr <PR_NUMBER>        # Clean specific PR worktree
- *   cleanpr --all              # Clean all merged/closed PRs
- *   cleanpr <PR_NUMBER> -r     # Also delete remote branch
- *   cleanpr <PR_NUMBER> -f     # Force removal with uncommitted changes
+ * CLI thin wrapper - orchestration and side effects only
  */
 
 import { execSync } from 'child_process';
@@ -18,374 +13,125 @@ import * as github from '../lib/github.js';
 import * as prompts from '../lib/prompts.js';
 import * as colors from '../lib/colors.js';
 import { loadConfig } from '../lib/config.js';
-
-interface CleanOptions {
-  deleteRemote: boolean;
-  force: boolean;
-  all: boolean;
-  interactive: boolean;
-}
-
-interface WorktreeInfo {
-  path: string;
-  branch: string | null;
-  commit: string;
-  prNumber: number | null;
-  prState: 'OPEN' | 'CLOSED' | 'MERGED' | 'UNKNOWN';
-  hasChanges: boolean;
-}
-
-function parseArgs(): { prNumber: number | null; options: CleanOptions } {
-  const args = process.argv.slice(2);
-  let prNumber: number | null = null;
-  const options: CleanOptions = {
-    deleteRemote: false,
-    force: false,
-    all: false,
-    interactive: true,
-  };
-
-  let i = 0;
-  while (i < args.length) {
-    const arg = args[i];
-
-    switch (arg) {
-      case '-h':
-      case '--help':
-        printHelp();
-        process.exit(0);
-        break;
-      case '-r':
-      case '--remote':
-        options.deleteRemote = true;
-        break;
-      case '-f':
-      case '--force':
-        options.force = true;
-        break;
-      case '-a':
-      case '--all':
-        options.all = true;
-        options.interactive = false;
-        break;
-      default:
-        if (arg.startsWith('-')) {
-          console.error(colors.error(`Unknown option: ${arg}`));
-          process.exit(1);
-        }
-        {
-          // Must be PR number
-          const num = parseInt(arg, 10);
-          if (isNaN(num)) {
-            console.error(colors.error(`Invalid PR number: ${arg}`));
-            process.exit(1);
-          }
-          prNumber = num;
-          options.interactive = false;
-        }
-    }
-    i++;
-  }
-
-  return { prNumber, options };
-}
-
-function printHelp(): void {
-  console.log(`
-${colors.bold('cleanpr')} - Clean up PR worktrees after merge/close
-
-${colors.bold('USAGE')}
-  cleanpr                         Interactive cleanup of merged/closed PRs
-  cleanpr <PR_NUMBER>             Clean specific PR worktree
-  cleanpr --all                   Clean all merged/closed PRs automatically
-  cleanpr <PR_NUMBER> [options]   Clean with options
-
-${colors.bold('OPTIONS')}
-  -r, --remote    Also delete the remote branch
-  -f, --force     Force removal even if worktree has uncommitted changes
-  -a, --all       Clean all merged/closed PR worktrees (non-interactive)
-  -h, --help      Show this help message
-
-${colors.bold('EXAMPLES')}
-  cleanpr                    # Interactive mode - select worktrees to clean
-  cleanpr 2245               # Remove worktree and local branch for PR #2245
-  cleanpr 2245 --remote      # Also delete remote branch
-  cleanpr 2245 -f -r         # Force cleanup and delete remote
-  cleanpr --all              # Clean all merged/closed PRs
-
-${colors.bold('WHAT IT REMOVES')}
-  - Git worktree directory
-  - Local branch associated with the PR
-  - Remote branch (with --remote flag)
-`);
-}
+import {
+  parseArgs,
+  getHelpText,
+  gatherPrWorktreeInfo,
+  createDefaultDeps,
+  groupWorktreesByState,
+  getCleanableWorktrees,
+  findWorktreeByPrNumber,
+  cleanWorktree,
+  summarizeResults,
+} from '../lib/cleanpr/index.js';
+import type { CleanOptions, WorktreeInfo, CleanupDeps } from '../lib/cleanpr/index.js';
 
 /**
- * Extract PR number from worktree path if it matches pattern
+ * Create cleanup dependencies using real git operations
  */
-function extractPrNumber(
-  worktreePath: string,
-  config: ReturnType<typeof loadConfig>
-): number | null {
-  const name = path.basename(worktreePath);
+function createCleanupDeps(repoRoot: string): CleanupDeps {
+  return {
+    removeWorktree: (wtPath: string, force: boolean) => {
+      git.removeWorktree(wtPath, { force });
+    },
 
-  // Match patterns like "repo.pr123" or custom patterns
-  const pattern = config.worktreePattern;
-  if (pattern.includes('{number}')) {
-    // Build regex from pattern
-    const regexStr = pattern
-      .replace('{repo}', '.*')
-      .replace('{number}', '(\\d+)')
-      .replace('.', '\\.');
-    const match = name.match(new RegExp(regexStr));
-    if (match) {
-      return parseInt(match[1], 10);
-    }
-  }
-
-  // Fallback: try common patterns
-  const patterns = [
-    /\.pr(\d+)$/, // repo.pr123
-    /\.pr-(\d+)$/, // repo.pr-123
-    /-pr(\d+)$/, // repo-pr123
-    /_pr(\d+)$/, // repo_pr123
-  ];
-
-  for (const p of patterns) {
-    const match = name.match(p);
-    if (match) {
-      return parseInt(match[1], 10);
-    }
-  }
-
-  return null;
-}
-
-/**
- * Check if a worktree has uncommitted changes
- */
-function hasUncommittedChanges(worktreePath: string): boolean {
-  try {
-    const status = execSync('git status --porcelain', {
-      cwd: worktreePath,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-    return status.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Get PR state from GitHub
- */
-async function getPrState(prNumber: number): Promise<'OPEN' | 'CLOSED' | 'MERGED' | 'UNKNOWN'> {
-  try {
-    const pr = await github.getPr(prNumber);
-    if (!pr) {
-      return 'UNKNOWN';
-    }
-
-    // pr.state is already 'OPEN' | 'CLOSED' | 'MERGED'
-    return pr.state;
-  } catch {
-    return 'UNKNOWN';
-  }
-}
-
-/**
- * Get detailed info about all PR worktrees
- */
-async function getWorktreeInfoList(
-  repoRoot: string,
-  config: ReturnType<typeof loadConfig>
-): Promise<WorktreeInfo[]> {
-  const worktrees = await git.listWorktrees();
-  const result: WorktreeInfo[] = [];
-
-  for (const wt of worktrees) {
-    const prNumber = extractPrNumber(wt.path, config);
-
-    // Skip non-PR worktrees
-    if (prNumber === null) {
-      continue;
-    }
-
-    const prState = await getPrState(prNumber);
-    const hasChanges = hasUncommittedChanges(wt.path);
-
-    result.push({
-      path: wt.path,
-      branch: wt.branch,
-      commit: wt.commit,
-      prNumber,
-      prState,
-      hasChanges,
-    });
-  }
-
-  return result;
-}
-
-/**
- * Remove a single worktree and its branch
- */
-async function cleanWorktree(
-  info: WorktreeInfo,
-  repoRoot: string,
-  options: CleanOptions
-): Promise<boolean> {
-  const prLabel = `PR #${info.prNumber}`;
-
-  // Check for uncommitted changes
-  if (info.hasChanges && !options.force) {
-    console.log(colors.warning(`${prLabel}: Has uncommitted changes (use --force to override)`));
-    return false;
-  }
-
-  try {
-    // Remove worktree
-    console.log(colors.info(`${prLabel}: Removing worktree...`));
-    await git.removeWorktree(info.path, { force: options.force });
-    console.log(colors.success(`${prLabel}: Worktree removed`));
-
-    // Delete local branch
-    if (info.branch) {
-      console.log(colors.info(`${prLabel}: Deleting local branch ${info.branch}...`));
+    deleteLocalBranch: (branch: string): boolean => {
       try {
-        execSync(`git branch -D "${info.branch}"`, {
+        execSync(`git branch -D "${branch}"`, {
           cwd: repoRoot,
           encoding: 'utf-8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
-        console.log(colors.success(`${prLabel}: Local branch deleted`));
+        return true;
       } catch {
-        console.log(
-          colors.warning(`${prLabel}: Could not delete local branch (may already be deleted)`)
-        );
+        return false;
       }
+    },
 
-      // Delete remote branch if requested
-      if (options.deleteRemote) {
-        console.log(colors.info(`${prLabel}: Deleting remote branch...`));
-        try {
-          execSync(`git push origin --delete "${info.branch}"`, {
-            cwd: repoRoot,
-            encoding: 'utf-8',
-            stdio: ['pipe', 'pipe', 'pipe'],
-          });
-          console.log(colors.success(`${prLabel}: Remote branch deleted`));
-        } catch {
-          console.log(
-            colors.warning(`${prLabel}: Could not delete remote branch (may already be deleted)`)
-          );
-        }
+    deleteRemoteBranch: (branch: string): boolean => {
+      try {
+        execSync(`git push origin --delete "${branch}"`, {
+          cwd: repoRoot,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        return true;
+      } catch {
+        return false;
       }
-    }
+    },
 
-    // Prune worktrees
-    git.pruneWorktrees();
+    pruneWorktrees: () => {
+      git.pruneWorktrees();
+    },
+  };
+}
 
-    return true;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.log(colors.error(`${prLabel}: Failed to clean - ${message}`));
-    return false;
-  }
+/**
+ * Print worktree with status indicator
+ */
+function printWorktree(w: WorktreeInfo): void {
+  const changeIndicator = w.hasChanges ? colors.red(' [has changes]') : '';
+  console.log(`    PR #${w.prNumber}: ${w.branch}${changeIndicator}`);
 }
 
 /**
  * Interactive mode - let user select worktrees to clean
  */
 async function interactiveClean(
+  worktrees: WorktreeInfo[],
   repoRoot: string,
-  config: ReturnType<typeof loadConfig>,
   options: CleanOptions
 ): Promise<void> {
-  console.log(colors.info('Scanning worktrees...'));
-
-  const worktrees = await getWorktreeInfoList(repoRoot, config);
-
   if (worktrees.length === 0) {
     console.log(colors.info('No PR worktrees found.'));
     return;
   }
 
-  // Group by status
-  const merged = worktrees.filter((w) => w.prState === 'MERGED');
-  const closed = worktrees.filter((w) => w.prState === 'CLOSED');
-  const open = worktrees.filter((w) => w.prState === 'OPEN');
-  const unknown = worktrees.filter((w) => w.prState === 'UNKNOWN');
+  const groups = groupWorktreesByState(worktrees);
 
   console.log('');
   console.log(colors.bold('PR Worktrees:'));
   console.log('');
 
-  if (merged.length > 0) {
-    console.log(colors.yellow(`  Merged (${merged.length}):`));
-    for (const w of merged) {
-      const changeIndicator = w.hasChanges ? colors.red(' [has changes]') : '';
-      console.log(`    PR #${w.prNumber}: ${w.branch}${changeIndicator}`);
-    }
+  if (groups.merged.length > 0) {
+    console.log(colors.yellow(`  Merged (${groups.merged.length}):`));
+    groups.merged.forEach(printWorktree);
   }
 
-  if (closed.length > 0) {
-    console.log(colors.red(`  Closed (${closed.length}):`));
-    for (const w of closed) {
-      const changeIndicator = w.hasChanges ? colors.red(' [has changes]') : '';
-      console.log(`    PR #${w.prNumber}: ${w.branch}${changeIndicator}`);
-    }
+  if (groups.closed.length > 0) {
+    console.log(colors.red(`  Closed (${groups.closed.length}):`));
+    groups.closed.forEach(printWorktree);
   }
 
-  if (open.length > 0) {
-    console.log(colors.green(`  Open (${open.length}):`));
-    for (const w of open) {
-      const changeIndicator = w.hasChanges ? colors.red(' [has changes]') : '';
-      console.log(`    PR #${w.prNumber}: ${w.branch}${changeIndicator}`);
-    }
+  if (groups.open.length > 0) {
+    console.log(colors.green(`  Open (${groups.open.length}):`));
+    groups.open.forEach(printWorktree);
   }
 
-  if (unknown.length > 0) {
-    console.log(colors.dim(`  Unknown (${unknown.length}):`));
-    for (const w of unknown) {
-      const changeIndicator = w.hasChanges ? colors.red(' [has changes]') : '';
-      console.log(`    PR #${w.prNumber}: ${w.branch}${changeIndicator}`);
-    }
+  if (groups.unknown.length > 0) {
+    console.log(colors.dim(`  Unknown (${groups.unknown.length}):`));
+    groups.unknown.forEach(printWorktree);
   }
 
   console.log('');
 
-  // Build cleanup options
-  const cleanable = [...merged, ...closed];
+  const cleanable = getCleanableWorktrees(worktrees);
   if (cleanable.length === 0) {
     console.log(colors.info('No merged or closed PRs to clean up.'));
     return;
   }
 
   const choices: prompts.PromptOption<string>[] = [
-    {
-      label: `Clean all merged/closed (${cleanable.length})`,
-      value: 'all',
-    },
+    { label: `Clean all merged/closed (${cleanable.length})`, value: 'all' },
   ];
 
-  if (merged.length > 0) {
-    choices.push({
-      label: `Clean merged only (${merged.length})`,
-      value: 'merged',
-    });
+  if (groups.merged.length > 0) {
+    choices.push({ label: `Clean merged only (${groups.merged.length})`, value: 'merged' });
   }
 
-  choices.push({
-    label: 'Select individually',
-    value: 'select',
-  });
-
-  choices.push({
-    label: 'Cancel',
-    value: 'cancel',
-  });
+  choices.push({ label: 'Select individually', value: 'select' });
+  choices.push({ label: 'Cancel', value: 'cancel' });
 
   const action = await prompts.promptChoice('What would you like to clean?', choices);
 
@@ -399,12 +145,13 @@ async function interactiveClean(
   if (action === 'all') {
     toClean = cleanable;
   } else if (action === 'merged') {
-    toClean = merged;
+    toClean = groups.merged;
   } else if (action === 'select') {
-    // Individual selection
     for (const w of cleanable) {
+      const stateLabel = w.prState.toLowerCase();
+      const changesLabel = w.hasChanges ? ' [has changes]' : '';
       const confirm = await prompts.promptConfirm(
-        `Clean PR #${w.prNumber} (${w.prState.toLowerCase()})${w.hasChanges ? ' [has changes]' : ''}?`
+        `Clean PR #${w.prNumber} (${stateLabel})${changesLabel}?`
       );
       if (confirm) {
         toClean.push(w);
@@ -419,36 +166,36 @@ async function interactiveClean(
 
   // Ask about remote deletion
   if (!options.deleteRemote) {
-    const deleteRemote = await prompts.promptConfirm('Also delete remote branches?');
-    options.deleteRemote = deleteRemote;
+    options.deleteRemote = await prompts.promptConfirm('Also delete remote branches?');
   }
 
   console.log('');
 
-  // Clean selected worktrees
-  let cleaned = 0;
-  for (const w of toClean) {
-    if (await cleanWorktree(w, repoRoot, options)) {
-      cleaned++;
+  const deps = createCleanupDeps(repoRoot);
+  const results = toClean.map((w) => {
+    const result = cleanWorktree(w, options, deps);
+    if (result.success) {
+      console.log(colors.success(result.message));
+    } else {
+      console.log(colors.warning(result.message));
     }
-  }
+    return result;
+  });
 
+  const summary = summarizeResults(results);
   console.log('');
-  console.log(colors.success(`Cleaned ${cleaned} of ${toClean.length} worktrees.`));
+  console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
 }
 
 /**
  * Clean all merged/closed PRs automatically
  */
 async function cleanAll(
+  worktrees: WorktreeInfo[],
   repoRoot: string,
-  config: ReturnType<typeof loadConfig>,
   options: CleanOptions
 ): Promise<void> {
-  console.log(colors.info('Scanning for merged/closed PR worktrees...'));
-
-  const worktrees = await getWorktreeInfoList(repoRoot, config);
-  const cleanable = worktrees.filter((w) => w.prState === 'MERGED' || w.prState === 'CLOSED');
+  const cleanable = getCleanableWorktrees(worktrees);
 
   if (cleanable.length === 0) {
     console.log(colors.info('No merged or closed PR worktrees found.'));
@@ -458,15 +205,20 @@ async function cleanAll(
   console.log(colors.info(`Found ${cleanable.length} merged/closed PR worktrees.`));
   console.log('');
 
-  let cleaned = 0;
-  for (const w of cleanable) {
-    if (await cleanWorktree(w, repoRoot, options)) {
-      cleaned++;
+  const deps = createCleanupDeps(repoRoot);
+  const results = cleanable.map((w) => {
+    const result = cleanWorktree(w, options, deps);
+    if (result.success) {
+      console.log(colors.success(result.message));
+    } else {
+      console.log(colors.warning(result.message));
     }
-  }
+    return result;
+  });
 
+  const summary = summarizeResults(results);
   console.log('');
-  console.log(colors.success(`Cleaned ${cleaned} of ${cleanable.length} worktrees.`));
+  console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
 }
 
 /**
@@ -474,15 +226,14 @@ async function cleanAll(
  */
 async function cleanSpecific(
   prNumber: number,
+  worktrees: WorktreeInfo[],
   repoRoot: string,
   config: ReturnType<typeof loadConfig>,
   options: CleanOptions
 ): Promise<void> {
-  const worktrees = await getWorktreeInfoList(repoRoot, config);
-  const target = worktrees.find((w) => w.prNumber === prNumber);
+  const target = findWorktreeByPrNumber(worktrees, prNumber);
 
   if (!target) {
-    // Try to find by pattern
     const pattern = config.worktreePattern
       .replace('{repo}', path.basename(repoRoot))
       .replace('{number}', String(prNumber));
@@ -499,16 +250,32 @@ async function cleanSpecific(
   console.log(colors.dim(`  State: ${target.prState}`));
   console.log('');
 
-  if (await cleanWorktree(target, repoRoot, options)) {
+  const deps = createCleanupDeps(repoRoot);
+  const result = cleanWorktree(target, options, deps);
+
+  if (result.success) {
     console.log('');
     console.log(colors.success(`PR #${prNumber} worktree cleaned up successfully.`));
   } else {
+    console.log(colors.warning(result.message));
     process.exit(1);
   }
 }
 
 async function main(): Promise<void> {
-  const { prNumber, options } = parseArgs();
+  const parseResult = parseArgs(process.argv.slice(2));
+
+  if (parseResult.kind === 'help') {
+    console.log(getHelpText());
+    process.exit(0);
+  }
+
+  if (parseResult.kind === 'error') {
+    console.error(colors.error(parseResult.message));
+    process.exit(1);
+  }
+
+  const { prNumber, options } = parseResult;
 
   // Check prerequisites
   if (!github.isGhInstalled()) {
@@ -528,16 +295,18 @@ async function main(): Promise<void> {
   const config = loadConfig(repoRoot);
 
   console.log('');
+  console.log(colors.info('Scanning worktrees...'));
+
+  // Gather worktree info
+  const gatherDeps = createDefaultDeps();
+  const worktrees = await gatherPrWorktreeInfo(repoRoot, config.worktreePattern, gatherDeps);
 
   if (prNumber !== null) {
-    // Clean specific PR
-    await cleanSpecific(prNumber, repoRoot, config, options);
+    await cleanSpecific(prNumber, worktrees, repoRoot, config, options);
   } else if (options.all) {
-    // Clean all merged/closed
-    await cleanAll(repoRoot, config, options);
+    await cleanAll(worktrees, repoRoot, options);
   } else {
-    // Interactive mode
-    await interactiveClean(repoRoot, config, options);
+    await interactiveClean(worktrees, repoRoot, options);
   }
 }
 
