@@ -75,6 +75,13 @@ export function sortWorktrees(worktrees: WorktreeDisplay[]): WorktreeDisplay[] {
 }
 
 /**
+ * Normalize path to use forward slashes (POSIX style) for consistent output
+ */
+function toPosixPath(p: string): string {
+  return p.split(path.sep).join('/');
+}
+
+/**
  * Get relative display path - pure function
  */
 export function getDisplayPath(worktreePath: string, cwd: string, verbose: boolean): string {
@@ -83,9 +90,11 @@ export function getDisplayPath(worktreePath: string, cwd: string, verbose: boole
   }
 
   if (worktreePath.startsWith(cwd)) {
-    return path.relative(cwd, worktreePath) || '.';
+    const rel = path.relative(cwd, worktreePath) || '.';
+    return toPosixPath(rel);
   } else if (worktreePath.startsWith(path.dirname(cwd))) {
-    return path.relative(path.dirname(cwd), worktreePath);
+    const rel = path.relative(path.dirname(cwd), worktreePath);
+    return toPosixPath(rel);
   }
 
   return worktreePath;
