@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   detectScenario,
   getScenarioDescription,
@@ -273,12 +273,13 @@ describe('state-detection', () => {
       expect(detectScenario(state)).toBe('main_clean_same');
     });
 
-    it('should treat main branch divergent as main_clean_same', () => {
+    it('should treat main branch divergent as main_clean_ahead', () => {
       const state = createState({
         branchType: 'main',
         commitRelationship: 'divergent',
       });
-      expect(detectScenario(state)).toBe('main_clean_same');
+      // Divergent means both ahead and behind - treat like ahead since local commits exist
+      expect(detectScenario(state)).toBe('main_clean_ahead');
     });
 
     it('should treat branch behind as branch_same_as_main', () => {
@@ -337,7 +338,7 @@ describe('state-detection', () => {
 
     it('should detect main_worktree when isMain is true', () => {
       vi.mocked(git.listWorktrees).mockReturnValue([
-        { path: '/home/user/project', branch: 'main', isMain: true, head: 'abc123' },
+        { path: '/home/user/project', branch: 'main', isMain: true, commit: 'abc123', isBare: false, isLocked: false, isPrunable: false },
       ]);
       vi.mocked(git.isWorktree).mockReturnValue(false);
 
@@ -347,8 +348,8 @@ describe('state-detection', () => {
 
     it('should detect pr_worktree for secondary worktree', () => {
       vi.mocked(git.listWorktrees).mockReturnValue([
-        { path: '/home/user/project', branch: 'main', isMain: true, head: 'abc123' },
-        { path: '/home/user/project-feature', branch: 'feature', isMain: false, head: 'def456' },
+        { path: '/home/user/project', branch: 'main', isMain: true, commit: 'abc123', isBare: false, isLocked: false, isPrunable: false },
+        { path: '/home/user/project-feature', branch: 'feature', isMain: false, commit: 'def456', isBare: false, isLocked: false, isPrunable: false },
       ]);
       vi.mocked(git.isWorktree).mockReturnValue(true);
 
@@ -401,7 +402,7 @@ describe('state-detection', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/project');
       vi.mocked(git.getRepoName).mockReturnValue('project');
       vi.mocked(git.listWorktrees).mockReturnValue([
-        { path: '/home/user/project', branch: 'main', isMain: true, head: 'abc123' },
+        { path: '/home/user/project', branch: 'main', isMain: true, commit: 'abc123', isBare: false, isLocked: false, isPrunable: false },
       ]);
       vi.mocked(git.isWorktree).mockReturnValue(false);
       vi.mocked(git.isDetachedHead).mockReturnValue(false);

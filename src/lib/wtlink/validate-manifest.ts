@@ -108,7 +108,7 @@ export function validateManifestContent(
   manifestContent: string,
   sourceDir: string,
   fileExists: (path: string) => boolean = fs.existsSync,
-  isGitIgnored: (path: string) => boolean = git.isGitIgnored
+  isGitIgnored: (path: string, cwd?: string) => boolean = git.isGitIgnored
 ): ValidationResult {
   const problems: string[] = [];
   const duplicates = findDuplicates(manifestContent);
@@ -138,7 +138,7 @@ export function validateManifestContent(
       continue;
     }
 
-    if (!isGitIgnored(absolutePath)) {
+    if (!isGitIgnored(absolutePath, sourceDir)) {
       problems.push(`File is not ignored by git: ${entry}`);
       notIgnored.push(entry);
     }
