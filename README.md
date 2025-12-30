@@ -207,7 +207,7 @@ Create a `.worktreerc` file in your repository root:
 | `draftPr`         | boolean  | `false`               | Create PRs as drafts by default            |
 | `worktreePattern` | string   | `"{repo}.pr{number}"` | Worktree directory naming pattern          |
 | `worktreeParent`  | string   | `".."`                | Parent directory for worktrees             |
-| `branchPrefix`    | string   | `"claude"`            | Prefix for auto-generated branch names     |
+| `branchPrefix`    | string   | `"feat"`            | Prefix for auto-generated branch names     |
 
 > **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 
@@ -219,7 +219,7 @@ cd ~/projects/my-app
 
 # Create a new feature PR
 newpr "Add dark mode support"
-# → Creates branch: claude/add-dark-mode-support-xyz123
+# → Creates branch: feat/add-dark-mode-support-xyz123
 # → Creates PR: #42
 # → Creates worktree: ~/projects/my-app.pr42
 # → Switches to worktree
@@ -236,8 +236,8 @@ newpr "Fix login bug"
 lswt
 # WORKTREE              BRANCH                         PR     STATUS
 # ~/projects/my-app     main                           -      -
-# ~/projects/my-app.pr42 claude/add-dark-mode-xyz123  #42    open
-# ~/projects/my-app.pr43 claude/fix-login-bug-abc456  #43    open
+# ~/projects/my-app.pr42 feat/add-dark-mode-xyz123  #42    open
+# ~/projects/my-app.pr43 feat/fix-login-bug-abc456  #43    open
 
 # After PRs are merged, clean up
 cleanpr

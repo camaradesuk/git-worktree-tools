@@ -41,4 +41,4 @@ export const DEFAULT_WORKTREE_PARENT = '..';
 /**
  * Default branch name prefix for auto-generated branches
  */
-export const DEFAULT_BRANCH_PREFIX = 'claude';
+export const DEFAULT_BRANCH_PREFIX = 'feat';

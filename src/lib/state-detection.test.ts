@@ -189,7 +189,7 @@ describe('state-detection', () => {
       const state = createState({
         worktreeType: 'pr_worktree',
         branchType: 'other',
-        currentBranch: 'claude/feature-abc123',
+        currentBranch: 'feat/feature-abc123',
       });
       expect(detectScenario(state)).toBe('pr_worktree');
     });

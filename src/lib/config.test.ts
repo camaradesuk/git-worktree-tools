@@ -25,7 +25,7 @@ describe('config', () => {
       expect(config.worktreeParent).toBe('..');
       expect(config.sharedRepos).toEqual([]);
       expect(config.syncPatterns).toEqual([]);
-      expect(config.branchPrefix).toBe('claude');
+      expect(config.branchPrefix).toBe('feat');
     });
   });
 
@@ -34,17 +34,17 @@ describe('config', () => {
 
     it('should generate branch name from description', () => {
       const branch = generateBranchName(config, 'Add user authentication feature');
-      expect(branch).toMatch(/^claude\/add-user-authentication-feature-[a-z0-9]+$/);
+      expect(branch).toMatch(/^feat\/add-user-authentication-feature-[a-z0-9]+$/);
     });
 
     it('should handle uppercase in description', () => {
       const branch = generateBranchName(config, 'Fix BUG in API');
-      expect(branch).toMatch(/^claude\/fix-bug-in-api-[a-z0-9]+$/);
+      expect(branch).toMatch(/^feat\/fix-bug-in-api-[a-z0-9]+$/);
     });
 
     it('should handle special characters', () => {
       const branch = generateBranchName(config, "Add user's profile (v2)!");
-      expect(branch).toMatch(/^claude\/add-user-s-profile-v2-[a-z0-9]+$/);
+      expect(branch).toMatch(/^feat\/add-user-s-profile-v2-[a-z0-9]+$/);
     });
 
     it('should truncate long descriptions', () => {
@@ -58,7 +58,7 @@ describe('config', () => {
     it('should handle empty description', () => {
       const branch = generateBranchName(config, '');
       // Empty description results in empty slug, so branch is prefix/-suffix
-      expect(branch).toMatch(/^claude\/-[a-z0-9]+$/);
+      expect(branch).toMatch(/^feat\/-[a-z0-9]+$/);
     });
 
     it('should use custom branch prefix', () => {
@@ -211,7 +211,7 @@ describe('config', () => {
       expect(config.worktreeParent).toBe('..');
       expect(config.sharedRepos).toEqual([]);
       expect(config.syncPatterns).toEqual([]);
-      expect(config.branchPrefix).toBe('claude');
+      expect(config.branchPrefix).toBe('feat');
     });
   });
 });

@@ -231,7 +231,7 @@ export interface WorktreeConfig {
   // Parent directory for worktrees (default: same parent as main repo)
   worktreeParent?: string;
 
-  // Branch name prefix for auto-generated branches (default: "claude")
+  // Branch name prefix for auto-generated branches (default: "feat")
   branchPrefix?: string;
 }
 ```

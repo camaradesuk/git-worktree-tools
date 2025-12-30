@@ -410,7 +410,7 @@ config/local.json`);
     });
 
     it('should return false for PR branches', () => {
-      expect(isBaseBranch('claude/fix-issue-123')).toBe(false);
+      expect(isBaseBranch('feat/fix-issue-123')).toBe(false);
       expect(isBaseBranch('pr-42')).toBe(false);
     });
 

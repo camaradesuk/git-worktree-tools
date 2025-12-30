@@ -152,7 +152,7 @@ Users can create a `.worktreerc` or `.worktreerc.json` in their repo root:
   "draftPr": false,
   "worktreePattern": "{repo}.pr{number}",
   "worktreeParent": "..",
-  "branchPrefix": "claude",
+  "branchPrefix": "feat",
   "sharedRepos": ["cluster-gitops"]
 }
 ```

@@ -50,7 +50,7 @@ export interface WorktreeConfig {
 
   /**
    * Branch name prefix for auto-generated branches
-   * Default: "claude"
+   * Default: "feat"
    */
   branchPrefix?: string;
 }
