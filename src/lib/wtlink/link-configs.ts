@@ -15,29 +15,76 @@ export interface LinkArgv {
   yes: boolean;
 }
 
-type ConflictStatus = 'safe' | 'already_linked' | 'conflict';
-type ConflictResolution = 'replace' | 'ignore' | 'remove';
+export type ConflictStatus = 'safe' | 'already_linked' | 'conflict';
+export type ConflictResolution = 'replace' | 'ignore' | 'remove';
 
-interface FileStatus {
+export interface FileStatus {
   file: string;
   status: ConflictStatus;
   sourcePath: string;
   destPath: string;
 }
 
-interface ConflictReport {
+export interface ConflictReport {
   safe: FileStatus[];
   alreadyLinked: FileStatus[];
   conflicts: FileStatus[];
 }
 
-interface WorktreeEntry {
+export interface WorktreeEntry {
   path: string;
   branch?: string;
   isBare: boolean;
 }
 
-function parseWorktreeList(raw: string): WorktreeEntry[] {
+/**
+ * Parse manifest content into active and commented file entries
+ */
+export function parseManifest(content: string): { active: string[]; commented: string[] } {
+  const active: string[] = [];
+  const commented: string[] = [];
+
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      continue;
+    }
+
+    // Skip header comments (lines starting with ##)
+    if (line.startsWith('##')) {
+      continue;
+    }
+
+    if (line.startsWith('#')) {
+      // Extract file path from comment
+      const filePath = line.substring(1).trim();
+
+      // Skip if it's another comment marker or empty
+      if (!filePath || filePath.startsWith('#')) {
+        continue;
+      }
+
+      // Only count as a commented file entry if it looks like a file path
+      // (starts with . or / or contains / or has a file extension)
+      if (
+        filePath.startsWith('.') ||
+        filePath.startsWith('/') ||
+        filePath.includes('/') ||
+        /\.\w+$/.test(filePath)
+      ) {
+        commented.push(filePath);
+      }
+      // Otherwise it's a descriptive comment, skip it
+    } else {
+      active.push(line);
+    }
+  }
+
+  return { active, commented };
+}
+
+export function parseWorktreeList(raw: string): WorktreeEntry[] {
   const entries: WorktreeEntry[] = [];
   const lines = raw.split('\n');
   let current: WorktreeEntry | null = null;
@@ -120,7 +167,7 @@ function isIgnored(filePath: string, cwd?: string): boolean {
   return git.isGitIgnored(filePath, cwd);
 }
 
-function isAlreadyLinked(sourcePath: string, destPath: string): boolean {
+export function isAlreadyLinked(sourcePath: string, destPath: string): boolean {
   try {
     if (!fs.existsSync(destPath)) {
       return false;
@@ -148,7 +195,7 @@ function isAlreadyLinked(sourcePath: string, destPath: string): boolean {
   }
 }
 
-function detectConflicts(
+export function detectConflicts(
   filesToLink: string[],
   sourceDir: string,
   destDir: string
@@ -184,7 +231,7 @@ function detectConflicts(
 /**
  * Update manifest file by removing specified files
  */
-function updateManifest(manifestPath: string, filesToRemove: string[]): void {
+export function updateManifest(manifestPath: string, filesToRemove: string[]): void {
   const removeSet = new Set(filesToRemove);
   const lines = fs.readFileSync(manifestPath, 'utf-8').split('\n');
   const updatedLines: string[] = [];

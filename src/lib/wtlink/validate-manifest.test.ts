@@ -1,29 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { spawnSync } from 'child_process';
-
-// Mock modules
-vi.mock('fs');
-vi.mock('child_process');
+import { describe, it, expect } from 'vitest';
+import {
+  findDuplicates,
+  countActiveEntries,
+  getActiveEntries,
+  findMissingFiles,
+  validateManifestContent,
+} from './validate-manifest.js';
 
 describe('wtlink/validate-manifest', () => {
-  const mockFs = vi.mocked(fs);
-  const mockSpawnSync = vi.mocked(spawnSync);
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  describe('manifest validation logic', () => {
+  describe('findDuplicates', () => {
     it('should detect duplicate entries', () => {
       const manifest = `.env
 .vscode/settings.json
 .env
 config/local.json`;
 
-      const duplicates = findDuplicatesHelper(manifest);
+      const duplicates = findDuplicates(manifest);
       expect(duplicates).toEqual(['.env']);
     });
 
@@ -32,7 +24,7 @@ config/local.json`;
 .vscode/settings.json
 config/local.json`;
 
-      const duplicates = findDuplicatesHelper(manifest);
+      const duplicates = findDuplicates(manifest);
       expect(duplicates).toEqual([]);
     });
 
@@ -42,23 +34,40 @@ config/local.json`;
 .vscode/settings.json`;
 
       // Active .env and commented .env should not be duplicates
-      const duplicates = findDuplicatesHelper(manifest);
+      const duplicates = findDuplicates(manifest);
       expect(duplicates).toEqual([]);
     });
 
+    it('should detect multiple duplicates', () => {
+      const manifest = `.env
+.env
+.vscode/settings.json
+.vscode/settings.json
+.env`;
+
+      const duplicates = findDuplicates(manifest);
+      expect(duplicates).toEqual(['.env', '.vscode/settings.json', '.env']);
+    });
+
+    it('should handle empty manifest', () => {
+      const duplicates = findDuplicates('');
+      expect(duplicates).toEqual([]);
+    });
+  });
+
+  describe('countActiveEntries', () => {
     it('should count only active entries', () => {
       const manifest = `.env
 .vscode/settings.json
 # .vscode/launch.json
 # config/local.json`;
 
-      const count = countActiveEntriesHelper(manifest);
+      const count = countActiveEntries(manifest);
       expect(count).toBe(2);
     });
 
     it('should handle empty manifest', () => {
-      const manifest = '';
-      const count = countActiveEntriesHelper(manifest);
+      const count = countActiveEntries('');
       expect(count).toBe(0);
     });
 
@@ -67,18 +76,54 @@ config/local.json`;
 # .vscode/settings.json
 ## This is a header`;
 
-      const count = countActiveEntriesHelper(manifest);
+      const count = countActiveEntries(manifest);
       expect(count).toBe(0);
+    });
+
+    it('should skip blank lines', () => {
+      const manifest = `.env
+
+.vscode/settings.json
+
+`;
+
+      const count = countActiveEntries(manifest);
+      expect(count).toBe(2);
     });
   });
 
-  describe('entry validation', () => {
-    it('should validate entries exist', () => {
+  describe('getActiveEntries', () => {
+    it('should return only active entries', () => {
+      const manifest = `.env
+# comment
+.vscode/settings.json
+
+## header
+config/local.json`;
+
+      const entries = getActiveEntries(manifest);
+      expect(entries).toEqual(['.env', '.vscode/settings.json', 'config/local.json']);
+    });
+
+    it('should return empty array for empty manifest', () => {
+      const entries = getActiveEntries('');
+      expect(entries).toEqual([]);
+    });
+
+    it('should return empty array for comments-only manifest', () => {
+      const entries = getActiveEntries('# comment\n## header');
+      expect(entries).toEqual([]);
+    });
+  });
+
+  describe('findMissingFiles', () => {
+    it('should find missing files', () => {
       const entries = ['.env', '.vscode/settings.json'];
       const sourceDir = '/home/user/project';
 
       const existingFiles = new Set(['.env']);
-      const missing = findMissingFilesHelper(entries, sourceDir, existingFiles);
+      const fileExists = (path: string) => existingFiles.has(path.replace(sourceDir + '/', ''));
+      const missing = findMissingFiles(entries, sourceDir, fileExists);
 
       expect(missing).toEqual(['.vscode/settings.json']);
     });
@@ -88,66 +133,141 @@ config/local.json`;
       const sourceDir = '/home/user/project';
 
       const existingFiles = new Set(['.env', '.vscode/settings.json']);
-      const missing = findMissingFilesHelper(entries, sourceDir, existingFiles);
+      const fileExists = (path: string) => existingFiles.has(path.replace(sourceDir + '/', ''));
+      const missing = findMissingFiles(entries, sourceDir, fileExists);
 
       expect(missing).toEqual([]);
     });
+
+    it('should return all entries when none exist', () => {
+      const entries = ['.env', '.vscode/settings.json'];
+      const sourceDir = '/home/user/project';
+
+      const fileExists = () => false;
+      const missing = findMissingFiles(entries, sourceDir, fileExists);
+
+      expect(missing).toEqual(['.env', '.vscode/settings.json']);
+    });
+
+    it('should handle empty entries array', () => {
+      const missing = findMissingFiles([], '/home/user/project', () => false);
+      expect(missing).toEqual([]);
+    });
+  });
+
+  describe('validateManifestContent', () => {
+    it('should detect duplicates', () => {
+      const manifest = `.env
+.env`;
+      const sourceDir = '/home/user/project';
+      const fileExists = () => true;
+      const isGitIgnored = () => true;
+
+      const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
+
+      expect(result.duplicates).toEqual(['.env']);
+      expect(result.problems).toContainEqual(expect.stringContaining('Duplicate'));
+    });
+
+    it('should detect missing files', () => {
+      const manifest = `.env
+.vscode/settings.json`;
+      const sourceDir = '/home/user/project';
+      const existingFiles = new Set(['/home/user/project/.env']);
+      const fileExists = (path: string) => existingFiles.has(path);
+      const isGitIgnored = () => true;
+
+      const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
+
+      expect(result.missingFiles).toEqual(['.vscode/settings.json']);
+      expect(result.problems).toContainEqual(expect.stringContaining('Missing'));
+    });
+
+    it('should detect files not ignored by git', () => {
+      const manifest = `.env
+.vscode/settings.json`;
+      const sourceDir = '/home/user/project';
+      const fileExists = () => true;
+      const ignoredFiles = new Set(['/home/user/project/.env']);
+      const isGitIgnored = (path: string) => ignoredFiles.has(path);
+
+      const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
+
+      expect(result.notIgnored).toEqual(['.vscode/settings.json']);
+      expect(result.problems).toContainEqual(expect.stringContaining('not ignored'));
+    });
+
+    it('should return valid result for correct manifest', () => {
+      const manifest = `.env
+.vscode/settings.json`;
+      const sourceDir = '/home/user/project';
+      const fileExists = () => true;
+      const isGitIgnored = () => true;
+
+      const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
+
+      expect(result.problems).toEqual([]);
+      expect(result.checkedCount).toBe(2);
+      expect(result.duplicates).toEqual([]);
+      expect(result.missingFiles).toEqual([]);
+      expect(result.notIgnored).toEqual([]);
+    });
+
+    it('should skip commented entries during validation', () => {
+      const manifest = `.env
+# .env.local
+.vscode/settings.json`;
+      const sourceDir = '/home/user/project';
+      const fileExists = () => true;
+      const isGitIgnored = () => true;
+
+      const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
+
+      expect(result.checkedCount).toBe(2); // Only .env and .vscode/settings.json
+      expect(result.problems).toEqual([]);
+    });
+
+    it('should handle empty manifest', () => {
+      const result = validateManifestContent(
+        '',
+        '/home/user/project',
+        () => true,
+        () => true
+      );
+
+      expect(result.problems).toEqual([]);
+      expect(result.checkedCount).toBe(0);
+    });
+
+    it('should count unique entries only', () => {
+      const manifest = `.env
+.env
+.vscode/settings.json`;
+      const sourceDir = '/home/user/project';
+      const fileExists = () => true;
+      const isGitIgnored = () => true;
+
+      const result = validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
+
+      expect(result.checkedCount).toBe(2); // Only 2 unique entries
+    });
+
+    it('should not check missing files for git ignored status', () => {
+      const manifest = `.env
+missing-file.txt`;
+      const sourceDir = '/home/user/project';
+      const existingFiles = new Set(['/home/user/project/.env']);
+      const fileExists = (path: string) => existingFiles.has(path);
+      let gitIgnoredCalls: string[] = [];
+      const isGitIgnored = (path: string) => {
+        gitIgnoredCalls.push(path);
+        return true;
+      };
+
+      validateManifestContent(manifest, sourceDir, fileExists, isGitIgnored);
+
+      // Only .env should be checked for git ignored (not missing-file.txt)
+      expect(gitIgnoredCalls).toEqual(['/home/user/project/.env']);
+    });
   });
 });
-
-// Helper functions for testing validation logic
-
-function findDuplicatesHelper(manifest: string): string[] {
-  const seen = new Set<string>();
-  const duplicates: string[] = [];
-
-  for (const rawLine of manifest.split('\n')) {
-    const line = rawLine.trim();
-
-    // Skip empty lines and comments
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-
-    if (seen.has(line)) {
-      duplicates.push(line);
-    } else {
-      seen.add(line);
-    }
-  }
-
-  return duplicates;
-}
-
-function countActiveEntriesHelper(manifest: string): number {
-  let count = 0;
-
-  for (const rawLine of manifest.split('\n')) {
-    const line = rawLine.trim();
-
-    // Skip empty lines and comments
-    if (!line || line.startsWith('#')) {
-      continue;
-    }
-
-    count++;
-  }
-
-  return count;
-}
-
-function findMissingFilesHelper(
-  entries: string[],
-  _sourceDir: string,
-  existingFiles: Set<string>
-): string[] {
-  const missing: string[] = [];
-
-  for (const entry of entries) {
-    if (!existingFiles.has(entry)) {
-      missing.push(entry);
-    }
-  }
-
-  return missing;
-}

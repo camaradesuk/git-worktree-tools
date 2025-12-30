@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { getDefaultConfig, generateBranchName, generateWorktreePath } from './config.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { getDefaultConfig, generateBranchName, generateWorktreePath, loadConfig } from './config.js';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 
 // Helper to normalize paths for cross-platform testing
 function normalizePath(p: string): string {
@@ -111,6 +113,100 @@ describe('config', () => {
         'feature-x'
       );
       expect(normalizePath(result)).toBe('/home/user/repos/myproject.feature-x');
+    });
+  });
+
+  describe('loadConfig', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-test-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should return defaults when no config file exists', () => {
+      const config = loadConfig(tempDir);
+      expect(config).toEqual(getDefaultConfig());
+    });
+
+    it('should load config from .worktreerc', () => {
+      const configContent = JSON.stringify({
+        baseBranch: 'develop',
+        draftPr: true,
+      });
+      fs.writeFileSync(path.join(tempDir, '.worktreerc'), configContent);
+
+      const config = loadConfig(tempDir);
+      expect(config.baseBranch).toBe('develop');
+      expect(config.draftPr).toBe(true);
+      // Other values should be defaults
+      expect(config.worktreePattern).toBe('{repo}.pr{number}');
+    });
+
+    it('should load config from .worktreerc.json', () => {
+      const configContent = JSON.stringify({
+        branchPrefix: 'feature',
+        sharedRepos: ['other-repo'],
+      });
+      fs.writeFileSync(path.join(tempDir, '.worktreerc.json'), configContent);
+
+      const config = loadConfig(tempDir);
+      expect(config.branchPrefix).toBe('feature');
+      expect(config.sharedRepos).toEqual(['other-repo']);
+    });
+
+    it('should prefer .worktreerc over .worktreerc.json', () => {
+      fs.writeFileSync(
+        path.join(tempDir, '.worktreerc'),
+        JSON.stringify({ baseBranch: 'main-from-worktreerc' })
+      );
+      fs.writeFileSync(
+        path.join(tempDir, '.worktreerc.json'),
+        JSON.stringify({ baseBranch: 'main-from-json' })
+      );
+
+      const config = loadConfig(tempDir);
+      expect(config.baseBranch).toBe('main-from-worktreerc');
+    });
+
+    it('should return defaults with warning for invalid JSON', () => {
+      fs.writeFileSync(path.join(tempDir, '.worktreerc'), 'invalid json {{{');
+
+      // Mock console.warn to capture the warning
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (msg: string) => warnings.push(msg);
+
+      try {
+        const config = loadConfig(tempDir);
+        expect(config).toEqual(getDefaultConfig());
+        expect(warnings.length).toBeGreaterThan(0);
+        expect(warnings[0]).toContain('Warning');
+      } finally {
+        console.warn = originalWarn;
+      }
+    });
+
+    it('should merge user config with defaults', () => {
+      const configContent = JSON.stringify({
+        baseBranch: 'develop',
+        // Only setting one property
+      });
+      fs.writeFileSync(path.join(tempDir, '.worktreerc'), configContent);
+
+      const config = loadConfig(tempDir);
+      // User setting
+      expect(config.baseBranch).toBe('develop');
+      // All other values should be defaults
+      expect(config.draftPr).toBe(false);
+      expect(config.worktreePattern).toBe('{repo}.pr{number}');
+      expect(config.worktreeParent).toBe('..');
+      expect(config.sharedRepos).toEqual([]);
+      expect(config.syncPatterns).toEqual([]);
+      expect(config.branchPrefix).toBe('claude');
     });
   });
 });
