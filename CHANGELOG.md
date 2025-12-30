@@ -1,19 +1,17 @@
 # [1.1.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.5...v1.1.0) (2025-12-30)
 
-
 ### Bug Fixes
 
-* correct test mocks and pass cwd to isGitIgnored in validate-manifest ([107c292](https://github.com/camaradesuk/git-worktree-tools/commit/107c292c9b2897036a088eb65195b0d14a5f7ac6))
-* exclude CLI entry points from coverage ([d710c2f](https://github.com/camaradesuk/git-worktree-tools/commit/d710c2f4c1c11e7ecdfe08b4a5d483e7578c837e))
-* handle 'behind' state in newpr and pass cwd for wtlink gitignore check ([2a0226b](https://github.com/camaradesuk/git-worktree-tools/commit/2a0226be748c05b1fcb3c04bd23465e161a382f9))
-* improve shellEscape to quote paths with slashes and special chars ([42f1e91](https://github.com/camaradesuk/git-worktree-tools/commit/42f1e9146ae68d4098a11481aeb57080d5e049ea))
-* normalize path separators to forward slashes on Windows ([bf2cec9](https://github.com/camaradesuk/git-worktree-tools/commit/bf2cec9450633c1ce5c1697e818b9462dfb0d28f))
-* resolve lint warnings and Windows test failures ([bf3b18a](https://github.com/camaradesuk/git-worktree-tools/commit/bf3b18a224b73eab62cfb9333d124e6278ab55c0))
-
+- correct test mocks and pass cwd to isGitIgnored in validate-manifest ([107c292](https://github.com/camaradesuk/git-worktree-tools/commit/107c292c9b2897036a088eb65195b0d14a5f7ac6))
+- exclude CLI entry points from coverage ([d710c2f](https://github.com/camaradesuk/git-worktree-tools/commit/d710c2f4c1c11e7ecdfe08b4a5d483e7578c837e))
+- handle 'behind' state in newpr and pass cwd for wtlink gitignore check ([2a0226b](https://github.com/camaradesuk/git-worktree-tools/commit/2a0226be748c05b1fcb3c04bd23465e161a382f9))
+- improve shellEscape to quote paths with slashes and special chars ([42f1e91](https://github.com/camaradesuk/git-worktree-tools/commit/42f1e9146ae68d4098a11481aeb57080d5e049ea))
+- normalize path separators to forward slashes on Windows ([bf2cec9](https://github.com/camaradesuk/git-worktree-tools/commit/bf2cec9450633c1ce5c1697e818b9462dfb0d28f))
+- resolve lint warnings and Windows test failures ([bf3b18a](https://github.com/camaradesuk/git-worktree-tools/commit/bf3b18a224b73eab62cfb9333d124e6278ab55c0))
 
 ### Features
 
-* add worktree confirmation with safety warnings for wtlink ([7002c05](https://github.com/camaradesuk/git-worktree-tools/commit/7002c053f93d14f6db3ed8080af718a4850b00ac))
+- add worktree confirmation with safety warnings for wtlink ([7002c05](https://github.com/camaradesuk/git-worktree-tools/commit/7002c053f93d14f6db3ed8080af718a4850b00ac))
 
 ## [1.0.5](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.4...v1.0.5) (2025-12-29)
 
