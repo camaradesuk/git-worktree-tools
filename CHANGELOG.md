@@ -1,10 +1,9 @@
 ## [1.1.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.1.0...v1.1.1) (2025-12-30)
 
-
 ### Bug Fixes
 
-* remove unnecessary peer dependencies from package-lock.json ([1956c31](https://github.com/camaradesuk/git-worktree-tools/commit/1956c314da5472d604e255d8146d74670f33b1d0))
-* remove unsupported --json flag from gh pr create ([61b272f](https://github.com/camaradesuk/git-worktree-tools/commit/61b272f4432102339cae9c804261c1ee47849d56))
+- remove unnecessary peer dependencies from package-lock.json ([1956c31](https://github.com/camaradesuk/git-worktree-tools/commit/1956c314da5472d604e255d8146d74670f33b1d0))
+- remove unsupported --json flag from gh pr create ([61b272f](https://github.com/camaradesuk/git-worktree-tools/commit/61b272f4432102339cae9c804261c1ee47849d56))
 
 # [1.1.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.0.5...v1.1.0) (2025-12-30)
 
