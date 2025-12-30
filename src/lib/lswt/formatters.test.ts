@@ -140,7 +140,10 @@ describe('lswt/formatters', () => {
     });
 
     it('puts PRs before branches', () => {
-      const worktrees = [makeWorktree('branch', null, 'feature'), makeWorktree('pr', 1, 'repo.pr1')];
+      const worktrees = [
+        makeWorktree('branch', null, 'feature'),
+        makeWorktree('pr', 1, 'repo.pr1'),
+      ];
       const sorted = sortWorktrees(worktrees);
       expect(sorted[0].type).toBe('pr');
     });
@@ -178,9 +181,7 @@ describe('lswt/formatters', () => {
     });
 
     it('returns relative path when in same directory', () => {
-      expect(getDisplayPath('/home/user/repo.pr1', '/home/user/repo', false)).toBe(
-        '../repo.pr1'
-      );
+      expect(getDisplayPath('/home/user/repo.pr1', '/home/user/repo', false)).toBe('../repo.pr1');
     });
 
     it('returns dot for current directory', () => {

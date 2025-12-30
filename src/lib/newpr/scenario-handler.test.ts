@@ -160,7 +160,11 @@ describe('newpr/scenario-handler', () => {
       it('returns context with create PR for branch option', () => {
         const context = getScenarioContext(
           'branch_divergent',
-          makeGitState({ currentBranch: 'my-feature', branchType: 'other', localCommits: ['abc123'] }),
+          makeGitState({
+            currentBranch: 'my-feature',
+            branchType: 'other',
+            localCommits: ['abc123'],
+          }),
           'main'
         );
 

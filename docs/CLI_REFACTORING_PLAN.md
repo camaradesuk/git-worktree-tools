@@ -7,11 +7,13 @@ This plan details how to refactor the 4 CLI tools (`newpr`, `cleanpr`, `lswt`, `
 **Goal:** Extract business logic into testable pure functions, leaving CLI files as thin orchestration layers.
 
 **Current State:**
+
 - `src/lib/`: 77% coverage (unit tests work well)
 - `src/cli/`: 0% coverage (subprocess issue)
 - `src/lib/wtlink/`: 0% coverage (called from CLI, not directly tested)
 
 **Target State:**
+
 - `src/lib/`: 90%+ coverage
 - `src/cli/`: Excluded from coverage (thin wrappers only)
 - New `src/lib/*/core.ts` modules: 90%+ coverage
@@ -20,12 +22,12 @@ This plan details how to refactor the 4 CLI tools (`newpr`, `cleanpr`, `lswt`, `
 
 ## Priority Order
 
-| Priority | CLI Tool | Lines | Complexity | Risk | Effort |
-|----------|----------|-------|------------|------|--------|
-| 1 | lswt | 361 | Low | Low | 0.5 day |
-| 2 | cleanpr | 546 | Medium | Medium | 1 day |
-| 3 | newpr | 1066 | High | High | 2 days |
-| 4 | wtlink | 163 | Low | Low | 0.5 day |
+| Priority | CLI Tool | Lines | Complexity | Risk   | Effort  |
+| -------- | -------- | ----- | ---------- | ------ | ------- |
+| 1        | lswt     | 361   | Low        | Low    | 0.5 day |
+| 2        | cleanpr  | 546   | Medium     | Medium | 1 day   |
+| 3        | newpr    | 1066  | High       | High   | 2 days  |
+| 4        | wtlink   | 163   | Low        | Low    | 0.5 day |
 
 **Rationale:** Start with `lswt` (simplest) to establish patterns, then apply to more complex tools. `wtlink` is last because it's already well-structured with yargs.
 
@@ -34,6 +36,7 @@ This plan details how to refactor the 4 CLI tools (`newpr`, `cleanpr`, `lswt`, `
 ## Phase 1: lswt Refactoring
 
 ### Current Structure
+
 ```
 src/cli/lswt.ts (361 lines)
 ├── parseArgs(): ListOptions          # Pure except process.exit
@@ -50,6 +53,7 @@ src/cli/lswt.ts (361 lines)
 ```
 
 ### Refactored Structure
+
 ```
 src/lib/lswt/
 ├── types.ts           # Shared types (ListOptions, WorktreeDisplay)
@@ -67,6 +71,7 @@ src/cli/lswt.ts        # Thin wrapper (~30 lines)
 ### Extractable Functions
 
 #### 1. `src/lib/lswt/types.ts`
+
 ```typescript
 export interface ListOptions {
   showStatus: boolean;
@@ -92,6 +97,7 @@ export type ParseResult =
 ```
 
 #### 2. `src/lib/lswt/args.ts`
+
 ```typescript
 import type { ListOptions, ParseResult } from './types.js';
 
@@ -146,6 +152,7 @@ OPTIONS
 ```
 
 #### 3. `src/lib/lswt/args.test.ts`
+
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { parseArgs, getHelpText } from './args.js';
@@ -156,7 +163,7 @@ describe('lswt/args', () => {
       const result = parseArgs([]);
       expect(result).toEqual({
         success: true,
-        options: { showStatus: false, json: false, verbose: false }
+        options: { showStatus: false, json: false, verbose: false },
       });
     });
 
@@ -164,7 +171,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['--status']);
       expect(result).toEqual({
         success: true,
-        options: { showStatus: true, json: false, verbose: false }
+        options: { showStatus: true, json: false, verbose: false },
       });
     });
 
@@ -172,7 +179,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['-s']);
       expect(result).toEqual({
         success: true,
-        options: { showStatus: true, json: false, verbose: false }
+        options: { showStatus: true, json: false, verbose: false },
       });
     });
 
@@ -180,7 +187,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['--json']);
       expect(result).toEqual({
         success: true,
-        options: { showStatus: false, json: true, verbose: false }
+        options: { showStatus: false, json: true, verbose: false },
       });
     });
 
@@ -188,7 +195,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['-s', '-j', '-v']);
       expect(result).toEqual({
         success: true,
-        options: { showStatus: true, json: true, verbose: true }
+        options: { showStatus: true, json: true, verbose: true },
       });
     });
 
@@ -201,7 +208,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['--unknown']);
       expect(result).toEqual({
         success: false,
-        error: 'Unknown option: --unknown'
+        error: 'Unknown option: --unknown',
       });
     });
 
@@ -209,7 +216,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['-x']);
       expect(result).toEqual({
         success: false,
-        error: 'Unknown option: -x'
+        error: 'Unknown option: -x',
       });
     });
   });
@@ -231,6 +238,7 @@ describe('lswt/args', () => {
 ```
 
 #### 4. `src/lib/lswt/formatters.ts`
+
 ```typescript
 import type { WorktreeDisplay } from './types.js';
 
@@ -262,20 +270,25 @@ export function formatTableOutput(
 }
 
 export function formatJsonOutput(worktrees: WorktreeDisplay[]): string {
-  return JSON.stringify(worktrees.map(wt => ({
-    path: wt.path,
-    name: wt.name,
-    branch: wt.branch,
-    commit: wt.commit,
-    type: wt.type,
-    prNumber: wt.prNumber,
-    prState: wt.prState,
-    hasChanges: wt.hasChanges,
-  })), null, 2);
+  return JSON.stringify(
+    worktrees.map((wt) => ({
+      path: wt.path,
+      name: wt.name,
+      branch: wt.branch,
+      commit: wt.commit,
+      type: wt.type,
+      prNumber: wt.prNumber,
+      prState: wt.prState,
+      hasChanges: wt.hasChanges,
+    })),
+    null,
+    2
+  );
 }
 ```
 
 #### 5. Refactored `src/cli/lswt.ts` (~40 lines)
+
 ```typescript
 #!/usr/bin/env node
 import * as colors from '../lib/colors.js';
@@ -319,7 +332,7 @@ async function main(): Promise<void> {
   } else {
     const lines = formatTableOutput(worktrees, {
       verbose: options.verbose,
-      cwd: process.cwd()
+      cwd: process.cwd(),
     });
     for (const line of lines) {
       console.log(line);
@@ -327,7 +340,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(colors.error(`Error: ${err.message}`));
   process.exit(1);
 });
@@ -338,6 +351,7 @@ main().catch(err => {
 ## Phase 2: cleanpr Refactoring
 
 ### Current Structure
+
 ```
 src/cli/cleanpr.ts (546 lines)
 ├── parseArgs()                    # Pure except process.exit
@@ -354,6 +368,7 @@ src/cli/cleanpr.ts (546 lines)
 ```
 
 ### Refactored Structure
+
 ```
 src/lib/cleanpr/
 ├── types.ts           # CleanOptions, WorktreeInfo
@@ -372,6 +387,7 @@ src/lib/shared/
 ### Key Extractions
 
 #### 1. `src/lib/cleanpr/args.ts`
+
 ```typescript
 export interface CleanOptions {
   deleteRemote: boolean;
@@ -432,6 +448,7 @@ export function parseArgs(args: string[]): ParseResult {
 ```
 
 #### 2. `src/lib/cleanpr/args.test.ts`
+
 ```typescript
 import { describe, it, expect } from 'vitest';
 import { parseArgs } from './args.js';
@@ -448,7 +465,7 @@ describe('cleanpr/args', () => {
           force: false,
           all: false,
           interactive: true,
-        }
+        },
       });
     });
 
@@ -457,7 +474,7 @@ describe('cleanpr/args', () => {
       expect(result).toMatchObject({
         success: true,
         prNumber: 123,
-        options: { interactive: false }
+        options: { interactive: false },
       });
     });
 
@@ -466,7 +483,7 @@ describe('cleanpr/args', () => {
       expect(result).toMatchObject({
         success: true,
         prNumber: 123,
-        options: { deleteRemote: true }
+        options: { deleteRemote: true },
       });
     });
 
@@ -475,7 +492,7 @@ describe('cleanpr/args', () => {
       expect(result).toMatchObject({
         success: true,
         prNumber: 123,
-        options: { deleteRemote: true, force: true }
+        options: { deleteRemote: true, force: true },
       });
     });
 
@@ -484,21 +501,21 @@ describe('cleanpr/args', () => {
       expect(result).toMatchObject({
         success: true,
         prNumber: null,
-        options: { all: true, interactive: false }
+        options: { all: true, interactive: false },
       });
     });
 
     it('returns error for invalid PR number', () => {
       expect(parseArgs(['abc'])).toEqual({
         success: false,
-        error: 'Invalid PR number: abc'
+        error: 'Invalid PR number: abc',
       });
     });
 
     it('returns error for unknown option', () => {
       expect(parseArgs(['--unknown'])).toEqual({
         success: false,
-        error: 'Unknown option: --unknown'
+        error: 'Unknown option: --unknown',
       });
     });
 
@@ -510,14 +527,10 @@ describe('cleanpr/args', () => {
 ```
 
 #### 3. `src/lib/shared/pr-utils.ts` (shared between lswt and cleanpr)
+
 ```typescript
 export function extractPrNumber(worktreeName: string): number | null {
-  const patterns = [
-    /\.pr(\d+)$/,
-    /\.pr-(\d+)$/,
-    /-pr(\d+)$/,
-    /_pr(\d+)$/,
-  ];
+  const patterns = [/\.pr(\d+)$/, /\.pr-(\d+)$/, /-pr(\d+)$/, /_pr(\d+)$/];
 
   for (const pattern of patterns) {
     const match = worktreeName.match(pattern);
@@ -553,6 +566,7 @@ export function extractPrNumberWithPattern(
 ## Phase 3: newpr Refactoring
 
 ### Current Structure (Most Complex)
+
 ```
 src/cli/newpr.ts (1066 lines)
 ├── parseArgs()                           # 100 lines
@@ -573,6 +587,7 @@ src/cli/newpr.ts (1066 lines)
 ```
 
 ### Refactored Structure
+
 ```
 src/lib/newpr/
 ├── types.ts              # Options, StateAction, Mode enums
@@ -593,6 +608,7 @@ src/lib/newpr/
 ### Critical Extractions
 
 #### 1. `src/lib/newpr/types.ts`
+
 ```typescript
 export type Mode = 'new' | 'pr' | 'branch';
 
@@ -635,13 +651,14 @@ export type ParseResult =
 ```
 
 #### 2. `src/lib/newpr/scenario-handler.ts`
+
 ```typescript
 import type { Scenario, GitState } from '../state-detection.js';
 import type { StateAction, ActionType } from './types.js';
 
 export interface ScenarioChoice {
   label: string;
-  action: StateAction | null;  // null = cancel
+  action: StateAction | null; // null = cancel
 }
 
 /**
@@ -676,7 +693,7 @@ export function getScenarioChoices(
     case 'main_staged_same':
       return {
         message: 'You have staged changes ready to commit.',
-        context: [],  // Staged files shown separately
+        context: [], // Staged files shown separately
         choices: [
           {
             label: 'Commit staged changes to the new PR branch',
@@ -727,6 +744,7 @@ export function shouldShowUnstagedChanges(scenario: Scenario): boolean {
 ```
 
 #### 3. `src/lib/newpr/scenario-handler.test.ts`
+
 ```typescript
 import { describe, it, expect } from 'vitest';
 import {
@@ -827,6 +845,7 @@ describe('newpr/scenario-handler', () => {
 ```
 
 #### 4. `src/lib/newpr/args.ts`
+
 ```typescript
 import type { Options, ParseResult } from './types.js';
 
@@ -918,7 +937,7 @@ export function parseArgs(args: string[]): ParseResult {
   if (options.mode === 'new' && !options.description) {
     return {
       success: false,
-      error: 'Description required. Usage: newpr "feature description"'
+      error: 'Description required. Usage: newpr "feature description"',
     };
   }
 
@@ -931,9 +950,11 @@ export function parseArgs(args: string[]): ParseResult {
 ## Phase 4: wtlink Refactoring
 
 ### Current State
+
 `wtlink.ts` is already well-structured - it uses yargs and delegates to lib modules. The issue is that the lib modules themselves (`manage-manifest.ts`, `link-configs.ts`, `validate-manifest.ts`) lack unit tests.
 
 ### Refactoring Focus
+
 Add unit tests for existing lib modules, no major restructuring needed.
 
 ```
@@ -960,6 +981,7 @@ src/lib/wtlink/
 ## Implementation Checklist
 
 ### Phase 1: lswt (Day 1, Morning)
+
 - [ ] Create `src/lib/lswt/` directory
 - [ ] Extract `types.ts`
 - [ ] Extract and test `args.ts`
@@ -969,6 +991,7 @@ src/lib/wtlink/
 - [ ] Verify all existing e2e tests still pass
 
 ### Phase 2: cleanpr (Day 1, Afternoon - Day 2, Morning)
+
 - [ ] Create `src/lib/cleanpr/` directory
 - [ ] Create `src/lib/shared/` for common utilities
 - [ ] Extract and test `args.ts`
@@ -978,6 +1001,7 @@ src/lib/wtlink/
 - [ ] Verify e2e tests
 
 ### Phase 3: newpr (Day 2, Afternoon - Day 3)
+
 - [ ] Create `src/lib/newpr/` directory
 - [ ] Extract and test `types.ts`
 - [ ] Extract and test `args.ts` (most complex argument parsing)
@@ -988,12 +1012,14 @@ src/lib/wtlink/
 - [ ] Verify e2e tests
 
 ### Phase 4: wtlink (Day 4, Morning)
+
 - [ ] Add comprehensive tests for `manage-manifest.ts`
 - [ ] Expand tests for `link-configs.ts`
 - [ ] Expand tests for `validate-manifest.ts`
 - [ ] No CLI changes needed
 
 ### Phase 5: Coverage Configuration (Day 4, Afternoon)
+
 - [ ] Update `vitest.config.ts` to exclude `src/cli/**`
 - [ ] Run full coverage report
 - [ ] Document final coverage numbers
@@ -1004,13 +1030,14 @@ src/lib/wtlink/
 ## Testing Patterns
 
 ### Pattern 1: Pure Function Extraction
+
 ```typescript
 // Before (in CLI file)
 function parseArgs(args: string[]) {
   // ... parse ...
   if (invalid) {
     console.error('Error');
-    process.exit(1);  // Side effect!
+    process.exit(1); // Side effect!
   }
   return options;
 }
@@ -1019,18 +1046,19 @@ function parseArgs(args: string[]) {
 function parseArgs(args: string[]): ParseResult {
   // ... parse ...
   if (invalid) {
-    return { success: false, error: 'Error' };  // Pure!
+    return { success: false, error: 'Error' }; // Pure!
   }
   return { success: true, options };
 }
 ```
 
 ### Pattern 2: Dependency Injection for I/O
+
 ```typescript
 // Before
 async function cleanWorktree(info: WorktreeInfo) {
-  await git.removeWorktree(info.path);  // Direct I/O
-  console.log('Removed');               // Side effect
+  await git.removeWorktree(info.path); // Direct I/O
+  console.log('Removed'); // Side effect
 }
 
 // After
@@ -1040,10 +1068,7 @@ interface CleanDeps {
   log: (msg: string) => void;
 }
 
-async function cleanWorktree(
-  info: WorktreeInfo,
-  deps: CleanDeps
-): Promise<CleanResult> {
+async function cleanWorktree(info: WorktreeInfo, deps: CleanDeps): Promise<CleanResult> {
   await deps.removeWorktree(info.path);
   deps.log('Removed');
   return { success: true };
@@ -1064,12 +1089,13 @@ it('removes worktree', async () => {
 ```
 
 ### Pattern 3: Output as Data (for formatters)
+
 ```typescript
 // Before
 function printTable(worktrees: WorktreeDisplay[]) {
   console.log(colors.bold('Header'));
   for (const wt of worktrees) {
-    console.log(formatLine(wt));  // Interleaved logic and output
+    console.log(formatLine(wt)); // Interleaved logic and output
   }
 }
 
@@ -1077,7 +1103,7 @@ function printTable(worktrees: WorktreeDisplay[]) {
 function formatTable(worktrees: WorktreeDisplay[]): TableOutput {
   return {
     header: 'Header',
-    rows: worktrees.map(wt => ({
+    rows: worktrees.map((wt) => ({
       type: wt.type,
       branch: wt.branch,
       path: wt.path,
@@ -1098,36 +1124,40 @@ for (const row of output.rows) {
 
 ## Expected Coverage After Refactoring
 
-| Module | Before | After |
-|--------|--------|-------|
-| src/lib/colors.ts | 74% | 74% |
-| src/lib/config.ts | 61% | 70%+ |
-| src/lib/git.ts | 76% | 80%+ |
-| src/lib/github.ts | 93% | 93% |
-| src/lib/prompts.ts | 72% | 75%+ |
-| src/lib/state-detection.ts | 58% | 70%+ |
-| src/lib/lswt/*.ts | 0% | 90%+ |
-| src/lib/cleanpr/*.ts | 0% | 85%+ |
-| src/lib/newpr/*.ts | 0% | 90%+ |
-| src/lib/wtlink/*.ts | 0% | 80%+ |
-| src/lib/shared/*.ts | 0% | 95%+ |
-| **src/lib/ total** | **77%** | **85%+** |
-| src/cli/*.ts | 0% | Excluded |
+| Module                     | Before  | After    |
+| -------------------------- | ------- | -------- |
+| src/lib/colors.ts          | 74%     | 74%      |
+| src/lib/config.ts          | 61%     | 70%+     |
+| src/lib/git.ts             | 76%     | 80%+     |
+| src/lib/github.ts          | 93%     | 93%      |
+| src/lib/prompts.ts         | 72%     | 75%+     |
+| src/lib/state-detection.ts | 58%     | 70%+     |
+| src/lib/lswt/\*.ts         | 0%      | 90%+     |
+| src/lib/cleanpr/\*.ts      | 0%      | 85%+     |
+| src/lib/newpr/\*.ts        | 0%      | 90%+     |
+| src/lib/wtlink/\*.ts       | 0%      | 80%+     |
+| src/lib/shared/\*.ts       | 0%      | 95%+     |
+| **src/lib/ total**         | **77%** | **85%+** |
+| src/cli/\*.ts              | 0%      | Excluded |
 
 ---
 
 ## Risks and Mitigations
 
 ### Risk 1: Regression in CLI Behavior
+
 **Mitigation:** Keep e2e tests running throughout. They validate end-to-end behavior even though they don't contribute to coverage.
 
 ### Risk 2: Over-engineering
+
 **Mitigation:** Only extract what's testable. Keep orchestration in CLI files. Don't create abstractions for one-time use.
 
 ### Risk 3: Mocking Complexity
+
 **Mitigation:** Use dependency injection sparingly. Prefer pure functions that don't need mocks.
 
 ### Risk 4: Breaking Changes
+
 **Mitigation:** This is internal refactoring only. No public API changes. CLI behavior unchanged.
 
 ---

@@ -13,7 +13,10 @@ import type { StateAction, ActionResult } from './types.js';
 export interface ActionDeps {
   gitAdd: (path: string, cwd?: string) => void;
   gitStash: (options: { message?: string; keepIndex?: boolean }, cwd?: string) => string | null;
-  gitPush: (options: { remote: string; branch: string; setUpstream?: boolean }, cwd?: string) => void;
+  gitPush: (
+    options: { remote: string; branch: string; setUpstream?: boolean },
+    cwd?: string
+  ) => void;
   gitCommit: (options: { message: string; allowEmpty?: boolean }, cwd?: string) => void;
 }
 
@@ -73,10 +76,7 @@ export function executeStateAction(
 
       case 'pr_for_branch_commit_all':
         deps.gitAdd('.', cwd);
-        deps.gitCommit(
-          { message: 'chore: work in progress\n\n🤖 Committed with newpr' },
-          cwd
-        );
+        deps.gitCommit({ message: 'chore: work in progress\n\n🤖 Committed with newpr' }, cwd);
         break;
 
       case 'pr_for_branch_stash':

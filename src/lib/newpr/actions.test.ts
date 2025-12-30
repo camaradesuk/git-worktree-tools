@@ -336,7 +336,11 @@ describe('newpr/actions', () => {
     });
 
     it('returns generic description for unknown action', () => {
-      const action = { action: 'unknown' as StateAction['action'], branchFrom: 'origin_main' as const, stashUnstaged: false };
+      const action = {
+        action: 'unknown' as StateAction['action'],
+        branchFrom: 'origin_main' as const,
+        stashUnstaged: false,
+      };
       expect(getActionDescription(action)).toBe('Executing action');
     });
   });

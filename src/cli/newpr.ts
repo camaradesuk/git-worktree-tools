@@ -127,10 +127,7 @@ function showUnstagedChanges(cwd?: string): void {
 /**
  * Handle scenario and return action to take
  */
-async function handleScenario(
-  state: GitState,
-  baseBranch: string
-): Promise<StateAction | null> {
+async function handleScenario(state: GitState, baseBranch: string): Promise<StateAction | null> {
   let scenario = detectScenario(state);
 
   // Handle pr_worktree scenario - re-analyze after warning
@@ -180,10 +177,7 @@ async function handleScenario(
   } else if (scenario === 'main_both_same') {
     showStagedChanges();
     showUnstagedChanges();
-  } else if (
-    scenario === 'main_clean_ahead' ||
-    scenario === 'branch_divergent'
-  ) {
+  } else if (scenario === 'main_clean_ahead' || scenario === 'branch_divergent') {
     showLocalCommits(baseBranch);
   } else if (scenario === 'main_changes_ahead') {
     console.log();

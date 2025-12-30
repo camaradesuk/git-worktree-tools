@@ -137,10 +137,7 @@ describe('cleanpr/worktree-info', () => {
         makeWorktree({ path: '/home/user/repo.pr1', branch: 'f1', isMain: false }),
         makeWorktree({ path: '/home/user/repo.pr2', branch: 'f2', isMain: false }),
       ];
-      const getPrState = vi
-        .fn()
-        .mockResolvedValueOnce('OPEN')
-        .mockResolvedValueOnce('MERGED');
+      const getPrState = vi.fn().mockResolvedValueOnce('OPEN').mockResolvedValueOnce('MERGED');
       const deps = makeDeps({
         listWorktrees: () => worktrees,
         getPrState,
@@ -162,11 +159,7 @@ describe('cleanpr/worktree-info', () => {
       ];
       const deps = makeDeps({ listWorktrees: () => worktrees });
 
-      const result = await gatherPrWorktreeInfo(
-        '/home/user/repo',
-        '{repo}-issue-{number}',
-        deps
-      );
+      const result = await gatherPrWorktreeInfo('/home/user/repo', '{repo}-issue-{number}', deps);
       expect(result).toHaveLength(1);
       expect(result[0].prNumber).toBe(42);
     });
