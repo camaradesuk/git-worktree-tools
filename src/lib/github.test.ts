@@ -87,25 +87,44 @@ describe('github', () => {
   });
 
   describe('createPr', () => {
-    it('creates PR with minimal options', () => {
-      mockExecSync.mockReturnValue(
-        JSON.stringify({
-          number: 42,
-          title: 'My PR',
-          state: 'OPEN',
-          url: 'https://github.com/org/repo/pull/42',
-          headRefName: 'feature/test',
-          baseRefName: 'main',
-          isDraft: false,
-        })
-      );
+    it('creates PR and fetches details via pr view', () => {
+      // First call: gh pr create returns URL
+      // Second call: gh pr view returns JSON details
+      mockExecSync
+        .mockReturnValueOnce('https://github.com/org/repo/pull/42\n')
+        .mockReturnValueOnce(
+          JSON.stringify({
+            number: 42,
+            title: 'My PR',
+            state: 'OPEN',
+            url: 'https://github.com/org/repo/pull/42',
+            headRefName: 'feature/test',
+            baseRefName: 'main',
+            isDraft: false,
+          })
+        );
 
       const result = github.createPr({ title: 'My PR' });
 
-      expect(mockExecSync).toHaveBeenCalledWith(
+      // Verify pr create was called without --json
+      expect(mockExecSync).toHaveBeenNthCalledWith(
+        1,
         expect.stringContaining('gh pr create --title "My PR"'),
         expect.any(Object)
       );
+      expect(mockExecSync).toHaveBeenNthCalledWith(
+        1,
+        expect.not.stringContaining('--json'),
+        expect.any(Object)
+      );
+
+      // Verify pr view was called with --json to get details
+      expect(mockExecSync).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('gh pr view 42 --json'),
+        expect.any(Object)
+      );
+
       expect(result).toEqual({
         number: 42,
         title: 'My PR',
@@ -118,19 +137,21 @@ describe('github', () => {
     });
 
     it('creates PR with all options', () => {
-      mockExecSync.mockReturnValue(
-        JSON.stringify({
-          number: 43,
-          title: 'Draft PR',
-          state: 'OPEN',
-          url: 'https://github.com/org/repo/pull/43',
-          headRefName: 'feature/draft',
-          baseRefName: 'develop',
-          isDraft: true,
-        })
-      );
+      mockExecSync
+        .mockReturnValueOnce('https://github.com/org/repo/pull/43\n')
+        .mockReturnValueOnce(
+          JSON.stringify({
+            number: 43,
+            title: 'Draft PR',
+            state: 'OPEN',
+            url: 'https://github.com/org/repo/pull/43',
+            headRefName: 'feature/draft',
+            baseRefName: 'develop',
+            isDraft: true,
+          })
+        );
 
-      github.createPr({
+      const result = github.createPr({
         title: 'Draft PR',
         body: 'PR description',
         base: 'develop',
@@ -139,21 +160,58 @@ describe('github', () => {
         repo: 'org/repo',
       });
 
-      expect(mockExecSync).toHaveBeenCalledWith(
+      expect(mockExecSync).toHaveBeenNthCalledWith(
+        1,
         expect.stringMatching(
           /--title "Draft PR".*--body "PR description".*--base develop.*--head "feature\/draft".*--draft.*--repo "org\/repo"/
         ),
         expect.any(Object)
       );
+
+      expect(result).toEqual({
+        number: 43,
+        title: 'Draft PR',
+        state: 'OPEN',
+        url: 'https://github.com/org/repo/pull/43',
+        headBranch: 'feature/draft',
+        baseBranch: 'develop',
+        isDraft: true,
+      });
     });
 
-    it('falls back to URL parsing if JSON fails', () => {
-      mockExecSync.mockReturnValue('https://github.com/org/repo/pull/44');
+    it('falls back to options when pr view fails', () => {
+      // First call: gh pr create returns URL
+      // Second call: gh pr view fails
+      mockExecSync
+        .mockReturnValueOnce('https://github.com/org/repo/pull/44\n')
+        .mockImplementationOnce(() => {
+          throw new Error('Could not find pull request');
+        });
 
-      const result = github.createPr({ title: 'Test PR', base: 'main' });
+      const result = github.createPr({
+        title: 'Test PR',
+        base: 'main',
+        head: 'feature/test',
+        draft: true,
+      });
 
-      expect(result.number).toBe(44);
-      expect(result.url).toBe('https://github.com/org/repo/pull/44');
+      expect(result).toEqual({
+        number: 44,
+        title: 'Test PR',
+        state: 'OPEN',
+        url: 'https://github.com/org/repo/pull/44',
+        headBranch: 'feature/test',
+        baseBranch: 'main',
+        isDraft: true,
+      });
+    });
+
+    it('throws error when URL cannot be parsed from response', () => {
+      mockExecSync.mockReturnValueOnce('PR created successfully');
+
+      expect(() => github.createPr({ title: 'Test PR' })).toThrow(
+        'Failed to parse PR creation response'
+      );
     });
   });
 
