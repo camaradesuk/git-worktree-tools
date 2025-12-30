@@ -144,6 +144,13 @@ wtlink validate ../other-wt     # Validate against specific source
 
 **Folder operations:** Actions on folders apply to all files inside. The UI shows a breakdown of child states for each folder.
 
+**Safety confirmations:** Before linking, the tool shows source and destination worktrees with their branch names and warns about potentially dangerous operations:
+
+- **Yellow warning** — Source is not on a base branch (main/master/develop). This is unusual since config files should typically flow from main to feature branches.
+- **Red warning** — Destination is a base branch. This would overwrite your main worktree's config files, which is usually not intended.
+
+The tool recognizes `main`, `master`, and `develop` as base branches. Use `--yes` to skip these confirmations if you're sure about your operation.
+
 **Conflict detection:** When linking, if a file already exists at the destination with different content, you'll be prompted to:
 
 - **Replace** — Delete destination and create link
