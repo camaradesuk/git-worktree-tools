@@ -155,38 +155,33 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
     args.push('--repo', options.repo);
   }
 
-  // Request JSON output
-  args.push('--json', 'number,title,state,url,headRefName,baseRefName,isDraft');
-
+  // gh pr create doesn't support --json, it returns the PR URL on success
   const result = exec(args, { cwd });
 
-  try {
-    const data = JSON.parse(result);
-    return {
-      number: data.number,
-      title: data.title,
-      state: data.state,
-      url: data.url,
-      headBranch: data.headRefName,
-      baseBranch: data.baseRefName,
-      isDraft: data.isDraft,
-    };
-  } catch {
-    // If JSON parsing fails, try to extract PR number from URL in output
-    const urlMatch = result.match(/https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
-    if (urlMatch) {
-      return {
-        number: parseInt(urlMatch[1], 10),
-        title: options.title,
-        state: 'OPEN',
-        url: urlMatch[0],
-        headBranch: options.head || '',
-        baseBranch: options.base || 'main',
-        isDraft: options.draft || false,
-      };
+  // Extract PR number from URL in output
+  const urlMatch = result.match(/https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+  if (urlMatch) {
+    const prNumber = parseInt(urlMatch[1], 10);
+
+    // Try to get full PR details using gh pr view
+    const prInfo = getPr(prNumber, cwd);
+    if (prInfo) {
+      return prInfo;
     }
-    throw new Error(`Failed to parse PR creation response: ${result}`);
+
+    // Fallback if pr view fails
+    return {
+      number: prNumber,
+      title: options.title,
+      state: 'OPEN',
+      url: urlMatch[0],
+      headBranch: options.head || '',
+      baseBranch: options.base || 'main',
+      isDraft: options.draft || false,
+    };
   }
+
+  throw new Error(`Failed to parse PR creation response: ${result}`);
 }
 
 /**
