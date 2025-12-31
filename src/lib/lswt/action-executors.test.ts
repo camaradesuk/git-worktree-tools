@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { executeAction, createDefaultExecutorDeps } from './action-executors.js';
-import type { WorktreeDisplay, EnvironmentInfo, ActionResult } from './types.js';
+import type { WorktreeDisplay, EnvironmentInfo } from './types.js';
 import type { WorktreeConfig } from '../config.js';
 import type { ExecutorDeps } from './action-executors.js';
 

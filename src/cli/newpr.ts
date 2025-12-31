@@ -455,8 +455,8 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       process.exit(1);
     }
 
-    const deps = createActionDeps();
-    executeStateAction(action, description, currentBranch, deps);
+    const deps = createActionDeps(repoRoot);
+    executeStateAction(action, description, currentBranch, deps, repoRoot);
 
     if (!git.remoteBranchExists(currentBranch)) {
       console.log(colors.info('Pushing branch to origin...'));
@@ -483,7 +483,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   }
 
   const originalBranch = git.getCurrentBranch() || 'main';
-  const deps = createActionDeps();
+  const deps = createActionDeps(repoRoot);
 
   debug('Before executeStateAction', {
     originalBranch,
@@ -492,7 +492,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     unstagedFilesBefore: git.getUnstagedFiles(),
   });
 
-  const actionResult = executeStateAction(action, description, branchName, deps);
+  const actionResult = executeStateAction(action, description, branchName, deps, repoRoot);
 
   debug('After executeStateAction', {
     success: actionResult.success,

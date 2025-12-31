@@ -8,7 +8,7 @@ import * as colors from '../colors.js';
 import * as git from '../git.js';
 import { loadConfig } from '../config.js';
 import { detectEnvironment } from './environment.js';
-import { buildActionMenu, formatWorktreeChoice, formatShortcutLegend } from './actions.js';
+import { buildActionMenu, formatShortcutLegend } from './actions.js';
 import { executeAction, createDefaultExecutorDeps } from './action-executors.js';
 import { gatherWorktreeInfo, createDefaultDeps } from './worktree-info.js';
 import type { WorktreeDisplay, WorktreeAction, ListOptions } from './types.js';
@@ -177,13 +177,14 @@ function formatTypeBadgeWithColors(worktree: WorktreeDisplay): string {
   switch (worktree.type) {
     case 'main':
       return colors.cyan('[main]      ');
-    case 'pr':
+    case 'pr': {
       if (worktree.isDraft) {
         const label = `[PR #${worktree.prNumber} DRAFT]`;
         return colors.yellow(label.padEnd(14));
       }
       const prLabel = `[PR #${worktree.prNumber}]`;
       return colors.green(prLabel.padEnd(14));
+    }
     case 'branch':
       return colors.blue('[branch]    ');
     case 'detached':

@@ -1,6 +1,6 @@
 {
   "name": "@camaradesuk/git-worktree-tools",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Git worktree workflow tools: create PRs, manage worktrees, sync configs. Cross-platform CLI for Windows, macOS, and Linux.",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,7 +21,7 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "npm run build",
+    "prepare": "husky",
     "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
@@ -75,10 +75,21 @@
     "eslint": "^9.39.2",
     "eslint-plugin-prettier": "^5.5.4",
     "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.7.4",
     "semantic-release": "^25.0.2",
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.50.1",
     "vitest": "^2.1.9"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,jsx,json,md,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }
