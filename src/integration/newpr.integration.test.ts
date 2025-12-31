@@ -147,7 +147,13 @@ describe('newpr integration - uncommitted changes transfer', () => {
 
       // Execute the action (this stages files)
       const deps = createRealDeps(mainRepoDir);
-      const actionResult = executeStateAction(action, 'Test feature', branchName, deps, mainRepoDir);
+      const actionResult = executeStateAction(
+        action,
+        'Test feature',
+        branchName,
+        deps,
+        mainRepoDir
+      );
       expect(actionResult.success).toBe(true);
 
       // Verify files are staged
@@ -349,7 +355,13 @@ describe('newpr integration - uncommitted changes transfer', () => {
 
       // Execute the action (this stages files)
       const deps = createRealDeps(mainRepoDir);
-      const actionResult = executeStateAction(action, 'Test feature', branchName, deps, mainRepoDir);
+      const actionResult = executeStateAction(
+        action,
+        'Test feature',
+        branchName,
+        deps,
+        mainRepoDir
+      );
       expect(actionResult.success).toBe(true);
 
       // Verify files are staged
@@ -418,7 +430,13 @@ describe('newpr integration - uncommitted changes transfer', () => {
 
       // Execute the action (nothing to do for commit_staged)
       const deps = createRealDeps(mainRepoDir);
-      const actionResult = executeStateAction(action, 'Test feature', branchName, deps, mainRepoDir);
+      const actionResult = executeStateAction(
+        action,
+        'Test feature',
+        branchName,
+        deps,
+        mainRepoDir
+      );
       expect(actionResult.success).toBe(true);
 
       // Now checkout from origin/main
