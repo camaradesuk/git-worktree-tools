@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Coverage
+coverage/
+
+# Claude Code local settings
+.claude/
+
+# Changelog (auto-generated)
+CHANGELOG.md

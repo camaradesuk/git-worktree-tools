@@ -219,7 +219,15 @@ describe('cli/newpr', () => {
 
       await runCli(['--pr', '123']);
 
-      expect(git.addWorktree).toHaveBeenCalled();
+      // Verify wiring: worktree path, branch, and options are correctly passed through
+      expect(git.addWorktree).toHaveBeenCalledWith(
+        '/repo.pr123', // path from generateWorktreePath
+        'feature-123', // branch from PR info
+        expect.objectContaining({
+          createBranch: true,
+          startPoint: 'origin/feature-123',
+        })
+      );
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('PR #123'));
     });
 
@@ -261,8 +269,22 @@ describe('cli/newpr', () => {
 
       await runCli(['--branch', 'my-feature']);
 
-      expect(github.createPr).toHaveBeenCalled();
-      expect(git.addWorktree).toHaveBeenCalled();
+      // Verify wiring: createPr receives correct branch and description
+      expect(github.createPr).toHaveBeenCalledWith(
+        expect.objectContaining({
+          head: 'my-feature',
+          base: 'main', // from config
+        })
+      );
+      // Verify wiring: addWorktree receives correct path, branch, and options
+      expect(git.addWorktree).toHaveBeenCalledWith(
+        '/repo.pr456', // path from generateWorktreePath
+        'my-feature', // the branch name
+        expect.objectContaining({
+          createBranch: true,
+          startPoint: 'origin/my-feature',
+        })
+      );
     });
 
     it('uses existing PR if branch already has one', async () => {
@@ -330,14 +352,26 @@ describe('cli/newpr', () => {
 
       await runCli(['Add new feature']);
 
+      // Verify wiring: checkout uses generated branch name and branch point
       expect(git.exec).toHaveBeenCalledWith([
         'checkout',
         '-b',
-        'feature/add-new-feature',
-        'origin/main',
+        'feature/add-new-feature', // from generateBranchName
+        'origin/main', // from getBranchPoint
       ]);
-      expect(github.createPr).toHaveBeenCalled();
-      expect(git.addWorktree).toHaveBeenCalled();
+      // Verify wiring: createPr receives correct branch and description
+      expect(github.createPr).toHaveBeenCalledWith(
+        expect.objectContaining({
+          head: 'feature/add-new-feature',
+          base: 'main',
+          title: 'Add new feature',
+        })
+      );
+      // Verify wiring: addWorktree receives correct path and branch
+      expect(git.addWorktree).toHaveBeenCalledWith(
+        '/repo.pr100', // path from generateWorktreePath
+        'feature/add-new-feature' // the branch name
+      );
     });
 
     it('exits 1 when user cancels', async () => {
@@ -428,6 +462,112 @@ describe('cli/newpr', () => {
         expect.stringContaining('Commit your changes first')
       );
       expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('executeStateAction parameter verification', () => {
+    it('passes repoRoot to executeStateAction for existing branch actions', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Add new feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          currentBranch: 'feature/existing-branch',
+          branchType: 'feature',
+          workingTreeStatus: 'has_staged',
+          stagedFiles: ['file.ts'],
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('branch_with_changes');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'You have uncommitted changes',
+        choices: [
+          {
+            label: 'Commit all and create PR',
+            action: { action: 'commit_all', branchFrom: 'head', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(0);
+      // KEY: This is the existing branch action path
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(true);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('feature/existing-branch');
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Add new feature']);
+
+      // Verify executeStateAction was called with repoRoot as the 5th parameter
+      expect(newpr.executeStateAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'commit_all' }),
+        expect.any(String),
+        'feature/existing-branch',
+        expect.any(Object),
+        repoRoot // This is the critical parameter that was missing
+      );
+    });
+
+    it('passes repoRoot to executeStateAction for new branch actions', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Add new feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(0);
+      // This is the new branch action path
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Add new feature']);
+
+      // Verify executeStateAction was called with repoRoot as the 5th parameter
+      expect(newpr.executeStateAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'empty_commit' }),
+        expect.any(String),
+        'feature/add-new-feature',
+        expect.any(Object),
+        repoRoot // This ensures git operations run from repo root
+      );
     });
   });
 });

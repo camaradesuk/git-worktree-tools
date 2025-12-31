@@ -15,11 +15,13 @@ When a user runs `newpr` from a subdirectory of the repository (e.g., `src/`), t
 ### Code Flow
 
 1. In [newpr.ts:486](src/cli/newpr.ts#L486), `createActionDeps()` is called **without a cwd argument**:
+
    ```typescript
    const deps = createActionDeps();
    ```
 
 2. Inside `createActionDeps()` at [newpr.ts:55-68](src/cli/newpr.ts#L55-L68), the closure captures `cwd` as `undefined`:
+
    ```typescript
    function createActionDeps(cwd?: string): ActionDeps {
      return {
@@ -30,6 +32,7 @@ When a user runs `newpr` from a subdirectory of the repository (e.g., `src/`), t
    ```
 
 3. When `executeStateAction` at [actions.ts:47](src/lib/newpr/actions.ts#L47) calls `deps.gitAdd('.', cwd)` where `cwd` is `undefined`:
+
    ```typescript
    case 'commit_all':
      deps.gitAdd('.', cwd);  // cwd is undefined!
@@ -50,6 +53,7 @@ repo/
 ```
 
 When running from `src/`:
+
 - `git status --porcelain` shows `?? docs/LSWT-INTERACTIVE-PLAN.md` (works from any subdirectory)
 - `git add .` only adds files in `src/` (the untracked file in `docs/` is NOT staged)
 
@@ -60,7 +64,7 @@ Pass the repository root (`repoRoot`) to `createActionDeps()` so all git operati
 ```typescript
 // In modeNewFeature, around line 486:
 const repoRoot = git.getRepoRoot();
-const deps = createActionDeps(repoRoot);  // Pass repoRoot
+const deps = createActionDeps(repoRoot); // Pass repoRoot
 ```
 
 Alternatively, use `git add -A` (or `git add --all`) which stages all changes in the entire repository regardless of the current working directory.
@@ -102,6 +106,7 @@ The tests verify the mock was called with the expected arguments, but don't veri
 ### 3. No Tests for "Running from Subdirectory" Scenario
 
 There are no tests that simulate:
+
 1. Being in a subdirectory when calling `newpr`
 2. Having files in a different directory than the current one
 3. The full CLI entry point where `createActionDeps()` is called without arguments
@@ -124,7 +129,7 @@ it('stages files when run from subdirectory', () => {
 
   // Simulate running from src/ subdirectory (current bug)
   const srcDir = path.join(mainRepoDir, 'src');
-  const brokenDeps = createRealDeps(srcDir);  // Wrong cwd!
+  const brokenDeps = createRealDeps(srcDir); // Wrong cwd!
 
   // This should stage files in docs/, but with the bug it doesn't
   executeStateAction(action, 'Test feature', branchName, brokenDeps, srcDir);
@@ -137,6 +142,7 @@ it('stages files when run from subdirectory', () => {
 ### 2. Test the Actual CLI Entry Point
 
 Create an E2E test that:
+
 1. Spawns the actual `newpr` CLI process
 2. Runs it from a subdirectory
 3. Provides input via stdin
@@ -172,7 +178,7 @@ The fix was applied in [src/cli/newpr.ts:486](../src/cli/newpr.ts#L486):
 
 ```typescript
 const originalBranch = git.getCurrentBranch() || 'main';
-const deps = createActionDeps(repoRoot);  // Now uses existing repoRoot from line 411
+const deps = createActionDeps(repoRoot); // Now uses existing repoRoot from line 411
 ```
 
 This ensures all git operations in `executeStateAction` run from the repository root, regardless of where the user invoked `newpr`.
