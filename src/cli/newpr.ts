@@ -527,7 +527,24 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       stagedFilesBeforeCheckout: git.getStagedFiles(),
     });
 
-    git.exec(['checkout', '-b', branchName, branchFrom]);
+    try {
+      git.exec(['checkout', '-b', branchName, branchFrom]);
+    } catch (checkoutError) {
+      // When checkout fails (e.g., due to conflicting changes), git preserves
+      // the staged files in the index - no data is lost. Provide a helpful message.
+      const errorMessage =
+        checkoutError instanceof Error ? checkoutError.message : String(checkoutError);
+      if (errorMessage.includes('overwritten') || errorMessage.includes('conflict')) {
+        console.error(colors.error('Checkout failed due to conflicting changes.'));
+        console.error(colors.info('Your staged changes are preserved. To resolve this, either:'));
+        console.error(colors.info('  1. Commit your changes first, then run newpr again'));
+        console.error(colors.info('  2. Stash your changes: git stash push'));
+        console.error(
+          colors.info('  3. Use a different branch point (e.g., HEAD instead of origin/main)')
+        );
+      }
+      throw checkoutError;
+    }
 
     const stagedFiles = git.getStagedFiles();
 
