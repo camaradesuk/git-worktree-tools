@@ -12,12 +12,12 @@ When a user selects option 1 "Stage all and commit to the new PR branch" in the 
 
 When a user runs `newpr` from a subdirectory of the repository (e.g., `src/`), the `git add .` command only stages files within that subdirectory. Files in sibling directories (like `docs/`) are not staged, causing the commit to be empty.
 
-### Code Flow
+### Code Flow (Before Fix)
 
-1. In [newpr.ts:486](src/cli/newpr.ts#L486), `createActionDeps()` is called **without a cwd argument**:
+1. In the existing branch code path around line 486 (now fixed), `createActionDeps()` was called **without a cwd argument**:
 
    ```typescript
-   const deps = createActionDeps();
+   const deps = createActionDeps(); // Bug: missing repoRoot
    ```
 
 2. Inside `createActionDeps()` at [newpr.ts:55-68](src/cli/newpr.ts#L55-L68), the closure captures `cwd` as `undefined`:
