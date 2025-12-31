@@ -557,4 +557,51 @@ describe('newpr integration - uncommitted changes transfer', () => {
       expect(stagedAfterCheckout).toContain('docs/new-file.md');
     });
   });
+
+  describe('Bug regression: commit_all from subdirectory', () => {
+    it('stages files from entire repo even when cwd is a subdirectory', () => {
+      const baseBranch = getBaseBranch();
+
+      // Create file in docs/ (sibling directory)
+      fs.mkdirSync(path.join(mainRepoDir, 'docs'), { recursive: true });
+      fs.writeFileSync(path.join(mainRepoDir, 'docs', 'plan.md'), '# Plan\n');
+
+      // Create src/ subdirectory (simulate running from here)
+      const srcDir = path.join(mainRepoDir, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+
+      // Verify initial state
+      const initialState = analyzeGitState(baseBranch, mainRepoDir);
+      expect(detectScenario(initialState)).toBe('main_unstaged_same');
+
+      // Create the action
+      const action: StateAction = {
+        action: 'commit_all',
+        branchFrom: 'origin_main',
+        stashUnstaged: false,
+      };
+
+      // KEY TEST: Even when creating deps with a subdirectory as cwd,
+      // using the repo root ensures all files are staged.
+
+      // This simulates the BUG (passing subdirectory as cwd):
+      const brokenDeps = createRealDeps(srcDir);
+      executeStateAction(action, 'Test feature', 'test-branch', brokenDeps, srcDir);
+
+      // With the broken deps, only files in src/ would be staged - not docs/
+      const stagedWithBrokenDeps = git.getStagedFiles(mainRepoDir);
+      expect(stagedWithBrokenDeps).not.toContain('docs/plan.md'); // Bug demonstrates this fails
+
+      // Reset for next test
+      execSync('git reset HEAD', { cwd: mainRepoDir, stdio: 'ignore' });
+
+      // This simulates the FIX (passing repo root as cwd):
+      const fixedDeps = createRealDeps(mainRepoDir);
+      executeStateAction(action, 'Test feature', 'test-branch', fixedDeps, mainRepoDir);
+
+      // With the fixed deps, all files in the repo are staged
+      const stagedWithFixedDeps = git.getStagedFiles(mainRepoDir);
+      expect(stagedWithFixedDeps).toContain('docs/plan.md'); // Fix ensures this works
+    });
+  });
 });

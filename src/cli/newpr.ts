@@ -483,7 +483,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   }
 
   const originalBranch = git.getCurrentBranch() || 'main';
-  const deps = createActionDeps();
+  const deps = createActionDeps(repoRoot);
 
   debug('Before executeStateAction', {
     originalBranch,
