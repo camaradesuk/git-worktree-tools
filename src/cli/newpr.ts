@@ -33,6 +33,23 @@ import {
 } from '../lib/newpr/index.js';
 
 /**
+ * Debug logging - enabled with DEBUG=newpr or DEBUG=*
+ */
+const DEBUG_ENABLED =
+  process.env.DEBUG === 'newpr' || process.env.DEBUG === '*' || process.env.DEBUG === '1';
+
+function debug(message: string, data?: Record<string, unknown>): void {
+  if (!DEBUG_ENABLED) return;
+  const timestamp = new Date().toISOString();
+  console.error(colors.dim(`[DEBUG ${timestamp}] ${message}`));
+  if (data) {
+    for (const [key, value] of Object.entries(data)) {
+      console.error(colors.dim(`  ${key}: ${JSON.stringify(value)}`));
+    }
+  }
+}
+
+/**
  * Create action dependencies using real git operations
  */
 function createActionDeps(cwd?: string): ActionDeps {
@@ -404,12 +421,31 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   }
 
   const state = analyzeGitState(options.baseBranch);
+  const scenario = detectScenario(state);
+
+  debug('State analysis complete', {
+    scenario,
+    branchType: state.branchType,
+    currentBranch: state.currentBranch,
+    commitRelationship: state.commitRelationship,
+    workingTreeStatus: state.workingTreeStatus,
+    stagedFiles: state.stagedFiles,
+    unstagedFiles: state.unstagedFiles,
+    repoRoot: state.repoRoot,
+  });
+
   const action = await handleScenario(state, options.baseBranch);
 
   if (!action) {
     console.log(colors.error('Aborted by user.'));
     process.exit(1);
   }
+
+  debug('User selected action', {
+    action: action.action,
+    branchFrom: action.branchFrom,
+    stashUnstaged: action.stashUnstaged,
+  });
 
   // Handle special case: create PR for existing branch
   if (isExistingBranchAction(action)) {
@@ -448,7 +484,22 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   const originalBranch = git.getCurrentBranch() || 'main';
   const deps = createActionDeps();
+
+  debug('Before executeStateAction', {
+    originalBranch,
+    branchName,
+    stagedFilesBefore: git.getStagedFiles(),
+    unstagedFilesBefore: git.getUnstagedFiles(),
+  });
+
   const actionResult = executeStateAction(action, description, branchName, deps);
+
+  debug('After executeStateAction', {
+    success: actionResult.success,
+    stashRef: actionResult.stashRef,
+    stagedFilesAfter: git.getStagedFiles(),
+    unstagedFilesAfter: git.getUnstagedFiles(),
+  });
 
   if (!actionResult.success) {
     console.error(colors.error(`Action failed: ${actionResult.message}`));
@@ -469,18 +520,36 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     const branchFrom = getBranchPoint(action, options.baseBranch);
     console.log(colors.info(`Creating branch from ${branchFrom}...`));
 
+    debug('Before checkout', {
+      branchFrom,
+      branchName,
+      currentBranch: git.getCurrentBranch(),
+      stagedFilesBeforeCheckout: git.getStagedFiles(),
+    });
+
     git.exec(['checkout', '-b', branchName, branchFrom]);
 
     const stagedFiles = git.getStagedFiles();
+
+    debug('After checkout', {
+      newBranch: git.getCurrentBranch(),
+      stagedFilesAfterCheckout: stagedFiles,
+      stagedFilesCount: stagedFiles.length,
+      willCommit: stagedFiles.length > 0,
+      willCreateEmpty: stagedFiles.length === 0 && action.branchFrom === 'origin_main',
+    });
+
     if (stagedFiles.length > 0) {
       console.log(colors.info('Committing staged changes...'));
       git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` });
+      debug('Committed staged changes');
     } else if (action.branchFrom === 'origin_main') {
       console.log(colors.info('Creating initial commit (required for PR creation)...'));
       git.commit({
         message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
         allowEmpty: true,
       });
+      debug('Created empty commit (no staged files found)');
     }
 
     console.log(colors.info('Pushing branch to origin...'));
