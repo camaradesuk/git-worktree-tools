@@ -166,11 +166,9 @@ describe('newpr integration - uncommitted changes transfer', () => {
 
       git.exec(['checkout', '-b', branchName, branchPoint], { cwd: mainRepoDir });
 
-      // THIS IS THE BUG: After checkout from origin/main, staged files are LOST
+      // Verify staged files persist after checkout from origin/main.
+      // When origin/main equals HEAD (same commit), git preserves the index.
       const stagedAfterCheckout = git.getStagedFiles(mainRepoDir);
-
-      // This assertion WILL FAIL with the current implementation
-      // The fix should ensure staged files persist after checkout
       expect(stagedAfterCheckout).toContain('docs/AI-TOOLING-PLAN.md');
 
       // If staged files existed, commit them
@@ -233,10 +231,9 @@ describe('newpr integration - uncommitted changes transfer', () => {
       const branchPoint = getBranchPoint(action, baseBranch);
       git.exec(['checkout', '-b', branchName, branchPoint], { cwd: mainRepoDir });
 
-      // THIS IS THE BUG: After checkout from origin/main, staged files are LOST
+      // Verify staged files persist after checkout from origin/main.
+      // When origin/main equals HEAD (same commit), git preserves the index.
       const stagedAfterCheckout = git.getStagedFiles(mainRepoDir);
-
-      // This assertion WILL FAIL with the current implementation
       expect(stagedAfterCheckout).toContain('src/feature.ts');
     });
   });
@@ -289,10 +286,9 @@ describe('newpr integration - uncommitted changes transfer', () => {
       const branchPoint = getBranchPoint(action, baseBranch);
       git.exec(['checkout', '-b', branchName, branchPoint], { cwd: mainRepoDir });
 
-      // THIS IS THE BUG: After checkout from origin/main, staged files are LOST
+      // Verify staged files persist after checkout from origin/main.
+      // When origin/main equals HEAD (same commit), git preserves the index.
       const stagedAfterCheckout = git.getStagedFiles(mainRepoDir);
-
-      // This assertion WILL FAIL with the current implementation
       expect(stagedAfterCheckout).toContain('src/staged.ts');
     });
   });
@@ -374,10 +370,10 @@ describe('newpr integration - uncommitted changes transfer', () => {
 
       git.exec(['checkout', '-b', branchName, branchPoint], { cwd: mainRepoDir });
 
-      // THIS IS THE BUG: After checkout from origin/main (when behind), staged files are LOST
+      // Verify staged files persist after checkout from origin/main.
+      // For NEW files that don't exist in origin/main, git preserves them
+      // in the index even when the checkout updates the working tree.
       const stagedAfterCheckout = git.getStagedFiles(mainRepoDir);
-
-      // This assertion WILL FAIL because the checkout changes the tree
       expect(stagedAfterCheckout).toContain('docs/AI-TOOLING-PLAN.md');
     });
   });
@@ -451,19 +447,20 @@ describe('newpr integration - uncommitted changes transfer', () => {
         checkoutError = e as Error;
       }
 
-      // Git should either:
+      // Git will either:
       // 1. Refuse the checkout (conflict) - checkoutError is set
       // 2. Preserve staged changes - stagedAfterCheckout contains README.md
-      // 3. BUG: Lose staged changes silently
 
       if (checkoutError) {
-        // Git refused - this is acceptable behavior
+        // Git refused the checkout due to conflicting changes - this is expected.
+        // When a file has both local staged changes AND upstream changes,
+        // git protects the user by refusing the checkout.
         console.log('Git refused checkout due to conflict (expected behavior)');
         expect(checkoutError.message).toContain('overwritten');
       } else {
-        // Git allowed checkout - check if staged changes are preserved
+        // Git allowed checkout - verify staged changes are preserved.
+        // This branch handles the case where git finds a way to merge cleanly.
         const stagedAfterCheckout = git.getStagedFiles(mainRepoDir);
-        // This MIGHT fail if git resets the index
         expect(stagedAfterCheckout).toContain('README.md');
       }
     });
