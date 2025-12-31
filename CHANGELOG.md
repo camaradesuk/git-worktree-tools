@@ -1,3 +1,17 @@
+# [1.2.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.1.1...v1.2.0) (2025-12-31)
+
+
+### Bug Fixes
+
+* improve error handling for checkout failures with conflicting changes ([daea760](https://github.com/camaradesuk/git-worktree-tools/commit/daea76020d3c2f6ad6d794b3629093831023b53e))
+* remove misleading expected-to-fail comments from integration tests ([85807d2](https://github.com/camaradesuk/git-worktree-tools/commit/85807d273f858a22555cade31929237df4d9d15b))
+
+
+### Features
+
+* add initial configuration for worktree management ([9d198dc](https://github.com/camaradesuk/git-worktree-tools/commit/9d198dca34629ccf54b19bd58fc38af61a4b6425))
+* enhance state detection and logging for newpr flow ([e70c4de](https://github.com/camaradesuk/git-worktree-tools/commit/e70c4de30f02bb7f48f0c0c69c5cdd0dcae179ae))
+
 ## [1.1.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.1.0...v1.1.1) (2025-12-30)
 
 ### Bug Fixes
