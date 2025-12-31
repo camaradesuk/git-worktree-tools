@@ -106,6 +106,12 @@ describe('lswt/formatters', () => {
       const display = makeDisplay({ type: 'detached', branch: null });
       expect(formatTypeLabel(display)).toEqual({ text: '[detached]', color: 'dim' });
     });
+
+    it('formats unknown type', () => {
+      // Use type assertion to test the default case
+      const display = makeDisplay({ type: 'unknown' as WorktreeDisplay['type'] });
+      expect(formatTypeLabel(display)).toEqual({ text: '[unknown]', color: 'dim' });
+    });
   });
 
   describe('sortWorktrees', () => {
@@ -148,6 +154,16 @@ describe('lswt/formatters', () => {
       ];
       const sorted = sortWorktrees(worktrees);
       expect(sorted[0].type).toBe('pr');
+    });
+
+    it('puts branch after PR when PR comes second in input', () => {
+      const worktrees = [
+        makeWorktree('pr', 1, 'repo.pr1'),
+        makeWorktree('branch', null, 'feature'),
+      ];
+      const sorted = sortWorktrees(worktrees);
+      expect(sorted[0].type).toBe('pr');
+      expect(sorted[1].type).toBe('branch');
     });
 
     it('sorts branches alphabetically', () => {
@@ -196,6 +212,12 @@ describe('lswt/formatters', () => {
 
     it('returns full path when not related', () => {
       expect(getDisplayPath('/other/path/repo', '/home/user/repo', false)).toBe('/other/path/repo');
+    });
+
+    it('returns relative from parent when path is sibling of cwd', () => {
+      // cwd = /home/user/repo, worktreePath = /home/user/other-repo
+      // worktreePath starts with /home/user (parent of cwd) but NOT with /home/user/repo
+      expect(getDisplayPath('/home/user/other-repo', '/home/user/repo', false)).toBe('other-repo');
     });
   });
 

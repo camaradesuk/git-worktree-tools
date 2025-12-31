@@ -136,7 +136,7 @@ async function selectWorktree(worktrees: WorktreeDisplay[]): Promise<WorktreeDis
   }));
 
   // Add separator and exit option
-  choices.push(new inquirer.Separator() as unknown as typeof choices[0]);
+  choices.push(new inquirer.Separator() as unknown as (typeof choices)[0]);
   choices.push({
     name: colors.dim('Exit'),
     value: null as unknown as WorktreeDisplay,
@@ -158,8 +158,9 @@ async function selectWorktree(worktrees: WorktreeDisplay[]): Promise<WorktreeDis
 
 /**
  * Format worktree choice with colors for display
+ * Exported for testing
  */
-function formatWorktreeChoiceWithColors(worktree: WorktreeDisplay): string {
+export function formatWorktreeChoiceWithColors(worktree: WorktreeDisplay): string {
   const typeLabel = formatTypeBadgeWithColors(worktree);
   const branchDisplay = worktree.branch || colors.dim('(detached)');
   const status = formatStatusWithColors(worktree);
@@ -172,8 +173,9 @@ function formatWorktreeChoiceWithColors(worktree: WorktreeDisplay): string {
 
 /**
  * Format type badge with colors
+ * Exported for testing
  */
-function formatTypeBadgeWithColors(worktree: WorktreeDisplay): string {
+export function formatTypeBadgeWithColors(worktree: WorktreeDisplay): string {
   switch (worktree.type) {
     case 'main':
       return colors.cyan('[main]      ');
@@ -194,8 +196,9 @@ function formatTypeBadgeWithColors(worktree: WorktreeDisplay): string {
 
 /**
  * Format status string with colors
+ * Exported for testing
  */
-function formatStatusWithColors(worktree: WorktreeDisplay): string {
+export function formatStatusWithColors(worktree: WorktreeDisplay): string {
   const parts: string[] = [];
 
   // PR state

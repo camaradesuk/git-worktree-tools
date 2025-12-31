@@ -356,4 +356,129 @@ describe('lswt/action-executors', () => {
       expect(result.message).toContain('Cannot link configs to main worktree');
     });
   });
+
+  describe('show_details action', () => {
+    it('shows draft indicator for draft PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        isDraft: true,
+        branch: 'feature-42',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      // Check that draft was mentioned in output
+      const calls = consoleSpy.mock.calls.map((call) => String(call[0]));
+      expect(calls.some((c) => c.includes('Draft'))).toBe(true);
+      consoleSpy.mockRestore();
+    });
+
+    it('shows branch worktree details', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+        hasChanges: true,
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      consoleSpy.mockRestore();
+    });
+
+    it('shows detached worktree details', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'detached',
+        branch: null,
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('open_pr_url action with mocked github', () => {
+    it('returns error when PR is not found', async () => {
+      vi.mock('../github.js', () => ({
+        getPr: vi.fn().mockReturnValue(null),
+      }));
+
+      const deps = makeDeps();
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 999,
+        prState: 'OPEN',
+      });
+
+      const result = await executeAction('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Could not find PR');
+    });
+  });
+
+  describe('open_editor action edge cases', () => {
+    it('prefers vscode when preferredEditor is vscode even if cursor available', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({ path: '/home/user/repo.pr1' });
+      const env = makeEnv({ hasVscode: true, hasCursor: true, defaultEditor: 'vscode' });
+      const config = makeConfig({ preferredEditor: 'vscode' });
+
+      const result = await executeAction('open_editor', worktree, env, config, deps);
+
+      expect(deps.spawnDetached).toHaveBeenCalledWith('code', ['/home/user/repo.pr1']);
+      expect(result.success).toBe(true);
+    });
+
+    it('prefers cursor when preferredEditor is cursor even if vscode available', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({ path: '/home/user/repo.pr1' });
+      const env = makeEnv({ hasVscode: true, hasCursor: true, defaultEditor: 'vscode' });
+      const config = makeConfig({ preferredEditor: 'cursor' });
+
+      const result = await executeAction('open_editor', worktree, env, config, deps);
+
+      expect(deps.spawnDetached).toHaveBeenCalledWith('cursor', ['/home/user/repo.pr1']);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('copy_path action', () => {
+    it('copies the correct path', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({ path: '/home/user/my-project' });
+
+      const result = await executeAction('copy_path', worktree, makeEnv(), makeConfig(), deps);
+
+      expect(deps.copyToClipboard).toHaveBeenCalledWith('/home/user/my-project');
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('/home/user/my-project');
+    });
+  });
 });

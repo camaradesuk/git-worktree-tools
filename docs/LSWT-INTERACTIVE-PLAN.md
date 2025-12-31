@@ -7,6 +7,7 @@ Transform `lswt` from a read-only listing tool into an interactive worktree mana
 ## Current State
 
 The current `lswt` command:
+
 - Lists all worktrees with PR status (via `--status` flag)
 - Displays worktree type (main, PR, branch, detached)
 - Shows uncommitted changes indicator
@@ -27,6 +28,7 @@ The current `lswt` command:
 ### Phase 1: Core Infrastructure
 
 #### 1.1 Add inquirer dependency
+
 The project already uses `inquirer` in `wtlink/main-menu.ts`, so this is already available.
 
 #### 1.2 Create new library module: `src/lib/lswt/interactive.ts`
@@ -35,7 +37,7 @@ The project already uses `inquirer` in `wtlink/main-menu.ts`, so this is already
 
 ```typescript
 export interface InteractiveOptions extends ListOptions {
-  interactive: boolean;  // Enable interactive mode
+  interactive: boolean; // Enable interactive mode
 }
 
 export type WorktreeAction =
@@ -54,7 +56,7 @@ export type WorktreeAction =
 export interface ActionMenuItem {
   name: string;
   value: WorktreeAction;
-  disabled?: boolean | string;  // Can be disabled with reason
+  disabled?: boolean | string; // Can be disabled with reason
 }
 ```
 
@@ -63,10 +65,10 @@ export interface ActionMenuItem {
 ```typescript
 export interface EnvironmentInfo {
   hasVscode: boolean;
-  hasCursor: boolean;  // Cursor IDE (VSCode fork)
+  hasCursor: boolean; // Cursor IDE (VSCode fork)
   defaultEditor: 'vscode' | 'cursor' | null;
   platform: 'win32' | 'darwin' | 'linux';
-  isInteractive: boolean;  // TTY check
+  isInteractive: boolean; // TTY check
   shell: string;
 }
 
@@ -76,6 +78,7 @@ export function getDefaultTerminal(): string;
 ```
 
 **Detection logic:**
+
 - VSCode: Check for `code` command in PATH
 - Cursor: Check for `cursor` command in PATH
 - Platform: `process.platform`
@@ -88,6 +91,7 @@ export function getDefaultTerminal(): string;
 #### 2.1 Update argument parsing (`src/lib/lswt/args.ts`)
 
 Add new CLI options:
+
 ```
 --interactive, -i     Enable interactive mode (default when TTY)
 --no-interactive      Disable interactive mode
@@ -96,12 +100,11 @@ Add new CLI options:
 #### 2.2 Create worktree selector (`src/lib/lswt/interactive.ts`)
 
 ```typescript
-export async function selectWorktree(
-  worktrees: WorktreeDisplay[]
-): Promise<WorktreeDisplay | null>;
+export async function selectWorktree(worktrees: WorktreeDisplay[]): Promise<WorktreeDisplay | null>;
 ```
 
 **Display format for selection:**
+
 ```
 ? Select a worktree:
   ❯ [main]     main              (clean)
@@ -113,6 +116,7 @@ export async function selectWorktree(
 ```
 
 Use `inquirer` list prompt with custom formatting:
+
 - Show type badge: `[main]`, `[PR #N]`, `[branch]`, `[detached]`
 - Show branch name or "(detached)"
 - Show PR state if applicable: `(OPEN)`, `(MERGED)`, `(CLOSED)`
@@ -125,24 +129,21 @@ Use `inquirer` list prompt with custom formatting:
 #### 3.1 Action menu builder (`src/lib/lswt/actions.ts`)
 
 ```typescript
-export function buildActionMenu(
-  worktree: WorktreeDisplay,
-  env: EnvironmentInfo
-): ActionMenuItem[];
+export function buildActionMenu(worktree: WorktreeDisplay, env: EnvironmentInfo): ActionMenuItem[];
 ```
 
 **Context-aware actions based on worktree type:**
 
-| Action | main | PR (OPEN) | PR (MERGED/CLOSED) | branch | detached |
-|--------|------|-----------|-------------------|--------|----------|
-| Open in editor | Yes | Yes | Yes | Yes | Yes |
-| Open terminal here | Yes | Yes | Yes | Yes | Yes |
-| Copy path | Yes | Yes | Yes | Yes | Yes |
-| Show details | Yes | Yes | Yes | Yes | Yes |
-| Open PR in browser | - | Yes | Yes | - | - |
-| Create PR from branch | - | - | - | Yes | - |
-| Remove worktree | - | Yes | Yes | Yes | Yes |
-| Link config files | Yes | Yes | Yes | Yes | Yes |
+| Action                | main | PR (OPEN) | PR (MERGED/CLOSED) | branch | detached |
+| --------------------- | ---- | --------- | ------------------ | ------ | -------- |
+| Open in editor        | Yes  | Yes       | Yes                | Yes    | Yes      |
+| Open terminal here    | Yes  | Yes       | Yes                | Yes    | Yes      |
+| Copy path             | Yes  | Yes       | Yes                | Yes    | Yes      |
+| Show details          | Yes  | Yes       | Yes                | Yes    | Yes      |
+| Open PR in browser    | -    | Yes       | Yes                | -      | -        |
+| Create PR from branch | -    | -         | -                  | Yes    | -        |
+| Remove worktree       | -    | Yes       | Yes                | Yes    | Yes      |
+| Link config files     | Yes  | Yes       | Yes                | Yes    | Yes      |
 
 #### 3.2 Action executor (`src/lib/lswt/actions.ts`)
 
@@ -158,7 +159,7 @@ export interface ActionResult {
   success: boolean;
   message?: string;
   shouldExit?: boolean;
-  shouldRefresh?: boolean;  // Re-list worktrees after action
+  shouldRefresh?: boolean; // Re-list worktrees after action
 }
 ```
 
@@ -173,12 +174,14 @@ async function openInEditor(worktree: WorktreeDisplay, env: EnvironmentInfo): Pr
 ```
 
 **Implementation:**
+
 - Detect available editor (VSCode > Cursor > fallback)
 - Execute: `code <worktree.path>` or `cursor <worktree.path>`
 - Support `--wait` flag option
 - Handle Windows path normalization
 
 **Edge cases:**
+
 - Editor not installed: Show warning, suggest installation
 - Remote worktree (SSH path): May not work, warn user
 
@@ -189,6 +192,7 @@ async function openTerminal(worktree: WorktreeDisplay, env: EnvironmentInfo): Pr
 ```
 
 **Implementation per platform:**
+
 - **macOS**: `open -a Terminal <path>` or iTerm2 if available
 - **Linux**: Detect terminal (gnome-terminal, konsole, xterm) and open
 - **Windows**: `start cmd /k "cd /d <path>"` or Windows Terminal if available
@@ -200,6 +204,7 @@ async function copyPath(worktree: WorktreeDisplay): Promise<ActionResult>;
 ```
 
 **Implementation:**
+
 - Use `clipboardy` package or native commands:
   - macOS: `pbcopy`
   - Linux: `xclip` or `xsel`
@@ -213,6 +218,7 @@ async function showDetails(worktree: WorktreeDisplay): Promise<ActionResult>;
 ```
 
 **Display:**
+
 ```
 ╔══════════════════════════════════════════════════════════════════╗
 ║  Worktree Details                                                ║
@@ -238,6 +244,7 @@ async function openPrUrl(worktree: WorktreeDisplay): Promise<ActionResult>;
 ```
 
 **Implementation:**
+
 - Get PR URL from `github.getPr(worktree.prNumber)`
 - Use `open` package or native commands:
   - macOS: `open <url>`
@@ -254,6 +261,7 @@ async function createPrFromBranch(
 ```
 
 **Implementation flow:**
+
 1. Check if branch is pushed to origin
 2. Check if PR already exists for branch
 3. Prompt for PR title (default: branch name formatted)
@@ -263,6 +271,7 @@ async function createPrFromBranch(
 7. Return PR URL and number
 
 **Rename worktree option:**
+
 ```typescript
 async function renameWorktreeForPr(
   oldPath: string,
@@ -272,6 +281,7 @@ async function renameWorktreeForPr(
 ```
 
 This involves:
+
 1. Calculate new path using `generateWorktreePath()`
 2. `git worktree move <old> <new>` (Git 2.17+)
 3. Fallback for older Git: remove + re-add worktree
@@ -286,12 +296,14 @@ async function removeWorktree(
 ```
 
 **Implementation:**
+
 - Leverage existing `cleanpr` functionality
 - Confirm action (especially if worktree has changes)
 - For PR worktrees: offer to also delete local/remote branch
 - Use `cleanWorktree()` from `src/lib/cleanpr/index.js`
 
 **Safety checks:**
+
 - Cannot remove main worktree
 - Warn if uncommitted changes
 - Confirm branch deletion
@@ -306,6 +318,7 @@ async function linkConfigs(
 ```
 
 **Implementation:**
+
 - Leverage existing `wtlink` functionality
 - Auto-detect source (main worktree) and destination (selected worktree)
 - Call `link.run()` from `src/lib/wtlink/link-configs.js`
@@ -414,7 +427,8 @@ export async function runInteractiveMode(
 #### 7.1 Update README.md
 
 Add section for interactive mode:
-```markdown
+
+````markdown
 ## Interactive Mode
 
 When running `lswt` in a terminal, it enters interactive mode by default:
@@ -424,10 +438,12 @@ lswt              # Interactive mode
 lswt --no-interactive  # List mode (original behavior)
 lswt | cat        # Automatically uses list mode when piped
 ```
+````
 
 ### Available Actions
 
 After selecting a worktree, you can:
+
 - **Open in VSCode/Cursor** - Launch editor in worktree
 - **Open terminal** - Open new terminal at worktree path
 - **Open PR** - Open pull request in browser (PR worktrees)
@@ -436,27 +452,30 @@ After selecting a worktree, you can:
 - **Remove worktree** - Clean up worktree and optionally delete branches
 - **Show details** - View detailed worktree information
 - **Copy path** - Copy worktree path to clipboard
+
 ```
 
 #### 7.2 Update help text
 
 ```
+
 Usage: lswt [options]
 
 List git worktrees with PR status and optional interactive management.
 
 Options:
-  -s, --status         Show PR status for worktrees (requires gh cli)
-  -v, --verbose        Show additional details (commit SHA, full paths)
-  -j, --json           Output as JSON
-  -i, --interactive    Enable interactive mode (default in TTY)
-  --no-interactive     Disable interactive mode
-  -h, --help           Show this help message
+-s, --status Show PR status for worktrees (requires gh cli)
+-v, --verbose Show additional details (commit SHA, full paths)
+-j, --json Output as JSON
+-i, --interactive Enable interactive mode (default in TTY)
+--no-interactive Disable interactive mode
+-h, --help Show this help message
 
 Interactive Mode:
-  When running in a terminal, lswt enters interactive mode where you can
-  select a worktree and perform actions like opening in an editor,
-  removing worktrees, or creating PRs.
+When running in a terminal, lswt enters interactive mode where you can
+select a worktree and perform actions like opening in an editor,
+removing worktrees, or creating PRs.
+
 ```
 
 ---
@@ -465,17 +484,19 @@ Interactive Mode:
 
 New files to create:
 ```
+
 src/lib/lswt/
-  ├── index.ts           (update exports)
-  ├── types.ts           (add new types)
-  ├── args.ts            (update for new options)
-  ├── environment.ts     (new - environment detection)
-  ├── actions.ts         (new - action definitions and execution)
-  ├── interactive.ts     (new - interactive UI loop)
-  ├── environment.test.ts
-  ├── actions.test.ts
-  └── interactive.test.ts
-```
+├── index.ts (update exports)
+├── types.ts (add new types)
+├── args.ts (update for new options)
+├── environment.ts (new - environment detection)
+├── actions.ts (new - action definitions and execution)
+├── interactive.ts (new - interactive UI loop)
+├── environment.test.ts
+├── actions.test.ts
+└── interactive.test.ts
+
+````
 
 ---
 
@@ -533,23 +554,28 @@ Add `preferredEditor` to `.worktreerc`:
 {
   "preferredEditor": "vscode"  // Options: "vscode" | "cursor" | "auto"
 }
-```
+````
 
 **Behavior**:
+
 - `"vscode"` (default): Always use VSCode, warn if not available
 - `"cursor"`: Always use Cursor, warn if not available
 - `"auto"`: Detect available editor (VSCode > Cursor > warn)
 
 **Implementation**:
+
 - Update `WorktreeConfig` interface in `src/lib/config.ts`
 - Add to `getDefaultConfig()` with value `"vscode"`
 - Validate option in config loader
 
 ### 2. Worktree Rename (Git Version Requirement)
+
 **Decision**: Require Git 2.17+ for worktree move, show disabled action with reason if below.
 
 **Implementation**:
+
 - Create `src/lib/lswt/git-version.ts`:
+
   ```typescript
   export interface GitVersion {
     major: number;
@@ -569,9 +595,11 @@ Add `preferredEditor` to `.worktreerc`:
   ```
 
 ### 3. Terminal/CD Integration
+
 **Decision**: Open new terminal window at worktree path. Future enhancement: shell integration for in-place cd.
 
 **Implementation per platform**:
+
 - **macOS**:
   - Check for iTerm2: `open -a iTerm <path>`
   - Fallback: `open -a Terminal <path>`
@@ -583,35 +611,41 @@ Add `preferredEditor` to `.worktreerc`:
   - Fallback: `start cmd /k "cd /d <path>"`
 
 **Future enhancement** (not in MVP):
+
 - Shell integration that outputs `cd <path>` for parent shell to execute
 - Requires shell-specific setup (bash function wrapper, etc.)
 
 ### 4. Action Confirmation Behavior
+
 **Decision**: Confirm removes, prompt for PR draft status unless configured.
 
-| Action | Confirmation | Details |
-|--------|--------------|---------|
-| Remove worktree | **Always** | Extra warning if uncommitted changes |
-| Create PR | **Prompt for draft** | Unless `draftPr` set in config |
-| Link configs | None | Reversible operation |
+| Action          | Confirmation         | Details                              |
+| --------------- | -------------------- | ------------------------------------ |
+| Remove worktree | **Always**           | Extra warning if uncommitted changes |
+| Create PR       | **Prompt for draft** | Unless `draftPr` set in config       |
+| Link configs    | None                 | Reversible operation                 |
 
 **Draft PR Visibility**:
+
 - Add `isDraft` field to `WorktreeDisplay` type
 - Show in worktree list: `[PR #42 DRAFT]` with distinct styling
 - Show in action confirmation: "This will create a **DRAFT** PR" or "This will create a **READY FOR REVIEW** PR"
 
 **Type update for WorktreeDisplay**:
+
 ```typescript
 export interface WorktreeDisplay {
   // ... existing fields ...
-  isDraft: boolean | null;  // null for non-PR worktrees
+  isDraft: boolean | null; // null for non-PR worktrees
 }
 ```
 
 ### 5. Keyboard Shortcuts
+
 **Decision**: Yes, with shortcuts always visible on screen.
 
 **Display format**:
+
 ```
 ? Select a worktree:  (e: editor, t: terminal, p: PR, q: quit)
   ❯ [main]        main              (clean)
@@ -633,6 +667,7 @@ export interface WorktreeDisplay {
 | `Esc` | Back/Quit | Always |
 
 **Implementation**:
+
 - Use inquirer's rawlist or custom key handler
 - Show legend in prompt header
 - Handle keypress events for immediate action
@@ -642,6 +677,7 @@ export interface WorktreeDisplay {
 ## Updated Type Definitions
 
 ### WorktreeDisplay (updated)
+
 ```typescript
 export interface WorktreeDisplay {
   path: string;
@@ -651,12 +687,13 @@ export interface WorktreeDisplay {
   type: 'main' | 'pr' | 'branch' | 'detached';
   prNumber: number | null;
   prState: 'OPEN' | 'CLOSED' | 'MERGED' | null;
-  isDraft: boolean | null;  // NEW: null for non-PR worktrees
+  isDraft: boolean | null; // NEW: null for non-PR worktrees
   hasChanges: boolean;
 }
 ```
 
 ### WorktreeConfig additions
+
 ```typescript
 export interface WorktreeConfig {
   // ... existing fields ...
@@ -974,9 +1011,7 @@ describe('interactive mode', () => {
 
   describe('formatWorktreeChoice', () => {
     it('formats main worktree correctly', () => {
-      expect(formatWorktreeChoice(mainWt)).toBe(
-        '[main]        main              (clean)'
-      );
+      expect(formatWorktreeChoice(mainWt)).toBe('[main]        main              (clean)');
     });
 
     it('formats open PR worktree correctly', () => {
@@ -986,15 +1021,11 @@ describe('interactive mode', () => {
     });
 
     it('formats draft PR worktree correctly', () => {
-      expect(formatWorktreeChoice(draftPrWt)).toBe(
-        '[PR #38 DRAFT] fix/bug-fix      (OPEN)'
-      );
+      expect(formatWorktreeChoice(draftPrWt)).toBe('[PR #38 DRAFT] fix/bug-fix      (OPEN)');
     });
 
     it('formats merged PR worktree correctly', () => {
-      expect(formatWorktreeChoice(mergedWt)).toBe(
-        '[PR #35]      old-feature       (MERGED)'
-      );
+      expect(formatWorktreeChoice(mergedWt)).toBe('[PR #35]      old-feature       (MERGED)');
     });
   });
 });
@@ -1194,7 +1225,7 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
         env:
-          FORCE_COLOR: 0  # Disable colors for consistent output
+          FORCE_COLOR: 0 # Disable colors for consistent output
 ```
 
 **Platform-specific E2E tests**:

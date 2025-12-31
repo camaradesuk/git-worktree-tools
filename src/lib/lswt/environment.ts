@@ -11,9 +11,7 @@ import type { EnvironmentInfo, GitVersion } from './types.js';
 export function isCommandAvailable(cmd: string): boolean {
   try {
     const checkCmd =
-      process.platform === 'win32'
-        ? `where ${cmd} 2>nul`
-        : `command -v ${cmd} 2>/dev/null`;
+      process.platform === 'win32' ? `where ${cmd} 2>nul` : `command -v ${cmd} 2>/dev/null`;
 
     execSync(checkCmd, { encoding: 'utf8', stdio: 'pipe' });
     return true;

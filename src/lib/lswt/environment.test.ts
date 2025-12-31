@@ -3,6 +3,10 @@ import {
   parseGitVersion,
   isGitVersionAtLeast,
   getShell,
+  getGitVersion,
+  isCommandAvailable,
+  getDefaultTerminal,
+  detectEnvironment,
   WORKTREE_MOVE_MIN_VERSION,
 } from './environment.js';
 
@@ -171,6 +175,95 @@ describe('lswt/environment', () => {
   describe('WORKTREE_MOVE_MIN_VERSION', () => {
     it('has correct minimum version for worktree move', () => {
       expect(WORKTREE_MOVE_MIN_VERSION).toEqual({ major: 2, minor: 17 });
+    });
+  });
+
+  describe('isCommandAvailable', () => {
+    it('returns true for available command (git)', () => {
+      // git should be available in all test environments
+      expect(isCommandAvailable('git')).toBe(true);
+    });
+
+    it('returns false for unavailable command', () => {
+      expect(isCommandAvailable('nonexistent-command-xyz123')).toBe(false);
+    });
+  });
+
+  describe('getGitVersion', () => {
+    it('returns a valid git version', () => {
+      const version = getGitVersion();
+      expect(version.major).toBeGreaterThanOrEqual(2);
+      expect(version.minor).toBeGreaterThanOrEqual(0);
+      expect(version.patch).toBeGreaterThanOrEqual(0);
+      expect(version.raw).toContain('git version');
+    });
+  });
+
+  describe('getDefaultTerminal', () => {
+    it('returns a string', () => {
+      const terminal = getDefaultTerminal();
+      expect(typeof terminal).toBe('string');
+      expect(terminal.length).toBeGreaterThan(0);
+    });
+
+    it('returns a valid terminal name for current platform', () => {
+      const terminal = getDefaultTerminal();
+      const platform = process.platform;
+
+      if (platform === 'darwin') {
+        expect(['Terminal', 'iTerm2']).toContain(terminal);
+      } else if (platform === 'win32') {
+        expect(['wt', 'cmd']).toContain(terminal);
+      } else {
+        // Linux
+        expect([
+          'gnome-terminal',
+          'konsole',
+          'xfce4-terminal',
+          'xterm',
+        ]).toContain(terminal);
+      }
+    });
+  });
+
+  describe('detectEnvironment', () => {
+    it('returns environment info object with all required properties', () => {
+      const env = detectEnvironment();
+
+      expect(typeof env.hasVscode).toBe('boolean');
+      expect(typeof env.hasCursor).toBe('boolean');
+      expect(['vscode', 'cursor', null]).toContain(env.defaultEditor);
+      expect(['win32', 'darwin', 'linux']).toContain(env.platform);
+      expect(typeof env.isInteractive).toBe('boolean');
+      expect(typeof env.shell).toBe('string');
+      expect(env.gitVersion).toBeDefined();
+      expect(typeof env.gitVersion.major).toBe('number');
+      expect(typeof env.gitVersion.minor).toBe('number');
+    });
+
+    it('sets defaultEditor to vscode when vscode is available', () => {
+      const env = detectEnvironment();
+
+      // If VSCode is available, defaultEditor should be vscode
+      if (env.hasVscode) {
+        expect(env.defaultEditor).toBe('vscode');
+      }
+    });
+
+    it('returns platform as win32, darwin, or linux', () => {
+      const env = detectEnvironment();
+      expect(['win32', 'darwin', 'linux']).toContain(env.platform);
+    });
+
+    it('returns a valid shell path', () => {
+      const env = detectEnvironment();
+      expect(env.shell.length).toBeGreaterThan(0);
+
+      // On Windows, should contain cmd or powershell or similar
+      // On Unix, should contain a path like /bin/bash, /bin/zsh, etc.
+      if (process.platform !== 'win32') {
+        expect(env.shell).toMatch(/^\//);
+      }
     });
   });
 });

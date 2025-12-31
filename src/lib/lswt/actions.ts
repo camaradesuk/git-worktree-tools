@@ -2,12 +2,7 @@
  * lswt actions - action menu building and shortcut handling
  */
 
-import type {
-  WorktreeDisplay,
-  WorktreeAction,
-  ActionMenuItem,
-  EnvironmentInfo,
-} from './types.js';
+import type { WorktreeDisplay, WorktreeAction, ActionMenuItem, EnvironmentInfo } from './types.js';
 
 /**
  * Shortcut mappings for actions
@@ -35,10 +30,7 @@ export function getActionShortcut(action: WorktreeAction): string | null {
 /**
  * Build action menu items based on worktree type and environment
  */
-export function buildActionMenu(
-  worktree: WorktreeDisplay,
-  env: EnvironmentInfo
-): ActionMenuItem[] {
+export function buildActionMenu(worktree: WorktreeDisplay, env: EnvironmentInfo): ActionMenuItem[] {
   const items: ActionMenuItem[] = [];
 
   // Editor action (always available, but may be disabled)

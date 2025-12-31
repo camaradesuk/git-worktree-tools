@@ -9,12 +9,7 @@ import * as colors from '../colors.js';
 import * as git from '../git.js';
 import * as github from '../github.js';
 import type { WorktreeConfig } from '../config.js';
-import type {
-  WorktreeDisplay,
-  WorktreeAction,
-  ActionResult,
-  EnvironmentInfo,
-} from './types.js';
+import type { WorktreeDisplay, WorktreeAction, ActionResult, EnvironmentInfo } from './types.js';
 
 /**
  * Dependencies for action executors (for testing)
@@ -223,10 +218,7 @@ async function openTerminal(
 /**
  * Copy worktree path to clipboard
  */
-async function copyPath(
-  worktree: WorktreeDisplay,
-  deps: ExecutorDeps
-): Promise<ActionResult> {
+async function copyPath(worktree: WorktreeDisplay, deps: ExecutorDeps): Promise<ActionResult> {
   try {
     deps.copyToClipboard(worktree.path);
     return {
@@ -246,9 +238,17 @@ async function copyPath(
  */
 async function showDetails(worktree: WorktreeDisplay): Promise<ActionResult> {
   console.log('');
-  console.log(colors.cyan(colors.bold('╔══════════════════════════════════════════════════════════════════╗')));
-  console.log(colors.cyan(colors.bold('║')) + colors.bold('  Worktree Details                                                ') + colors.cyan(colors.bold('║')));
-  console.log(colors.cyan(colors.bold('╚══════════════════════════════════════════════════════════════════╝')));
+  console.log(
+    colors.cyan(colors.bold('╔══════════════════════════════════════════════════════════════════╗'))
+  );
+  console.log(
+    colors.cyan(colors.bold('║')) +
+      colors.bold('  Worktree Details                                                ') +
+      colors.cyan(colors.bold('║'))
+  );
+  console.log(
+    colors.cyan(colors.bold('╚══════════════════════════════════════════════════════════════════╝'))
+  );
   console.log('');
 
   console.log(`  ${colors.bold('Path:')}     ${worktree.path}`);
@@ -275,7 +275,9 @@ async function showDetails(worktree: WorktreeDisplay): Promise<ActionResult> {
     }
   }
 
-  console.log(`  ${colors.bold('Changes:')}  ${worktree.hasChanges ? colors.red('Yes (uncommitted changes)') : colors.green('Clean')}`);
+  console.log(
+    `  ${colors.bold('Changes:')}  ${worktree.hasChanges ? colors.red('Yes (uncommitted changes)') : colors.green('Clean')}`
+  );
 
   // Show recent commits
   try {
@@ -304,10 +306,7 @@ async function showDetails(worktree: WorktreeDisplay): Promise<ActionResult> {
 /**
  * Open PR URL in browser
  */
-async function openPrUrl(
-  worktree: WorktreeDisplay,
-  deps: ExecutorDeps
-): Promise<ActionResult> {
+async function openPrUrl(worktree: WorktreeDisplay, deps: ExecutorDeps): Promise<ActionResult> {
   if (worktree.prNumber === null) {
     return {
       success: false,
@@ -340,10 +339,7 @@ async function openPrUrl(
 /**
  * Create PR from branch worktree
  */
-async function createPr(
-  worktree: WorktreeDisplay,
-  config: WorktreeConfig
-): Promise<ActionResult> {
+async function createPr(worktree: WorktreeDisplay, config: WorktreeConfig): Promise<ActionResult> {
   if (!worktree.branch) {
     return {
       success: false,

@@ -7,6 +7,7 @@ import {
   promptInput,
   printHeader,
   printListItem,
+  withSpinner,
 } from './prompts.js';
 
 // Mock readline
@@ -116,6 +117,28 @@ describe('prompts', () => {
 
       await expect(promptChoiceIndex('Choose:', ['A'])).rejects.toThrow('User cancelled');
     });
+
+    it('rejects on SIGINT', async () => {
+      let sigintHandler: (() => void) | null = null;
+
+      mockRl.on.mockImplementation((event: string, handler: () => void) => {
+        if (event === 'SIGINT') {
+          sigintHandler = handler;
+        }
+        return mockRl;
+      });
+
+      mockRl.question.mockImplementation(() => {
+        setImmediate(() => {
+          if (sigintHandler) {
+            sigintHandler();
+          }
+        });
+      });
+
+      await expect(promptChoiceIndex('Choose:', ['A', 'B'])).rejects.toThrow('User cancelled');
+      expect(mockRl.close).toHaveBeenCalled();
+    });
   });
 
   describe('promptChoice', () => {
@@ -161,6 +184,87 @@ describe('prompts', () => {
       ]);
 
       expect(result).toEqual({ id: 1, name: 'One' });
+    });
+
+    it('re-prompts on invalid choice', async () => {
+      let callCount = 0;
+      mockRl.question.mockImplementation((_, callback) => {
+        callCount++;
+        if (callCount === 1) {
+          callback('99'); // invalid choice
+        } else {
+          callback('1'); // valid choice
+        }
+      });
+
+      const result = await promptChoice('Choose:', [
+        { label: 'Option A', value: 'a' },
+        { label: 'Option B', value: 'b' },
+      ]);
+
+      expect(result).toBe('a');
+      expect(mockRl.question).toHaveBeenCalledTimes(2);
+    });
+
+    it('re-prompts on empty input', async () => {
+      let callCount = 0;
+      mockRl.question.mockImplementation((_, callback) => {
+        callCount++;
+        if (callCount === 1) {
+          callback(''); // empty input
+        } else {
+          callback('1'); // valid choice
+        }
+      });
+
+      const result = await promptChoice('Choose:', [{ label: 'Option A', value: 'a' }]);
+
+      expect(result).toBe('a');
+      expect(mockRl.question).toHaveBeenCalledTimes(2);
+    });
+
+    it('rejects on quit command', async () => {
+      mockRl.question.mockImplementation((_, callback) => {
+        callback('q');
+      });
+
+      await expect(promptChoice('Choose:', [{ label: 'A', value: 'a' }])).rejects.toThrow(
+        'User cancelled'
+      );
+    });
+
+    it('rejects on quit word', async () => {
+      mockRl.question.mockImplementation((_, callback) => {
+        callback('quit');
+      });
+
+      await expect(promptChoice('Choose:', [{ label: 'A', value: 'a' }])).rejects.toThrow(
+        'User cancelled'
+      );
+    });
+
+    it('rejects on SIGINT', async () => {
+      let sigintHandler: (() => void) | null = null;
+
+      mockRl.on.mockImplementation((event: string, handler: () => void) => {
+        if (event === 'SIGINT') {
+          sigintHandler = handler;
+        }
+        return mockRl;
+      });
+
+      mockRl.question.mockImplementation(() => {
+        setImmediate(() => {
+          if (sigintHandler) {
+            sigintHandler();
+          }
+        });
+      });
+
+      await expect(
+        promptChoice('Choose:', [{ label: 'A', value: 'a' }])
+      ).rejects.toThrow('User cancelled');
+      expect(mockRl.close).toHaveBeenCalled();
     });
   });
 
@@ -262,6 +366,29 @@ describe('prompts', () => {
 
       await promptConfirm('Continue?', true);
     });
+
+    it('rejects on SIGINT', async () => {
+      let sigintHandler: (() => void) | null = null;
+
+      mockRl.on.mockImplementation((event: string, handler: () => void) => {
+        if (event === 'SIGINT') {
+          sigintHandler = handler;
+        }
+        return mockRl;
+      });
+
+      mockRl.question.mockImplementation(() => {
+        // Trigger SIGINT asynchronously to allow Promise to be set up
+        setImmediate(() => {
+          if (sigintHandler) {
+            sigintHandler();
+          }
+        });
+      });
+
+      await expect(promptConfirm('Continue?')).rejects.toThrow('User cancelled');
+      expect(mockRl.close).toHaveBeenCalled();
+    });
   });
 
   describe('promptInput', () => {
@@ -313,6 +440,29 @@ describe('prompts', () => {
 
       await promptInput('Enter:', 'default-value');
     });
+
+    it('rejects on SIGINT', async () => {
+      let sigintHandler: (() => void) | null = null;
+
+      mockRl.on.mockImplementation((event: string, handler: () => void) => {
+        if (event === 'SIGINT') {
+          sigintHandler = handler;
+        }
+        return mockRl;
+      });
+
+      mockRl.question.mockImplementation(() => {
+        // Trigger SIGINT asynchronously to allow Promise to be set up
+        setImmediate(() => {
+          if (sigintHandler) {
+            sigintHandler();
+          }
+        });
+      });
+
+      await expect(promptInput('Enter value:')).rejects.toThrow('User cancelled');
+      expect(mockRl.close).toHaveBeenCalled();
+    });
   });
 
   describe('printHeader', () => {
@@ -335,6 +485,118 @@ describe('prompts', () => {
       printListItem('Indented item', 2);
 
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringMatching(/^\s{4}•/));
+    });
+  });
+
+  describe('withSpinner', () => {
+    let originalIsTTY: boolean | undefined;
+    let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      originalIsTTY = process.stdout.isTTY;
+      stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: originalIsTTY,
+        writable: true,
+        configurable: true,
+      });
+      stdoutWriteSpy.mockRestore();
+      vi.useRealTimers();
+    });
+
+    it('returns the result of the operation', async () => {
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: false,
+        writable: true,
+        configurable: true,
+      });
+
+      const result = await withSpinner('Loading...', async () => 'test-result');
+
+      expect(result).toBe('test-result');
+    });
+
+    it('logs message when not a TTY', async () => {
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: false,
+        writable: true,
+        configurable: true,
+      });
+
+      await withSpinner('Loading data', async () => 'done');
+
+      expect(consoleSpy).toHaveBeenCalledWith('Loading data');
+    });
+
+    it('shows spinner animation when TTY', async () => {
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+
+      const promise = withSpinner('Processing', async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return 'done';
+      });
+
+      // Advance timers to trigger spinner frames
+      await vi.advanceTimersByTimeAsync(80);
+      expect(stdoutWriteSpy).toHaveBeenCalled();
+
+      // Complete the operation
+      await vi.advanceTimersByTimeAsync(100);
+      await promise;
+    });
+
+    it('clears spinner on success when TTY', async () => {
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+
+      const promise = withSpinner('Test', async () => 'result');
+
+      await promise;
+
+      // Should have written to clear the line
+      expect(stdoutWriteSpy).toHaveBeenCalledWith(expect.stringContaining('\r'));
+    });
+
+    it('throws error from operation', async () => {
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: false,
+        writable: true,
+        configurable: true,
+      });
+
+      await expect(
+        withSpinner('Failing', async () => {
+          throw new Error('Operation failed');
+        })
+      ).rejects.toThrow('Operation failed');
+    });
+
+    it('clears spinner on error when TTY', async () => {
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+
+      const promise = withSpinner('Error test', async () => {
+        throw new Error('Test error');
+      });
+
+      await expect(promise).rejects.toThrow('Test error');
+
+      // Should have written to clear the line
+      expect(stdoutWriteSpy).toHaveBeenCalledWith(expect.stringContaining('\r'));
     });
   });
 });

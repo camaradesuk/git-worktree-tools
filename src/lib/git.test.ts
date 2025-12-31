@@ -512,4 +512,49 @@ describe('git', () => {
       );
     });
   });
+
+  describe('getMainWorktreeRoot', () => {
+    it('returns repo root when in main worktree', () => {
+      mockExecSync.mockReturnValue('/home/user/repo/.git');
+      const result = git.getMainWorktreeRoot('/home/user/repo');
+      expect(result).toBe('/home/user/repo');
+    });
+
+    it('returns main worktree root when in linked worktree', () => {
+      mockExecSync.mockReturnValue('/home/user/main-repo/.git/worktrees/feature-branch');
+      const result = git.getMainWorktreeRoot('/home/user/main-repo.pr42');
+      expect(result).toBe('/home/user/main-repo');
+    });
+
+    it('falls back to getRepoRoot when commonDir is null', () => {
+      mockExecSync.mockImplementation((cmd: string) => {
+        if (cmd.includes('--git-common-dir')) {
+          throw new Error('failed');
+        }
+        // getRepoRoot calls rev-parse --show-toplevel
+        return '/fallback/root';
+      });
+      const result = git.getMainWorktreeRoot();
+      expect(result).toBe('/fallback/root');
+    });
+  });
+
+  describe('isGitIgnored', () => {
+    it('returns true when file is ignored', () => {
+      mockExecSync.mockReturnValue('node_modules/');
+      expect(git.isGitIgnored('node_modules/')).toBe(true);
+    });
+
+    it('returns false when file is not ignored', () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('no output for unignored files');
+      });
+      expect(git.isGitIgnored('src/index.ts')).toBe(false);
+    });
+
+    it('returns false when check-ignore returns empty', () => {
+      mockExecSync.mockReturnValue('');
+      expect(git.isGitIgnored('src/index.ts')).toBe(false);
+    });
+  });
 });
