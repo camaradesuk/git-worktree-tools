@@ -373,5 +373,61 @@ describe('cli/newpr', () => {
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Aborted'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
+
+    it('shows helpful error when checkout fails due to conflicting changes', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Add new feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(0);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue(['README.md']);
+      vi.mocked(git.getUnstagedFiles).mockReturnValue([]);
+
+      // Mock checkout to fail with a conflict error
+      vi.mocked(git.exec).mockImplementation(() => {
+        throw new Error(
+          "error: Your local changes to 'README.md' would be overwritten by checkout"
+        );
+      });
+
+      await runCli(['Add new feature']);
+
+      // Verify helpful error messages are shown
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Checkout failed due to conflicting changes')
+      );
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Your staged changes are preserved')
+      );
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Commit your changes first')
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
   });
 });
