@@ -523,24 +523,783 @@ src/lib/lswt/
 
 ---
 
-## Open Questions
+## Resolved Design Decisions
 
-1. **Editor preference**: Should we add a config option for preferred editor? Current plan is auto-detect VSCode > Cursor.
+### 1. Editor Preference
+**Decision**: Add config option with VSCode as default.
 
-2. **Worktree rename**: Git 2.17+ supports `git worktree move`. Should we require this version or implement a fallback?
+Add `preferredEditor` to `.worktreerc`:
+```json
+{
+  "preferredEditor": "vscode"  // Options: "vscode" | "cursor" | "auto"
+}
+```
 
-3. **Terminal integration**: For "cd to worktree", we can't change the parent shell's directory. Options:
-   - Open new terminal window at path (current plan)
-   - Copy `cd <path>` to clipboard with instruction
-   - Print path and suggest user copies it
+**Behavior**:
+- `"vscode"` (default): Always use VSCode, warn if not available
+- `"cursor"`: Always use Cursor, warn if not available
+- `"auto"`: Detect available editor (VSCode > Cursor > warn)
 
-4. **Action confirmation**: Which actions should require confirmation?
-   - Remove worktree: Yes (especially with changes)
-   - Create PR: Optional (draft vs ready)
-   - Link configs: No (reversible)
+**Implementation**:
+- Update `WorktreeConfig` interface in `src/lib/config.ts`
+- Add to `getDefaultConfig()` with value `"vscode"`
+- Validate option in config loader
 
-5. **Quick actions**: Should we support keyboard shortcuts for common actions without selecting from menu first?
-   - e.g., Press 'e' on a worktree to open in editor immediately
+### 2. Worktree Rename (Git Version Requirement)
+**Decision**: Require Git 2.17+ for worktree move, show disabled action with reason if below.
+
+**Implementation**:
+- Create `src/lib/lswt/git-version.ts`:
+  ```typescript
+  export interface GitVersion {
+    major: number;
+    minor: number;
+    patch: number;
+    raw: string;
+  }
+
+  export function getGitVersion(): GitVersion;
+  export function isGitVersionAtLeast(required: { major: number; minor: number }): boolean;
+  export const WORKTREE_MOVE_MIN_VERSION = { major: 2, minor: 17 };
+  ```
+
+- In action menu, show "Move worktree" as:
+  ```
+  Move worktree (disabled: requires Git 2.17+, you have 2.14.0)
+  ```
+
+### 3. Terminal/CD Integration
+**Decision**: Open new terminal window at worktree path. Future enhancement: shell integration for in-place cd.
+
+**Implementation per platform**:
+- **macOS**:
+  - Check for iTerm2: `open -a iTerm <path>`
+  - Fallback: `open -a Terminal <path>`
+- **Linux**:
+  - Detect: gnome-terminal, konsole, xfce4-terminal, xterm
+  - Execute: `<terminal> --working-directory=<path>`
+- **Windows**:
+  - Check for Windows Terminal: `wt -d <path>`
+  - Fallback: `start cmd /k "cd /d <path>"`
+
+**Future enhancement** (not in MVP):
+- Shell integration that outputs `cd <path>` for parent shell to execute
+- Requires shell-specific setup (bash function wrapper, etc.)
+
+### 4. Action Confirmation Behavior
+**Decision**: Confirm removes, prompt for PR draft status unless configured.
+
+| Action | Confirmation | Details |
+|--------|--------------|---------|
+| Remove worktree | **Always** | Extra warning if uncommitted changes |
+| Create PR | **Prompt for draft** | Unless `draftPr` set in config |
+| Link configs | None | Reversible operation |
+
+**Draft PR Visibility**:
+- Add `isDraft` field to `WorktreeDisplay` type
+- Show in worktree list: `[PR #42 DRAFT]` with distinct styling
+- Show in action confirmation: "This will create a **DRAFT** PR" or "This will create a **READY FOR REVIEW** PR"
+
+**Type update for WorktreeDisplay**:
+```typescript
+export interface WorktreeDisplay {
+  // ... existing fields ...
+  isDraft: boolean | null;  // null for non-PR worktrees
+}
+```
+
+### 5. Keyboard Shortcuts
+**Decision**: Yes, with shortcuts always visible on screen.
+
+**Display format**:
+```
+? Select a worktree:  (e: editor, t: terminal, p: PR, q: quit)
+  ❯ [main]        main              (clean)
+    [PR #42]      feat/add-feature  (OPEN, 2 files changed)
+    [PR #38 DRAFT] fix/bug-fix      (OPEN)
+```
+
+**Shortcut mappings**:
+| Key | Action | Context |
+|-----|--------|---------|
+| `e` | Open in editor | All |
+| `t` | Open terminal | All |
+| `p` | Open PR / Create PR | PR worktrees / branch worktrees |
+| `d` | Show details | All |
+| `c` | Copy path | All |
+| `r` | Remove worktree | Non-main |
+| `l` | Link configs | All |
+| `q` | Quit | Always |
+| `Esc` | Back/Quit | Always |
+
+**Implementation**:
+- Use inquirer's rawlist or custom key handler
+- Show legend in prompt header
+- Handle keypress events for immediate action
+
+---
+
+## Updated Type Definitions
+
+### WorktreeDisplay (updated)
+```typescript
+export interface WorktreeDisplay {
+  path: string;
+  name: string;
+  branch: string | null;
+  commit: string;
+  type: 'main' | 'pr' | 'branch' | 'detached';
+  prNumber: number | null;
+  prState: 'OPEN' | 'CLOSED' | 'MERGED' | null;
+  isDraft: boolean | null;  // NEW: null for non-PR worktrees
+  hasChanges: boolean;
+}
+```
+
+### WorktreeConfig additions
+```typescript
+export interface WorktreeConfig {
+  // ... existing fields ...
+
+  /**
+   * Preferred editor for "Open in editor" action
+   * Options: "vscode" | "cursor" | "auto"
+   * Default: "vscode"
+   */
+  preferredEditor?: 'vscode' | 'cursor' | 'auto';
+}
+```
+
+---
+
+## Comprehensive Testing Strategy
+
+### Testing Philosophy
+
+1. **Test Pyramid**: Heavy unit tests, moderate integration, selective E2E
+2. **Cross-Platform**: All tests must pass on Ubuntu, macOS, and Windows
+3. **Isolation**: Unit tests use dependency injection, no real I/O
+4. **Determinism**: Mock all external commands and system state
+5. **Coverage Target**: 90%+ line coverage for new code
+
+---
+
+### Phase T1: Unit Tests
+
+#### T1.1 Environment Detection (`src/lib/lswt/environment.test.ts`)
+
+```typescript
+describe('environment detection', () => {
+  describe('detectEnvironment', () => {
+    it('detects VSCode availability on PATH', async () => {
+      // Mock execSync to simulate 'which code' success
+    });
+
+    it('detects Cursor availability on PATH', async () => {
+      // Mock execSync to simulate 'which cursor' success
+    });
+
+    it('returns null editor when neither available', async () => {
+      // Mock both commands failing
+    });
+
+    it('identifies platform correctly', () => {
+      // Test with mocked process.platform values
+    });
+
+    it('detects TTY correctly', () => {
+      // Mock process.stdout.isTTY
+    });
+
+    it('detects shell from environment', () => {
+      // Mock process.env.SHELL and COMSPEC
+    });
+  });
+
+  describe('isCommandAvailable', () => {
+    it('returns true for available command', async () => {});
+    it('returns false for missing command', async () => {});
+    it('handles Windows where syntax correctly', async () => {});
+    it('handles command with spaces in path', async () => {});
+  });
+
+  describe('getDefaultTerminal', () => {
+    describe('on macOS', () => {
+      it('returns iTerm2 when available', async () => {});
+      it('falls back to Terminal.app', async () => {});
+    });
+
+    describe('on Linux', () => {
+      it('detects gnome-terminal', async () => {});
+      it('detects konsole', async () => {});
+      it('detects xfce4-terminal', async () => {});
+      it('falls back to xterm', async () => {});
+    });
+
+    describe('on Windows', () => {
+      it('detects Windows Terminal', async () => {});
+      it('falls back to cmd.exe', async () => {});
+    });
+  });
+});
+```
+
+#### T1.2 Git Version Detection (`src/lib/lswt/git-version.test.ts`)
+
+```typescript
+describe('git version detection', () => {
+  describe('getGitVersion', () => {
+    it('parses standard version format (2.39.0)', () => {});
+    it('parses version with extra info (2.39.0.windows.1)', () => {});
+    it('parses Apple Git version (2.37.1 (Apple Git-137.1))', () => {});
+    it('handles git not found error', () => {});
+  });
+
+  describe('isGitVersionAtLeast', () => {
+    it('returns true when major version higher', () => {
+      // Git 3.0.0 >= 2.17
+    });
+
+    it('returns true when major equal and minor higher', () => {
+      // Git 2.20.0 >= 2.17
+    });
+
+    it('returns true when exactly equal', () => {
+      // Git 2.17.0 >= 2.17
+    });
+
+    it('returns false when major version lower', () => {
+      // Git 1.9.0 < 2.17
+    });
+
+    it('returns false when major equal but minor lower', () => {
+      // Git 2.14.0 < 2.17
+    });
+  });
+});
+```
+
+#### T1.3 Action Menu Building (`src/lib/lswt/actions.test.ts`)
+
+```typescript
+describe('action menu', () => {
+  describe('buildActionMenu', () => {
+    const mockEnvWithEditor: EnvironmentInfo = {
+      hasVscode: true,
+      hasCursor: false,
+      defaultEditor: 'vscode',
+      platform: 'darwin',
+      isInteractive: true,
+      shell: '/bin/zsh',
+      gitVersion: { major: 2, minor: 39, patch: 0, raw: '2.39.0' },
+    };
+
+    describe('for main worktree', () => {
+      const mainWorktree: WorktreeDisplay = {
+        path: '/repo',
+        name: 'repo',
+        branch: 'main',
+        commit: 'abc123',
+        type: 'main',
+        prNumber: null,
+        prState: null,
+        isDraft: null,
+        hasChanges: false,
+      };
+
+      it('includes editor action', () => {});
+      it('includes terminal action', () => {});
+      it('includes copy path action', () => {});
+      it('includes show details action', () => {});
+      it('includes link configs action', () => {});
+      it('excludes remove worktree action', () => {});
+      it('excludes PR-related actions', () => {});
+    });
+
+    describe('for open PR worktree', () => {
+      it('includes open PR in browser action', () => {});
+      it('includes remove worktree action', () => {});
+      it('excludes create PR action', () => {});
+    });
+
+    describe('for merged PR worktree', () => {
+      it('includes open PR in browser action', () => {});
+      it('includes remove worktree action with emphasis', () => {});
+    });
+
+    describe('for branch worktree (no PR)', () => {
+      it('includes create PR action', () => {});
+      it('excludes open PR action', () => {});
+      it('includes remove worktree action', () => {});
+    });
+
+    describe('for detached HEAD worktree', () => {
+      it('excludes create PR action', () => {});
+      it('includes remove worktree action', () => {});
+    });
+
+    describe('with Git < 2.17', () => {
+      it('disables move worktree with version reason', () => {});
+    });
+
+    describe('without editor available', () => {
+      it('disables editor action with helpful message', () => {});
+    });
+  });
+
+  describe('getActionShortcut', () => {
+    it('returns correct shortcut for each action', () => {});
+    it('returns null for actions without shortcuts', () => {});
+  });
+
+  describe('formatShortcutLegend', () => {
+    it('formats legend for worktree with PR', () => {});
+    it('formats legend for worktree without PR', () => {});
+  });
+});
+```
+
+#### T1.4 Action Execution (`src/lib/lswt/action-executors.test.ts`)
+
+```typescript
+describe('action executors', () => {
+  describe('openInEditor', () => {
+    it('opens VSCode with correct path', async () => {
+      // Mock execa, verify 'code <path>' called
+    });
+
+    it('opens Cursor when configured', async () => {
+      // Mock config with preferredEditor: 'cursor'
+    });
+
+    it('returns error when editor not available', async () => {});
+
+    it('handles paths with spaces', async () => {});
+
+    it('handles Windows paths correctly', async () => {});
+  });
+
+  describe('openTerminal', () => {
+    describe('on macOS', () => {
+      it('opens iTerm2 at path when available', async () => {});
+      it('opens Terminal.app at path as fallback', async () => {});
+    });
+
+    describe('on Linux', () => {
+      it('opens detected terminal at path', async () => {});
+    });
+
+    describe('on Windows', () => {
+      it('opens Windows Terminal at path when available', async () => {});
+      it('opens cmd at path as fallback', async () => {});
+    });
+  });
+
+  describe('copyPath', () => {
+    it('copies path to clipboard on macOS', async () => {
+      // Mock execSync with pbcopy
+    });
+
+    it('copies path to clipboard on Linux', async () => {
+      // Mock xclip
+    });
+
+    it('copies path to clipboard on Windows', async () => {
+      // Mock clip command
+    });
+
+    it('returns success message with path', async () => {});
+  });
+
+  describe('showDetails', () => {
+    it('formats and displays worktree details', async () => {});
+    it('shows recent commits for branch', async () => {});
+    it('shows PR URL for PR worktrees', async () => {});
+  });
+
+  describe('openPrUrl', () => {
+    it('opens PR URL in browser', async () => {});
+    it('returns error for non-PR worktree', async () => {});
+  });
+
+  describe('createPr', () => {
+    it('prompts for title and creates PR', async () => {});
+    it('uses config draftPr setting when set', async () => {});
+    it('prompts for draft when not configured', async () => {});
+    it('offers to rename worktree after creation', async () => {});
+    it('returns PR URL on success', async () => {});
+  });
+
+  describe('removeWorktree', () => {
+    it('confirms before removal', async () => {});
+    it('shows extra warning for dirty worktree', async () => {});
+    it('offers branch deletion for PR worktrees', async () => {});
+    it('prevents removal of main worktree', async () => {});
+    it('returns shouldRefresh on success', async () => {});
+  });
+
+  describe('linkConfigs', () => {
+    it('runs wtlink with correct source and dest', async () => {});
+    it('shows summary of linked files', async () => {});
+  });
+});
+```
+
+#### T1.5 Interactive Flow (`src/lib/lswt/interactive.test.ts`)
+
+```typescript
+describe('interactive mode', () => {
+  describe('selectWorktree', () => {
+    it('displays formatted worktree list', async () => {});
+    it('shows type badge for each worktree', () => {});
+    it('shows DRAFT indicator for draft PRs', () => {});
+    it('shows changes indicator for dirty worktrees', () => {});
+    it('returns selected worktree', async () => {});
+    it('returns null when Exit selected', async () => {});
+  });
+
+  describe('selectAction', () => {
+    it('displays context-appropriate actions', async () => {});
+    it('shows shortcuts in prompt', () => {});
+    it('handles shortcut keypress', async () => {});
+    it('returns selected action', async () => {});
+  });
+
+  describe('runInteractiveMode', () => {
+    it('loops until exit', async () => {});
+    it('refreshes worktree list after remove', async () => {});
+    it('shows action result message', async () => {});
+    it('handles back navigation', async () => {});
+  });
+
+  describe('formatWorktreeChoice', () => {
+    it('formats main worktree correctly', () => {
+      expect(formatWorktreeChoice(mainWt)).toBe(
+        '[main]        main              (clean)'
+      );
+    });
+
+    it('formats open PR worktree correctly', () => {
+      expect(formatWorktreeChoice(prWt)).toBe(
+        '[PR #42]      feat/add-feature  (OPEN, 2 files changed)'
+      );
+    });
+
+    it('formats draft PR worktree correctly', () => {
+      expect(formatWorktreeChoice(draftPrWt)).toBe(
+        '[PR #38 DRAFT] fix/bug-fix      (OPEN)'
+      );
+    });
+
+    it('formats merged PR worktree correctly', () => {
+      expect(formatWorktreeChoice(mergedWt)).toBe(
+        '[PR #35]      old-feature       (MERGED)'
+      );
+    });
+  });
+});
+```
+
+#### T1.6 Argument Parsing Updates (`src/lib/lswt/args.test.ts`)
+
+```typescript
+describe('argument parsing (interactive options)', () => {
+  describe('--interactive flag', () => {
+    it('enables interactive mode explicitly', () => {
+      const result = parseArgs(['--interactive']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: expect.objectContaining({ interactive: true }),
+      });
+    });
+
+    it('parses -i shorthand', () => {
+      const result = parseArgs(['-i']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: expect.objectContaining({ interactive: true }),
+      });
+    });
+  });
+
+  describe('--no-interactive flag', () => {
+    it('disables interactive mode', () => {
+      const result = parseArgs(['--no-interactive']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: expect.objectContaining({ interactive: false }),
+      });
+    });
+  });
+
+  describe('default behavior', () => {
+    it('defaults interactive to undefined (runtime TTY check)', () => {
+      const result = parseArgs([]);
+      expect(result).toEqual({
+        kind: 'success',
+        options: expect.objectContaining({ interactive: undefined }),
+      });
+    });
+  });
+
+  describe('mutual exclusivity', () => {
+    it('returns error when --json and --interactive combined', () => {
+      const result = parseArgs(['--json', '--interactive']);
+      expect(result).toEqual({
+        kind: 'error',
+        message: expect.stringContaining('cannot be used together'),
+      });
+    });
+  });
+});
+```
+
+---
+
+### Phase T2: Integration Tests
+
+#### T2.1 Worktree Detection + Actions (`src/integration/lswt-actions.test.ts`)
+
+```typescript
+describe('lswt action integration', () => {
+  let tempDir: string;
+  let mainRepo: string;
+  let worktreePath: string;
+
+  beforeEach(async () => {
+    // Create temp directory
+    // Initialize git repo with commits
+    // Create a worktree
+  });
+
+  afterEach(async () => {
+    // Clean up temp directory
+  });
+
+  describe('worktree removal', () => {
+    it('removes worktree and cleans up', async () => {
+      // Create worktree
+      // Execute remove action
+      // Verify worktree gone from `git worktree list`
+      // Verify directory removed
+    });
+
+    it('removes worktree with uncommitted changes after confirmation', async () => {
+      // Create worktree with dirty state
+      // Execute remove with confirmation mock
+      // Verify cleanup
+    });
+  });
+
+  describe('worktree move (Git 2.17+)', () => {
+    it('moves worktree to new location', async () => {
+      // Skip if Git < 2.17
+      // Create worktree
+      // Execute move
+      // Verify new path in `git worktree list`
+    });
+  });
+
+  describe('config file linking', () => {
+    it('links files from main to worktree', async () => {
+      // Create file in main repo
+      // Add to syncPatterns
+      // Execute link action
+      // Verify hard link exists in worktree
+    });
+  });
+});
+```
+
+#### T2.2 GitHub Integration (`src/integration/lswt-github.test.ts`)
+
+```typescript
+describe('lswt GitHub integration', () => {
+  // These tests require GH_TOKEN and run against real GitHub
+  // Skip in CI unless explicitly enabled
+
+  describe('PR status fetching', () => {
+    it('fetches draft status for PR worktrees', async () => {
+      // Mock or use test repo with known PRs
+    });
+  });
+
+  describe('create PR action', () => {
+    it('creates PR from branch worktree', async () => {
+      // Would need test repo permissions
+      // Consider mocking gh CLI responses
+    });
+  });
+});
+```
+
+---
+
+### Phase T3: End-to-End Tests
+
+#### T3.1 CLI E2E (`src/e2e/lswt-e2e.test.ts`)
+
+```typescript
+describe('lswt e2e', () => {
+  describe('non-interactive mode', () => {
+    it('lists worktrees in table format', async () => {
+      const result = await runCli(['lswt', '--no-interactive']);
+      expect(result.stdout).toContain('[main]');
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('outputs JSON with --json flag', async () => {
+      const result = await runCli(['lswt', '--json']);
+      const parsed = JSON.parse(result.stdout);
+      expect(Array.isArray(parsed)).toBe(true);
+    });
+
+    it('uses non-interactive mode when piped', async () => {
+      const result = await runCli(['lswt'], { pipe: true });
+      // Verify no inquirer prompts in output
+    });
+  });
+
+  describe('interactive mode simulation', () => {
+    // Use pty.js or similar to simulate TTY
+    it('shows worktree selection prompt', async () => {
+      const pty = await createPty(['lswt']);
+      await pty.waitFor('Select a worktree');
+      pty.kill();
+    });
+
+    it('responds to shortcut keys', async () => {
+      const pty = await createPty(['lswt']);
+      await pty.waitFor('Select a worktree');
+      pty.write('q'); // Quit shortcut
+      await pty.waitForExit();
+      expect(pty.exitCode).toBe(0);
+    });
+  });
+});
+```
+
+#### T3.2 Cross-Platform E2E (CI Matrix)
+
+```yaml
+# In .github/workflows/ci.yml
+jobs:
+  e2e:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22]
+
+    steps:
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          FORCE_COLOR: 0  # Disable colors for consistent output
+```
+
+**Platform-specific E2E tests**:
+
+```typescript
+describe('platform-specific e2e', () => {
+  describe('terminal opening', () => {
+    it.runIf(process.platform === 'darwin')('opens Terminal.app on macOS', async () => {
+      // Test using AppleScript to verify terminal opened
+    });
+
+    it.runIf(process.platform === 'linux')('opens gnome-terminal on Linux', async () => {
+      // Test terminal process started
+    });
+
+    it.runIf(process.platform === 'win32')('opens cmd on Windows', async () => {
+      // Test cmd process started
+    });
+  });
+
+  describe('clipboard operations', () => {
+    it.runIf(process.platform === 'darwin')('copies to macOS clipboard', async () => {
+      // Execute action, then pbpaste to verify
+    });
+
+    it.runIf(process.platform === 'linux')('copies to Linux clipboard', async () => {
+      // Execute action, then xclip -o to verify
+    });
+
+    it.runIf(process.platform === 'win32')('copies to Windows clipboard', async () => {
+      // Execute action, then PowerShell Get-Clipboard to verify
+    });
+  });
+});
+```
+
+---
+
+### Testing Utilities
+
+#### Mocking Framework (`src/test-utils/mocks.ts`)
+
+```typescript
+export function mockEnvironment(overrides: Partial<EnvironmentInfo>): EnvironmentInfo;
+
+export function mockWorktree(overrides: Partial<WorktreeDisplay>): WorktreeDisplay;
+
+export function mockGitCommands(responses: Record<string, string | Error>): void;
+
+export function mockInquirer(responses: Array<unknown>): void;
+
+export function createTempGitRepo(): Promise<{ path: string; cleanup: () => Promise<void> }>;
+
+export function createWorktreeFixture(
+  type: 'main' | 'pr' | 'branch' | 'detached',
+  options?: { dirty?: boolean; prNumber?: number; isDraft?: boolean }
+): WorktreeDisplay;
+```
+
+#### Test Configuration (`vitest.config.ts` updates)
+
+```typescript
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov', 'html'],
+      include: ['src/lib/lswt/**/*.ts'],
+      exclude: ['**/*.test.ts', '**/test-utils/**'],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 85,
+        statements: 90,
+      },
+    },
+    // Separate test pools for unit/integration/e2e
+    poolOptions: {
+      forks: {
+        isolate: true,
+      },
+    },
+  },
+});
+```
+
+---
+
+### Test Execution Scripts
+
+Add to `package.json`:
+
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run src/lib",
+    "test:integration": "vitest run src/integration",
+    "test:e2e": "vitest run src/e2e",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --coverage --reporter=junit --outputFile=test-results.xml"
+  }
+}
+```
 
 ---
 
@@ -550,5 +1309,10 @@ src/lib/lswt/
 2. Action menu shows context-appropriate options based on worktree type
 3. All actions execute correctly on macOS, Linux, and Windows
 4. Non-interactive mode (`--no-interactive`, piped output) works as before
-5. Tests cover all new functionality
-6. Documentation is updated
+5. Draft PRs are clearly indicated in worktree list with `[PR #N DRAFT]`
+6. Keyboard shortcuts work and are visible in prompt
+7. Git version < 2.17 shows disabled "Move worktree" with clear reason
+8. Editor preference respects `.worktreerc` config
+9. **Test coverage ≥ 90%** for all new code
+10. All tests pass on Ubuntu, macOS, and Windows in CI
+11. Documentation is updated
