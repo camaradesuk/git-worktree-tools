@@ -207,7 +207,7 @@ Create a `.worktreerc` file in your repository root:
 | `draftPr`         | boolean  | `false`               | Create PRs as drafts by default            |
 | `worktreePattern` | string   | `"{repo}.pr{number}"` | Worktree directory naming pattern          |
 | `worktreeParent`  | string   | `".."`                | Parent directory for worktrees             |
-| `branchPrefix`    | string   | `"feat"`            | Prefix for auto-generated branch names     |
+| `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names     |
 
 > **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 

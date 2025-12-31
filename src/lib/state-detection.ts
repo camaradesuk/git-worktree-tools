@@ -134,8 +134,13 @@ export function detectScenario(state: GitState): Scenario {
 
   // On main branch scenarios (1-4)
   if (branchType === 'main') {
-    if (commitRelationship === 'same' || commitRelationship === 'behind') {
-      // Same as origin/main, or behind origin/main (both can branch from origin/main)
+    if (
+      commitRelationship === 'same' ||
+      commitRelationship === 'behind' ||
+      commitRelationship === 'ancestor'
+    ) {
+      // Same as origin/main, behind, or ancestor (all can branch from origin/main)
+      // 'ancestor' means HEAD is an ancestor of origin/main (i.e., local is behind)
       switch (workingTreeStatus) {
         case 'clean':
           return 'main_clean_same'; // Scenario 1

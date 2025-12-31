@@ -300,6 +300,46 @@ describe('state-detection', () => {
       });
       expect(detectScenario(state)).toBe('branch_divergent');
     });
+
+    it('should treat main branch ancestor as main_clean_same', () => {
+      // 'ancestor' means HEAD is an ancestor of origin/main (local is behind)
+      const state = createState({
+        branchType: 'main',
+        commitRelationship: 'ancestor',
+      });
+      expect(detectScenario(state)).toBe('main_clean_same');
+    });
+
+    it('should treat main branch ancestor with unstaged changes as main_unstaged_same', () => {
+      const state = createState({
+        branchType: 'main',
+        commitRelationship: 'ancestor',
+        workingTreeStatus: 'unstaged_only',
+        unstagedFiles: ['docs/plan.md'],
+      });
+      expect(detectScenario(state)).toBe('main_unstaged_same');
+    });
+
+    it('should treat main branch ancestor with staged changes as main_staged_same', () => {
+      const state = createState({
+        branchType: 'main',
+        commitRelationship: 'ancestor',
+        workingTreeStatus: 'staged_only',
+        stagedFiles: ['src/feature.ts'],
+      });
+      expect(detectScenario(state)).toBe('main_staged_same');
+    });
+
+    it('should treat main branch ancestor with both changes as main_both_same', () => {
+      const state = createState({
+        branchType: 'main',
+        commitRelationship: 'ancestor',
+        workingTreeStatus: 'both',
+        stagedFiles: ['src/feature.ts'],
+        unstagedFiles: ['docs/plan.md'],
+      });
+      expect(detectScenario(state)).toBe('main_both_same');
+    });
   });
 
   describe('getScenarioDescription - all scenarios', () => {
