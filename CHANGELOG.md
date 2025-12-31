@@ -1,3 +1,11 @@
+## [1.2.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.2.0...v1.2.1) (2025-12-31)
+
+
+### Bug Fixes
+
+* **ci:** add build step to coverage job ([b48ce82](https://github.com/camaradesuk/git-worktree-tools/commit/b48ce822fae07d46604ec50f5599233662aff7a2))
+* resolve commit_all bug by ensuring git operations use repository root as cwd ([0013f38](https://github.com/camaradesuk/git-worktree-tools/commit/0013f384d49864542c463fa3bf8bc04075408197))
+
 # [1.2.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.1.1...v1.2.0) (2025-12-31)
 
 ### Bug Fixes
