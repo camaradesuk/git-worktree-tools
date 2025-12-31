@@ -7,7 +7,7 @@ describe('lswt/args', () => {
       const result = parseArgs([]);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: false, json: false, verbose: false },
+        options: { showStatus: false, json: false, verbose: false, interactive: undefined },
       });
     });
 
@@ -15,7 +15,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['--status']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: true, json: false, verbose: false },
+        options: { showStatus: true, json: false, verbose: false, interactive: undefined },
       });
     });
 
@@ -23,7 +23,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['-s']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: true, json: false, verbose: false },
+        options: { showStatus: true, json: false, verbose: false, interactive: undefined },
       });
     });
 
@@ -31,7 +31,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['--json']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: false, json: true, verbose: false },
+        options: { showStatus: false, json: true, verbose: false, interactive: undefined },
       });
     });
 
@@ -39,7 +39,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['-j']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: false, json: true, verbose: false },
+        options: { showStatus: false, json: true, verbose: false, interactive: undefined },
       });
     });
 
@@ -47,7 +47,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['--verbose']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: false, json: false, verbose: true },
+        options: { showStatus: false, json: false, verbose: true, interactive: undefined },
       });
     });
 
@@ -55,7 +55,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['-v']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: false, json: false, verbose: true },
+        options: { showStatus: false, json: false, verbose: true, interactive: undefined },
       });
     });
 
@@ -63,7 +63,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['-s', '-j', '-v']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: true, json: true, verbose: true },
+        options: { showStatus: true, json: true, verbose: true, interactive: undefined },
       });
     });
 
@@ -71,7 +71,7 @@ describe('lswt/args', () => {
       const result = parseArgs(['--status', '--json', '--verbose']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: true, json: true, verbose: true },
+        options: { showStatus: true, json: true, verbose: true, interactive: undefined },
       });
     });
 
@@ -105,7 +105,63 @@ describe('lswt/args', () => {
       const result = parseArgs(['something']);
       expect(result).toEqual({
         kind: 'success',
-        options: { showStatus: false, json: false, verbose: false },
+        options: { showStatus: false, json: false, verbose: false, interactive: undefined },
+      });
+    });
+
+    it('parses --interactive flag', () => {
+      const result = parseArgs(['--interactive']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: { showStatus: false, json: false, verbose: false, interactive: true },
+      });
+    });
+
+    it('parses -i shorthand', () => {
+      const result = parseArgs(['-i']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: { showStatus: false, json: false, verbose: false, interactive: true },
+      });
+    });
+
+    it('parses --no-interactive flag', () => {
+      const result = parseArgs(['--no-interactive']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: { showStatus: false, json: false, verbose: false, interactive: false },
+      });
+    });
+
+    it('returns error when --json and --interactive are used together', () => {
+      const result = parseArgs(['--json', '--interactive']);
+      expect(result).toEqual({
+        kind: 'error',
+        message: '--json and --interactive cannot be used together',
+      });
+    });
+
+    it('returns error when -j and -i are used together', () => {
+      const result = parseArgs(['-j', '-i']);
+      expect(result).toEqual({
+        kind: 'error',
+        message: '--json and --interactive cannot be used together',
+      });
+    });
+
+    it('allows --json with --no-interactive', () => {
+      const result = parseArgs(['--json', '--no-interactive']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: { showStatus: false, json: true, verbose: false, interactive: false },
+      });
+    });
+
+    it('parses --interactive with other flags', () => {
+      const result = parseArgs(['--status', '--interactive', '--verbose']);
+      expect(result).toEqual({
+        kind: 'success',
+        options: { showStatus: true, json: false, verbose: true, interactive: true },
       });
     });
 
@@ -132,6 +188,8 @@ describe('lswt/args', () => {
       expect(help).toContain('--json');
       expect(help).toContain('--verbose');
       expect(help).toContain('--help');
+      expect(help).toContain('--interactive');
+      expect(help).toContain('--no-interactive');
     });
 
     it('returns help text containing short options', () => {
@@ -140,6 +198,17 @@ describe('lswt/args', () => {
       expect(help).toContain('-j');
       expect(help).toContain('-v');
       expect(help).toContain('-h');
+      expect(help).toContain('-i');
+    });
+
+    it('returns help text containing interactive mode section', () => {
+      const help = getHelpText();
+      expect(help).toContain('INTERACTIVE MODE');
+    });
+
+    it('returns help text containing shortcuts section', () => {
+      const help = getHelpText();
+      expect(help).toContain('SHORTCUTS');
     });
 
     it('returns help text containing usage section', () => {

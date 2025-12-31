@@ -112,6 +112,7 @@ export function formatJsonOutput(worktrees: WorktreeDisplay[]): string {
     type: wt.type,
     prNumber: wt.prNumber,
     prState: wt.prState,
+    isDraft: wt.isDraft,
     hasChanges: wt.hasChanges,
   }));
 

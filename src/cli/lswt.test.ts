@@ -126,6 +126,7 @@ describe('cli/lswt', () => {
           type: 'main' as const,
           prNumber: null,
           prState: null,
+          isDraft: null,
           hasChanges: false,
         },
       ];
@@ -160,6 +161,7 @@ describe('cli/lswt', () => {
           type: 'main' as const,
           prNumber: null,
           prState: null,
+          isDraft: null,
           hasChanges: false,
         },
       ];

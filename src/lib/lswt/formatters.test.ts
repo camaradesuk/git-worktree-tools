@@ -67,6 +67,7 @@ describe('lswt/formatters', () => {
       type: 'main',
       prNumber: null,
       prState: null,
+      isDraft: null,
       hasChanges: false,
       ...overrides,
     });
@@ -120,6 +121,7 @@ describe('lswt/formatters', () => {
       type,
       prNumber,
       prState: null,
+      isDraft: null,
       hasChanges: false,
     });
 
@@ -212,6 +214,7 @@ describe('lswt/formatters', () => {
           type: 'main',
           prNumber: null,
           prState: null,
+          isDraft: null,
           hasChanges: false,
         },
       ];
@@ -232,6 +235,7 @@ describe('lswt/formatters', () => {
           type: 'pr',
           prNumber: 1,
           prState: 'OPEN',
+          isDraft: false,
           hasChanges: true,
         },
       ];
@@ -245,6 +249,7 @@ describe('lswt/formatters', () => {
         type: 'pr',
         prNumber: 1,
         prState: 'OPEN',
+        isDraft: false,
         hasChanges: true,
       });
     });
@@ -259,6 +264,7 @@ describe('lswt/formatters', () => {
           type: 'main',
           prNumber: null,
           prState: null,
+          isDraft: null,
           hasChanges: false,
         },
         {
@@ -269,6 +275,7 @@ describe('lswt/formatters', () => {
           type: 'pr',
           prNumber: 1,
           prState: 'OPEN',
+          isDraft: false,
           hasChanges: true,
         },
       ];

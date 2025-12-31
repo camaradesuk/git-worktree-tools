@@ -18,7 +18,7 @@ describe('lswt/worktree-info', () => {
   const makeDeps = (overrides: Partial<GatherDeps> = {}): GatherDeps => ({
     listWorktrees: () => [],
     hasUncommittedChanges: () => false,
-    getPrState: async () => null,
+    getPrInfo: async () => ({ state: null, isDraft: null }),
     ...overrides,
   });
 
@@ -105,25 +105,25 @@ describe('lswt/worktree-info', () => {
       const worktrees = [
         makeWorktree({ path: '/home/user/repo.pr1', branch: 'feature', isMain: false }),
       ];
-      const getPrState = vi.fn().mockResolvedValue('OPEN');
+      const getPrInfo = vi.fn().mockResolvedValue({ state: 'OPEN', isDraft: false });
       const deps = makeDeps({
         listWorktrees: () => worktrees,
-        getPrState,
+        getPrInfo,
       });
 
       await gatherWorktreeInfo('/home/user/other', { ...defaultOptions, showStatus: false }, deps);
 
-      expect(getPrState).not.toHaveBeenCalled();
+      expect(getPrInfo).not.toHaveBeenCalled();
     });
 
     it('fetches PR state when showStatus is true', async () => {
       const worktrees = [
         makeWorktree({ path: '/home/user/repo.pr1', branch: 'feature', isMain: false }),
       ];
-      const getPrState = vi.fn().mockResolvedValue('OPEN');
+      const getPrInfo = vi.fn().mockResolvedValue({ state: 'OPEN', isDraft: false });
       const deps = makeDeps({
         listWorktrees: () => worktrees,
-        getPrState,
+        getPrInfo,
       });
 
       const result = await gatherWorktreeInfo(
@@ -132,8 +132,9 @@ describe('lswt/worktree-info', () => {
         deps
       );
 
-      expect(getPrState).toHaveBeenCalledWith(1);
+      expect(getPrInfo).toHaveBeenCalledWith(1);
       expect(result[0].prState).toBe('OPEN');
+      expect(result[0].isDraft).toBe(false);
     });
 
     it('handles null PR state', async () => {
@@ -142,7 +143,7 @@ describe('lswt/worktree-info', () => {
       ];
       const deps = makeDeps({
         listWorktrees: () => worktrees,
-        getPrState: async () => null,
+        getPrInfo: async () => ({ state: null, isDraft: null }),
       });
 
       const result = await gatherWorktreeInfo(
@@ -152,6 +153,7 @@ describe('lswt/worktree-info', () => {
       );
 
       expect(result[0].prState).toBeNull();
+      expect(result[0].isDraft).toBeNull();
     });
 
     it('returns sorted worktrees (main first, then PRs by number)', async () => {
@@ -211,14 +213,14 @@ describe('lswt/worktree-info', () => {
         makeWorktree({ path: '/home/user/repo.pr2', branch: 'f2', isMain: false }),
         makeWorktree({ path: '/home/user/repo.pr3', branch: 'f3', isMain: false }),
       ];
-      const getPrState = vi
+      const getPrInfo = vi
         .fn()
-        .mockResolvedValueOnce('OPEN')
-        .mockResolvedValueOnce('MERGED')
-        .mockResolvedValueOnce('CLOSED');
+        .mockResolvedValueOnce({ state: 'OPEN', isDraft: false })
+        .mockResolvedValueOnce({ state: 'MERGED', isDraft: false })
+        .mockResolvedValueOnce({ state: 'CLOSED', isDraft: true });
       const deps = makeDeps({
         listWorktrees: () => worktrees,
-        getPrState,
+        getPrInfo,
       });
 
       const result = await gatherWorktreeInfo(
@@ -239,10 +241,10 @@ describe('lswt/worktree-info', () => {
 
       expect(deps).toHaveProperty('listWorktrees');
       expect(deps).toHaveProperty('hasUncommittedChanges');
-      expect(deps).toHaveProperty('getPrState');
+      expect(deps).toHaveProperty('getPrInfo');
       expect(typeof deps.listWorktrees).toBe('function');
       expect(typeof deps.hasUncommittedChanges).toBe('function');
-      expect(typeof deps.getPrState).toBe('function');
+      expect(typeof deps.getPrInfo).toBe('function');
     });
   });
 });
