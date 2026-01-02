@@ -50,4 +50,10 @@ export interface CleanupResult {
   success: boolean;
   prNumber: number;
   message: string;
+  /** Whether local branch was deleted */
+  localBranchDeleted: boolean;
+  /** Whether remote branch was deleted */
+  remoteBranchDeleted: boolean;
+  /** Set to true when this is a dry-run preview */
+  dryRun?: boolean;
 }

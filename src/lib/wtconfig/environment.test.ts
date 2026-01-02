@@ -5,7 +5,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'child_process';
 import fs from 'fs';
-import path from 'path';
 import {
   detectEnvironment,
   detectDefaultBranch,

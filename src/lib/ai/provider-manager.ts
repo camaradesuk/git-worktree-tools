@@ -161,7 +161,7 @@ export class AIProviderManager {
   /**
    * Execute a generation with fallback support
    */
-  private async executeWithFallback<T>(
+  private async executeWithFallback(
     operation: (provider: AIProvider) => Promise<AIGenerationResult>
   ): Promise<AIGenerationResult> {
     await this.initialize();

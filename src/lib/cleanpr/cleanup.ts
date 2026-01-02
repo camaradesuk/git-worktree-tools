@@ -66,6 +66,8 @@ export function canCleanWorktree(info: WorktreeInfo, options: CleanOptions): boo
 /**
  * Clean a single worktree - returns result object
  * Uses dependency injection for git operations
+ *
+ * If options.dryRun is true, returns what would be cleaned without making changes.
  */
 export function cleanWorktree(
   info: WorktreeInfo,
@@ -80,6 +82,27 @@ export function cleanWorktree(
       success: false,
       prNumber: info.prNumber,
       message: `${prLabel}: Has uncommitted changes (use --force to override)`,
+      localBranchDeleted: false,
+      remoteBranchDeleted: false,
+    };
+  }
+
+  // Dry-run mode: report what would be done without executing
+  if (options.dryRun) {
+    const actions = [`remove worktree at ${info.path}`];
+    if (info.branch) {
+      actions.push(`delete local branch '${info.branch}'`);
+      if (options.deleteRemote) {
+        actions.push(`delete remote branch '${info.branch}'`);
+      }
+    }
+    return {
+      success: true,
+      prNumber: info.prNumber,
+      message: `${prLabel}: Would ${actions.join(', ')}`,
+      dryRun: true,
+      localBranchDeleted: !!info.branch,
+      remoteBranchDeleted: !!(info.branch && options.deleteRemote),
     };
   }
 
@@ -87,13 +110,16 @@ export function cleanWorktree(
     // Remove worktree
     deps.removeWorktree(info.path, options.force);
 
+    let localBranchDeleted = false;
+    let remoteBranchDeleted = false;
+
     // Delete local branch
     if (info.branch) {
-      deps.deleteLocalBranch(info.branch);
+      localBranchDeleted = deps.deleteLocalBranch(info.branch);
 
       // Delete remote branch if requested
       if (options.deleteRemote) {
-        deps.deleteRemoteBranch(info.branch);
+        remoteBranchDeleted = deps.deleteRemoteBranch(info.branch);
       }
     }
 
@@ -104,6 +130,8 @@ export function cleanWorktree(
       success: true,
       prNumber: info.prNumber,
       message: `${prLabel}: Cleaned successfully`,
+      localBranchDeleted,
+      remoteBranchDeleted,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -111,6 +139,8 @@ export function cleanWorktree(
       success: false,
       prNumber: info.prNumber,
       message: `${prLabel}: Failed to clean - ${message}`,
+      localBranchDeleted: false,
+      remoteBranchDeleted: false,
     };
   }
 }

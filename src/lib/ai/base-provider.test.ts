@@ -4,7 +4,7 @@
  * Tests the utility functions and base provider class for AI content generation.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   createSuccessResult,
   createErrorResult,

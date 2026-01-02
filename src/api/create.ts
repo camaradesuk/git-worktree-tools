@@ -5,7 +5,6 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import { loadConfig, generateBranchName, generateWorktreePath } from '../lib/config.js';

@@ -198,6 +198,8 @@ describe('cli/cleanpr', () => {
         success: true,
         message: 'Cleaned PR #123',
         prNumber: 123,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
       });
       vi.mocked(cleanpr.summarizeResults).mockReturnValue({ cleaned: 1, total: 1, failed: 0 });
 
@@ -254,6 +256,8 @@ describe('cli/cleanpr', () => {
         success: true,
         message: 'Cleaned PR #42',
         prNumber: 42,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
       });
 
       await runCli(['42']);

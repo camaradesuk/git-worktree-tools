@@ -4,7 +4,7 @@
  * Providers that use command-line AI tools (Claude Code, Gemini CLI, etc.)
  */
 
-import { execSync, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import type { AIGenerationResult } from './types.js';
 import { BaseAIProvider, createSuccessResult, createErrorResult } from './base-provider.js';
 

@@ -4,7 +4,7 @@
  * Detects installed tools and environment configuration for the setup wizard.
  */
 
-import { execSync, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import type { EnvironmentInfo } from './types.js';

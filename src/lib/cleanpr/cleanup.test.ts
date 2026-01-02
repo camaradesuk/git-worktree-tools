@@ -317,8 +317,8 @@ describe('cleanpr/cleanup', () => {
   describe('summarizeResults', () => {
     it('summarizes all successful results', () => {
       const results: CleanupResult[] = [
-        { success: true, prNumber: 1, message: '' },
-        { success: true, prNumber: 2, message: '' },
+        { success: true, prNumber: 1, message: '', localBranchDeleted: true, remoteBranchDeleted: false },
+        { success: true, prNumber: 2, message: '', localBranchDeleted: true, remoteBranchDeleted: false },
       ];
 
       const summary = summarizeResults(results);
@@ -330,9 +330,9 @@ describe('cleanpr/cleanup', () => {
 
     it('summarizes mixed results', () => {
       const results: CleanupResult[] = [
-        { success: true, prNumber: 1, message: '' },
-        { success: false, prNumber: 2, message: '' },
-        { success: true, prNumber: 3, message: '' },
+        { success: true, prNumber: 1, message: '', localBranchDeleted: true, remoteBranchDeleted: false },
+        { success: false, prNumber: 2, message: '', localBranchDeleted: false, remoteBranchDeleted: false },
+        { success: true, prNumber: 3, message: '', localBranchDeleted: true, remoteBranchDeleted: false },
       ];
 
       const summary = summarizeResults(results);

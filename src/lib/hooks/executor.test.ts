@@ -2,7 +2,7 @@
  * Hook Executor Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { HookExecutor, createHookExecutor } from './executor.js';
 import type { HookContext, HooksConfig } from './types.js';
 import os from 'os';
