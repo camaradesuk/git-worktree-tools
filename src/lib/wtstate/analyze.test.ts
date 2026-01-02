@@ -35,13 +35,15 @@ describe('wtstate/analyze', () => {
     it('returns analysis for clean main branch', () => {
       vi.mocked(analyzeGitState).mockReturnValue({
         currentBranch: 'main',
-        baseBranch: 'main',
-        isBaseBranch: true,
-        commitRelation: 'same',
+        branchType: 'main',
+        commitRelationship: 'same',
+        workingTreeStatus: 'clean',
         stagedFiles: [],
         unstagedFiles: [],
         localCommits: [],
         worktreeType: 'main_worktree',
+        repoRoot: '/test/repo',
+        repoName: 'repo',
       });
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(getScenarioContext).mockReturnValue({
@@ -62,13 +64,15 @@ describe('wtstate/analyze', () => {
     it('returns analysis for branch with staged changes', () => {
       vi.mocked(analyzeGitState).mockReturnValue({
         currentBranch: 'feature-1',
-        baseBranch: 'main',
-        isBaseBranch: false,
-        commitRelation: 'divergent',
+        branchType: 'other',
+        commitRelationship: 'divergent',
+        workingTreeStatus: 'staged_only',
         stagedFiles: ['file1.ts', 'file2.ts'],
         unstagedFiles: [],
         localCommits: ['Add feature'],
         worktreeType: 'pr_worktree',
+        repoRoot: '/test/repo',
+        repoName: 'repo',
       });
       vi.mocked(detectScenario).mockReturnValue('branch_with_changes');
       vi.mocked(getScenarioContext).mockReturnValue({
@@ -92,13 +96,15 @@ describe('wtstate/analyze', () => {
     it('detects main worktree type for main branch', () => {
       vi.mocked(analyzeGitState).mockReturnValue({
         currentBranch: 'main',
-        baseBranch: 'main',
-        isBaseBranch: true,
-        commitRelation: 'same',
+        branchType: 'main',
+        commitRelationship: 'same',
+        workingTreeStatus: 'clean',
         stagedFiles: [],
         unstagedFiles: [],
         localCommits: [],
         worktreeType: 'main_worktree',
+        repoRoot: '/test/repo',
+        repoName: 'repo',
       });
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(getScenarioContext).mockReturnValue({
@@ -113,13 +119,15 @@ describe('wtstate/analyze', () => {
     it('provides available actions for scenarios', () => {
       vi.mocked(analyzeGitState).mockReturnValue({
         currentBranch: 'main',
-        baseBranch: 'main',
-        isBaseBranch: true,
-        commitRelation: 'same',
+        branchType: 'main',
+        commitRelationship: 'same',
+        workingTreeStatus: 'staged_only',
         stagedFiles: ['file.ts'],
         unstagedFiles: [],
         localCommits: [],
         worktreeType: 'main_worktree',
+        repoRoot: '/test/repo',
+        repoName: 'repo',
       });
       vi.mocked(detectScenario).mockReturnValue('main_staged_same');
       vi.mocked(getScenarioContext).mockReturnValue({
@@ -141,13 +149,15 @@ describe('wtstate/analyze', () => {
     it('recommends an action when available', () => {
       vi.mocked(analyzeGitState).mockReturnValue({
         currentBranch: 'main',
-        baseBranch: 'main',
-        isBaseBranch: true,
-        commitRelation: 'same',
+        branchType: 'main',
+        commitRelationship: 'same',
+        workingTreeStatus: 'staged_only',
         stagedFiles: ['file.ts'],
         unstagedFiles: [],
         localCommits: [],
         worktreeType: 'main_worktree',
+        repoRoot: '/test/repo',
+        repoName: 'repo',
       });
       vi.mocked(detectScenario).mockReturnValue('main_staged_same');
       vi.mocked(getScenarioContext).mockReturnValue({
@@ -165,13 +175,15 @@ describe('wtstate/analyze', () => {
     it('handles pr_worktree scenario with null recommended action', () => {
       vi.mocked(analyzeGitState).mockReturnValue({
         currentBranch: 'feature-x',
-        baseBranch: 'main',
-        isBaseBranch: false,
-        commitRelation: 'divergent',
+        branchType: 'other',
+        commitRelationship: 'divergent',
+        workingTreeStatus: 'clean',
         stagedFiles: [],
         unstagedFiles: [],
         localCommits: [],
         worktreeType: 'pr_worktree',
+        repoRoot: '/test/repo',
+        repoName: 'repo',
       });
       vi.mocked(detectScenario).mockReturnValue('pr_worktree');
       vi.mocked(getScenarioContext).mockReturnValue(null);

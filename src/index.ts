@@ -16,6 +16,9 @@ export * as constants from './lib/constants.js';
 export * as jsonOutput from './lib/json-output.js';
 export * as wtstate from './lib/wtstate/index.js';
 
+// Export programmatic API (Phase 3)
+export * as api from './api/index.js';
+
 // Export key types
 export type {
   CommitRelationship,
@@ -52,6 +55,30 @@ export type {
   WtstateResult,
   WorktreeType as WtstateWorktreeType,
 } from './lib/wtstate/types.js';
+
+// Export API types (Phase 3)
+export type {
+  QueryStateOptions,
+  QueryStateResult,
+  ListWorktreesOptions,
+  ListWorktreesResult,
+  WorktreeInfo as ApiWorktreeInfo,
+  CleanWorktreesOptions,
+  CleanWorktreesResult,
+  CleanedWorktree,
+  CreatePrOptions as ApiCreatePrOptions,
+  CreatePrResult,
+  SetupPrWorktreeOptions,
+} from './api/index.js';
+
+// Export API functions for direct import
+export {
+  queryState,
+  listWorktrees,
+  cleanWorktrees,
+  createPr,
+  setupPrWorktree,
+} from './api/index.js';
 
 // Export error classes for direct use
 export {

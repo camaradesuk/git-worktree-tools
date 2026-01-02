@@ -20,14 +20,14 @@ The tools should work out-of-the-box with sensible defaults while offering deep 
 |-------|-------------|--------|
 | Phase 1 | Non-Interactive Foundation | ✅ Complete |
 | Phase 2 | State Query Command (`wtstate`) | ✅ Complete |
-| Phase 3 | Programmatic API Layer | ⏳ Not Started |
+| Phase 3 | Programmatic API Layer | ✅ Complete |
 | Phase 4 | MCP Server | ⏳ Not Started |
 | Phase 5 | AI Content Generation | ⏳ Not Started |
 | Phase 6 | Extensibility & Hooks | ⏳ Not Started |
 | Phase 7 | Setup Wizard | ⏳ Not Started |
 
 **Last Updated:** 2026-01-02
-**Package Version:** 1.2.0
+**Package Version:** 1.3.0
 
 ---
 
@@ -521,21 +521,62 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 - `wtstate --base <branch>` specifies the base branch for comparison
 - Exports available via `src/index.ts` for programmatic usage
 
-### Phase 3: Programmatic API Layer (Priority: High) ⏳
+### Phase 3: Programmatic API Layer (Priority: High) ✅
 
-**Status:** Not Started
+**Status:** Complete
 **Goal:** Clean separation of concerns for better testing and MCP integration.
 
 #### Tasks
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `src/api/` directory | ⏳ | New structure |
-| Extract `newpr` business logic | ⏳ | `src/api/newpr.ts` |
-| Extract `cleanpr` business logic | ⏳ | `src/api/cleanpr.ts` |
-| Extract `lswt` business logic | ⏳ | `src/api/lswt.ts` |
-| Create state query API | ⏳ | `src/api/state.ts` |
-| Full TypeScript types for I/O | ⏳ | Type safety |
+| Create `src/api/` directory | ✅ | New structure with index.ts exports |
+| Extract `newpr` business logic | ✅ | `src/api/create.ts` - `createPr()` and `setupPrWorktree()` |
+| Extract `cleanpr` business logic | ✅ | `src/api/clean.ts` - `cleanWorktrees()` |
+| Extract `lswt` business logic | ✅ | `src/api/list.ts` - `listWorktrees()` |
+| Create state query API | ✅ | `src/api/state.ts` - `queryState()` |
+| Full TypeScript types for I/O | ✅ | All APIs return `CommandResult<T>` |
+| Export API from `src/index.ts` | ✅ | `import { api } from '@camaradesuk/git-worktree-tools'` |
+
+**Implementation Details:**
+
+The programmatic API layer provides side-effect-free functions that return structured `CommandResult<T>` types:
+
+```typescript
+// Import the API
+import { api } from '@camaradesuk/git-worktree-tools';
+// Or import functions directly
+import { queryState, listWorktrees, cleanWorktrees, createPr, setupPrWorktree } from '@camaradesuk/git-worktree-tools';
+
+// Query git state
+const state = queryState({ baseBranch: 'main' });
+if (state.success) {
+  console.log(`Scenario: ${state.data.scenario}`);
+  console.log(`Recommended action: ${state.data.recommendedAction}`);
+}
+
+// List worktrees
+const list = await listWorktrees({ showStatus: true });
+if (list.success) {
+  console.log(`Found ${list.data.total} worktrees`);
+}
+
+// Create PR with worktree
+const pr = await createPr({
+  description: 'Add dark mode',
+  action: 'commit_staged',
+  draft: true,
+});
+if (pr.success) {
+  console.log(`Created PR #${pr.data.prNumber}`);
+}
+
+// Clean merged/closed worktrees
+const cleaned = await cleanWorktrees({ deleteRemote: true });
+if (cleaned.success) {
+  console.log(`Cleaned ${cleaned.data.totalCleaned} worktrees`);
+}
+```
 
 ### Phase 4: MCP Server (Priority: Medium) ⏳
 
