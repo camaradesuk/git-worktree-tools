@@ -1,7 +1,30 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { gatherWorktreeInfo, createDefaultDeps, GatherDeps } from './worktree-info.js';
 import type { Worktree } from '../git.js';
 import type { ListOptions } from './types.js';
+
+// Mock child_process for hasUncommittedChanges tests
+vi.mock('child_process', async () => {
+  const actual = await vi.importActual('child_process');
+  return {
+    ...actual,
+    execSync: vi.fn(),
+  };
+});
+
+// Mock git
+vi.mock('../git.js', () => ({
+  listWorktrees: vi.fn(),
+}));
+
+// Mock github
+vi.mock('../github.js', () => ({
+  getPr: vi.fn(),
+}));
+
+import { execSync } from 'child_process';
+import * as git from '../git.js';
+import * as github from '../github.js';
 
 describe('lswt/worktree-info', () => {
   const makeWorktree = (overrides: Partial<Worktree> = {}): Worktree => ({
@@ -236,6 +259,14 @@ describe('lswt/worktree-info', () => {
   });
 
   describe('createDefaultDeps', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     it('returns object with required methods', () => {
       const deps = createDefaultDeps();
 
@@ -245,6 +276,138 @@ describe('lswt/worktree-info', () => {
       expect(typeof deps.listWorktrees).toBe('function');
       expect(typeof deps.hasUncommittedChanges).toBe('function');
       expect(typeof deps.getPrInfo).toBe('function');
+    });
+
+    describe('listWorktrees', () => {
+      it('calls git.listWorktrees with provided cwd', () => {
+        const mockWorktrees = [{ path: '/repo', branch: 'main', commit: 'abc', isMain: true }];
+        vi.mocked(git.listWorktrees).mockReturnValue(mockWorktrees as Worktree[]);
+
+        const deps = createDefaultDeps();
+        const result = deps.listWorktrees('/some/path');
+
+        expect(git.listWorktrees).toHaveBeenCalledWith('/some/path');
+        expect(result).toEqual(mockWorktrees);
+      });
+    });
+
+    describe('hasUncommittedChanges', () => {
+      it('returns true when git status has output', () => {
+        vi.mocked(execSync).mockReturnValue(' M file.txt\n');
+
+        const deps = createDefaultDeps();
+        const result = deps.hasUncommittedChanges('/some/path');
+
+        expect(result).toBe(true);
+        expect(execSync).toHaveBeenCalledWith('git status --porcelain', {
+          cwd: '/some/path',
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      });
+
+      it('returns false when git status has no output', () => {
+        vi.mocked(execSync).mockReturnValue('');
+
+        const deps = createDefaultDeps();
+        const result = deps.hasUncommittedChanges('/some/path');
+
+        expect(result).toBe(false);
+      });
+
+      it('returns false when git status throws error', () => {
+        vi.mocked(execSync).mockImplementation(() => {
+          throw new Error('git error');
+        });
+
+        const deps = createDefaultDeps();
+        const result = deps.hasUncommittedChanges('/some/path');
+
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('getPrInfo', () => {
+      it('returns PR state and isDraft when PR exists', async () => {
+        vi.mocked(github.getPr).mockReturnValue({
+          number: 42,
+          state: 'OPEN',
+          isDraft: false,
+          url: 'https://github.com/owner/repo/pull/42',
+          title: 'Test PR',
+        });
+
+        const deps = createDefaultDeps();
+        const result = await deps.getPrInfo(42);
+
+        expect(github.getPr).toHaveBeenCalledWith(42);
+        expect(result).toEqual({ state: 'OPEN', isDraft: false });
+      });
+
+      it('returns draft status for draft PRs', async () => {
+        vi.mocked(github.getPr).mockReturnValue({
+          number: 42,
+          state: 'OPEN',
+          isDraft: true,
+          url: 'https://github.com/owner/repo/pull/42',
+          title: 'Test PR',
+        });
+
+        const deps = createDefaultDeps();
+        const result = await deps.getPrInfo(42);
+
+        expect(result).toEqual({ state: 'OPEN', isDraft: true });
+      });
+
+      it('returns null state when PR not found', async () => {
+        vi.mocked(github.getPr).mockReturnValue(null);
+
+        const deps = createDefaultDeps();
+        const result = await deps.getPrInfo(99);
+
+        expect(result).toEqual({ state: null, isDraft: null });
+      });
+
+      it('returns null state when getPr throws error', async () => {
+        vi.mocked(github.getPr).mockImplementation(() => {
+          throw new Error('gh error');
+        });
+
+        const deps = createDefaultDeps();
+        const result = await deps.getPrInfo(42);
+
+        expect(result).toEqual({ state: null, isDraft: null });
+      });
+
+      it('handles MERGED PR state', async () => {
+        vi.mocked(github.getPr).mockReturnValue({
+          number: 42,
+          state: 'MERGED',
+          isDraft: false,
+          url: 'https://github.com/owner/repo/pull/42',
+          title: 'Test PR',
+        });
+
+        const deps = createDefaultDeps();
+        const result = await deps.getPrInfo(42);
+
+        expect(result).toEqual({ state: 'MERGED', isDraft: false });
+      });
+
+      it('handles CLOSED PR state', async () => {
+        vi.mocked(github.getPr).mockReturnValue({
+          number: 42,
+          state: 'CLOSED',
+          isDraft: false,
+          url: 'https://github.com/owner/repo/pull/42',
+          title: 'Test PR',
+        });
+
+        const deps = createDefaultDeps();
+        const result = await deps.getPrInfo(42);
+
+        expect(result).toEqual({ state: 'CLOSED', isDraft: false });
+      });
     });
   });
 });

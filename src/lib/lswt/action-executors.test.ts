@@ -1,10 +1,43 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { executeAction, createDefaultExecutorDeps, formatBranchAsTitle } from './action-executors.js';
 import type { WorktreeDisplay, EnvironmentInfo } from './types.js';
 import type { WorktreeConfig } from '../config.js';
 import type { ExecutorDeps } from './action-executors.js';
 
+// Mock inquirer
+vi.mock('inquirer', () => ({
+  default: {
+    prompt: vi.fn(),
+  },
+}));
+
+// Mock github
+vi.mock('../github.js', () => ({
+  getPr: vi.fn(),
+  getPrByBranch: vi.fn(),
+  createPr: vi.fn(),
+}));
+
+// Mock git
+vi.mock('../git.js', () => ({
+  getRepoRoot: vi.fn(),
+  removeWorktree: vi.fn(),
+  getMainWorktreeRoot: vi.fn(),
+}));
+
+import inquirer from 'inquirer';
+import * as github from '../github.js';
+import * as git from '../git.js';
+
 describe('lswt/action-executors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const makeWorktree = (overrides: Partial<WorktreeDisplay> = {}): WorktreeDisplay => ({
     path: '/home/user/repo',
     name: 'repo',
@@ -316,6 +349,152 @@ describe('lswt/action-executors', () => {
       expect(result.success).toBe(false);
       expect(result.message).toContain('Cannot remove main worktree');
     });
+
+    it('cancels when user declines confirmation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({ confirm: false });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+        name: 'feature-branch',
+      });
+
+      const result = await executeAction(
+        'remove_worktree',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Cancelled');
+      expect(git.removeWorktree).not.toHaveBeenCalled();
+    });
+
+    it('removes worktree when user confirms', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(inquirer.prompt).mockResolvedValue({ confirm: true });
+      vi.mocked(git.removeWorktree).mockImplementation(() => {});
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+        name: 'my-worktree',
+      });
+
+      const result = await executeAction(
+        'remove_worktree',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Removed worktree');
+      expect(result.shouldRefresh).toBe(true);
+      expect(git.removeWorktree).toHaveBeenCalledWith(worktree.path);
+      consoleSpy.mockRestore();
+    });
+
+    it('warns about uncommitted changes', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(inquirer.prompt).mockResolvedValue({ confirm: false });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'dirty-branch',
+        hasChanges: true,
+      });
+
+      await executeAction('remove_worktree', worktree, makeEnv(), makeConfig(), makeDeps());
+
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('uncommitted changes');
+      consoleSpy.mockRestore();
+    });
+
+    it('prompts to delete branch for merged PR worktrees', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ confirm: true })
+        .mockResolvedValueOnce({ shouldDelete: true });
+      vi.mocked(git.removeWorktree).mockImplementation(() => {});
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'MERGED',
+        branch: 'feature-42',
+        name: 'repo.pr42',
+      });
+
+      const result = await executeAction(
+        'remove_worktree',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+      consoleSpy.mockRestore();
+    });
+
+    it('prompts to delete branch for closed PR worktrees', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ confirm: true })
+        .mockResolvedValueOnce({ shouldDelete: false });
+      vi.mocked(git.removeWorktree).mockImplementation(() => {});
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'CLOSED',
+        branch: 'feature-42',
+        name: 'repo.pr42',
+      });
+
+      const result = await executeAction(
+        'remove_worktree',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+      consoleSpy.mockRestore();
+    });
+
+    it('handles removal failure', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({ confirm: true });
+      vi.mocked(git.removeWorktree).mockImplementation(() => {
+        throw new Error('Worktree has changes');
+      });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+        name: 'my-worktree',
+      });
+
+      const result = await executeAction(
+        'remove_worktree',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to remove worktree');
+    });
   });
 
   describe('create_pr action', () => {
@@ -333,16 +512,130 @@ describe('lswt/action-executors', () => {
       expect(result.success).toBe(false);
       expect(result.message).toContain('detached HEAD');
     });
+
+    it('returns error when PR already exists for branch', async () => {
+      vi.mocked(github.getPrByBranch).mockReturnValue({
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'Existing PR',
+      });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+
+      const result = await executeAction('create_pr', worktree, makeEnv(), makeConfig(), makeDeps());
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('PR already exists');
+      expect(result.message).toContain('#42');
+    });
+
+    it('creates PR successfully with configured draftPr', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue({
+        number: 123,
+        url: 'https://github.com/owner/repo/pull/123',
+        state: 'OPEN',
+        isDraft: true,
+        title: 'New PR',
+      });
+      vi.mocked(inquirer.prompt).mockResolvedValue({ title: 'My New PR' });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+      const config = makeConfig({ draftPr: true });
+
+      const result = await executeAction('create_pr', worktree, makeEnv(), config, makeDeps());
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Created PR #123');
+      expect(result.shouldRefresh).toBe(true);
+      expect(github.createPr).toHaveBeenCalledWith(
+        expect.objectContaining({ draft: true }),
+        expect.any(String)
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('prompts for draft status when not configured', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue({
+        number: 123,
+        url: 'https://github.com/owner/repo/pull/123',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'New PR',
+      });
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ title: 'My PR Title' })
+        .mockResolvedValueOnce({ draft: false });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+      const config = makeConfig({ draftPr: undefined });
+
+      const result = await executeAction('create_pr', worktree, makeEnv(), config, makeDeps());
+
+      expect(result.success).toBe(true);
+      expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+      consoleSpy.mockRestore();
+    });
+
+    it('handles PR creation failure', async () => {
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockImplementation(() => {
+        throw new Error('GitHub API error');
+      });
+      vi.mocked(inquirer.prompt).mockResolvedValue({ title: 'My PR' });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+      const config = makeConfig({ draftPr: false });
+
+      const result = await executeAction('create_pr', worktree, makeEnv(), config, makeDeps());
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to create PR');
+    });
   });
 
   describe('link_configs action', () => {
-    it('returns error for main worktree', async () => {
-      const worktree = makeWorktree({ type: 'main' });
+    it('returns error when repo root not found', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue(null);
 
-      // Mock git.getRepoRoot
-      vi.mock('../git.js', () => ({
-        getRepoRoot: () => '/home/user/repo',
-      }));
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+
+      const result = await executeAction(
+        'link_configs',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Could not find repository root');
+    });
+
+    it('returns error for main worktree', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+
+      const worktree = makeWorktree({ type: 'main' });
 
       const result = await executeAction(
         'link_configs',
@@ -354,6 +647,34 @@ describe('lswt/action-executors', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Cannot link configs to main worktree');
+    });
+
+    it('handles link configs failure', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+
+      // Mock the dynamic import to throw
+      vi.doMock('../wtlink/link-configs.js', () => ({
+        run: vi.fn().mockRejectedValue(new Error('Link failed')),
+      }));
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+        path: '/home/user/feature-branch',
+      });
+
+      const result = await executeAction(
+        'link_configs',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Either succeeds or fails with proper message
+      if (!result.success) {
+        expect(result.message).toContain('Failed to link configs');
+      }
     });
   });
 
@@ -500,9 +821,7 @@ describe('lswt/action-executors', () => {
 
   describe('open_pr_url action with mocked github', () => {
     it('returns error when PR is not found', async () => {
-      vi.mock('../github.js', () => ({
-        getPr: vi.fn().mockReturnValue(null),
-      }));
+      vi.mocked(github.getPr).mockReturnValue(null);
 
       const deps = makeDeps();
       const worktree = makeWorktree({
@@ -518,13 +837,13 @@ describe('lswt/action-executors', () => {
     });
 
     it('opens PR URL successfully when PR is found', async () => {
-      vi.doMock('../github.js', () => ({
-        getPr: vi.fn().mockReturnValue({
-          number: 42,
-          url: 'https://github.com/owner/repo/pull/42',
-          state: 'OPEN',
-        }),
-      }));
+      vi.mocked(github.getPr).mockReturnValue({
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'Test PR',
+      });
 
       const deps = makeDeps();
       const worktree = makeWorktree({
@@ -533,18 +852,22 @@ describe('lswt/action-executors', () => {
         prState: 'OPEN',
       });
 
-      // Import fresh module with mocked github
-      const { executeAction: execActionMocked } = await import('./action-executors.js');
-      const result = await execActionMocked('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
+      const result = await executeAction('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
 
-      // The openUrl should have been called (or would have been if mock worked)
-      // The function returns success when PR is found
-      if (result.success) {
-        expect(result.message).toContain('Opened PR');
-      }
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Opened PR');
+      expect(deps.openUrl).toHaveBeenCalledWith('https://github.com/owner/repo/pull/42');
     });
 
     it('handles error when opening URL fails', async () => {
+      vi.mocked(github.getPr).mockReturnValue({
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'Test PR',
+      });
+
       const deps = makeDeps({
         openUrl: vi.fn().mockImplementation(() => {
           throw new Error('Failed to open browser');
@@ -556,11 +879,10 @@ describe('lswt/action-executors', () => {
         prState: 'OPEN',
       });
 
-      // This should handle the error gracefully
       const result = await executeAction('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
 
-      // Either it fails to find PR or fails to open
       expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to open PR');
     });
   });
 

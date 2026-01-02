@@ -1,10 +1,68 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   formatWorktreeChoiceWithColors,
   formatTypeBadgeWithColors,
   formatStatusWithColors,
+  runInteractiveMode,
 } from './interactive.js';
-import type { WorktreeDisplay } from './types.js';
+import type { WorktreeDisplay, ListOptions } from './types.js';
+
+// Mock inquirer
+vi.mock('inquirer', () => ({
+  default: {
+    prompt: vi.fn(),
+    Separator: vi.fn().mockImplementation(() => ({ type: 'separator' })),
+  },
+}));
+
+// Mock git
+vi.mock('../git.js', () => ({
+  getRepoRoot: vi.fn(),
+}));
+
+// Mock config
+vi.mock('../config.js', () => ({
+  loadConfig: vi.fn().mockReturnValue({}),
+}));
+
+// Mock environment
+vi.mock('./environment.js', () => ({
+  detectEnvironment: vi.fn(() => ({
+    hasVscode: true,
+    hasCursor: false,
+    defaultEditor: 'vscode',
+    platform: 'linux',
+    isInteractive: true,
+    shell: '/bin/bash',
+    gitVersion: { major: 2, minor: 39, patch: 0, raw: 'git version 2.39.0' },
+  })),
+}));
+
+// Mock actions
+vi.mock('./actions.js', () => ({
+  buildActionMenu: vi.fn(() => [
+    { name: 'Open in editor', value: 'open_editor', shortcut: 'e' },
+    { name: 'Exit', value: 'exit', shortcut: 'q' },
+  ]),
+  formatShortcutLegend: vi.fn(() => '[e] editor [q] exit'),
+}));
+
+// Mock action-executors
+vi.mock('./action-executors.js', () => ({
+  executeAction: vi.fn().mockResolvedValue({ success: true }),
+  createDefaultExecutorDeps: vi.fn().mockReturnValue({}),
+}));
+
+// Mock worktree-info
+vi.mock('./worktree-info.js', () => ({
+  gatherWorktreeInfo: vi.fn().mockResolvedValue([]),
+  createDefaultDeps: vi.fn().mockReturnValue({}),
+}));
+
+import inquirer from 'inquirer';
+import * as git from '../git.js';
+import { executeAction } from './action-executors.js';
+import { gatherWorktreeInfo } from './worktree-info.js';
 
 describe('lswt/interactive', () => {
   const makeWorktree = (overrides: Partial<WorktreeDisplay> = {}): WorktreeDisplay => ({
@@ -216,6 +274,199 @@ describe('lswt/interactive', () => {
       const result = formatWorktreeChoiceWithColors(worktree);
 
       expect(result).toContain('has changes');
+    });
+  });
+
+  describe('runInteractiveMode', () => {
+    const defaultOptions: ListOptions = {
+      showStatus: false,
+      json: false,
+      verbose: false,
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      // Mock console methods
+      vi.spyOn(console, 'clear').mockImplementation(() => {});
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('returns early with error when not in git repository', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue(null);
+
+      await runInteractiveMode([makeWorktree()], defaultOptions);
+
+      expect(console.error).toHaveBeenCalled();
+    });
+
+    it('returns early when no worktrees provided', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+
+      await runInteractiveMode([], defaultOptions);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No worktrees found'));
+    });
+
+    it('exits when user selects exit from worktree list', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit selection
+
+      await runInteractiveMode([makeWorktree()], defaultOptions);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Goodbye'));
+    });
+
+    it('exits when user selects exit action', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
+        .mockResolvedValueOnce({ action: 'exit' }); // Select exit action
+
+      await runInteractiveMode([worktree], defaultOptions);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Goodbye'));
+    });
+
+    it('continues loop when user selects back action', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ selected: worktree }) // First loop - select worktree
+        .mockResolvedValueOnce({ action: 'back' }) // First loop - go back
+        .mockResolvedValueOnce({ selected: null }); // Second loop - exit
+
+      await runInteractiveMode([worktree], defaultOptions);
+
+      // Prompt should be called 3 times
+      expect(inquirer.prompt).toHaveBeenCalledTimes(3);
+    });
+
+    it('executes action and shows success message', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      vi.mocked(executeAction).mockResolvedValueOnce({
+        success: true,
+        message: 'Copied to clipboard',
+      });
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
+        .mockResolvedValueOnce({ action: 'copy_path' }) // Select action
+        .mockResolvedValueOnce({ continue: '' }) // Press enter to continue
+        .mockResolvedValueOnce({ selected: null }); // Exit
+
+      await runInteractiveMode([worktree], defaultOptions);
+
+      expect(executeAction).toHaveBeenCalled();
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Copied to clipboard'));
+    });
+
+    it('shows error message on failed action', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      vi.mocked(executeAction).mockResolvedValueOnce({
+        success: false,
+        message: 'Failed to copy',
+      });
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
+        .mockResolvedValueOnce({ action: 'copy_path' }) // Select action
+        .mockResolvedValueOnce({ continue: '' }) // Press enter to continue
+        .mockResolvedValueOnce({ selected: null }); // Exit
+
+      await runInteractiveMode([worktree], defaultOptions);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Failed to copy'));
+    });
+
+    it('refreshes worktree list when action returns shouldRefresh', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      const newWorktree = makeWorktree({ name: 'updated' });
+      vi.mocked(executeAction).mockResolvedValueOnce({
+        success: true,
+        message: 'Worktree removed',
+        shouldRefresh: true,
+      });
+      vi.mocked(gatherWorktreeInfo).mockResolvedValueOnce([newWorktree]);
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
+        .mockResolvedValueOnce({ action: 'remove_worktree' }) // Select action
+        .mockResolvedValueOnce({ continue: '' }) // Press enter to continue
+        .mockResolvedValueOnce({ selected: null }); // Exit
+
+      await runInteractiveMode([worktree], defaultOptions);
+
+      expect(gatherWorktreeInfo).toHaveBeenCalled();
+    });
+
+    it('exits immediately when action returns shouldExit', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      vi.mocked(executeAction).mockResolvedValueOnce({
+        success: true,
+        shouldExit: true,
+      });
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
+        .mockResolvedValueOnce({ action: 'open_editor' }); // Select action
+
+      await runInteractiveMode([worktree], defaultOptions);
+
+      // Should not prompt for continue since shouldExit is true
+      expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+    });
+
+    it('handles worktree header display correctly', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktrees = [
+        makeWorktree({ path: '/home/user/repo', type: 'main' }),
+        makeWorktree({
+          path: '/home/user/repo.pr1',
+          type: 'pr',
+          prNumber: 1,
+          prState: 'OPEN',
+          hasChanges: true,
+        }),
+      ];
+      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit immediately
+
+      await runInteractiveMode(worktrees, defaultOptions);
+
+      // Should display header with worktree count
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 worktrees'));
+    });
+
+    it('displays PR count in header', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktrees = [
+        makeWorktree({ type: 'main' }),
+        makeWorktree({ type: 'pr', prNumber: 1, prState: 'OPEN' }),
+        makeWorktree({ type: 'pr', prNumber: 2, prState: 'MERGED' }),
+      ];
+      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit immediately
+
+      await runInteractiveMode(worktrees, defaultOptions);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 PRs'));
+    });
+
+    it('displays changes count in header', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktrees = [
+        makeWorktree({ type: 'main', hasChanges: true }),
+        makeWorktree({ type: 'branch', hasChanges: true }),
+      ];
+      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit immediately
+
+      await runInteractiveMode(worktrees, defaultOptions);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 with changes'));
     });
   });
 });
