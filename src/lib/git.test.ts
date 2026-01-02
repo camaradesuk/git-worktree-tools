@@ -564,4 +564,18 @@ describe('git', () => {
       expect(git.isGitIgnored('src/index.ts')).toBe(false);
     });
   });
+
+  describe('checkGitInstalled', () => {
+    it('returns true when git is installed', () => {
+      mockExecSync.mockReturnValue('git version 2.39.0');
+      expect(git.checkGitInstalled()).toBe(true);
+    });
+
+    it('returns false when git is not installed', () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('command not found: git');
+      });
+      expect(git.checkGitInstalled()).toBe(false);
+    });
+  });
 });
