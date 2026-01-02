@@ -265,6 +265,8 @@ npm test
 npm link
 ```
 
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed local development instructions, including how to test CLI commands without affecting your global install.
+
 ## License
 
 MIT
