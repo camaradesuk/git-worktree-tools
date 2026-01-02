@@ -12,6 +12,7 @@ export const ACTION_SHORTCUTS: Record<WorktreeAction, string | null> = {
   open_terminal: 't',
   open_pr_url: 'p',
   create_pr: 'p',
+  checkout_pr: 'w',
   show_details: 'd',
   copy_path: 'c',
   remove_worktree: 'r',
@@ -32,6 +33,40 @@ export function getActionShortcut(action: WorktreeAction): string | null {
  */
 export function buildActionMenu(worktree: WorktreeDisplay, env: EnvironmentInfo): ActionMenuItem[] {
   const items: ActionMenuItem[] = [];
+
+  // Remote PRs have a limited action set (no local path)
+  if (worktree.type === 'remote_pr') {
+    items.push({
+      name: 'Create worktree for this PR',
+      value: 'checkout_pr',
+      shortcut: 'w',
+    });
+
+    items.push({
+      name: 'Open PR in browser',
+      value: 'open_pr_url',
+      shortcut: 'p',
+    });
+
+    items.push({
+      name: 'Show details',
+      value: 'show_details',
+      shortcut: 'd',
+    });
+
+    items.push({
+      name: 'Back to worktree list',
+      value: 'back',
+    });
+
+    items.push({
+      name: 'Exit',
+      value: 'exit',
+      shortcut: 'q',
+    });
+
+    return items;
+  }
 
   // Editor action (always available, but may be disabled)
   const editorName = getEditorDisplayName(env);
@@ -139,6 +174,11 @@ function getEditorDisplayName(env: EnvironmentInfo): string {
  * Format shortcut legend for display in prompt
  */
 export function formatShortcutLegend(worktree: WorktreeDisplay): string {
+  // Remote PRs have a different set of shortcuts
+  if (worktree.type === 'remote_pr') {
+    return ['w: worktree', 'p: PR', 'd: details', 'q: quit'].join(', ');
+  }
+
   const shortcuts: string[] = ['e: editor', 't: terminal'];
 
   if (worktree.type === 'pr') {
@@ -184,6 +224,11 @@ function formatTypeBadge(worktree: WorktreeDisplay): string {
         return `[PR #${worktree.prNumber} DRAFT]`;
       }
       return `[PR #${worktree.prNumber}]`;
+    case 'remote_pr':
+      if (worktree.isDraft) {
+        return `[PR #${worktree.prNumber} REMOTE DRAFT]`;
+      }
+      return `[PR #${worktree.prNumber} REMOTE]`;
     case 'branch':
       return '[branch]';
     case 'detached':

@@ -4,16 +4,9 @@ import {
   formatTypeBadgeWithColors,
   formatStatusWithColors,
   runInteractiveMode,
+  type InteractiveDeps,
 } from './interactive.js';
-import type { WorktreeDisplay, ListOptions } from './types.js';
-
-// Mock inquirer
-vi.mock('inquirer', () => ({
-  default: {
-    prompt: vi.fn(),
-    Separator: vi.fn().mockImplementation(() => ({ type: 'separator' })),
-  },
-}));
+import type { WorktreeDisplay, ListOptions, WorktreeAction } from './types.js';
 
 // Mock git
 vi.mock('../git.js', () => ({
@@ -59,12 +52,19 @@ vi.mock('./worktree-info.js', () => ({
   createDefaultDeps: vi.fn().mockReturnValue({}),
 }));
 
-import inquirer from 'inquirer';
 import * as git from '../git.js';
 import { executeAction } from './action-executors.js';
 import { gatherWorktreeInfo } from './worktree-info.js';
 
 describe('lswt/interactive', () => {
+  // Helper to create mock interactive deps
+  const createMockDeps = (overrides: Partial<InteractiveDeps> = {}): InteractiveDeps => ({
+    selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+    selectAction: vi.fn().mockResolvedValue('exit' as WorktreeAction),
+    pressEnterToContinue: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  });
+
   const makeWorktree = (overrides: Partial<WorktreeDisplay> = {}): WorktreeDisplay => ({
     path: '/home/user/repo',
     name: 'repo',
@@ -298,25 +298,29 @@ describe('lswt/interactive', () => {
 
     it('returns early with error when not in git repository', async () => {
       vi.mocked(git.getRepoRoot).mockReturnValue(null as unknown as string);
+      const deps = createMockDeps();
 
-      await runInteractiveMode([makeWorktree()], defaultOptions);
+      await runInteractiveMode([makeWorktree()], defaultOptions, deps);
 
       expect(console.error).toHaveBeenCalled();
     });
 
     it('returns early when no worktrees provided', async () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const deps = createMockDeps();
 
-      await runInteractiveMode([], defaultOptions);
+      await runInteractiveMode([], defaultOptions, deps);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No worktrees found'));
     });
 
     it('exits when user selects exit from worktree list', async () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
-      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit selection
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+      });
 
-      await runInteractiveMode([makeWorktree()], defaultOptions);
+      await runInteractiveMode([makeWorktree()], defaultOptions, deps);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Goodbye'));
     });
@@ -324,11 +328,12 @@ describe('lswt/interactive', () => {
     it('exits when user selects exit action', async () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
       const worktree = makeWorktree();
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
-        .mockResolvedValueOnce({ action: 'exit' }); // Select exit action
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree, action: null }),
+        selectAction: vi.fn().mockResolvedValue('exit' as WorktreeAction),
+      });
 
-      await runInteractiveMode([worktree], defaultOptions);
+      await runInteractiveMode([worktree], defaultOptions, deps);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Goodbye'));
     });
@@ -336,15 +341,19 @@ describe('lswt/interactive', () => {
     it('continues loop when user selects back action', async () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
       const worktree = makeWorktree();
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ selected: worktree }) // First loop - select worktree
-        .mockResolvedValueOnce({ action: 'back' }) // First loop - go back
-        .mockResolvedValueOnce({ selected: null }); // Second loop - exit
+      const selectWorktreeMock = vi
+        .fn()
+        .mockResolvedValueOnce({ worktree, action: null }) // First loop - select worktree
+        .mockResolvedValueOnce({ worktree: null, action: null }); // Second loop - exit
+      const deps = createMockDeps({
+        selectWorktree: selectWorktreeMock,
+        selectAction: vi.fn().mockResolvedValue('back' as WorktreeAction),
+      });
 
-      await runInteractiveMode([worktree], defaultOptions);
+      await runInteractiveMode([worktree], defaultOptions, deps);
 
-      // Prompt should be called 3 times
-      expect(inquirer.prompt).toHaveBeenCalledTimes(3);
+      // selectWorktree should be called 2 times (first loop, then exit)
+      expect(selectWorktreeMock).toHaveBeenCalledTimes(2);
     });
 
     it('executes action and shows success message', async () => {
@@ -354,13 +363,16 @@ describe('lswt/interactive', () => {
         success: true,
         message: 'Copied to clipboard',
       });
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
-        .mockResolvedValueOnce({ action: 'copy_path' }) // Select action
-        .mockResolvedValueOnce({ continue: '' }) // Press enter to continue
-        .mockResolvedValueOnce({ selected: null }); // Exit
+      const selectWorktreeMock = vi
+        .fn()
+        .mockResolvedValueOnce({ worktree, action: null })
+        .mockResolvedValueOnce({ worktree: null, action: null });
+      const deps = createMockDeps({
+        selectWorktree: selectWorktreeMock,
+        selectAction: vi.fn().mockResolvedValue('copy_path' as WorktreeAction),
+      });
 
-      await runInteractiveMode([worktree], defaultOptions);
+      await runInteractiveMode([worktree], defaultOptions, deps);
 
       expect(executeAction).toHaveBeenCalled();
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Copied to clipboard'));
@@ -373,13 +385,16 @@ describe('lswt/interactive', () => {
         success: false,
         message: 'Failed to copy',
       });
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
-        .mockResolvedValueOnce({ action: 'copy_path' }) // Select action
-        .mockResolvedValueOnce({ continue: '' }) // Press enter to continue
-        .mockResolvedValueOnce({ selected: null }); // Exit
+      const selectWorktreeMock = vi
+        .fn()
+        .mockResolvedValueOnce({ worktree, action: null })
+        .mockResolvedValueOnce({ worktree: null, action: null });
+      const deps = createMockDeps({
+        selectWorktree: selectWorktreeMock,
+        selectAction: vi.fn().mockResolvedValue('copy_path' as WorktreeAction),
+      });
 
-      await runInteractiveMode([worktree], defaultOptions);
+      await runInteractiveMode([worktree], defaultOptions, deps);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Failed to copy'));
     });
@@ -394,13 +409,16 @@ describe('lswt/interactive', () => {
         shouldRefresh: true,
       });
       vi.mocked(gatherWorktreeInfo).mockResolvedValueOnce([newWorktree]);
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
-        .mockResolvedValueOnce({ action: 'remove_worktree' }) // Select action
-        .mockResolvedValueOnce({ continue: '' }) // Press enter to continue
-        .mockResolvedValueOnce({ selected: null }); // Exit
+      const selectWorktreeMock = vi
+        .fn()
+        .mockResolvedValueOnce({ worktree, action: null })
+        .mockResolvedValueOnce({ worktree: null, action: null });
+      const deps = createMockDeps({
+        selectWorktree: selectWorktreeMock,
+        selectAction: vi.fn().mockResolvedValue('remove_worktree' as WorktreeAction),
+      });
 
-      await runInteractiveMode([worktree], defaultOptions);
+      await runInteractiveMode([worktree], defaultOptions, deps);
 
       expect(gatherWorktreeInfo).toHaveBeenCalled();
     });
@@ -412,14 +430,16 @@ describe('lswt/interactive', () => {
         success: true,
         shouldExit: true,
       });
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ selected: worktree }) // Select worktree
-        .mockResolvedValueOnce({ action: 'open_editor' }); // Select action
+      const selectWorktreeMock = vi.fn().mockResolvedValue({ worktree, action: null });
+      const deps = createMockDeps({
+        selectWorktree: selectWorktreeMock,
+        selectAction: vi.fn().mockResolvedValue('open_editor' as WorktreeAction),
+      });
 
-      await runInteractiveMode([worktree], defaultOptions);
+      await runInteractiveMode([worktree], defaultOptions, deps);
 
-      // Should not prompt for continue since shouldExit is true
-      expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+      // selectWorktree should only be called once since shouldExit is true
+      expect(selectWorktreeMock).toHaveBeenCalledTimes(1);
     });
 
     it('handles worktree header display correctly', async () => {
@@ -434,9 +454,11 @@ describe('lswt/interactive', () => {
           hasChanges: true,
         }),
       ];
-      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit immediately
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+      });
 
-      await runInteractiveMode(worktrees, defaultOptions);
+      await runInteractiveMode(worktrees, defaultOptions, deps);
 
       // Should display header with worktree count
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 worktrees'));
@@ -449,11 +471,13 @@ describe('lswt/interactive', () => {
         makeWorktree({ type: 'pr', prNumber: 1, prState: 'OPEN' }),
         makeWorktree({ type: 'pr', prNumber: 2, prState: 'MERGED' }),
       ];
-      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit immediately
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+      });
 
-      await runInteractiveMode(worktrees, defaultOptions);
+      await runInteractiveMode(worktrees, defaultOptions, deps);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 PRs'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 local PRs'));
     });
 
     it('displays changes count in header', async () => {
@@ -462,11 +486,38 @@ describe('lswt/interactive', () => {
         makeWorktree({ type: 'main', hasChanges: true }),
         makeWorktree({ type: 'branch', hasChanges: true }),
       ];
-      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ selected: null }); // Exit immediately
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+      });
 
-      await runInteractiveMode(worktrees, defaultOptions);
+      await runInteractiveMode(worktrees, defaultOptions, deps);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 with changes'));
+    });
+
+    it('executes shortcut action directly when provided with selection', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      vi.mocked(executeAction).mockResolvedValueOnce({
+        success: true,
+        shouldExit: true,
+      });
+      // Simulate shortcut key press - returns both worktree and action
+      const selectActionMock = vi.fn();
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree, action: 'open_editor' }),
+        selectAction: selectActionMock,
+      });
+
+      await runInteractiveMode([worktree], defaultOptions, deps);
+
+      // executeAction should be called with the shortcut action as first arg
+      expect(executeAction).toHaveBeenCalled();
+      const callArgs = vi.mocked(executeAction).mock.calls[0];
+      expect(callArgs[0]).toBe('open_editor');
+      expect(callArgs[1]).toEqual(worktree);
+      // selectAction should NOT be called since action was provided via shortcut
+      expect(selectActionMock).not.toHaveBeenCalled();
     });
   });
 });

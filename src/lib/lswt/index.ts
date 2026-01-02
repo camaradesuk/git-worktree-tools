@@ -58,4 +58,5 @@ export type { ExecutorDeps } from './action-executors.js';
 export { executeAction, createDefaultExecutorDeps } from './action-executors.js';
 
 // Interactive mode
-export { runInteractiveMode } from './interactive.js';
+export type { InteractiveDeps } from './interactive.js';
+export { runInteractiveMode, createDefaultInteractiveDeps } from './interactive.js';

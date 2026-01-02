@@ -49,6 +49,13 @@ export function formatTypeLabel(display: WorktreeDisplay): TypeLabel {
         return { text: `[${prLabel}]`, color: 'dim' };
       }
     }
+    case 'remote_pr': {
+      const prLabel = `PR #${display.prNumber}`;
+      if (display.isDraft) {
+        return { text: `[${prLabel} REMOTE DRAFT]`, color: 'yellow' };
+      }
+      return { text: `[${prLabel} REMOTE]`, color: 'dim' };
+    }
     case 'branch':
       return { text: '[branch]', color: 'blue' };
     case 'detached':
@@ -59,17 +66,26 @@ export function formatTypeLabel(display: WorktreeDisplay): TypeLabel {
 }
 
 /**
- * Sort worktrees: main first, then PRs by number, then others by name
+ * Sort worktrees: main first, then local PRs by number, then remote PRs by number, then others by name
  */
 export function sortWorktrees(worktrees: WorktreeDisplay[]): WorktreeDisplay[] {
   return [...worktrees].sort((a, b) => {
     if (a.type === 'main') return -1;
     if (b.type === 'main') return 1;
+    // Local PRs come before remote PRs
     if (a.type === 'pr' && b.type === 'pr') {
+      return (a.prNumber || 0) - (b.prNumber || 0);
+    }
+    if (a.type === 'pr' && b.type !== 'remote_pr') return -1;
+    if (b.type === 'pr' && a.type !== 'remote_pr') return 1;
+    // Remote PRs come after local PRs but before other types
+    if (a.type === 'remote_pr' && b.type === 'remote_pr') {
       return (a.prNumber || 0) - (b.prNumber || 0);
     }
     if (a.type === 'pr') return -1;
     if (b.type === 'pr') return 1;
+    if (a.type === 'remote_pr') return -1;
+    if (b.type === 'remote_pr') return 1;
     return a.name.localeCompare(b.name);
   });
 }

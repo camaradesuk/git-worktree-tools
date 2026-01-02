@@ -42,6 +42,7 @@ describe('lswt/worktree-info', () => {
     listWorktrees: () => [],
     hasUncommittedChanges: () => false,
     getPrInfo: async () => ({ state: null, isDraft: null }),
+    listOpenPrs: async () => [],
     ...overrides,
   });
 
