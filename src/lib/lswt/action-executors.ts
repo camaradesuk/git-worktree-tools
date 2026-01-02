@@ -123,9 +123,16 @@ async function openInEditor(
 
   let editorCmd: string | null = null;
 
-  if (preferredEditor === 'vscode' || (preferredEditor === 'auto' && env.hasVscode)) {
+  // Check if preferred editor is available, otherwise fall back to any available editor
+  if (preferredEditor === 'vscode' && env.hasVscode) {
     editorCmd = 'code';
-  } else if (preferredEditor === 'cursor' || (preferredEditor === 'auto' && env.hasCursor)) {
+  } else if (preferredEditor === 'cursor' && env.hasCursor) {
+    editorCmd = 'cursor';
+  } else if (env.hasVscode) {
+    // Fallback: use vscode if available (handles 'auto' or preferred not available)
+    editorCmd = 'code';
+  } else if (env.hasCursor) {
+    // Fallback: use cursor if available
     editorCmd = 'cursor';
   }
 

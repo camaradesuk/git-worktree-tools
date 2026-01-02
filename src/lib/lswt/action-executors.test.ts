@@ -930,6 +930,32 @@ describe('lswt/action-executors', () => {
       expect(deps.spawnDetached).toHaveBeenCalledWith('cursor', ['/home/user/repo.pr1']);
       expect(result.success).toBe(true);
     });
+
+    it('falls back to cursor when preferredEditor is vscode but vscode not installed', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({ path: '/home/user/repo.pr1' });
+      const env = makeEnv({ hasVscode: false, hasCursor: true, defaultEditor: 'cursor' });
+      const config = makeConfig({ preferredEditor: 'vscode' });
+
+      const result = await executeAction('open_editor', worktree, env, config, deps);
+
+      expect(deps.spawnDetached).toHaveBeenCalledWith('cursor', ['/home/user/repo.pr1']);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Cursor');
+    });
+
+    it('falls back to vscode when preferredEditor is cursor but cursor not installed', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({ path: '/home/user/repo.pr1' });
+      const env = makeEnv({ hasVscode: true, hasCursor: false, defaultEditor: 'vscode' });
+      const config = makeConfig({ preferredEditor: 'cursor' });
+
+      const result = await executeAction('open_editor', worktree, env, config, deps);
+
+      expect(deps.spawnDetached).toHaveBeenCalledWith('code', ['/home/user/repo.pr1']);
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('VSCode');
+    });
   });
 
   describe('copy_path action', () => {
