@@ -89,10 +89,8 @@ export async function runInteractiveMode(
       continue;
     }
 
-    // Wait for user to continue (unless exiting)
-    if (running) {
-      await pressEnterToContinue();
-    }
+    // Wait for user to continue
+    await pressEnterToContinue();
   }
 }
 
