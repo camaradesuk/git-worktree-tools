@@ -19,6 +19,12 @@ export * as wtstate from './lib/wtstate/index.js';
 // Export programmatic API (Phase 3)
 export * as api from './api/index.js';
 
+// Export AI content generation (Phase 5)
+export * as ai from './lib/ai/index.js';
+
+// Export hooks system (Phase 6)
+export * as hooks from './lib/hooks/index.js';
+
 // Export key types
 export type {
   CommitRelationship,
@@ -31,7 +37,14 @@ export type {
 
 export type { CreatePrOptions, PrInfo, RepoInfo, ListPrsOptions } from './lib/github.js';
 
-export type { WorktreeConfig } from './lib/config.js';
+export type {
+  WorktreeConfig,
+  GeneratorsConfig,
+  IntegrationsConfig,
+  LinearIntegration,
+  JiraIntegration,
+  SlackIntegration,
+} from './lib/config.js';
 
 export type { GitState, Scenario, WorktreeType, BranchType } from './lib/state-detection.js';
 
@@ -93,3 +106,36 @@ export {
   isGitCommandError,
   isGitHubCliError,
 } from './lib/errors.js';
+
+// Export AI types (Phase 5)
+export type {
+  AIProvider,
+  AIConfig,
+  AIProviderName,
+  AIGenerationResult,
+  BranchContext,
+  PRContext,
+  CommitContext,
+  PlanContext,
+  CommitInfo,
+} from './lib/ai/types.js';
+
+// Export hook types (Phase 6)
+export type {
+  HookName,
+  HookContext,
+  HookDefinition,
+  HookResult,
+  HooksConfig,
+  HookExecutorOptions,
+  HookTemplate,
+} from './lib/hooks/types.js';
+
+// Export hook utilities
+export { createHookExecutor, HookExecutor } from './lib/hooks/executor.js';
+export {
+  getHookTemplate,
+  listHookTemplates,
+  suggestHookTemplates,
+  mergeHookTemplates,
+} from './lib/hooks/templates.js';
