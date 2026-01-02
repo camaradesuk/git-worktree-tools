@@ -2,7 +2,17 @@
 
 ## Executive Summary
 
-This document outlines a strategy to make `@camaradesuk/git-worktree-tools` fully compatible with AI CLI tools like Claude Code, Gemini CLI, Codex CLI, and other agentic development workflows. The goal is to enable AI agents to autonomously manage git worktrees and PR workflows without human intervention.
+This document outlines a comprehensive strategy to make `@camaradesuk/git-worktree-tools` fully compatible with AI CLI tools like Claude Code, Gemini CLI, Codex CLI, and other agentic development workflows. The plan covers three major areas:
+
+1. **AI Tool Compatibility** — Enable AI agents to autonomously manage git worktrees and PR workflows
+2. **AI Content Generation** — Leverage AI to generate branch names, PR titles/descriptions, and plan documents
+3. **Extensibility Framework** — Hooks, plugins, and user-defined scripts for workflow customization
+
+### Design Philosophy
+
+> **Easy to start, powerful to master**
+
+The tools should work out-of-the-box with sensible defaults while offering deep customization for power users. A setup wizard guides new users, and progressive disclosure ensures complexity is hidden until needed.
 
 ## Implementation Status
 
@@ -12,7 +22,9 @@ This document outlines a strategy to make `@camaradesuk/git-worktree-tools` full
 | Phase 2 | State Query Command (`wtstate`) | ⏳ Not Started |
 | Phase 3 | Programmatic API Layer | ⏳ Not Started |
 | Phase 4 | MCP Server | ⏳ Not Started |
-| Phase 5 | Advanced AI Features | ⏳ Not Started |
+| Phase 5 | AI Content Generation | ⏳ Not Started |
+| Phase 6 | Extensibility & Hooks | ⏳ Not Started |
+| Phase 7 | Setup Wizard | ⏳ Not Started |
 
 **Last Updated:** 2025-12-31
 **Package Version:** 1.2.0
@@ -846,6 +858,951 @@ interface CommandResult {
 
 ---
 
+## Phase 5: AI Content Generation
+
+This phase introduces AI-powered content generation for branch names, PR titles/descriptions, commit messages, and initial planning documents.
+
+### 5.1 AI Provider Architecture
+
+Support multiple AI providers with a unified interface:
+
+```typescript
+// src/lib/ai/provider.ts
+export interface AIProvider {
+  name: string;
+  generateBranchName(context: BranchContext): Promise<string>;
+  generatePRTitle(context: PRContext): Promise<string>;
+  generatePRDescription(context: PRContext): Promise<string>;
+  generateCommitMessage(context: CommitContext): Promise<string>;
+  generatePlanDocument(context: PlanContext): Promise<string>;
+}
+
+export interface BranchContext {
+  description: string;
+  repoName: string;
+  branchPrefix: string;  // from config
+  existingBranches?: string[];  // avoid collisions
+}
+
+export interface PRContext {
+  description: string;
+  diff: string;
+  commits: CommitInfo[];
+  branchName: string;
+  baseBranch: string;
+}
+
+export interface CommitContext {
+  stagedFiles: string[];
+  diff: string;
+  recentCommits?: string[];  // for style consistency
+}
+
+export interface PlanContext {
+  description: string;
+  repoStructure: string[];  // key files/folders
+  techStack?: string[];
+}
+```
+
+### 5.2 Supported AI Providers
+
+| Provider | Integration Method | Pros | Cons |
+|----------|-------------------|------|------|
+| **Claude Code** | MCP/CLI tool | Native integration, context-aware | Requires Claude Code installed |
+| **Gemini CLI** | CLI subprocess | 1M token context, free tier | Google account required |
+| **OpenAI Codex** | API/CLI | Wide adoption, good code understanding | API costs |
+| **Ollama (Local)** | Local API | Privacy, no API costs, offline | Requires local setup, GPU recommended |
+| **Custom Script** | User-defined | Full control | User must implement |
+
+#### Provider Configuration
+
+```typescript
+// .worktreerc
+{
+  "ai": {
+    "provider": "auto",  // "auto" | "claude" | "gemini" | "openai" | "ollama" | "script"
+    "fallback": "none",  // Provider to use if primary fails
+
+    // Provider-specific settings
+    "claude": {
+      "model": "claude-sonnet-4-20250514"
+    },
+    "gemini": {
+      "model": "gemini-2.0-flash"
+    },
+    "openai": {
+      "model": "gpt-4o",
+      "apiKeyEnv": "OPENAI_API_KEY"
+    },
+    "ollama": {
+      "model": "codellama:13b",
+      "host": "http://localhost:11434"
+    },
+    "script": {
+      "path": "./scripts/ai-generate.js"
+    }
+  }
+}
+```
+
+### 5.3 Auto-Detection Strategy (`provider: "auto"`)
+
+When `provider` is set to `"auto"`, detect available AI tools in order:
+
+```typescript
+async function detectAIProvider(): Promise<AIProvider | null> {
+  // 1. Check for Claude Code (look for claude command or MCP)
+  if (await isClaudeCodeAvailable()) {
+    return new ClaudeProvider();
+  }
+
+  // 2. Check for Gemini CLI
+  if (await commandExists('gemini')) {
+    return new GeminiProvider();
+  }
+
+  // 3. Check for local Ollama
+  if (await isOllamaRunning()) {
+    return new OllamaProvider();
+  }
+
+  // 4. Check for OpenAI API key
+  if (process.env.OPENAI_API_KEY) {
+    return new OpenAIProvider();
+  }
+
+  // 5. No provider available
+  return null;
+}
+```
+
+### 5.4 Branch Name Generation
+
+**Current behavior:** Random suffix (`feat/add-dark-mode-xyz123`)
+
+**AI-enhanced behavior:**
+
+```typescript
+interface BranchNameOptions {
+  useAI?: boolean;         // Enable AI generation (default: false initially)
+  branchStyle?: 'conventional' | 'kebab' | 'snake' | 'custom';
+  maxLength?: number;      // Default: 50
+  includeIssueNumber?: boolean;  // If issue # detected in description
+}
+```
+
+**Examples:**
+
+| Description | Current Output | AI Output |
+|-------------|----------------|-----------|
+| "Add dark mode toggle to settings" | `feat/add-dark-mode-toggle-abc123` | `feat/settings-dark-mode-toggle` |
+| "Fix login bug on mobile devices" | `feat/fix-login-bug-on-xyz789` | `fix/mobile-login-auth-error` |
+| "JIRA-1234: Update user profile" | `feat/jira-1234-update-def456` | `feat/JIRA-1234-user-profile-update` |
+
+**CLI Usage:**
+
+```bash
+# Explicit AI generation
+newpr "Add dark mode" --ai-branch
+
+# Use config default
+newpr "Add dark mode"  # Uses ai.branchName setting from .worktreerc
+```
+
+### 5.5 PR Title & Description Generation
+
+Generate rich PR descriptions from commit history and diffs:
+
+```typescript
+interface PRGenerationOptions {
+  useAI?: boolean;
+  template?: string;       // Path to custom template
+  includeChangelog?: boolean;
+  includeTechDebt?: boolean;
+  testPlanStyle?: 'checklist' | 'narrative' | 'none';
+}
+```
+
+**Template Variables:**
+
+```markdown
+## Summary
+
+{{AI_SUMMARY}}
+
+## Changes
+
+{{AI_CHANGES_LIST}}
+
+## Technical Details
+
+{{AI_TECHNICAL_NOTES}}
+
+## Test Plan
+
+{{AI_TEST_PLAN}}
+
+## Screenshots
+
+<!-- Add screenshots if UI changes -->
+
+---
+🤖 Generated with [git-worktree-tools](https://github.com/camaradesuk/git-worktree-tools)
+```
+
+**CLI Usage:**
+
+```bash
+# Generate with AI
+newpr "Add dark mode" --ai-description
+
+# Interactive: AI generates, user reviews before creation
+newpr "Add dark mode" --ai-description --review
+```
+
+### 5.6 Initial Plan Document
+
+Create a planning document with the initial commit for AI-assisted development:
+
+```typescript
+interface PlanDocumentOptions {
+  enabled?: boolean;        // Create plan doc with initial commit
+  path?: string;            // Default: "docs/PLAN-{branch}.md"
+  includeTaskList?: boolean;
+  includeTechStack?: boolean;
+  includeAcceptanceCriteria?: boolean;
+}
+```
+
+**Example Generated Plan:**
+
+```markdown
+# Plan: Add Dark Mode Toggle
+
+**Branch:** `feat/settings-dark-mode-toggle`
+**Created:** 2025-12-31
+**Status:** In Progress
+
+## Objective
+
+Add a dark mode toggle to the application settings that persists user preference.
+
+## Tasks
+
+- [ ] Add theme context provider
+- [ ] Create toggle component in Settings page
+- [ ] Implement CSS custom properties for theming
+- [ ] Persist preference to localStorage
+- [ ] Add system preference detection
+- [ ] Update existing components for theme support
+
+## Technical Approach
+
+1. Use React Context for theme state management
+2. CSS custom properties for color tokens
+3. `prefers-color-scheme` media query for system default
+
+## Acceptance Criteria
+
+- [ ] Toggle switches between light and dark themes
+- [ ] Preference persists across sessions
+- [ ] Respects system preference on first visit
+- [ ] No flash of incorrect theme on load
+
+## Notes
+
+<!-- Add implementation notes as you work -->
+
+---
+🤖 Generated with [git-worktree-tools](https://github.com/camaradesuk/git-worktree-tools)
+```
+
+**CLI Usage:**
+
+```bash
+# Create PR with plan document
+newpr "Add dark mode" --with-plan
+
+# Specify plan location
+newpr "Add dark mode" --with-plan --plan-path="./PLAN.md"
+```
+
+### 5.7 Commit Message Generation
+
+For the initial commit and subsequent auto-commits:
+
+```typescript
+interface CommitMessageOptions {
+  useAI?: boolean;
+  style?: 'conventional' | 'gitmoji' | 'simple' | 'custom';
+  scope?: string;           // e.g., "settings", "auth"
+  includeBody?: boolean;    // Multi-line commit message
+}
+```
+
+**Examples:**
+
+| Style | Output |
+|-------|--------|
+| `conventional` | `feat(settings): add dark mode toggle` |
+| `gitmoji` | `✨ Add dark mode toggle to settings` |
+| `simple` | `Add dark mode toggle` |
+
+---
+
+## Phase 6: Extensibility & Hooks
+
+Enable users to customize the workflow with lifecycle hooks, plugins, and user-defined scripts.
+
+### 6.1 Hook System Overview
+
+Inspired by [Husky](https://typicode.github.io/husky/) and git hooks, but specific to worktree-tools lifecycle events.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    newpr Lifecycle                       │
+├─────────────────────────────────────────────────────────┤
+│  pre-analyze    → Before git state analysis             │
+│  post-analyze   → After state analysis, before prompt   │
+│  pre-branch     → Before branch creation                │
+│  post-branch    → After branch creation                 │
+│  pre-commit     → Before initial commit                 │
+│  post-commit    → After initial commit                  │
+│  pre-push       → Before push to origin                 │
+│  post-push      → After push to origin                  │
+│  pre-pr         → Before PR creation                    │
+│  post-pr        → After PR creation, before worktree    │
+│  pre-worktree   → Before worktree creation              │
+│  post-worktree  → After worktree creation               │
+│  cleanup        → On error (for rollback)               │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Hook Configuration
+
+```typescript
+// .worktreerc
+{
+  "hooks": {
+    // Simple command hooks
+    "post-worktree": "npm install",
+
+    // Multiple commands
+    "post-pr": [
+      "echo 'PR #{{PR_NUMBER}} created!'",
+      "./scripts/notify-slack.sh {{PR_URL}}"
+    ],
+
+    // Script file hooks
+    "pre-branch": {
+      "script": "./hooks/validate-branch-name.js",
+      "timeout": 5000,
+      "failOnError": true
+    },
+
+    // Conditional hooks
+    "post-worktree": {
+      "command": "pnpm install",
+      "if": "exists:pnpm-lock.yaml"
+    }
+  }
+}
+```
+
+### 6.3 Hook Context Variables
+
+Hooks receive context via environment variables:
+
+| Variable | Description | Available In |
+|----------|-------------|--------------|
+| `WT_BRANCH_NAME` | New branch name | post-branch onwards |
+| `WT_PR_NUMBER` | PR number | post-pr onwards |
+| `WT_PR_URL` | PR URL | post-pr onwards |
+| `WT_WORKTREE_PATH` | New worktree path | post-worktree |
+| `WT_REPO_ROOT` | Main repo root | All hooks |
+| `WT_BASE_BRANCH` | Base branch (main) | All hooks |
+| `WT_DESCRIPTION` | PR description | All hooks |
+| `WT_SCENARIO` | Detected git state scenario | post-analyze onwards |
+
+**Script Hook Interface:**
+
+```typescript
+// hooks/my-hook.js
+export default async function hook(context) {
+  const {
+    branchName,
+    prNumber,
+    prUrl,
+    worktreePath,
+    repoRoot,
+    baseBranch,
+    description,
+    scenario,
+  } = context;
+
+  // Return { success: true } or { success: false, message: "..." }
+  return { success: true };
+}
+```
+
+### 6.4 Built-in Hook Templates
+
+Provide common hooks out of the box:
+
+```bash
+# List available hook templates
+wtconfig hooks --list
+
+# Install a hook template
+wtconfig hooks --install auto-deps
+```
+
+| Template | Description |
+|----------|-------------|
+| `auto-deps` | Run `npm/pnpm/yarn install` after worktree creation |
+| `vscode-open` | Open worktree in VS Code after creation |
+| `slack-notify` | Send Slack notification on PR creation |
+| `linear-link` | Link PR to Linear issue if detected |
+| `jira-link` | Update Jira issue with PR link |
+| `copilot-review` | Request GitHub Copilot review on PR |
+
+### 6.5 Plugin System (Advanced)
+
+For complex integrations, support a plugin architecture:
+
+```typescript
+// .worktreerc
+{
+  "plugins": [
+    "@worktree-tools/plugin-linear",
+    "@worktree-tools/plugin-jira",
+    "./plugins/custom-plugin.js"
+  ]
+}
+```
+
+**Plugin Interface:**
+
+```typescript
+// Plugin definition
+export interface WorktreePlugin {
+  name: string;
+  version: string;
+
+  // Lifecycle hooks
+  hooks?: {
+    [hookName: string]: HookHandler;
+  };
+
+  // Add new CLI commands
+  commands?: CommandDefinition[];
+
+  // Extend configuration schema
+  configSchema?: JSONSchema;
+
+  // Initialize plugin
+  init?(config: PluginConfig): Promise<void>;
+}
+```
+
+**Example Plugin:**
+
+```typescript
+// @worktree-tools/plugin-linear
+export default {
+  name: 'linear-integration',
+  version: '1.0.0',
+
+  hooks: {
+    'pre-branch': async (ctx) => {
+      // Extract Linear issue from description (e.g., "LIN-123: Fix bug")
+      const match = ctx.description.match(/^([A-Z]+-\d+)/);
+      if (match) {
+        ctx.issueId = match[1];
+      }
+      return { success: true };
+    },
+
+    'post-pr': async (ctx) => {
+      if (ctx.issueId) {
+        await linearClient.attachPR(ctx.issueId, ctx.prUrl);
+      }
+      return { success: true };
+    },
+  },
+};
+```
+
+### 6.6 Custom Generators
+
+Allow users to customize content generation:
+
+```typescript
+// .worktreerc
+{
+  "generators": {
+    "branchName": "./generators/branch-name.js",
+    "prTitle": "./generators/pr-title.js",
+    "prDescription": "./generators/pr-description.js",
+    "commitMessage": "./generators/commit-message.js"
+  }
+}
+```
+
+**Generator Interface:**
+
+```typescript
+// generators/branch-name.js
+export default async function generateBranchName(context) {
+  const { description, branchPrefix, repoName } = context;
+
+  // Custom logic
+  return `${branchPrefix}/${slugify(description)}`;
+}
+```
+
+---
+
+## Phase 7: Setup Wizard
+
+An interactive setup wizard for first-time users and configuration management.
+
+### 7.1 Wizard Trigger
+
+```bash
+# First-time setup (auto-triggered on first run or explicit)
+wtconfig init
+
+# Reconfigure existing setup
+wtconfig wizard
+
+# Quick setup with defaults
+wtconfig init --quick
+```
+
+### 7.2 Environment Detection
+
+The wizard automatically detects installed tools:
+
+```typescript
+interface EnvironmentInfo {
+  os: 'windows' | 'macos' | 'linux';
+
+  git: {
+    version: string;
+    configured: boolean;
+    user?: string;
+    email?: string;
+  };
+
+  github: {
+    installed: boolean;
+    authenticated: boolean;
+    user?: string;
+  };
+
+  ai: {
+    claudeCode: boolean;
+    geminiCLI: boolean;
+    ollama: boolean;
+    openaiKey: boolean;
+  };
+
+  packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun';
+
+  ide: {
+    vscode: boolean;
+    cursor: boolean;
+    idea: boolean;
+  };
+}
+```
+
+**Detection Logic:**
+
+```typescript
+async function detectEnvironment(): Promise<EnvironmentInfo> {
+  return {
+    os: detectOS(),
+    git: await detectGit(),
+    github: await detectGitHub(),
+    ai: {
+      claudeCode: await commandExists('claude'),
+      geminiCLI: await commandExists('gemini'),
+      ollama: await isOllamaRunning(),
+      openaiKey: !!process.env.OPENAI_API_KEY,
+    },
+    packageManager: await detectPackageManager(),
+    ide: await detectIDEs(),
+  };
+}
+```
+
+### 7.3 Wizard Flow
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                 git-worktree-tools Setup                  │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  🔍 Detecting your environment...                        │
+│                                                          │
+│  ✓ Git 2.43.0 configured (chris@example.com)            │
+│  ✓ GitHub CLI authenticated (username)                   │
+│  ✓ Claude Code detected                                  │
+│  ✓ pnpm detected                                         │
+│  ✓ VS Code detected                                      │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  Step 1/5: Base Configuration                            │
+│                                                          │
+│  ? What is your default base branch?                     │
+│    ❯ main (detected)                                     │
+│      master                                              │
+│      develop                                             │
+│      Other...                                            │
+│                                                          │
+│  ? Create PRs as drafts by default?                      │
+│    ❯ No (recommended for solo work)                      │
+│      Yes (recommended for team review)                   │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  Step 2/5: Worktree Location                             │
+│                                                          │
+│  ? Where should worktrees be created?                    │
+│    ❯ Sibling to main repo (../repo.pr42)                │
+│      Inside .worktrees folder (.worktrees/pr42)         │
+│      Custom location...                                  │
+│                                                          │
+│  ? Worktree naming pattern?                              │
+│    ❯ {repo}.pr{number} (e.g., myapp.pr42)               │
+│      pr-{number} (e.g., pr-42)                          │
+│      {branch} (e.g., feat-dark-mode)                    │
+│      Custom...                                           │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  Step 3/5: AI Integration                                │
+│                                                          │
+│  Claude Code detected! Would you like to enable AI?      │
+│                                                          │
+│  ? Use AI for content generation?                        │
+│    ❯ Yes - Use detected providers (Claude Code)         │
+│      Yes - Configure manually                            │
+│      No - I prefer manual input                          │
+│                                                          │
+│  ? What should AI generate?                              │
+│    ◉ Branch names (from description)                     │
+│    ◉ PR descriptions (from changes)                      │
+│    ◯ Commit messages                                     │
+│    ◯ Plan documents                                      │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  Step 4/5: Automation Hooks                              │
+│                                                          │
+│  ? Install any automation hooks?                         │
+│    ◉ auto-deps: Install dependencies after worktree     │
+│    ◉ vscode-open: Open worktree in VS Code              │
+│    ◯ slack-notify: Notify Slack on PR creation          │
+│    ◯ None                                                │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  Step 5/5: Review & Save                                 │
+│                                                          │
+│  Configuration will be saved to: .worktreerc             │
+│                                                          │
+│  {                                                       │
+│    "baseBranch": "main",                                │
+│    "draftPr": false,                                    │
+│    "worktreePattern": "{repo}.pr{number}",              │
+│    "ai": {                                              │
+│      "provider": "claude",                              │
+│      "branchName": true,                                │
+│      "prDescription": true                               │
+│    },                                                   │
+│    "hooks": {                                           │
+│      "post-worktree": ["pnpm install", "code ."]        │
+│    }                                                    │
+│  }                                                       │
+│                                                          │
+│  ? Save configuration?                                   │
+│    ❯ Yes, save to .worktreerc                           │
+│      Yes, save globally (~/.worktreerc)                 │
+│      No, cancel                                          │
+│                                                          │
+├──────────────────────────────────────────────────────────┤
+│  ✓ Configuration saved!                                  │
+│                                                          │
+│  Quick start:                                            │
+│    newpr "Add dark mode"     Create a new PR            │
+│    lswt                      List worktrees             │
+│    cleanpr                   Clean merged PRs           │
+│                                                          │
+│  Learn more: https://github.com/camaradesuk/git-worktree│
+└──────────────────────────────────────────────────────────┘
+```
+
+### 7.4 Configuration Levels
+
+Support hierarchical configuration:
+
+```
+~/.worktreerc           (Global defaults)
+    ↓
+./.worktreerc           (Repository-specific)
+    ↓
+CLI flags               (Per-invocation override)
+```
+
+**Merge Strategy:**
+
+```typescript
+function loadEffectiveConfig(repoRoot: string): Config {
+  const globalConfig = loadGlobalConfig();      // ~/.worktreerc
+  const repoConfig = loadRepoConfig(repoRoot);  // ./.worktreerc
+
+  // Deep merge: repo overrides global
+  return deepMerge(globalConfig, repoConfig);
+}
+```
+
+### 7.5 Configuration Commands
+
+```bash
+# Initialize/re-run wizard
+wtconfig init
+
+# View current effective config
+wtconfig show
+
+# Set individual values
+wtconfig set baseBranch develop
+wtconfig set ai.provider gemini
+wtconfig set hooks.post-worktree "npm install"
+
+# Edit in default editor
+wtconfig edit
+
+# Validate configuration
+wtconfig validate
+
+# Export configuration
+wtconfig export > my-config.json
+
+# Import configuration
+wtconfig import < my-config.json
+```
+
+---
+
+## Phase 8: Enhanced Configuration
+
+Expand `.worktreerc` to support all new features while maintaining backwards compatibility.
+
+### 8.1 Complete Configuration Schema
+
+```typescript
+interface WorktreeConfig {
+  // === Existing (backwards compatible) ===
+  sharedRepos?: string[];
+  baseBranch?: string;              // Default: "main"
+  draftPr?: boolean;                // Default: false
+  worktreePattern?: string;         // Default: "{repo}.pr{number}"
+  worktreeParent?: string;          // Default: ".."
+  syncPatterns?: string[];
+  branchPrefix?: string;            // Default: "feat"
+
+  // === NEW: AI Configuration ===
+  ai?: {
+    provider?: 'auto' | 'claude' | 'gemini' | 'openai' | 'ollama' | 'script' | 'none';
+    fallback?: string;
+
+    // Feature toggles
+    branchName?: boolean;           // Use AI for branch names
+    prTitle?: boolean;              // Use AI for PR titles
+    prDescription?: boolean;        // Use AI for PR descriptions
+    commitMessage?: boolean;        // Use AI for commit messages
+    planDocument?: boolean;         // Create plan doc with AI
+
+    // Style preferences
+    branchStyle?: 'conventional' | 'kebab' | 'snake';
+    commitStyle?: 'conventional' | 'gitmoji' | 'simple';
+
+    // Templates
+    prTemplate?: string;            // Path to PR description template
+    planTemplate?: string;          // Path to plan document template
+
+    // Provider-specific settings
+    claude?: { model?: string };
+    gemini?: { model?: string };
+    openai?: { model?: string; apiKeyEnv?: string };
+    ollama?: { model?: string; host?: string };
+    script?: { path: string };
+  };
+
+  // === NEW: Hooks ===
+  hooks?: {
+    'pre-analyze'?: HookDefinition;
+    'post-analyze'?: HookDefinition;
+    'pre-branch'?: HookDefinition;
+    'post-branch'?: HookDefinition;
+    'pre-commit'?: HookDefinition;
+    'post-commit'?: HookDefinition;
+    'pre-push'?: HookDefinition;
+    'post-push'?: HookDefinition;
+    'pre-pr'?: HookDefinition;
+    'post-pr'?: HookDefinition;
+    'pre-worktree'?: HookDefinition;
+    'post-worktree'?: HookDefinition;
+    'cleanup'?: HookDefinition;
+  };
+
+  // === NEW: Plugins ===
+  plugins?: string[];
+
+  // === NEW: Generators ===
+  generators?: {
+    branchName?: string;
+    prTitle?: string;
+    prDescription?: string;
+    commitMessage?: string;
+  };
+
+  // === NEW: Integration ===
+  integrations?: {
+    linear?: { teamId?: string };
+    jira?: { projectKey?: string };
+    slack?: { webhookUrl?: string; channel?: string };
+  };
+}
+
+type HookDefinition =
+  | string                          // Simple command
+  | string[]                        // Multiple commands
+  | {
+      command?: string;
+      script?: string;              // Path to script
+      timeout?: number;             // ms, default 30000
+      failOnError?: boolean;        // default true
+      if?: string;                  // Condition
+      env?: Record<string, string>; // Extra env vars
+    };
+```
+
+### 8.2 Example Configurations
+
+**Minimal (beginner):**
+
+```json
+{
+  "baseBranch": "main"
+}
+```
+
+**Standard with AI:**
+
+```json
+{
+  "baseBranch": "main",
+  "draftPr": true,
+  "branchPrefix": "feat",
+  "ai": {
+    "provider": "auto",
+    "branchName": true,
+    "prDescription": true
+  },
+  "hooks": {
+    "post-worktree": "npm install"
+  }
+}
+```
+
+**Advanced team setup:**
+
+```json
+{
+  "baseBranch": "develop",
+  "draftPr": true,
+  "worktreePattern": "{repo}.pr{number}",
+  "branchPrefix": "feature",
+
+  "ai": {
+    "provider": "claude",
+    "branchName": true,
+    "prTitle": true,
+    "prDescription": true,
+    "planDocument": true,
+    "commitStyle": "conventional",
+    "prTemplate": ".github/PULL_REQUEST_TEMPLATE.md"
+  },
+
+  "hooks": {
+    "post-worktree": [
+      "pnpm install",
+      "code ."
+    ],
+    "post-pr": {
+      "script": "./scripts/notify-team.js",
+      "env": {
+        "SLACK_CHANNEL": "#engineering"
+      }
+    }
+  },
+
+  "plugins": [
+    "@worktree-tools/plugin-linear"
+  ],
+
+  "integrations": {
+    "linear": {
+      "teamId": "ENG"
+    }
+  }
+}
+```
+
+---
+
+## Decision Matrix: AI Providers
+
+| Criterion | Claude Code | Gemini CLI | OpenAI | Ollama |
+|-----------|-------------|------------|--------|--------|
+| **Setup Complexity** | Low (if installed) | Low | Medium (API key) | High (local model) |
+| **Cost** | Subscription | Free tier | Pay-per-use | Free (hardware) |
+| **Context Window** | 200K tokens | 1M tokens | 128K tokens | Model-dependent |
+| **Offline Support** | ❌ | ❌ | ❌ | ✅ |
+| **Code Understanding** | Excellent | Good | Excellent | Good |
+| **Response Speed** | Fast | Fast | Fast | Slow (CPU) / Fast (GPU) |
+| **Privacy** | Cloud | Cloud | Cloud | Local |
+| **Integration Depth** | Native MCP | CLI | API | API |
+
+**Recommendation:** Default to `"provider": "auto"` which detects and uses the best available option.
+
+---
+
+## Decision Matrix: Hook System Design
+
+| Approach | Pros | Cons | Recommendation |
+|----------|------|------|----------------|
+| **Simple commands** | Easy to configure, familiar | Limited logic | ✅ Primary |
+| **Script files** | Full programming power | More complex | ✅ Secondary |
+| **Plugin packages** | Reusable, shareable | Requires npm publish | Advanced users |
+| **Inline functions** | Concise | Security concerns | ❌ Avoid |
+
+---
+
+## Decision Matrix: Configuration Scope
+
+| Scope | Location | Use Case |
+|-------|----------|----------|
+| **Global** | `~/.worktreerc` | Personal defaults across all repos |
+| **Repository** | `./.worktreerc` | Team-shared repo config |
+| **Command-line** | `--flag` | One-off overrides |
+
+**Merge priority:** CLI > Repository > Global > Defaults
+
+---
+
 ## References
 
 - [Model Context Protocol](https://modelcontextprotocol.io/) - Official MCP documentation
@@ -855,6 +1812,12 @@ interface CommandResult {
 - [AI CLI Tools Comparison](https://research.aimultiple.com/agentic-cli/) - Agentic CLI comparison
 - [The New Stack: Agentic CLI Era](https://thenewstack.io/ai-coding-tools-in-2025-welcome-to-the-agentic-cli-era/) - Industry overview
 - [Claude Flow Non-Interactive Mode](https://github.com/ruvnet/claude-flow/wiki/Non-Interactive-Mode) - Example of non-interactive patterns
+- [Husky Git Hooks](https://typicode.github.io/husky/) - Git hooks management inspiration
+- [GGPR AI Git Tool](https://github.com/meabed/pr-commit-ai-agent) - AI-powered git workflow tool
+- [aigit](https://github.com/hardiksondagar/aigit) - AI-powered Git CLI
+- [aicommits](https://github.com/Nutlope/aicommits) - AI commit message generation
+- [Inquirer.js](https://github.com/SBoudrias/Inquirer.js) - Interactive CLI prompts
+- [Yeoman](https://yeoman.io/) - Scaffolding and CLI wizard patterns
 
 ---
 
@@ -878,7 +1841,7 @@ interface CommandResult {
    - Consistent `CommandResult` interface across all tools
    - Structured error codes for programmatic handling
 
-### Future Phases
+### Phase 2-4: AI Tool Compatibility
 
 1. **Create `wtstate` command (Phase 2)**
    - Query current git state and available actions
@@ -892,9 +1855,75 @@ interface CommandResult {
    - Native Claude Code integration
    - Discoverable tools and resources
 
+### Phase 5: AI Content Generation
+
+1. **Implement AI provider abstraction**
+   - Support Claude Code, Gemini CLI, OpenAI, Ollama
+   - Auto-detection of available providers
+
+2. **Add AI-powered branch name generation**
+   - `--ai-branch` flag or config option
+   - Smart extraction of issue numbers, conventional prefixes
+
+3. **Add AI-powered PR description generation**
+   - `--ai-description` flag or config option
+   - Template-based with AI-generated sections
+
+4. **Add plan document generation**
+   - `--with-plan` flag to create initial planning doc
+   - Task breakdown, acceptance criteria
+
+### Phase 6: Extensibility & Hooks
+
+1. **Implement lifecycle hook system**
+   - 13 hook points across newpr workflow
+   - Support for shell commands, scripts, and plugins
+
+2. **Create hook template library**
+   - `auto-deps`, `vscode-open`, `slack-notify`, etc.
+   - `wtconfig hooks --install <template>` command
+
+3. **Design plugin architecture**
+   - Allow npm packages to extend functionality
+   - Support for Linear, Jira, Slack integrations
+
+### Phase 7: Setup Wizard
+
+1. **Create `wtconfig init` wizard**
+   - Interactive setup for new users
+   - Auto-detect environment (git, gh, AI tools, IDE)
+
+2. **Implement hierarchical configuration**
+   - Global (`~/.worktreerc`) + repo (`.worktreerc`) + CLI flags
+   - Deep merge with proper precedence
+
+3. **Add configuration management commands**
+   - `wtconfig show`, `wtconfig set`, `wtconfig validate`
+
 ### Testing Milestones
 
 - [ ] AI agent can create PR via `newpr --json --non-interactive`
 - [ ] AI agent can query state via `wtstate --json`
 - [ ] AI agent can clean worktrees via `cleanpr --all --json`
 - [ ] Claude Code can use MCP server for all operations
+- [ ] AI-generated branch names work with Claude/Gemini/Ollama
+- [ ] Hook system executes pre/post hooks correctly
+- [ ] Setup wizard completes successfully on fresh install
+
+---
+
+## Implementation Priority Matrix
+
+| Feature | Impact | Effort | Priority |
+|---------|--------|--------|----------|
+| Non-interactive mode (`--json`) | High | Low | **P0** |
+| `wtstate` command | High | Low | **P0** |
+| MCP Server | High | Medium | **P1** |
+| AI branch names | Medium | Medium | **P1** |
+| AI PR descriptions | Medium | Medium | **P1** |
+| Hook system | Medium | Medium | **P2** |
+| Setup wizard | Medium | High | **P2** |
+| Plan document generation | Low | Medium | **P3** |
+| Plugin architecture | Low | High | **P3** |
+
+**Recommended order:** P0 → P1 → P2 → P3
