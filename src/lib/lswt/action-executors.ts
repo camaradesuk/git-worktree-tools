@@ -158,6 +158,25 @@ async function openInEditor(
 }
 
 /**
+ * Convert a Linux path to Windows path for WSL interop
+ */
+function wslPathToWindows(linuxPath: string): string {
+  try {
+    // Use wslpath to convert Linux path to Windows path
+    const windowsPath = execSync(`wslpath -w "${linuxPath}"`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    return windowsPath;
+  } catch {
+    // Fallback: manual conversion for common /home paths
+    // /home/user/... -> \\wsl$\<distro>\home\user\...
+    const distro = process.env.WSL_DISTRO_NAME || 'Ubuntu';
+    return `\\\\wsl$\\${distro}${linuxPath.replace(/\//g, '\\')}`;
+  }
+}
+
+/**
  * Open terminal at worktree path
  */
 async function openTerminal(
@@ -180,6 +199,26 @@ async function openTerminal(
       } catch {
         // Fallback to cmd
         deps.spawnDetached('cmd', ['/c', 'start', 'cmd', '/k', `cd /d "${worktree.path}"`]);
+      }
+    } else if (env.isWSL) {
+      // WSL - open Windows Terminal with WSL
+      try {
+        const windowsPath = wslPathToWindows(worktree.path);
+        // Use cmd.exe to launch Windows Terminal
+        // wt.exe -d <path> opens a new tab at the specified directory
+        deps.execCommand(`cmd.exe /c start wt.exe -d "${windowsPath}"`);
+      } catch {
+        // Fallback: print cd command for user to copy
+        console.log('');
+        console.log(colors.yellow('Could not open Windows Terminal automatically.'));
+        console.log(colors.dim('Run the following command to navigate:'));
+        console.log('');
+        console.log(colors.cyan(`  cd "${worktree.path}"`));
+        console.log('');
+        return {
+          success: true,
+          message: 'Path printed (copy the cd command above)',
+        };
       }
     } else {
       // Linux - detect terminal

@@ -57,7 +57,10 @@ export function getScenarioContext(
       return {
         message: 'You have staged changes ready to commit.',
         choices: [
-          { label: 'Commit staged changes to the new PR branch', action: action('commit_staged') },
+          {
+            label: 'Commit staged changes to the new PR branch',
+            action: action('commit_staged', { branchFrom: 'head' }),
+          },
           {
             label: 'Leave changes here and continue with empty initial commit',
             action: action('empty_commit'),
@@ -70,7 +73,10 @@ export function getScenarioContext(
       return {
         message: 'You have unstaged changes.',
         choices: [
-          { label: 'Stage all and commit to the new PR branch', action: action('commit_all') },
+          {
+            label: 'Stage all and commit to the new PR branch',
+            action: action('commit_all', { branchFrom: 'head' }),
+          },
           {
             label: 'Leave changes here and continue with empty initial commit',
             action: action('empty_commit'),
@@ -86,11 +92,11 @@ export function getScenarioContext(
         choices: [
           {
             label: 'Commit staged to PR branch, move unstaged to new worktree',
-            action: action('commit_staged', { stashUnstaged: true }),
+            action: action('commit_staged', { stashUnstaged: true, branchFrom: 'head' }),
           },
           {
             label: 'Stage all and commit everything to the new PR branch',
-            action: action('commit_all'),
+            action: action('commit_all', { branchFrom: 'head' }),
           },
           {
             label: 'Leave all changes here and continue with empty initial commit',
@@ -218,7 +224,10 @@ export function getScenarioContext(
         return {
           message: `You are on branch '${branch}' with uncommitted changes.`,
           choices: [
-            { label: 'Stage all and commit to a new PR branch', action: action('commit_all') },
+            {
+              label: 'Stage all and commit to a new PR branch',
+              action: action('commit_all', { branchFrom: 'head' }),
+            },
             {
               label: 'Leave changes and continue with empty initial commit',
               action: action('empty_commit'),

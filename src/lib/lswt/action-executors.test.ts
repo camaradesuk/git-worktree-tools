@@ -63,6 +63,7 @@ describe('lswt/action-executors', () => {
     isInteractive: true,
     shell: '/bin/bash',
     gitVersion: { major: 2, minor: 39, patch: 0, raw: 'git version 2.39.0' },
+    isWSL: false,
     ...overrides,
   });
 

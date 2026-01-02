@@ -89,6 +89,8 @@ export interface EnvironmentInfo {
   isInteractive: boolean;
   shell: string;
   gitVersion: GitVersion;
+  /** Whether running in Windows Subsystem for Linux */
+  isWSL: boolean;
 }
 
 /**

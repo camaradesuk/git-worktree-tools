@@ -11,7 +11,13 @@ import { detectEnvironment } from './environment.js';
 import { buildActionMenu, formatShortcutLegend } from './actions.js';
 import { executeAction, createDefaultExecutorDeps } from './action-executors.js';
 import { gatherWorktreeInfo, createDefaultDeps } from './worktree-info.js';
-import type { WorktreeDisplay, WorktreeAction, ListOptions } from './types.js';
+import type { WorktreeDisplay, WorktreeAction, ListOptions, EnvironmentInfo } from './types.js';
+
+/** Result from the combined worktree+action selection */
+interface SelectionResult {
+  worktree: WorktreeDisplay | null;
+  action: WorktreeAction | null;
+}
 
 /**
  * Run the interactive mode loop
@@ -46,19 +52,23 @@ export async function runInteractiveMode(
     console.clear();
 
     // Print header
-    printWorktreeHeader(worktrees);
+    printWorktreeHeader(worktrees, env);
 
-    // Select worktree
-    const selected = await selectWorktree(worktrees);
+    // Combined selection: user can either select a worktree or press a shortcut key
+    const selection = await selectWorktreeWithShortcuts(worktrees, env);
 
-    if (!selected) {
+    if (!selection.worktree) {
       running = false;
       console.log(colors.dim('\nGoodbye!\n'));
       continue;
     }
 
-    // Show action menu
-    const action = await selectAction(selected, env);
+    // If a shortcut was pressed, execute immediately
+    // Otherwise show the action menu
+    let action = selection.action;
+    if (!action) {
+      action = await selectAction(selection.worktree, env);
+    }
 
     if (action === 'exit') {
       running = false;
@@ -71,7 +81,7 @@ export async function runInteractiveMode(
     }
 
     // Execute action
-    const result = await executeAction(action, selected, env, config, executorDeps);
+    const result = await executeAction(action, selection.worktree, env, config, executorDeps);
 
     if (result.message) {
       console.log(
@@ -82,6 +92,11 @@ export async function runInteractiveMode(
     if (result.shouldRefresh) {
       // Re-gather worktree info after actions like remove
       worktrees = await gatherWorktreeInfo(repoRoot, options, deps);
+      if (worktrees.length === 0) {
+        console.log(colors.dim('\nNo worktrees remaining.\n'));
+        running = false;
+        continue;
+      }
     }
 
     if (result.shouldExit) {
@@ -95,9 +110,9 @@ export async function runInteractiveMode(
 }
 
 /**
- * Print worktree list header
+ * Print worktree list header with shortcuts legend
  */
-function printWorktreeHeader(worktrees: WorktreeDisplay[]): void {
+function printWorktreeHeader(worktrees: WorktreeDisplay[], env: EnvironmentInfo): void {
   const firstPath = worktrees[0]?.path || '';
   const repoName = path.basename(firstPath.replace(/\.pr\d+$/, '') || 'repository');
 
@@ -128,19 +143,38 @@ function printWorktreeHeader(worktrees: WorktreeDisplay[]): void {
   if (changesCount > 0) parts.push(colors.red(`${changesCount} with changes`));
 
   console.log(colors.dim(parts.join(' · ')) + '\n');
+
+  // Shortcuts legend
+  const editorLabel = env.defaultEditor === 'cursor' ? 'Cursor' : 'VSCode';
+  const shortcuts = [
+    `${colors.cyan('[e]')} ${editorLabel}`,
+    `${colors.cyan('[t]')} terminal`,
+    `${colors.cyan('[c]')} copy path`,
+    `${colors.cyan('[d]')} details`,
+    `${colors.cyan('[p]')} PR`,
+    `${colors.cyan('[l]')} link`,
+    `${colors.cyan('[r]')} remove`,
+    `${colors.cyan('[q]')} quit`,
+  ];
+  console.log(colors.dim('Shortcuts: ') + shortcuts.join(colors.dim(' · ')) + '\n');
 }
 
 /**
  * Select a worktree from the list
+ * Shortcuts are displayed in the header and available in the action menu
  */
-async function selectWorktree(worktrees: WorktreeDisplay[]): Promise<WorktreeDisplay | null> {
+async function selectWorktreeWithShortcuts(
+  worktrees: WorktreeDisplay[],
+  _env: EnvironmentInfo
+): Promise<SelectionResult> {
+  // Build the choices array
   const choices = worktrees.map((wt) => ({
     name: formatWorktreeChoiceWithColors(wt),
     value: wt,
     short: wt.name,
   }));
 
-  // Add separator and exit option
+  // Add exit option
   choices.push(new inquirer.Separator() as unknown as (typeof choices)[0]);
   choices.push({
     name: colors.dim('Exit'),
@@ -152,13 +186,14 @@ async function selectWorktree(worktrees: WorktreeDisplay[]): Promise<WorktreeDis
     {
       type: 'list',
       name: 'selected',
-      message: 'Select a worktree:',
+      message: 'Select worktree:',
       choices,
       pageSize: 15,
+      loop: false,
     },
   ]);
 
-  return selected;
+  return { worktree: selected, action: null };
 }
 
 /**

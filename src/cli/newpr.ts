@@ -216,7 +216,8 @@ async function handleScenario(state: GitState, baseBranch: string): Promise<Stat
   const choiceLabels = context.choices.map((c) => c.label);
   const choiceIndex = await promptChoiceIndex('How would you like to proceed?', choiceLabels);
 
-  return context.choices[choiceIndex].action;
+  // promptChoiceIndex returns 1-based index, convert to 0-based for array access
+  return context.choices[choiceIndex - 1].action;
 }
 
 /**

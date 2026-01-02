@@ -49,6 +49,7 @@ describe('newpr/scenario-handler', () => {
         expect(context!.message).toContain('staged changes');
         expect(context!.choices).toHaveLength(3);
         expect(context!.choices[0].action?.action).toBe('commit_staged');
+        expect(context!.choices[0].action?.branchFrom).toBe('head');
         expect(context!.choices[1].action?.action).toBe('empty_commit');
       });
     });
@@ -65,6 +66,7 @@ describe('newpr/scenario-handler', () => {
         expect(context!.message).toContain('unstaged changes');
         expect(context!.choices).toHaveLength(4);
         expect(context!.choices[0].action?.action).toBe('commit_all');
+        expect(context!.choices[0].action?.branchFrom).toBe('head');
         expect(context!.choices[2].action?.action).toBe('stash_and_empty');
       });
     });
@@ -81,6 +83,9 @@ describe('newpr/scenario-handler', () => {
         expect(context!.message).toContain('both staged and unstaged');
         expect(context!.choices).toHaveLength(5);
         expect(context!.choices[0].action?.stashUnstaged).toBe(true);
+        expect(context!.choices[0].action?.branchFrom).toBe('head');
+        expect(context!.choices[1].action?.action).toBe('commit_all');
+        expect(context!.choices[1].action?.branchFrom).toBe('head');
       });
     });
 
@@ -212,6 +217,7 @@ describe('newpr/scenario-handler', () => {
         expect(context!.subMessage).toBeUndefined();
         expect(context!.choices).toHaveLength(4);
         expect(context!.choices[0].action?.action).toBe('commit_all');
+        expect(context!.choices[0].action?.branchFrom).toBe('head');
       });
     });
 

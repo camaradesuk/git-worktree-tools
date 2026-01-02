@@ -7,6 +7,7 @@ import {
   isCommandAvailable,
   getDefaultTerminal,
   detectEnvironment,
+  isWSL,
   WORKTREE_MOVE_MIN_VERSION,
 } from './environment.js';
 
@@ -283,6 +284,32 @@ describe('lswt/environment', () => {
       const env = detectEnvironment();
       // In test environment, stdout.isTTY may be undefined or false
       expect(typeof env.isInteractive).toBe('boolean');
+    });
+
+    it('includes isWSL property', () => {
+      const env = detectEnvironment();
+      expect(typeof env.isWSL).toBe('boolean');
+    });
+  });
+
+  describe('isWSL', () => {
+    it('returns a boolean', () => {
+      expect(typeof isWSL()).toBe('boolean');
+    });
+
+    it('returns false on non-linux platforms', () => {
+      // On Windows or macOS, isWSL should always return false
+      // even if we can't mock the platform, the function should not throw
+      const result = isWSL();
+      if (process.platform !== 'linux') {
+        expect(result).toBe(false);
+      }
+    });
+
+    it('returns consistent results on repeated calls', () => {
+      const result1 = isWSL();
+      const result2 = isWSL();
+      expect(result1).toBe(result2);
     });
   });
 

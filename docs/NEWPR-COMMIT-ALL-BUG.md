@@ -1,6 +1,45 @@
 # Bug Investigation: newpr `commit_all` Not Moving Files to PR Branch
 
-**Status:** FIXED (see [src/cli/newpr.ts:486](../src/cli/newpr.ts#L486))
+**Status:** FIXED (multiple issues)
+
+## Fix #3: Off-by-one error in promptChoiceIndex (2025-01)
+
+**Root Cause:** The `promptChoiceIndex` function returns a 1-based index (user enters "1" for first option),
+but the code was using this value directly as a 0-based array index to access `context.choices[choiceIndex]`.
+
+This meant when the user selected option 1, the code would access `context.choices[1]` (the second option)
+instead of `context.choices[0]` (the first option).
+
+**The Fix:** Changed `context.choices[choiceIndex]` to `context.choices[choiceIndex - 1]` in:
+
+- [src/cli/newpr.ts:219](../src/cli/newpr.ts#L219)
+
+**Impact:** Every user selection was off by one - selecting option 1 would execute option 2's action, etc.
+This affected all interactive scenarios in the newpr command.
+
+---
+
+## Fix #2: Branch from HEAD instead of origin/main (2024-01)
+
+**Root Cause:** When the user selects "Stage all and commit to the new PR branch", the action
+used `branchFrom: 'origin_main'` by default. After `git fetch`, if `origin/main` has moved
+ahead of the local `main`, the checkout command `git checkout -b <branch> origin/main` would
+reset the index to `origin/main`'s content, **discarding the staged changes**.
+
+**The Fix:** Changed `commit_all` and `commit_staged` actions to use `branchFrom: 'head'` in:
+
+- `main_unstaged_same` scenario
+- `main_staged_same` scenario
+- `main_both_same` scenario
+- `branch_with_changes` scenario (when no divergent commits)
+
+This ensures the new branch is created from HEAD, preserving staged changes.
+
+See: [src/lib/newpr/scenario-handler.ts](../src/lib/newpr/scenario-handler.ts)
+
+---
+
+## Fix #1: cwd issue (see [src/cli/newpr.ts:486](../src/cli/newpr.ts#L486))
 
 ## Summary
 
