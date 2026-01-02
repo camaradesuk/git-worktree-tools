@@ -90,16 +90,16 @@ lswt | cat            # Automatically uses list mode when piped
 
 When running in a TTY terminal, `lswt` enters interactive mode where you can select a worktree and perform actions:
 
-| Shortcut | Action                                    |
-| -------- | ----------------------------------------- |
-| `e`      | Open in editor (VSCode or Cursor)         |
-| `t`      | Open terminal at worktree path            |
-| `p`      | Open PR in browser / Create PR from branch|
-| `d`      | Show worktree details                     |
-| `c`      | Copy path to clipboard                    |
-| `l`      | Link config files (via wtlink)            |
-| `r`      | Remove worktree (not available for main)  |
-| `q`      | Quit                                      |
+| Shortcut | Action                                     |
+| -------- | ------------------------------------------ |
+| `e`      | Open in editor (VSCode or Cursor)          |
+| `t`      | Open terminal at worktree path             |
+| `p`      | Open PR in browser / Create PR from branch |
+| `d`      | Show worktree details                      |
+| `c`      | Copy path to clipboard                     |
+| `l`      | Link config files (via wtlink)             |
+| `r`      | Remove worktree (not available for main)   |
+| `q`      | Quit                                       |
 
 Use `--no-interactive` to disable interactive mode, or pipe output to automatically switch to list mode.
 
