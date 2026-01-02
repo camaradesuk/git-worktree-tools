@@ -3,7 +3,6 @@
  */
 
 import { execSync, spawn } from 'child_process';
-import * as path from 'path';
 import inquirer from 'inquirer';
 import * as colors from '../colors.js';
 import * as git from '../git.js';
@@ -490,8 +489,10 @@ async function removeWorktree(worktree: WorktreeDisplay): Promise<ActionResult> 
     if (deleteBranch && worktree.branch) {
       try {
         console.log(colors.dim(`Deleting branch ${worktree.branch}...`));
+        // Use main worktree root as cwd since the worktree was just removed
+        const mainRoot = git.getMainWorktreeRoot();
         execSync(`git branch -D "${worktree.branch}"`, {
-          cwd: path.dirname(worktree.path),
+          cwd: mainRoot,
           stdio: ['pipe', 'pipe', 'pipe'],
         });
       } catch {

@@ -32,6 +32,12 @@ export async function runInteractiveMode(
   const deps = createDefaultDeps();
   const executorDeps = createDefaultExecutorDeps();
 
+  // Guard against empty worktrees array
+  if (initialWorktrees.length === 0) {
+    console.log(colors.dim('\nNo worktrees found.\n'));
+    return;
+  }
+
   let worktrees = initialWorktrees;
   let running = true;
 
@@ -94,7 +100,8 @@ export async function runInteractiveMode(
  * Print worktree list header
  */
 function printWorktreeHeader(worktrees: WorktreeDisplay[]): void {
-  const repoName = path.basename(worktrees[0]?.path.replace(/\.pr\d+$/, '') || 'repository');
+  const firstPath = worktrees[0]?.path || '';
+  const repoName = path.basename(firstPath.replace(/\.pr\d+$/, '') || 'repository');
 
   console.log(
     colors.cyan(
