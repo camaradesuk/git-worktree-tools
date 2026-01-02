@@ -21,10 +21,11 @@ The tools should work out-of-the-box with sensible defaults while offering deep 
 | Phase 1 | Non-Interactive Foundation | ✅ Complete |
 | Phase 2 | State Query Command (`wtstate`) | ✅ Complete |
 | Phase 3 | Programmatic API Layer | ✅ Complete |
-| Phase 4 | MCP Server | ⏳ Not Started |
-| Phase 5 | AI Content Generation | ⏳ Not Started |
-| Phase 6 | Extensibility & Hooks | ⏳ Not Started |
-| Phase 7 | Setup Wizard | ⏳ Not Started |
+| Phase 4 | MCP Server | ✅ Complete |
+| Phase 5 | AI Content Generation | ✅ Complete |
+| Phase 6 | Extensibility & Hooks | ✅ Complete |
+| Phase 7 | Setup Wizard (`wtconfig`) | ✅ Complete |
+| Phase 8 | Enhanced Configuration | ✅ Complete |
 
 **Last Updated:** 2026-01-02
 **Package Version:** 1.3.0

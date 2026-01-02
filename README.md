@@ -44,6 +44,9 @@ wtlink
 
 # Query git state (for AI agents)
 wtstate --json
+
+# Configure settings with interactive wizard
+wtconfig init
 ```
 
 ## Commands
@@ -231,6 +234,35 @@ wtstate --base dev   # Specify base branch (default: main)
 - `availableActions` — Actions available for this scenario
 - `recommendedAction` — Suggested action to take
 
+### wtconfig
+
+Configuration management with an interactive setup wizard.
+
+```bash
+wtconfig init           # Run interactive setup wizard
+wtconfig show           # Show current configuration
+wtconfig set <key> <val> # Set a configuration value
+wtconfig get <key>      # Get a configuration value
+wtconfig edit           # Open config in default editor
+wtconfig validate       # Validate configuration
+```
+
+**Setup wizard detects:**
+
+- Operating system and installed tools
+- Git configuration (version, user, email)
+- GitHub CLI authentication
+- Available AI tools (Claude Code, Gemini CLI, Ollama)
+- Package manager (npm, pnpm, yarn, bun)
+- IDE availability (VS Code, Cursor)
+
+**Configuration locations:**
+
+- **Global:** `~/.worktreerc` (applies to all repos)
+- **Repository:** `.worktreerc` or `.worktreerc.json` (repo-specific)
+
+Repository config overrides global settings.
+
 **Example AI workflow:**
 
 ```bash
@@ -282,13 +314,21 @@ wtlink link --yes --json
 
 ## Configuration
 
-Create a `.worktreerc` file in your repository root:
+Create a `.worktreerc` file in your repository root, or use `wtconfig init` to generate one interactively:
 
 ```json
 {
-  "sharedRepos": ["cluster-gitops", "infrastructure"],
   "baseBranch": "main",
-  "draftPr": true
+  "draftPr": true,
+  "branchPrefix": "feat",
+  "ai": {
+    "provider": "auto",
+    "branchName": true,
+    "prDescription": true
+  },
+  "hooks": {
+    "post-worktree": "npm install"
+  }
 }
 ```
 
@@ -303,6 +343,96 @@ Create a `.worktreerc` file in your repository root:
 | `worktreeParent`  | string   | `".."`                | Parent directory for worktrees                             |
 | `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names                     |
 | `preferredEditor` | string   | `"vscode"`            | Editor for lswt interactive: "vscode", "cursor", or "auto" |
+| `ai`              | object   | `{}`                  | AI content generation settings (see below)                 |
+| `hooks`           | object   | `{}`                  | Lifecycle hook commands (see below)                        |
+
+### AI Content Generation
+
+Enable AI-powered content generation for branch names and PR descriptions:
+
+```json
+{
+  "ai": {
+    "provider": "auto",    // "auto" | "claude" | "gemini" | "openai" | "ollama" | "none"
+    "branchName": true,    // Generate smart branch names from description
+    "prTitle": true,       // Generate PR titles
+    "prDescription": true  // Generate PR descriptions from changes
+  }
+}
+```
+
+When `provider` is `"auto"`, the tool detects available AI tools in order: Claude Code → Gemini CLI → Ollama → OpenAI API.
+
+### Lifecycle Hooks
+
+Run custom commands at various points in the `newpr` workflow:
+
+```json
+{
+  "hooks": {
+    "post-worktree": "npm install",
+    "post-pr": ["echo 'PR created!'", "./notify-team.sh"],
+    "pre-branch": {
+      "command": "npm test",
+      "failOnError": true
+    }
+  }
+}
+```
+
+**Available hooks:**
+
+| Hook | Description | Critical |
+|------|-------------|----------|
+| `pre-analyze` | Before git state analysis | Yes |
+| `post-analyze` | After state analysis | No |
+| `pre-branch` | Before branch creation | Yes |
+| `post-branch` | After branch creation | No |
+| `pre-commit` | Before initial commit | Yes |
+| `post-commit` | After initial commit | No |
+| `pre-push` | Before push to origin | Yes |
+| `post-push` | After push to origin | No |
+| `pre-pr` | Before PR creation | Yes |
+| `post-pr` | After PR creation | No |
+| `pre-worktree` | Before worktree creation | Yes |
+| `post-worktree` | After worktree creation | No |
+| `cleanup` | On error (for rollback) | No |
+
+**Critical hooks** abort the workflow if they fail. Non-critical hooks show a warning but continue.
+
+**Hook definition formats:**
+
+```json
+{
+  "hooks": {
+    // Simple command
+    "post-worktree": "npm install",
+
+    // Multiple commands (run in sequence)
+    "post-pr": ["echo 'Done!'", "./scripts/notify.sh"],
+
+    // Complex definition
+    "pre-commit": {
+      "command": "npm test",
+      "timeout": 60000,
+      "failOnError": true,
+      "if": "exists:package.json"
+    }
+  }
+}
+```
+
+**Hook context variables** (available as environment variables):
+
+| Variable | Description |
+|----------|-------------|
+| `WT_BRANCH_NAME` | New branch name |
+| `WT_PR_NUMBER` | PR number |
+| `WT_PR_URL` | PR URL |
+| `WT_WORKTREE_PATH` | New worktree path |
+| `WT_REPO_ROOT` | Main repo root |
+| `WT_BASE_BRANCH` | Base branch (main) |
+| `WT_DESCRIPTION` | PR description |
 
 > **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 
