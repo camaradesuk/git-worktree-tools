@@ -28,6 +28,8 @@ describe('cleanpr/cleanup', () => {
     force: false,
     all: false,
     interactive: true,
+    json: false,
+    dryRun: false,
     ...overrides,
   });
 

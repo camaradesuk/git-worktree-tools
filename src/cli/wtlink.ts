@@ -23,6 +23,8 @@ import { DEFAULT_MANIFEST_FILE } from '../lib/constants.js';
 // Define interfaces for command arguments for type safety
 interface GlobalOptions {
   manifestFile: string;
+  /** Output result as JSON for programmatic parsing */
+  json: boolean;
 }
 
 interface ManageArgv extends GlobalOptions {
@@ -52,6 +54,11 @@ yargs(hideBin(process.argv))
     description: 'The name of the manifest file.',
     type: 'string',
     default: DEFAULT_MANIFEST_FILE,
+  })
+  .option('json', {
+    description: 'Output result as JSON for programmatic parsing (AI/automation)',
+    type: 'boolean',
+    default: false,
   })
   .command<ManageArgv>(
     'manage',

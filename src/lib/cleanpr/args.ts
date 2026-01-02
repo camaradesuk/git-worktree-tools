@@ -15,6 +15,8 @@ export function parseArgs(argv: string[]): ParseResult {
     force: false,
     all: false,
     interactive: true,
+    json: false,
+    dryRun: false,
   };
 
   for (const arg of argv) {
@@ -34,6 +36,13 @@ export function parseArgs(argv: string[]): ParseResult {
       case '--all':
         options.all = true;
         options.interactive = false;
+        break;
+      case '--json':
+        options.json = true;
+        break;
+      case '-n':
+      case '--dry-run':
+        options.dryRun = true;
         break;
       default:
         if (arg.startsWith('-')) {
@@ -72,12 +81,21 @@ OPTIONS
   -a, --all       Clean all merged/closed PR worktrees (non-interactive)
   -h, --help      Show this help message
 
+AI/AUTOMATION OPTIONS
+  --json          Output result as JSON for programmatic parsing
+  -n, --dry-run   Preview what would be cleaned without making changes
+
 EXAMPLES
   cleanpr                    # Interactive mode - select worktrees to clean
   cleanpr 2245               # Remove worktree and local branch for PR #2245
   cleanpr 2245 --remote      # Also delete remote branch
   cleanpr 2245 -f -r         # Force cleanup and delete remote
   cleanpr --all              # Clean all merged/closed PRs
+
+  # AI/Automation usage
+  cleanpr --all --json       # Clean all and output JSON result
+  cleanpr --all --dry-run --json
+                             # Preview cleanup as JSON
 
 WHAT IT REMOVES
   - Git worktree directory

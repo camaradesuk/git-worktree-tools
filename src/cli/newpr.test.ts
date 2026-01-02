@@ -98,6 +98,8 @@ describe('cli/newpr', () => {
     installDeps: false,
     openEditor: false,
     runWtlink: false,
+    json: false,
+    nonInteractive: false,
   };
 
   const makePrInfo = (overrides = {}) => ({

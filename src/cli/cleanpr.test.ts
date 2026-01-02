@@ -117,7 +117,7 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: { all: false, force: false, deleteRemote: false, interactive: true, json: false, dryRun: false },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(false);
 
@@ -131,7 +131,7 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: { all: false, force: false, deleteRemote: false, interactive: true, json: false, dryRun: false },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('');
@@ -148,7 +148,7 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: { all: false, force: false, deleteRemote: false, interactive: true, json: false, dryRun: false },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -178,7 +178,7 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: true, force: false, deleteRemote: false, interactive: false },
+        options: { all: true, force: false, deleteRemote: false, interactive: false, json: false, dryRun: false },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -205,7 +205,7 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: true, force: false, deleteRemote: false, interactive: false },
+        options: { all: true, force: false, deleteRemote: false, interactive: false, json: false, dryRun: false },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -229,7 +229,7 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: 42,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: { all: false, force: false, deleteRemote: false, interactive: true, json: false, dryRun: false },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -255,7 +255,7 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: 999,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: { all: false, force: false, deleteRemote: false, interactive: true, json: false, dryRun: false },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');

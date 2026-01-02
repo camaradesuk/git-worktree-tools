@@ -10,6 +10,12 @@ export interface CleanOptions {
   force: boolean;
   all: boolean;
   interactive: boolean;
+
+  // AI-friendly options (Phase 1)
+  /** Output result as JSON for programmatic parsing */
+  json: boolean;
+  /** Preview what would be cleaned without making changes */
+  dryRun: boolean;
 }
 
 /**
