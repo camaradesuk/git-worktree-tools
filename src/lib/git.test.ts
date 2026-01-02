@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execSync } from 'child_process';
+import * as path from 'path';
 import * as git from './git.js';
 
 // Mock child_process
@@ -510,6 +511,71 @@ describe('git', () => {
         'git rev-parse --verify "refs/remotes/upstream/main"',
         expect.any(Object)
       );
+    });
+  });
+
+  describe('getMainWorktreeRoot', () => {
+    it('returns repo root when in main worktree', () => {
+      // Use path.join to create platform-appropriate paths
+      const repoPath = path.join('/home', 'user', 'repo');
+      const gitDir = path.join(repoPath, '.git');
+      mockExecSync.mockReturnValue(gitDir);
+      const result = git.getMainWorktreeRoot(repoPath);
+      expect(result).toBe(path.resolve(repoPath));
+    });
+
+    it('returns main worktree root when in linked worktree', () => {
+      const mainRepo = path.join('/home', 'user', 'main-repo');
+      const worktreeGitDir = path.join(mainRepo, '.git', 'worktrees', 'feature-branch');
+      mockExecSync.mockReturnValue(worktreeGitDir);
+      const result = git.getMainWorktreeRoot(path.join('/home', 'user', 'main-repo.pr42'));
+      expect(result).toBe(path.resolve(mainRepo));
+    });
+
+    it('falls back to getRepoRoot when commonDir is null', () => {
+      const fallbackPath = path.join('/fallback', 'root');
+      mockExecSync.mockImplementation((cmd: string) => {
+        if (cmd.includes('--git-common-dir')) {
+          throw new Error('failed');
+        }
+        // getRepoRoot calls rev-parse --show-toplevel
+        return fallbackPath;
+      });
+      const result = git.getMainWorktreeRoot();
+      expect(result).toBe(fallbackPath);
+    });
+  });
+
+  describe('isGitIgnored', () => {
+    it('returns true when file is ignored', () => {
+      mockExecSync.mockReturnValue('node_modules/');
+      expect(git.isGitIgnored('node_modules/')).toBe(true);
+    });
+
+    it('returns false when file is not ignored', () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('no output for unignored files');
+      });
+      expect(git.isGitIgnored('src/index.ts')).toBe(false);
+    });
+
+    it('returns false when check-ignore returns empty', () => {
+      mockExecSync.mockReturnValue('');
+      expect(git.isGitIgnored('src/index.ts')).toBe(false);
+    });
+  });
+
+  describe('checkGitInstalled', () => {
+    it('returns true when git is installed', () => {
+      mockExecSync.mockReturnValue('git version 2.39.0');
+      expect(git.checkGitInstalled()).toBe(true);
+    });
+
+    it('returns false when git is not installed', () => {
+      mockExecSync.mockImplementation(() => {
+        throw new Error('command not found: git');
+      });
+      expect(git.checkGitInstalled()).toBe(false);
     });
   });
 });

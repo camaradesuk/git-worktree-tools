@@ -75,14 +75,33 @@ cleanpr --force   # Force remove even if not merged
 
 ### lswt
 
-List all worktrees with status information.
+List and manage git worktrees with an interactive interface.
 
 ```bash
-lswt              # List all worktrees
-lswt --status     # Include PR status (open/merged/closed)
-lswt --json       # Output as JSON for scripting
-lswt --verbose    # Show more details (commit hashes, full paths)
+lswt                  # Interactive mode (default in terminal)
+lswt --no-interactive # List-only mode
+lswt --status         # Include PR status (requires gh cli)
+lswt --json           # Output as JSON for scripting
+lswt --verbose        # Show more details (commit hashes, full paths)
+lswt | cat            # Automatically uses list mode when piped
 ```
+
+**Interactive mode** (enabled by default when running in a terminal):
+
+When running in a TTY terminal, `lswt` enters interactive mode where you can select a worktree and perform actions:
+
+| Shortcut | Action                                     |
+| -------- | ------------------------------------------ |
+| `e`      | Open in editor (VSCode or Cursor)          |
+| `t`      | Open terminal at worktree path             |
+| `p`      | Open PR in browser / Create PR from branch |
+| `d`      | Show worktree details                      |
+| `c`      | Copy path to clipboard                     |
+| `l`      | Link config files (via wtlink)             |
+| `r`      | Remove worktree (not available for main)   |
+| `q`      | Quit                                       |
+
+Use `--no-interactive` to disable interactive mode, or pipe output to automatically switch to list mode.
 
 ### wtlink
 
@@ -200,14 +219,15 @@ Create a `.worktreerc` file in your repository root:
 
 ### Options
 
-| Option            | Type     | Default               | Description                                |
-| ----------------- | -------- | --------------------- | ------------------------------------------ |
-| `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for |
-| `baseBranch`      | string   | `"main"`              | Base branch for new PRs                    |
-| `draftPr`         | boolean  | `false`               | Create PRs as drafts by default            |
-| `worktreePattern` | string   | `"{repo}.pr{number}"` | Worktree directory naming pattern          |
-| `worktreeParent`  | string   | `".."`                | Parent directory for worktrees             |
-| `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names     |
+| Option            | Type     | Default               | Description                                                |
+| ----------------- | -------- | --------------------- | ---------------------------------------------------------- |
+| `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for                 |
+| `baseBranch`      | string   | `"main"`              | Base branch for new PRs                                    |
+| `draftPr`         | boolean  | `false`               | Create PRs as drafts by default                            |
+| `worktreePattern` | string   | `"{repo}.pr{number}"` | Worktree directory naming pattern                          |
+| `worktreeParent`  | string   | `".."`                | Parent directory for worktrees                             |
+| `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names                     |
+| `preferredEditor` | string   | `"vscode"`            | Editor for lswt interactive: "vscode", "cursor", or "auto" |
 
 > **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 

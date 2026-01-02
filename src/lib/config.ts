@@ -53,6 +53,13 @@ export interface WorktreeConfig {
    * Default: "feat"
    */
   branchPrefix?: string;
+
+  /**
+   * Preferred editor for "Open in editor" action in lswt interactive mode
+   * Options: "vscode" | "cursor" | "auto"
+   * Default: "vscode"
+   */
+  preferredEditor?: 'vscode' | 'cursor' | 'auto';
 }
 
 /**
@@ -67,6 +74,7 @@ export function getDefaultConfig(): Required<WorktreeConfig> {
     worktreeParent: DEFAULT_WORKTREE_PARENT,
     syncPatterns: [],
     branchPrefix: DEFAULT_BRANCH_PREFIX,
+    preferredEditor: 'vscode',
   };
 }
 

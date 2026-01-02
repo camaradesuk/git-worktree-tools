@@ -11,12 +11,20 @@ import type { ListOptions, WorktreeDisplay } from './types.js';
 import { extractPrNumber, isMainWorktree, sortWorktrees } from './formatters.js';
 
 /**
+ * PR info returned by dependency
+ */
+export interface PrInfoResult {
+  state: 'OPEN' | 'CLOSED' | 'MERGED' | null;
+  isDraft: boolean | null;
+}
+
+/**
  * Dependencies interface for testing
  */
 export interface GatherDeps {
   listWorktrees: (cwd?: string) => Worktree[];
   hasUncommittedChanges: (worktreePath: string) => boolean;
-  getPrState: (prNumber: number) => Promise<string | null>;
+  getPrInfo: (prNumber: number) => Promise<PrInfoResult>;
 }
 
 /**
@@ -38,14 +46,17 @@ export async function gatherWorktreeInfo(
     const hasChanges = deps.hasUncommittedChanges(wt.path);
 
     let type: WorktreeDisplay['type'];
-    let prState: string | null = null;
+    let prState: WorktreeDisplay['prState'] = null;
+    let isDraft: boolean | null = null;
 
     if (isMain) {
       type = 'main';
     } else if (prNumber !== null) {
       type = 'pr';
       if (options.showStatus) {
-        prState = await deps.getPrState(prNumber);
+        const prInfo = await deps.getPrInfo(prNumber);
+        prState = prInfo.state;
+        isDraft = prInfo.isDraft;
       }
     } else if (wt.branch) {
       type = 'branch';
@@ -61,6 +72,7 @@ export async function gatherWorktreeInfo(
       type,
       prNumber,
       prState,
+      isDraft,
       hasChanges,
     });
   }
@@ -88,12 +100,18 @@ export function createDefaultDeps(): GatherDeps {
       }
     },
 
-    getPrState: async (prNumber: number): Promise<string | null> => {
+    getPrInfo: async (prNumber: number): Promise<PrInfoResult> => {
       try {
         const pr = github.getPr(prNumber);
-        return pr?.state ?? null;
+        if (pr) {
+          return {
+            state: pr.state,
+            isDraft: pr.isDraft,
+          };
+        }
+        return { state: null, isDraft: null };
       } catch {
-        return null;
+        return { state: null, isDraft: null };
       }
     },
   };

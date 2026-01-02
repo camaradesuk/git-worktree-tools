@@ -126,9 +126,11 @@ describe('cli/lswt', () => {
           type: 'main' as const,
           prNumber: null,
           prState: null,
+          isDraft: null,
           hasChanges: false,
         },
       ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
 
       vi.mocked(lswt.parseArgs).mockReturnValue({
         kind: 'success',
@@ -136,14 +138,18 @@ describe('cli/lswt', () => {
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
-      vi.mocked(lswt.createDefaultDeps).mockReturnValue(
-        {} as ReturnType<typeof lswt.createDefaultDeps>
-      );
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
       vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
       vi.mocked(lswt.formatJsonOutput).mockReturnValue('[{"path":"/repo"}]');
 
       await runCli(['--json']);
 
+      // Verify wiring: gatherWorktreeInfo receives correct parameters
+      expect(lswt.gatherWorktreeInfo).toHaveBeenCalledWith(
+        '/repo', // repoRoot from git.getRepoRoot
+        expect.objectContaining({ verbose: false, json: true, showStatus: false }), // options
+        mockDeps // deps from createDefaultDeps
+      );
       expect(lswt.formatJsonOutput).toHaveBeenCalledWith(mockWorktrees);
       expect(mockConsoleLog).toHaveBeenCalledWith('[{"path":"/repo"}]');
     });
@@ -160,9 +166,11 @@ describe('cli/lswt', () => {
           type: 'main' as const,
           prNumber: null,
           prState: null,
+          isDraft: null,
           hasChanges: false,
         },
       ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
 
       vi.mocked(lswt.parseArgs).mockReturnValue({
         kind: 'success',
@@ -170,15 +178,19 @@ describe('cli/lswt', () => {
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
-      vi.mocked(lswt.createDefaultDeps).mockReturnValue(
-        {} as ReturnType<typeof lswt.createDefaultDeps>
-      );
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
       vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
       vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
       vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
 
       await runCli([]);
 
+      // Verify wiring: gatherWorktreeInfo receives correct parameters
+      expect(lswt.gatherWorktreeInfo).toHaveBeenCalledWith(
+        '/repo', // repoRoot from git.getRepoRoot
+        expect.objectContaining({ verbose: false, json: false, showStatus: false }), // options
+        mockDeps // deps from createDefaultDeps
+      );
       expect(lswt.formatTypeLabel).toHaveBeenCalledWith(mockWorktrees[0]);
       expect(mockConsoleLog).toHaveBeenCalled();
     });

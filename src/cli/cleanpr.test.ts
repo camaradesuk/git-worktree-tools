@@ -52,6 +52,7 @@ describe('cli/cleanpr', () => {
     sharedRepos: [],
     branchPrefix: 'feature',
     syncPatterns: [],
+    preferredEditor: 'auto' as const,
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({
@@ -197,7 +198,12 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--all']);
 
-      expect(cleanpr.cleanWorktree).toHaveBeenCalled();
+      // Verify wiring: cleanWorktree receives correct worktree info and options
+      expect(cleanpr.cleanWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ prNumber: 123 }), // worktree info
+        expect.objectContaining({ force: false, deleteRemote: false }), // options
+        expect.any(Object) // deps
+      );
       expect(cleanpr.summarizeResults).toHaveBeenCalled();
     });
 
@@ -247,8 +253,14 @@ describe('cli/cleanpr', () => {
 
       await runCli(['42']);
 
+      // Verify wiring: findWorktreeByPrNumber receives worktrees and PR number
       expect(cleanpr.findWorktreeByPrNumber).toHaveBeenCalledWith([mockWorktree], 42);
-      expect(cleanpr.cleanWorktree).toHaveBeenCalled();
+      // Verify wiring: cleanWorktree receives correct worktree info and options
+      expect(cleanpr.cleanWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ prNumber: 42 }), // worktree info
+        expect.objectContaining({ force: false, deleteRemote: false }), // options
+        expect.any(Object) // deps
+      );
     });
 
     it('exits 1 when specific PR not found', async () => {

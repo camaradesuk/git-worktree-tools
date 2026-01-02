@@ -84,6 +84,13 @@ describe('github', () => {
       const result = github.getRepoInfo();
       expect(result?.defaultBranch).toBe('main');
     });
+
+    it('returns null on invalid JSON', () => {
+      mockExecSync.mockReturnValue('not valid json');
+
+      const result = github.getRepoInfo();
+      expect(result).toBeNull();
+    });
   });
 
   describe('createPr', () => {
@@ -246,6 +253,13 @@ describe('github', () => {
       const result = github.getPr(999);
       expect(result).toBeNull();
     });
+
+    it('returns null on invalid JSON response', () => {
+      mockExecSync.mockReturnValue('not valid json');
+
+      const result = github.getPr(42);
+      expect(result).toBeNull();
+    });
   });
 
   describe('getPrByBranch', () => {
@@ -277,6 +291,13 @@ describe('github', () => {
       });
 
       const result = github.getPrByBranch('feature/no-pr');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on invalid JSON response', () => {
+      mockExecSync.mockReturnValue('not valid json');
+
+      const result = github.getPrByBranch('feature/bad-json');
       expect(result).toBeNull();
     });
   });
@@ -350,6 +371,13 @@ describe('github', () => {
       mockExecSync.mockImplementation(() => {
         throw new Error('not authenticated');
       });
+
+      const result = github.listPrs();
+      expect(result).toEqual([]);
+    });
+
+    it('returns empty array on invalid JSON', () => {
+      mockExecSync.mockReturnValue('not valid json');
 
       const result = github.listPrs();
       expect(result).toEqual([]);
