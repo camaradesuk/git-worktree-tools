@@ -261,9 +261,9 @@ describe('prompts', () => {
         });
       });
 
-      await expect(
-        promptChoice('Choose:', [{ label: 'A', value: 'a' }])
-      ).rejects.toThrow('User cancelled');
+      await expect(promptChoice('Choose:', [{ label: 'A', value: 'a' }])).rejects.toThrow(
+        'User cancelled'
+      );
       expect(mockRl.close).toHaveBeenCalled();
     });
   });
@@ -490,7 +490,8 @@ describe('prompts', () => {
 
   describe('withSpinner', () => {
     let originalIsTTY: boolean | undefined;
-    let stdoutWriteSpy: ReturnType<typeof vi.spyOn>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let stdoutWriteSpy: any;
 
     beforeEach(() => {
       originalIsTTY = process.stdout.isTTY;

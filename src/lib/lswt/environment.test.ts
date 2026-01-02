@@ -216,12 +216,7 @@ describe('lswt/environment', () => {
         expect(['wt', 'cmd']).toContain(terminal);
       } else {
         // Linux
-        expect([
-          'gnome-terminal',
-          'konsole',
-          'xfce4-terminal',
-          'xterm',
-        ]).toContain(terminal);
+        expect(['gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm']).toContain(terminal);
       }
     });
   });
