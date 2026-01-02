@@ -36,7 +36,10 @@ export class FallbackProvider implements AIProvider {
 
   async generateBranchName(context: BranchContext): Promise<AIGenerationResult> {
     const maxLength = context.maxLength ?? 50;
-    const base = sanitizeBranchName(context.description, maxLength - context.branchPrefix.length - 8);
+    const base = sanitizeBranchName(
+      context.description,
+      maxLength - context.branchPrefix.length - 8
+    );
     const suffix = randomSuffix();
     const branchName = `${context.branchPrefix}/${base}-${suffix}`;
 

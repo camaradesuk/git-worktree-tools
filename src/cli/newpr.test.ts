@@ -158,7 +158,9 @@ describe('cli/newpr', () => {
     mockHookRunner.getContext.mockReturnValue({});
 
     // Reset createHookRunner to return the mock
-    vi.mocked(newpr.createHookRunner).mockReturnValue(mockHookRunner as unknown as ReturnType<typeof newpr.createHookRunner>);
+    vi.mocked(newpr.createHookRunner).mockReturnValue(
+      mockHookRunner as unknown as ReturnType<typeof newpr.createHookRunner>
+    );
 
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});

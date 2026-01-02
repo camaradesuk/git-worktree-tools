@@ -117,18 +117,12 @@ export class AIProviderManager {
   }
 
   private async createOllamaProvider(): Promise<AIProvider | null> {
-    const provider = new OllamaProvider(
-      this.config.ollama?.model,
-      this.config.ollama?.host
-    );
+    const provider = new OllamaProvider(this.config.ollama?.model, this.config.ollama?.host);
     return (await provider.isAvailable()) ? provider : null;
   }
 
   private async createOpenAIProvider(): Promise<AIProvider | null> {
-    const provider = new OpenAIProvider(
-      this.config.openai?.model,
-      this.config.openai?.apiKeyEnv
-    );
+    const provider = new OpenAIProvider(this.config.openai?.model, this.config.openai?.apiKeyEnv);
     return (await provider.isAvailable()) ? provider : null;
   }
 
@@ -197,7 +191,9 @@ export class AIProviderManager {
   /**
    * Check if AI generation is enabled for a feature
    */
-  isEnabled(feature: 'branchName' | 'prTitle' | 'prDescription' | 'commitMessage' | 'planDocument'): boolean {
+  isEnabled(
+    feature: 'branchName' | 'prTitle' | 'prDescription' | 'commitMessage' | 'planDocument'
+  ): boolean {
     return this.config[feature] ?? false;
   }
 
@@ -248,7 +244,9 @@ export class AIProviderManager {
   /**
    * Generate a branch name
    */
-  async generateBranchName(context: import('./types.js').BranchContext): Promise<AIGenerationResult> {
+  async generateBranchName(
+    context: import('./types.js').BranchContext
+  ): Promise<AIGenerationResult> {
     return this.executeWithFallback((provider) => provider.generateBranchName(context));
   }
 
@@ -262,21 +260,27 @@ export class AIProviderManager {
   /**
    * Generate a PR description
    */
-  async generatePRDescription(context: import('./types.js').PRContext): Promise<AIGenerationResult> {
+  async generatePRDescription(
+    context: import('./types.js').PRContext
+  ): Promise<AIGenerationResult> {
     return this.executeWithFallback((provider) => provider.generatePRDescription(context));
   }
 
   /**
    * Generate a commit message
    */
-  async generateCommitMessage(context: import('./types.js').CommitContext): Promise<AIGenerationResult> {
+  async generateCommitMessage(
+    context: import('./types.js').CommitContext
+  ): Promise<AIGenerationResult> {
     return this.executeWithFallback((provider) => provider.generateCommitMessage(context));
   }
 
   /**
    * Generate a plan document
    */
-  async generatePlanDocument(context: import('./types.js').PlanContext): Promise<AIGenerationResult> {
+  async generatePlanDocument(
+    context: import('./types.js').PlanContext
+  ): Promise<AIGenerationResult> {
     return this.executeWithFallback((provider) => provider.generatePlanDocument(context));
   }
 }

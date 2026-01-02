@@ -3,13 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  HOOK_NAMES,
-  contextToEnv,
-  isSimpleHook,
-  isMultipleHook,
-  isComplexHook,
-} from './types.js';
+import { HOOK_NAMES, contextToEnv, isSimpleHook, isMultipleHook, isComplexHook } from './types.js';
 import type { HookContext, ComplexHookDef } from './types.js';
 
 describe('HOOK_NAMES', () => {

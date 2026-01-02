@@ -62,7 +62,11 @@ function getRecommendedAction(scenario: Scenario): StateActionKey | null {
 /**
  * Convert scenario choices to available actions
  */
-function getAvailableActions(scenario: Scenario, state: GitState, baseBranch: string): AvailableAction[] {
+function getAvailableActions(
+  scenario: Scenario,
+  state: GitState,
+  baseBranch: string
+): AvailableAction[] {
   const context = getScenarioContext(scenario, state, baseBranch);
   if (!context) {
     return [];

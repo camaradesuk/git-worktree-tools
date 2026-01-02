@@ -114,7 +114,7 @@ export const notifyTemplate: HookTemplate = {
         process.platform === 'darwin'
           ? 'osascript -e \'display notification "PR #{{PR_NUMBER}} created" with title "git-worktree-tools"\''
           : process.platform === 'win32'
-            ? 'powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName(\'System.Windows.Forms\'); [System.Windows.Forms.MessageBox]::Show(\'PR #{{PR_NUMBER}} created\')"'
+            ? "powershell -Command \"[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); [System.Windows.Forms.MessageBox]::Show('PR #{{PR_NUMBER}} created')\""
             : 'notify-send "git-worktree-tools" "PR #{{PR_NUMBER}} created"',
       failOnError: false,
     },

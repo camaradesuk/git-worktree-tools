@@ -8,7 +8,12 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import type { WorktreeConfig } from '../config.js';
-import type { ConfigSource, ValidationResult, ValidationError, ValidationWarning } from './types.js';
+import type {
+  ConfigSource,
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+} from './types.js';
 import { CONFIG_FILE_NAMES } from '../constants.js';
 
 /**
@@ -226,8 +231,10 @@ function parseValue(value: string): unknown {
   if (!isNaN(num) && value.trim() !== '') return num;
 
   // JSON array or object
-  if ((value.startsWith('[') && value.endsWith(']')) ||
-      (value.startsWith('{') && value.endsWith('}'))) {
+  if (
+    (value.startsWith('[') && value.endsWith(']')) ||
+    (value.startsWith('{') && value.endsWith('}'))
+  ) {
     try {
       return JSON.parse(value);
     } catch {
@@ -260,10 +267,13 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
   if (config.worktreePattern !== undefined) {
     if (typeof config.worktreePattern !== 'string') {
       errors.push({ path: 'worktreePattern', message: 'Must be a string' });
-    } else if (!config.worktreePattern.includes('{number}') && !config.worktreePattern.includes('{branch}')) {
+    } else if (
+      !config.worktreePattern.includes('{number}') &&
+      !config.worktreePattern.includes('{branch}')
+    ) {
       warnings.push({
         path: 'worktreePattern',
-        message: 'Pattern should include {number} or {branch} placeholder for uniqueness'
+        message: 'Pattern should include {number} or {branch} placeholder for uniqueness',
       });
     }
   }
@@ -280,7 +290,7 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
     } else if (!/^[a-z][a-z0-9-]*$/.test(config.branchPrefix)) {
       warnings.push({
         path: 'branchPrefix',
-        message: 'Should be lowercase alphanumeric with hyphens'
+        message: 'Should be lowercase alphanumeric with hyphens',
       });
     }
   }
@@ -290,7 +300,7 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
     if (!['vscode', 'cursor', 'auto'].includes(config.preferredEditor)) {
       errors.push({
         path: 'preferredEditor',
-        message: 'Must be "vscode", "cursor", or "auto"'
+        message: 'Must be "vscode", "cursor", or "auto"',
       });
     }
   }
@@ -299,7 +309,7 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
   if (config.sharedRepos !== undefined) {
     if (!Array.isArray(config.sharedRepos)) {
       errors.push({ path: 'sharedRepos', message: 'Must be an array' });
-    } else if (!config.sharedRepos.every(r => typeof r === 'string')) {
+    } else if (!config.sharedRepos.every((r) => typeof r === 'string')) {
       errors.push({ path: 'sharedRepos', message: 'All items must be strings' });
     }
   }
@@ -308,7 +318,7 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
   if (config.syncPatterns !== undefined) {
     if (!Array.isArray(config.syncPatterns)) {
       errors.push({ path: 'syncPatterns', message: 'Must be an array' });
-    } else if (!config.syncPatterns.every(r => typeof r === 'string')) {
+    } else if (!config.syncPatterns.every((r) => typeof r === 'string')) {
       errors.push({ path: 'syncPatterns', message: 'All items must be strings' });
     }
   }
@@ -322,7 +332,7 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
       if (config.ai.provider !== undefined && !validProviders.includes(config.ai.provider)) {
         errors.push({
           path: 'ai.provider',
-          message: `Must be one of: ${validProviders.join(', ')}`
+          message: `Must be one of: ${validProviders.join(', ')}`,
         });
       }
     }
@@ -340,7 +350,10 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
     if (!Array.isArray(config.plugins)) {
       errors.push({ path: 'plugins', message: 'Must be an array' });
     } else if (!config.plugins.every((p) => typeof p === 'string')) {
-      errors.push({ path: 'plugins', message: 'All items must be strings (npm package names or paths)' });
+      errors.push({
+        path: 'plugins',
+        message: 'All items must be strings (npm package names or paths)',
+      });
     }
   }
 

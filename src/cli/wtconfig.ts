@@ -174,9 +174,21 @@ function formatConfigWithDefaults(
   addLine('baseBranch', config.baseBranch ?? defaults.baseBranch, defaults.baseBranch);
   addLine('draftPr', config.draftPr ?? defaults.draftPr, defaults.draftPr);
   addLine('branchPrefix', config.branchPrefix ?? defaults.branchPrefix, defaults.branchPrefix);
-  addLine('worktreePattern', config.worktreePattern ?? defaults.worktreePattern, defaults.worktreePattern);
-  addLine('worktreeParent', config.worktreeParent ?? defaults.worktreeParent, defaults.worktreeParent);
-  addLine('preferredEditor', config.preferredEditor ?? defaults.preferredEditor, defaults.preferredEditor);
+  addLine(
+    'worktreePattern',
+    config.worktreePattern ?? defaults.worktreePattern,
+    defaults.worktreePattern
+  );
+  addLine(
+    'worktreeParent',
+    config.worktreeParent ?? defaults.worktreeParent,
+    defaults.worktreeParent
+  );
+  addLine(
+    'preferredEditor',
+    config.preferredEditor ?? defaults.preferredEditor,
+    defaults.preferredEditor
+  );
 
   if (config.sharedRepos && config.sharedRepos.length > 0) {
     addLine('sharedRepos', config.sharedRepos, defaults.sharedRepos);
@@ -194,7 +206,8 @@ function formatConfigWithDefaults(
     if (ai.provider !== undefined) addLine('    provider', ai.provider, defAi.provider);
     if (ai.branchName !== undefined) addLine('    branchName', ai.branchName, defAi.branchName);
     if (ai.prTitle !== undefined) addLine('    prTitle', ai.prTitle, defAi.prTitle);
-    if (ai.prDescription !== undefined) addLine('    prDescription', ai.prDescription, defAi.prDescription);
+    if (ai.prDescription !== undefined)
+      addLine('    prDescription', ai.prDescription, defAi.prDescription);
     lines.push('  }');
   }
 
@@ -263,9 +276,8 @@ async function setConfig(key: string | undefined, value: string | undefined): Pr
     },
   ]);
 
-  const currentConfig = saveLocation === 'repo' && repoRoot
-    ? loadRepoConfig(repoRoot) || {}
-    : loadGlobalConfig() || {};
+  const currentConfig =
+    saveLocation === 'repo' && repoRoot ? loadRepoConfig(repoRoot) || {} : loadGlobalConfig() || {};
 
   try {
     const newConfig = setConfigValue(currentConfig, key, value);
@@ -294,7 +306,9 @@ async function setConfig(key: string | undefined, value: string | undefined): Pr
       console.log(colors.success(`Set ${key} = ${value} in ~/.worktreerc`));
     }
   } catch (error) {
-    console.error(colors.error(`Failed to set value: ${error instanceof Error ? error.message : String(error)}`));
+    console.error(
+      colors.error(`Failed to set value: ${error instanceof Error ? error.message : String(error)}`)
+    );
     process.exit(1);
   }
 }
@@ -345,9 +359,10 @@ async function editConfig(): Promise<void> {
     },
   ]);
 
-  const configPath = editLocation === 'repo' && repoRoot
-    ? getDefaultRepoConfigPath(repoRoot)
-    : getGlobalConfigPath();
+  const configPath =
+    editLocation === 'repo' && repoRoot
+      ? getDefaultRepoConfigPath(repoRoot)
+      : getGlobalConfigPath();
 
   // Create file with defaults if it doesn't exist
   const fs = await import('fs');
@@ -422,7 +437,9 @@ async function validateCurrentConfig(): Promise<void> {
 async function runWizard(): Promise<void> {
   console.log();
   console.log(colors.info('┌' + '─'.repeat(56) + '┐'));
-  console.log(colors.info('│') + '           git-worktree-tools Setup Wizard           ' + colors.info('│'));
+  console.log(
+    colors.info('│') + '           git-worktree-tools Setup Wizard           ' + colors.info('│')
+  );
   console.log(colors.info('└' + '─'.repeat(56) + '┘'));
   console.log();
 
@@ -499,7 +516,9 @@ function displayEnvironment(env: EnvironmentInfo): void {
     if (env.git.configured) {
       console.log(`${check} Git ${env.git.version} configured (${env.git.email})`);
     } else {
-      console.log(`${warn} Git ${env.git.version} (not configured - run: git config --global user.name/email)`);
+      console.log(
+        `${warn} Git ${env.git.version} (not configured - run: git config --global user.name/email)`
+      );
     }
   } else {
     console.log(`${cross} Git not found`);
@@ -508,12 +527,16 @@ function displayEnvironment(env: EnvironmentInfo): void {
   // GitHub CLI
   if (env.github.installed) {
     if (env.github.authenticated) {
-      console.log(`${check} GitHub CLI authenticated${env.github.user ? ` (${env.github.user})` : ''}`);
+      console.log(
+        `${check} GitHub CLI authenticated${env.github.user ? ` (${env.github.user})` : ''}`
+      );
     } else {
       console.log(`${warn} GitHub CLI installed but not authenticated (run: gh auth login)`);
     }
   } else {
-    console.log(`${cross} GitHub CLI not installed (optional, install from: https://cli.github.com)`);
+    console.log(
+      `${cross} GitHub CLI not installed (optional, install from: https://cli.github.com)`
+    );
   }
 
   // AI tools
@@ -546,10 +569,7 @@ function displayEnvironment(env: EnvironmentInfo): void {
   console.log();
 }
 
-async function runWizardSteps(
-  env: EnvironmentInfo,
-  repoRoot: string | null
-): Promise<WizardState> {
+async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Promise<WizardState> {
   // Step 1: Base Configuration
   console.log(colors.info('Step 1/4: Base Configuration'));
   console.log();
@@ -694,11 +714,17 @@ async function runWizardSteps(
       aiEnabled = true;
 
       if (step3a.aiChoice === 'yes') {
-        aiProvider = env.ai.claudeCode ? 'auto' :
-          env.ai.geminiCLI ? 'gemini' :
-          env.ai.ollama ? 'ollama' : 'openai';
+        aiProvider = env.ai.claudeCode
+          ? 'auto'
+          : env.ai.geminiCLI
+            ? 'gemini'
+            : env.ai.ollama
+              ? 'ollama'
+              : 'openai';
       } else {
-        const { manualProvider } = await inquirer.prompt<{ manualProvider: WizardState['aiProvider'] }>([
+        const { manualProvider } = await inquirer.prompt<{
+          manualProvider: WizardState['aiProvider'];
+        }>([
           {
             type: 'list',
             name: 'manualProvider',
@@ -722,7 +748,11 @@ async function runWizardSteps(
           message: 'Which AI features would you like to enable?',
           choices: [
             { name: 'Generate branch names from description', value: 'branchName', checked: true },
-            { name: 'Generate PR descriptions from changes', value: 'prDescription', checked: true },
+            {
+              name: 'Generate PR descriptions from changes',
+              value: 'prDescription',
+              checked: true,
+            },
           ],
         },
       ]);
@@ -778,7 +808,9 @@ async function runWizardSteps(
     openEditor = step4.hooks.includes('openEditor');
 
     if (openEditor && env.ide.cursor && env.ide.vscode) {
-      const { editorChoice } = await inquirer.prompt<{ editorChoice: 'vscode' | 'cursor' | 'auto' }>([
+      const { editorChoice } = await inquirer.prompt<{
+        editorChoice: 'vscode' | 'cursor' | 'auto';
+      }>([
         {
           type: 'list',
           name: 'editorChoice',

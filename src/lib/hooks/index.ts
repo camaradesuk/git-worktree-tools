@@ -34,13 +34,7 @@ export type {
   ScriptHookFunction,
 } from './types.js';
 
-export {
-  HOOK_NAMES,
-  contextToEnv,
-  isSimpleHook,
-  isMultipleHook,
-  isComplexHook,
-} from './types.js';
+export { HOOK_NAMES, contextToEnv, isSimpleHook, isMultipleHook, isComplexHook } from './types.js';
 
 // Executor
 export { HookExecutor, createHookExecutor } from './executor.js';

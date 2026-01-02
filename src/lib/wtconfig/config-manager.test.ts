@@ -205,7 +205,9 @@ describe('config-manager', () => {
         );
       });
       vi.mocked(fs.readFileSync).mockImplementation((p) => {
-        if (String(p).includes('/repo/')) {
+        // Support both forward and backslashes for cross-platform testing
+        const pathStr = String(p);
+        if (pathStr.includes('/repo/') || pathStr.includes('\\repo\\')) {
           return '{"baseBranch": "main-repo"}';
         }
         return '{"baseBranch": "main-global"}';
@@ -481,7 +483,9 @@ describe('config-manager', () => {
     });
 
     it('returns warning for unknown generator key', () => {
-      const config = { generators: { unknownKey: './script.js' } as unknown as { branchName?: string } };
+      const config = {
+        generators: { unknownKey: './script.js' } as unknown as { branchName?: string },
+      };
       const result = validateConfig(config);
       expect(result.valid).toBe(true);
       expect(result.warnings).toContainEqual({
@@ -507,7 +511,9 @@ describe('config-manager', () => {
     });
 
     it('returns error for invalid linear integration type', () => {
-      const config = { integrations: { linear: 'not-an-object' as unknown as { teamId?: string } } };
+      const config = {
+        integrations: { linear: 'not-an-object' as unknown as { teamId?: string } },
+      };
       const result = validateConfig(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toContainEqual({
@@ -567,7 +573,9 @@ describe('config-manager', () => {
     });
 
     it('returns error for invalid slack integration type', () => {
-      const config = { integrations: { slack: 'not-an-object' as unknown as { webhookUrl?: string } } };
+      const config = {
+        integrations: { slack: 'not-an-object' as unknown as { webhookUrl?: string } },
+      };
       const result = validateConfig(config);
       expect(result.valid).toBe(false);
       expect(result.errors).toContainEqual({

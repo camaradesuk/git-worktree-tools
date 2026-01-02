@@ -72,17 +72,38 @@ describe('environment', () => {
     it('detects git version when installed', () => {
       vi.mocked(spawnSync).mockImplementation((cmd, args) => {
         if (cmd === 'which' && args?.[0] === 'git') {
-          return { status: 0, stdout: '/usr/bin/git', stderr: '', pid: 0, output: [], signal: null };
+          return {
+            status: 0,
+            stdout: '/usr/bin/git',
+            stderr: '',
+            pid: 0,
+            output: [],
+            signal: null,
+          };
         }
         if (cmd === 'git') {
           if (args?.[0] === '--version') {
-            return { status: 0, stdout: 'git version 2.43.0', stderr: '', pid: 0, output: [], signal: null };
+            return {
+              status: 0,
+              stdout: 'git version 2.43.0',
+              stderr: '',
+              pid: 0,
+              output: [],
+              signal: null,
+            };
           }
           if (args?.[0] === 'config' && args?.[2] === 'user.name') {
             return { status: 0, stdout: 'Test User', stderr: '', pid: 0, output: [], signal: null };
           }
           if (args?.[0] === 'config' && args?.[2] === 'user.email') {
-            return { status: 0, stdout: 'test@example.com', stderr: '', pid: 0, output: [], signal: null };
+            return {
+              status: 0,
+              stdout: 'test@example.com',
+              stderr: '',
+              pid: 0,
+              output: [],
+              signal: null,
+            };
           }
         }
         return { status: 1, stdout: '', stderr: '', pid: 0, output: [], signal: null };
@@ -97,9 +118,17 @@ describe('environment', () => {
 
     it('detects GitHub CLI when installed and authenticated', () => {
       vi.mocked(spawnSync).mockImplementation((cmd, args) => {
-        if (cmd === 'which') {
+        // Handle both 'which' (Unix) and 'where' (Windows)
+        if (cmd === 'which' || cmd === 'where') {
           if (args?.[0] === 'gh') {
-            return { status: 0, stdout: '/usr/bin/gh', stderr: '', pid: 0, output: [], signal: null };
+            return {
+              status: 0,
+              stdout: '/usr/bin/gh',
+              stderr: '',
+              pid: 0,
+              output: [],
+              signal: null,
+            };
           }
         }
         if (cmd === 'gh') {
@@ -121,9 +150,17 @@ describe('environment', () => {
 
     it('detects AI tools', () => {
       vi.mocked(spawnSync).mockImplementation((cmd, args) => {
-        if (cmd === 'which') {
+        // Handle both 'which' (Unix) and 'where' (Windows)
+        if (cmd === 'which' || cmd === 'where') {
           if (args?.[0] === 'claude' || args?.[0] === 'ollama') {
-            return { status: 0, stdout: '/path/to/' + args[0], stderr: '', pid: 0, output: [], signal: null };
+            return {
+              status: 0,
+              stdout: '/path/to/' + args[0],
+              stderr: '',
+              pid: 0,
+              output: [],
+              signal: null,
+            };
           }
         }
         return { status: 1, stdout: '', stderr: '', pid: 0, output: [], signal: null };
@@ -153,9 +190,17 @@ describe('environment', () => {
 
     it('detects IDE availability', () => {
       vi.mocked(spawnSync).mockImplementation((cmd, args) => {
-        if (cmd === 'which') {
+        // Handle both 'which' (Unix) and 'where' (Windows)
+        if (cmd === 'which' || cmd === 'where') {
           if (args?.[0] === 'code' || args?.[0] === 'cursor') {
-            return { status: 0, stdout: '/path/to/' + args[0], stderr: '', pid: 0, output: [], signal: null };
+            return {
+              status: 0,
+              stdout: '/path/to/' + args[0],
+              stderr: '',
+              pid: 0,
+              output: [],
+              signal: null,
+            };
           }
         }
         return { status: 1, stdout: '', stderr: '', pid: 0, output: [], signal: null };

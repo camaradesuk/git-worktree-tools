@@ -24,7 +24,12 @@ import {
   cleanWorktree,
   summarizeResults,
 } from '../lib/cleanpr/index.js';
-import type { CleanOptions, WorktreeInfo, CleanupDeps, CleanupResult } from '../lib/cleanpr/index.js';
+import type {
+  CleanOptions,
+  WorktreeInfo,
+  CleanupDeps,
+  CleanupResult,
+} from '../lib/cleanpr/index.js';
 import {
   createSuccessResult,
   createErrorResult,
@@ -409,7 +414,10 @@ async function main(): Promise<void> {
   // Check prerequisites
   if (!github.isGhInstalled()) {
     if (options.json) {
-      outputJsonError(ErrorCode.GH_NOT_INSTALLED, 'GitHub CLI (gh) is required for PR status checking');
+      outputJsonError(
+        ErrorCode.GH_NOT_INSTALLED,
+        'GitHub CLI (gh) is required for PR status checking'
+      );
     } else {
       console.error(colors.error('GitHub CLI (gh) is required for PR status checking.'));
       console.error(colors.dim('Install: https://cli.github.com/'));
@@ -447,7 +455,10 @@ async function main(): Promise<void> {
   } else {
     // Interactive mode with JSON not supported
     if (options.json) {
-      outputJsonError(ErrorCode.INVALID_ARGUMENT, 'Interactive mode not supported with --json. Use --all or specify a PR number.');
+      outputJsonError(
+        ErrorCode.INVALID_ARGUMENT,
+        'Interactive mode not supported with --json. Use --all or specify a PR number.'
+      );
       process.exit(1);
     }
     await interactiveClean(worktrees, repoRoot, options);

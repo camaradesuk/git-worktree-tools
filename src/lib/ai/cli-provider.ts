@@ -147,7 +147,16 @@ export class OllamaProvider extends BaseAIProvider {
 
       const result = spawnSync(
         'curl',
-        ['-s', '-X', 'POST', `${this.host}/api/generate`, '-d', payload, '-H', 'Content-Type: application/json'],
+        [
+          '-s',
+          '-X',
+          'POST',
+          `${this.host}/api/generate`,
+          '-d',
+          payload,
+          '-H',
+          'Content-Type: application/json',
+        ],
         {
           encoding: 'utf-8',
           timeout: 120000, // 2 minutes for local models

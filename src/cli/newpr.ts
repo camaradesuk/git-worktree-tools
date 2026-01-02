@@ -552,7 +552,9 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   if (!action) {
     if (options.json) {
-      console.log(formatJsonResult(createErrorResult('newpr', ErrorCode.USER_CANCELLED, 'User cancelled')));
+      console.log(
+        formatJsonResult(createErrorResult('newpr', ErrorCode.USER_CANCELLED, 'User cancelled'))
+      );
       process.exit(1);
     }
     console.log(colors.error('Aborted by user.'));
@@ -875,7 +877,11 @@ async function main(): Promise<void> {
       exitWithError('GitHub CLI (gh) is required', ErrorCode.GH_NOT_INSTALLED, true);
     }
     if (!github.isAuthenticated()) {
-      exitWithError('GitHub CLI not authenticated. Run: gh auth login', ErrorCode.GH_NOT_AUTHENTICATED, true);
+      exitWithError(
+        'GitHub CLI not authenticated. Run: gh auth login',
+        ErrorCode.GH_NOT_AUTHENTICATED,
+        true
+      );
     }
   }
 

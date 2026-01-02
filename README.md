@@ -297,20 +297,20 @@ wtlink link --yes --json
 
 **Available actions for `--action` flag:**
 
-| Action                      | Description                               |
-| --------------------------- | ----------------------------------------- |
-| `empty_commit`              | Create empty initial commit               |
-| `commit_staged`             | Commit staged changes to new branch       |
-| `commit_all`                | Stage all and commit to new branch        |
-| `stash_and_empty`           | Stash changes, create empty commit        |
-| `use_commits`               | Use local commits (branch from HEAD)      |
-| `push_then_branch`          | Push to main first, then create branch    |
-| `use_commits_and_commit_all`| Include commits + commit uncommitted      |
-| `use_commits_and_stash`     | Include commits, stash uncommitted        |
-| `create_pr_for_branch`      | Create PR for existing branch             |
-| `pr_for_branch_commit_all`  | Create PR for branch, commit changes first|
-| `pr_for_branch_stash`       | Create PR for branch, stash changes       |
-| `branch_from_detached`      | Create branch from detached HEAD          |
+| Action                       | Description                                |
+| ---------------------------- | ------------------------------------------ |
+| `empty_commit`               | Create empty initial commit                |
+| `commit_staged`              | Commit staged changes to new branch        |
+| `commit_all`                 | Stage all and commit to new branch         |
+| `stash_and_empty`            | Stash changes, create empty commit         |
+| `use_commits`                | Use local commits (branch from HEAD)       |
+| `push_then_branch`           | Push to main first, then create branch     |
+| `use_commits_and_commit_all` | Include commits + commit uncommitted       |
+| `use_commits_and_stash`      | Include commits, stash uncommitted         |
+| `create_pr_for_branch`       | Create PR for existing branch              |
+| `pr_for_branch_commit_all`   | Create PR for branch, commit changes first |
+| `pr_for_branch_stash`        | Create PR for branch, stash changes        |
+| `branch_from_detached`       | Create branch from detached HEAD           |
 
 ## Configuration
 
@@ -353,10 +353,10 @@ Enable AI-powered content generation for branch names and PR descriptions:
 ```json
 {
   "ai": {
-    "provider": "auto",    // "auto" | "claude" | "gemini" | "openai" | "ollama" | "none"
-    "branchName": true,    // Generate smart branch names from description
-    "prTitle": true,       // Generate PR titles
-    "prDescription": true  // Generate PR descriptions from changes
+    "provider": "auto", // "auto" | "claude" | "gemini" | "openai" | "ollama" | "none"
+    "branchName": true, // Generate smart branch names from description
+    "prTitle": true, // Generate PR titles
+    "prDescription": true // Generate PR descriptions from changes
   }
 }
 ```
@@ -382,21 +382,21 @@ Run custom commands at various points in the `newpr` workflow:
 
 **Available hooks:**
 
-| Hook | Description | Critical |
-|------|-------------|----------|
-| `pre-analyze` | Before git state analysis | Yes |
-| `post-analyze` | After state analysis | No |
-| `pre-branch` | Before branch creation | Yes |
-| `post-branch` | After branch creation | No |
-| `pre-commit` | Before initial commit | Yes |
-| `post-commit` | After initial commit | No |
-| `pre-push` | Before push to origin | Yes |
-| `post-push` | After push to origin | No |
-| `pre-pr` | Before PR creation | Yes |
-| `post-pr` | After PR creation | No |
-| `pre-worktree` | Before worktree creation | Yes |
-| `post-worktree` | After worktree creation | No |
-| `cleanup` | On error (for rollback) | No |
+| Hook            | Description               | Critical |
+| --------------- | ------------------------- | -------- |
+| `pre-analyze`   | Before git state analysis | Yes      |
+| `post-analyze`  | After state analysis      | No       |
+| `pre-branch`    | Before branch creation    | Yes      |
+| `post-branch`   | After branch creation     | No       |
+| `pre-commit`    | Before initial commit     | Yes      |
+| `post-commit`   | After initial commit      | No       |
+| `pre-push`      | Before push to origin     | Yes      |
+| `post-push`     | After push to origin      | No       |
+| `pre-pr`        | Before PR creation        | Yes      |
+| `post-pr`       | After PR creation         | No       |
+| `pre-worktree`  | Before worktree creation  | Yes      |
+| `post-worktree` | After worktree creation   | No       |
+| `cleanup`       | On error (for rollback)   | No       |
 
 **Critical hooks** abort the workflow if they fail. Non-critical hooks show a warning but continue.
 
@@ -424,15 +424,15 @@ Run custom commands at various points in the `newpr` workflow:
 
 **Hook context variables** (available as environment variables):
 
-| Variable | Description |
-|----------|-------------|
-| `WT_BRANCH_NAME` | New branch name |
-| `WT_PR_NUMBER` | PR number |
-| `WT_PR_URL` | PR URL |
-| `WT_WORKTREE_PATH` | New worktree path |
-| `WT_REPO_ROOT` | Main repo root |
-| `WT_BASE_BRANCH` | Base branch (main) |
-| `WT_DESCRIPTION` | PR description |
+| Variable           | Description        |
+| ------------------ | ------------------ |
+| `WT_BRANCH_NAME`   | New branch name    |
+| `WT_PR_NUMBER`     | PR number          |
+| `WT_PR_URL`        | PR URL             |
+| `WT_WORKTREE_PATH` | New worktree path  |
+| `WT_REPO_ROOT`     | Main repo root     |
+| `WT_BASE_BRANCH`   | Base branch (main) |
+| `WT_DESCRIPTION`   | PR description     |
 
 > **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 

@@ -68,7 +68,10 @@ describe('cli/wtconfig', () => {
     vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
     vi.mocked(getDefaultConfig).mockReturnValue(mockDefaultConfig);
     vi.mocked(wtconfig.loadMergedConfig).mockReturnValue(mockConfig);
-    vi.mocked(wtconfig.getConfigSource).mockReturnValue({ type: 'repository', path: '/repo/.worktreerc' });
+    vi.mocked(wtconfig.getConfigSource).mockReturnValue({
+      type: 'repository',
+      path: '/repo/.worktreerc',
+    });
     vi.mocked(wtconfig.formatConfigDisplay).mockReturnValue('formatted config');
     vi.mocked(wtconfig.validateConfig).mockReturnValue({ valid: true, errors: [], warnings: [] });
   });
@@ -101,7 +104,9 @@ describe('cli/wtconfig', () => {
 
       await runCli(['show']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('No configuration file found'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('No configuration file found')
+      );
     });
 
     it('shows config source path when config exists', async () => {
@@ -115,7 +120,9 @@ describe('cli/wtconfig', () => {
     it('displays error when no key provided', async () => {
       await runCli(['get']);
 
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Usage: wtconfig get <key>'));
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Usage: wtconfig get <key>')
+      );
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
@@ -128,9 +135,7 @@ describe('cli/wtconfig', () => {
     });
 
     it('returns default value when key not in user config', async () => {
-      vi.mocked(wtconfig.getConfigValue)
-        .mockReturnValueOnce(undefined)
-        .mockReturnValueOnce('feat');
+      vi.mocked(wtconfig.getConfigValue).mockReturnValueOnce(undefined).mockReturnValueOnce('feat');
 
       await runCli(['get', 'branchPrefix']);
 
@@ -142,12 +147,17 @@ describe('cli/wtconfig', () => {
 
       await runCli(['get', 'unknownKey']);
 
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Unknown configuration key'));
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Unknown configuration key')
+      );
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
     it('outputs JSON for object values', async () => {
-      vi.mocked(wtconfig.getConfigValue).mockReturnValueOnce({ provider: 'claude', branchName: true });
+      vi.mocked(wtconfig.getConfigValue).mockReturnValueOnce({
+        provider: 'claude',
+        branchName: true,
+      });
 
       await runCli(['get', 'ai']);
 
@@ -165,14 +175,18 @@ describe('cli/wtconfig', () => {
     it('displays error when no key provided', async () => {
       await runCli(['set']);
 
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Usage: wtconfig set <key> <value>'));
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Usage: wtconfig set <key> <value>')
+      );
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
     it('displays error when no value provided', async () => {
       await runCli(['set', 'baseBranch']);
 
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Missing value for key'));
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Missing value for key')
+      );
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
@@ -181,7 +195,9 @@ describe('cli/wtconfig', () => {
 
       expect(inquirer.prompt).toHaveBeenCalled();
       expect(wtconfig.saveRepoConfig).toHaveBeenCalledWith('/repo', expect.any(Object));
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Set baseBranch = develop'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Set baseBranch = develop')
+      );
     });
 
     it('saves to global config when selected', async () => {
@@ -226,13 +242,17 @@ describe('cli/wtconfig', () => {
 
       await runCli(['validate']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('No configuration file found'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('No configuration file found')
+      );
     });
 
     it('shows success for valid config', async () => {
       await runCli(['validate']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Configuration is valid'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Configuration is valid')
+      );
     });
 
     it('shows validation source path', async () => {
@@ -261,9 +281,7 @@ describe('cli/wtconfig', () => {
       vi.mocked(wtconfig.validateConfig).mockReturnValue({
         valid: true,
         errors: [],
-        warnings: [
-          { path: 'sharedRepos', message: 'Repo not found' },
-        ],
+        warnings: [{ path: 'sharedRepos', message: 'Repo not found' }],
       });
 
       await runCli(['validate']);
@@ -321,7 +339,10 @@ describe('cli/wtconfig', () => {
       vi.mocked(git.getRepoRoot).mockImplementation(() => {
         throw new Error('Not a git repository');
       });
-      vi.mocked(wtconfig.getConfigSource).mockReturnValue({ type: 'global', path: '/home/user/.worktreerc' });
+      vi.mocked(wtconfig.getConfigSource).mockReturnValue({
+        type: 'global',
+        path: '/home/user/.worktreerc',
+      });
 
       await runCli(['show']);
 
@@ -374,7 +395,10 @@ describe('cli/wtconfig', () => {
       // Mock all wizard prompts in sequence (Step 1 has 3 questions in one call)
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: ['autoDeps'] })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
 
@@ -387,7 +411,10 @@ describe('cli/wtconfig', () => {
     it('runs wizard command alias', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
 
@@ -399,7 +426,10 @@ describe('cli/wtconfig', () => {
     it('displays environment detection message', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
 
@@ -514,7 +544,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -532,7 +565,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -550,14 +586,19 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
 
       await runCli(['init']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('GitHub CLI not installed'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('GitHub CLI not installed')
+      );
     });
 
     it('displays GitHub CLI not authenticated', async () => {
@@ -568,7 +609,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -586,7 +630,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ aiChoice: 'no' })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
@@ -605,7 +652,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -624,7 +674,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
 
@@ -642,7 +695,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -661,7 +717,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -695,7 +754,10 @@ describe('cli/wtconfig', () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: '__other__', draftPr: false, branchPrefix: 'feat' })
         .mockResolvedValueOnce({ customBranch: 'my-branch' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -740,7 +802,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ aiChoice: 'yes' })
         .mockResolvedValueOnce({ aiFeatures: ['branchName', 'prDescription'] })
         .mockResolvedValueOnce({ hooks: [] })
@@ -761,7 +826,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ aiChoice: 'yes' })
         .mockResolvedValueOnce({ aiFeatures: [] })
         .mockResolvedValueOnce({ hooks: [] })
@@ -782,7 +850,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ aiChoice: 'yes' })
         .mockResolvedValueOnce({ aiFeatures: [] })
         .mockResolvedValueOnce({ hooks: [] })
@@ -803,7 +874,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ aiChoice: 'yes' })
         .mockResolvedValueOnce({ aiFeatures: [] })
         .mockResolvedValueOnce({ hooks: [] })
@@ -824,7 +898,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ aiChoice: 'configure' })
         .mockResolvedValueOnce({ manualProvider: 'gemini' })
         .mockResolvedValueOnce({ aiFeatures: ['branchName'] })
@@ -845,7 +922,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: ['autoDeps', 'openEditor'] })
         .mockResolvedValueOnce({ editorChoice: 'cursor' })
         .mockResolvedValueOnce({ configureAdvanced: false })
@@ -865,7 +945,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: ['openEditor'] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
@@ -878,7 +961,10 @@ describe('cli/wtconfig', () => {
     it('saves configuration to repository', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: true, branchPrefix: 'fix' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -892,7 +978,10 @@ describe('cli/wtconfig', () => {
     it('saves configuration globally', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'global' });
@@ -906,7 +995,10 @@ describe('cli/wtconfig', () => {
     it('displays quick start after saving', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -939,7 +1031,10 @@ describe('cli/wtconfig', () => {
     it('configures plugins', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: true })
@@ -950,13 +1045,18 @@ describe('cli/wtconfig', () => {
 
       await runCli(['init']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Advanced Configuration'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Advanced Configuration')
+      );
     });
 
     it('configures custom generators', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: false })
@@ -972,13 +1072,18 @@ describe('cli/wtconfig', () => {
 
       await runCli(['init']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Advanced Configuration'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Advanced Configuration')
+      );
     });
 
     it('configures Linear integration', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: false })
@@ -989,30 +1094,44 @@ describe('cli/wtconfig', () => {
 
       await runCli(['init']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Advanced Configuration'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Advanced Configuration')
+      );
     });
 
     it('configures Jira integration', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: false })
         .mockResolvedValueOnce({ useGenerators: false })
         .mockResolvedValueOnce({ integrationsToAdd: ['jira'] })
-        .mockResolvedValueOnce({ projectKey: 'PROJ', baseUrl: 'https://jira.example.com', apiTokenEnv: 'JIRA_TOKEN' })
+        .mockResolvedValueOnce({
+          projectKey: 'PROJ',
+          baseUrl: 'https://jira.example.com',
+          apiTokenEnv: 'JIRA_TOKEN',
+        })
         .mockResolvedValueOnce({ saveChoice: 'cancel' });
 
       await runCli(['init']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Advanced Configuration'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Advanced Configuration')
+      );
     });
 
     it('configures Slack integration', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: false })
@@ -1023,13 +1142,18 @@ describe('cli/wtconfig', () => {
 
       await runCli(['init']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Advanced Configuration'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Advanced Configuration')
+      );
     });
 
     it('configures all integrations', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: false })
@@ -1042,7 +1166,9 @@ describe('cli/wtconfig', () => {
 
       await runCli(['init']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Advanced Configuration'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Advanced Configuration')
+      );
     });
   });
 
@@ -1116,7 +1242,9 @@ describe('cli/wtconfig', () => {
 
       await runCli(['edit']);
 
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Failed to open editor'));
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to open editor')
+      );
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
   });
@@ -1174,7 +1302,10 @@ describe('cli/wtconfig', () => {
     it('runs wizard without repo context and uses default branch', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'global' });
@@ -1209,7 +1340,10 @@ describe('cli/wtconfig', () => {
     it('builds config with non-default baseBranch', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'develop', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -1225,7 +1359,10 @@ describe('cli/wtconfig', () => {
     it('builds config with draftPr enabled', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: true, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -1241,7 +1378,10 @@ describe('cli/wtconfig', () => {
     it('builds config with non-default branchPrefix', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'fix' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -1294,7 +1434,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ aiChoice: 'yes' })
         .mockResolvedValueOnce({ aiFeatures: ['branchName', 'prDescription'] })
         .mockResolvedValueOnce({ hooks: [] })
@@ -1318,7 +1461,10 @@ describe('cli/wtconfig', () => {
     it('builds config with hooks (autoDeps)', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: ['autoDeps'] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -1338,7 +1484,10 @@ describe('cli/wtconfig', () => {
     it('builds config with hooks (openEditor)', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: ['openEditor'] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -1358,7 +1507,10 @@ describe('cli/wtconfig', () => {
     it('builds config with multiple hooks', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: ['autoDeps', 'openEditor'] })
         .mockResolvedValueOnce({ configureAdvanced: false })
         .mockResolvedValueOnce({ saveChoice: 'repo' });
@@ -1383,7 +1535,10 @@ describe('cli/wtconfig', () => {
 
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: ['openEditor'] })
         .mockResolvedValueOnce({ editorChoice: 'cursor' })
         .mockResolvedValueOnce({ configureAdvanced: false })
@@ -1400,7 +1555,10 @@ describe('cli/wtconfig', () => {
     it('builds config with plugins', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: true })
@@ -1420,7 +1578,10 @@ describe('cli/wtconfig', () => {
     it('builds config with generators', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: false })
@@ -1447,7 +1608,10 @@ describe('cli/wtconfig', () => {
     it('builds config with integrations', async () => {
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ baseBranch: 'main', draftPr: false, branchPrefix: 'feat' })
-        .mockResolvedValueOnce({ worktreeLocation: 'sibling', worktreePattern: '{repo}.pr{number}' })
+        .mockResolvedValueOnce({
+          worktreeLocation: 'sibling',
+          worktreePattern: '{repo}.pr{number}',
+        })
         .mockResolvedValueOnce({ hooks: [] })
         .mockResolvedValueOnce({ configureAdvanced: true })
         .mockResolvedValueOnce({ addPlugins: false })

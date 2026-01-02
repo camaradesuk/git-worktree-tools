@@ -134,8 +134,7 @@ describe('HookExecutor', () => {
 
     it('sets environment variables from context', async () => {
       // Use a platform-appropriate command to echo env var
-      const cmd =
-        process.platform === 'win32' ? 'echo %WT_BRANCH_NAME%' : 'echo $WT_BRANCH_NAME';
+      const cmd = process.platform === 'win32' ? 'echo %WT_BRANCH_NAME%' : 'echo $WT_BRANCH_NAME';
 
       const config: HooksConfig = {
         'post-branch': cmd,

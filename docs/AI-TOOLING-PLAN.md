@@ -16,16 +16,16 @@ The tools should work out-of-the-box with sensible defaults while offering deep 
 
 ## Implementation Status
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| Phase 1 | Non-Interactive Foundation | ✅ Complete |
+| Phase   | Description                     | Status      |
+| ------- | ------------------------------- | ----------- |
+| Phase 1 | Non-Interactive Foundation      | ✅ Complete |
 | Phase 2 | State Query Command (`wtstate`) | ✅ Complete |
-| Phase 3 | Programmatic API Layer | ✅ Complete |
-| Phase 4 | MCP Server | ✅ Complete |
-| Phase 5 | AI Content Generation | ✅ Complete |
-| Phase 6 | Extensibility & Hooks | ✅ Complete |
-| Phase 7 | Setup Wizard (`wtconfig`) | ✅ Complete |
-| Phase 8 | Enhanced Configuration | ✅ Complete |
+| Phase 3 | Programmatic API Layer          | ✅ Complete |
+| Phase 4 | MCP Server                      | ✅ Complete |
+| Phase 5 | AI Content Generation           | ✅ Complete |
+| Phase 6 | Extensibility & Hooks           | ✅ Complete |
+| Phase 7 | Setup Wizard (`wtconfig`)       | ✅ Complete |
+| Phase 8 | Enhanced Configuration          | ✅ Complete |
 
 **Last Updated:** 2026-01-02
 **Package Version:** 1.3.0
@@ -74,20 +74,22 @@ interface NewprOptions {
   baseBranch?: string;
 
   // NEW: AI-friendly options
-  nonInteractive?: boolean;     // Skip all prompts
-  action?: StateActionKey;      // Pre-specify action for scenario
-  autoCommitMessage?: string;   // Auto-commit with this message
-  json?: boolean;               // Output result as JSON
+  nonInteractive?: boolean; // Skip all prompts
+  action?: StateActionKey; // Pre-specify action for scenario
+  autoCommitMessage?: string; // Auto-commit with this message
+  json?: boolean; // Output result as JSON
 }
 ```
 
 **Example usage by AI:**
+
 ```bash
 # AI detects state, decides action, runs non-interactively
 newpr "Add dark mode" --non-interactive --action=commit_staged --json
 ```
 
 **JSON output:**
+
 ```json
 {
   "success": true,
@@ -110,7 +112,7 @@ interface CleanprOptions {
   // NEW
   nonInteractive?: boolean;
   json?: boolean;
-  dryRun?: boolean;  // Already exists for wtlink, add to cleanpr
+  dryRun?: boolean; // Already exists for wtlink, add to cleanpr
 }
 ```
 
@@ -125,7 +127,7 @@ interface WtlinkOptions {
   dryRun?: boolean;
 
   // NEW
-  json?: boolean;  // Machine-readable output
+  json?: boolean; // Machine-readable output
 }
 ```
 
@@ -264,15 +266,18 @@ Create `src/mcp/server.ts`:
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-const server = new Server({
-  name: 'git-worktree-tools',
-  version: '1.0.0',
-}, {
-  capabilities: {
-    tools: {},
-    resources: {},
+const server = new Server(
+  {
+    name: 'git-worktree-tools',
+    version: '1.0.0',
   },
-});
+  {
+    capabilities: {
+      tools: {},
+      resources: {},
+    },
+  }
+);
 
 // Tool: Get current git state
 server.setRequestHandler('tools/call', async (request) => {
@@ -280,14 +285,16 @@ server.setRequestHandler('tools/call', async (request) => {
     const state = analyzeGitState();
     const scenario = detectScenario(state);
     return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          scenario,
-          ...state,
-          availableActions: getAvailableActions(scenario),
-        }),
-      }],
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            scenario,
+            ...state,
+            availableActions: getAvailableActions(scenario),
+          }),
+        },
+      ],
     };
   }
 
@@ -296,10 +303,12 @@ server.setRequestHandler('tools/call', async (request) => {
     // Call programmatic API
     const result = await createPr({ description, action, draft });
     return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result),
-      }],
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(result),
+        },
+      ],
     };
   }
   // ... other tools
@@ -312,7 +321,8 @@ server.setRequestHandler('tools/call', async (request) => {
 const tools = [
   {
     name: 'worktree_get_state',
-    description: 'Analyze current git state and return available actions. Call this BEFORE creating a PR to understand what options are available.',
+    description:
+      'Analyze current git state and return available actions. Call this BEFORE creating a PR to understand what options are available.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -336,7 +346,8 @@ const tools = [
         action: {
           type: 'string',
           enum: ['commit_staged', 'stash_all', 'include_changes', 'create_fresh'],
-          description: 'How to handle current changes. Get available actions from worktree_get_state first.',
+          description:
+            'How to handle current changes. Get available actions from worktree_get_state first.',
         },
         draft: {
           type: 'boolean',
@@ -481,18 +492,19 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
 #### Tasks
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Add `--non-interactive` flag to `newpr` | ✅ | `-y`, `--yes`, `--non-interactive` flags |
-| Add `--json` flag to `newpr` | ✅ | Machine-readable output |
-| Add `--action` flag to `newpr` | ✅ | Pre-specify scenario action |
-| Add `--json` flag to `cleanpr` | ✅ | Machine-readable output |
-| Add `--dry-run` to `cleanpr` | ✅ | Preview mode with `-n` |
-| Add `--json` flag to `wtlink` | ✅ | Machine-readable output |
-| Standardize error codes | ✅ | `ErrorCode` enum in `json-output.ts` |
-| Define JSON output schema | ✅ | `CommandResult<T>` interface |
+| Task                                    | Status | Notes                                    |
+| --------------------------------------- | ------ | ---------------------------------------- |
+| Add `--non-interactive` flag to `newpr` | ✅     | `-y`, `--yes`, `--non-interactive` flags |
+| Add `--json` flag to `newpr`            | ✅     | Machine-readable output                  |
+| Add `--action` flag to `newpr`          | ✅     | Pre-specify scenario action              |
+| Add `--json` flag to `cleanpr`          | ✅     | Machine-readable output                  |
+| Add `--dry-run` to `cleanpr`            | ✅     | Preview mode with `-n`                   |
+| Add `--json` flag to `wtlink`           | ✅     | Machine-readable output                  |
+| Standardize error codes                 | ✅     | `ErrorCode` enum in `json-output.ts`     |
+| Define JSON output schema               | ✅     | `CommandResult<T>` interface             |
 
 **Current State:**
+
 - ✅ `lswt --json` already implemented
 - ✅ `cleanpr --all` provides non-interactive mode
 - ✅ `cleanpr <PR_NUMBER>` provides non-interactive mode
@@ -506,14 +518,14 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
 #### Tasks
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Create `src/cli/wtstate.ts` | ✅ | New command |
-| Add to `package.json` bin | ✅ | Binary entry point |
-| Return scenario and available actions | ✅ | Core functionality |
-| JSON output by default | ✅ | `--json` flag for AI-first design |
-| Create `src/lib/wtstate/` module | ✅ | Types, args, analyze logic |
-| Add unit tests | ✅ | 29 tests for args and analyze |
+| Task                                  | Status | Notes                             |
+| ------------------------------------- | ------ | --------------------------------- |
+| Create `src/cli/wtstate.ts`           | ✅     | New command                       |
+| Add to `package.json` bin             | ✅     | Binary entry point                |
+| Return scenario and available actions | ✅     | Core functionality                |
+| JSON output by default                | ✅     | `--json` flag for AI-first design |
+| Create `src/lib/wtstate/` module      | ✅     | Types, args, analyze logic        |
+| Add unit tests                        | ✅     | 29 tests for args and analyze     |
 
 **Implementation Details:**
 
@@ -529,15 +541,15 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
 #### Tasks
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Create `src/api/` directory | ✅ | New structure with index.ts exports |
-| Extract `newpr` business logic | ✅ | `src/api/create.ts` - `createPr()` and `setupPrWorktree()` |
-| Extract `cleanpr` business logic | ✅ | `src/api/clean.ts` - `cleanWorktrees()` |
-| Extract `lswt` business logic | ✅ | `src/api/list.ts` - `listWorktrees()` |
-| Create state query API | ✅ | `src/api/state.ts` - `queryState()` |
-| Full TypeScript types for I/O | ✅ | All APIs return `CommandResult<T>` |
-| Export API from `src/index.ts` | ✅ | `import { api } from '@camaradesuk/git-worktree-tools'` |
+| Task                             | Status | Notes                                                      |
+| -------------------------------- | ------ | ---------------------------------------------------------- |
+| Create `src/api/` directory      | ✅     | New structure with index.ts exports                        |
+| Extract `newpr` business logic   | ✅     | `src/api/create.ts` - `createPr()` and `setupPrWorktree()` |
+| Extract `cleanpr` business logic | ✅     | `src/api/clean.ts` - `cleanWorktrees()`                    |
+| Extract `lswt` business logic    | ✅     | `src/api/list.ts` - `listWorktrees()`                      |
+| Create state query API           | ✅     | `src/api/state.ts` - `queryState()`                        |
+| Full TypeScript types for I/O    | ✅     | All APIs return `CommandResult<T>`                         |
+| Export API from `src/index.ts`   | ✅     | `import { api } from '@camaradesuk/git-worktree-tools'`    |
 
 **Implementation Details:**
 
@@ -547,7 +559,13 @@ The programmatic API layer provides side-effect-free functions that return struc
 // Import the API
 import { api } from '@camaradesuk/git-worktree-tools';
 // Or import functions directly
-import { queryState, listWorktrees, cleanWorktrees, createPr, setupPrWorktree } from '@camaradesuk/git-worktree-tools';
+import {
+  queryState,
+  listWorktrees,
+  cleanWorktrees,
+  createPr,
+  setupPrWorktree,
+} from '@camaradesuk/git-worktree-tools';
 
 // Query git state
 const state = queryState({ baseBranch: 'main' });
@@ -586,16 +604,16 @@ if (cleaned.success) {
 
 #### Tasks
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Add `@modelcontextprotocol/sdk` | ⏳ | Dependency |
-| Create `src/mcp/server.ts` | ⏳ | MCP server |
-| Implement `worktree_get_state` tool | ⏳ | State query |
-| Implement `worktree_create_pr` tool | ⏳ | PR creation |
-| Implement `worktree_list` tool | ⏳ | List worktrees |
-| Implement `worktree_clean` tool | ⏳ | Cleanup |
-| Add `git-worktree-mcp` binary | ⏳ | Entry point |
-| Document MCP setup | ⏳ | README/docs |
+| Task                                | Status | Notes          |
+| ----------------------------------- | ------ | -------------- |
+| Add `@modelcontextprotocol/sdk`     | ⏳     | Dependency     |
+| Create `src/mcp/server.ts`          | ⏳     | MCP server     |
+| Implement `worktree_get_state` tool | ⏳     | State query    |
+| Implement `worktree_create_pr` tool | ⏳     | PR creation    |
+| Implement `worktree_list` tool      | ⏳     | List worktrees |
+| Implement `worktree_clean` tool     | ⏳     | Cleanup        |
+| Add `git-worktree-mcp` binary       | ⏳     | Entry point    |
+| Document MCP setup                  | ⏳     | README/docs    |
 
 ### Phase 5: Advanced AI Features (Priority: Low) ⏳
 
@@ -604,12 +622,12 @@ if (cleaned.success) {
 
 #### Tasks
 
-| Task | Status | Notes |
-|------|--------|-------|
-| Add `--watch` mode | ⏳ | Long-running ops |
-| Add webhook/callback support | ⏳ | Async operations |
-| Add operation IDs | ⏳ | Tracking |
-| Add rollback capabilities | ⏳ | Safety |
+| Task                         | Status | Notes            |
+| ---------------------------- | ------ | ---------------- |
+| Add `--watch` mode           | ⏳     | Long-running ops |
+| Add webhook/callback support | ⏳     | Async operations |
+| Add operation IDs            | ⏳     | Tracking         |
+| Add rollback capabilities    | ⏳     | Safety           |
 
 ---
 
@@ -724,12 +742,14 @@ Add to `GEMINI.md`:
 This project uses git-worktree-tools for PR management.
 
 ### Available Commands
+
 - `wtstate --json` - Get current git state and available actions
 - `newpr "description" --non-interactive --json` - Create PR
 - `lswt --json` - List worktrees
 - `cleanpr --all --json` - Clean merged PRs
 
 ### Workflow
+
 1. Always run `wtstate --json` before creating a PR
 2. Use the `recommendedAction` from state response
 3. Parse JSON output to understand results
@@ -739,7 +759,7 @@ This project uses git-worktree-tools for PR management.
 
 Add to `codex.md`:
 
-```markdown
+````markdown
 ## Git Worktree Management
 
 Use git-worktree-tools for PR workflows:
@@ -757,9 +777,11 @@ lswt --json --status
 # Cleanup after merge
 cleanpr --all --json
 ```
+````
 
 Always parse JSON output for programmatic handling.
-```
+
+````
 
 ---
 
@@ -797,7 +819,7 @@ describe('AI Workflow Integration', () => {
     expect(list.some(w => w.prNumber === result.prNumber)).toBe(true);
   });
 });
-```
+````
 
 ### MCP Server Tests
 
@@ -828,13 +850,17 @@ git-worktree-tools is designed to work seamlessly with AI CLI tools.
 All commands support `--non-interactive` and `--json` flags:
 
 \`\`\`bash
+
 # Create PR without prompts
+
 newpr "Feature X" --non-interactive --json
 
 # Query git state
+
 wtstate --json
 
 # Clean PRs automatically
+
 cleanpr --all --non-interactive --json
 \`\`\`
 
@@ -843,11 +869,15 @@ cleanpr --all --non-interactive --json
 For Claude Code and other MCP-compatible tools:
 
 \`\`\`bash
+
 # Install MCP server globally
+
 npm install -g @camaradesuk/git-worktree-tools
 
 # Add to Claude Code settings
+
 # See docs/MCP-SETUP.md
+
 \`\`\`
 
 ### JSON Output Schema
@@ -856,11 +886,11 @@ All commands return consistent JSON:
 
 \`\`\`typescript
 interface CommandResult {
-  success: boolean;
-  command: string;
-  data?: Record<string, unknown>;
-  error?: { code: string; message: string; };
-  warnings?: string[];
+success: boolean;
+command: string;
+data?: Record<string, unknown>;
+error?: { code: string; message: string; };
+warnings?: string[];
 }
 \`\`\`
 ```
@@ -876,11 +906,11 @@ interface CommandResult {
     "cleanpr": "./dist/cli/cleanpr.js",
     "lswt": "./dist/cli/lswt.js",
     "wtlink": "./dist/cli/wtlink.js",
-    "wtstate": "./dist/cli/wtstate.js",           // NEW
-    "git-worktree-mcp": "./dist/mcp/server.js"    // NEW
+    "wtstate": "./dist/cli/wtstate.js", // NEW
+    "git-worktree-mcp": "./dist/mcp/server.js" // NEW
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",        // NEW
+    "@modelcontextprotocol/sdk": "^1.0.0" // NEW
     // ... existing
   }
 }
@@ -900,13 +930,13 @@ interface CommandResult {
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Breaking existing CLI UX | Non-interactive is opt-in, interactive remains default |
-| MCP protocol changes | Use stable SDK version, monitor protocol updates |
-| JSON schema breaking changes | Semantic versioning, deprecation warnings |
-| AI tools misusing commands | Comprehensive error messages, dry-run modes |
-| Security (AI executing dangerous ops) | Explicit `--force` for destructive operations |
+| Risk                                  | Mitigation                                             |
+| ------------------------------------- | ------------------------------------------------------ |
+| Breaking existing CLI UX              | Non-interactive is opt-in, interactive remains default |
+| MCP protocol changes                  | Use stable SDK version, monitor protocol updates       |
+| JSON schema breaking changes          | Semantic versioning, deprecation warnings              |
+| AI tools misusing commands            | Comprehensive error messages, dry-run modes            |
+| Security (AI executing dangerous ops) | Explicit `--force` for destructive operations          |
 
 ---
 
@@ -932,8 +962,8 @@ export interface AIProvider {
 export interface BranchContext {
   description: string;
   repoName: string;
-  branchPrefix: string;  // from config
-  existingBranches?: string[];  // avoid collisions
+  branchPrefix: string; // from config
+  existingBranches?: string[]; // avoid collisions
 }
 
 export interface PRContext {
@@ -947,25 +977,25 @@ export interface PRContext {
 export interface CommitContext {
   stagedFiles: string[];
   diff: string;
-  recentCommits?: string[];  // for style consistency
+  recentCommits?: string[]; // for style consistency
 }
 
 export interface PlanContext {
   description: string;
-  repoStructure: string[];  // key files/folders
+  repoStructure: string[]; // key files/folders
   techStack?: string[];
 }
 ```
 
 ### 5.2 Supported AI Providers
 
-| Provider | Integration Method | Pros | Cons |
-|----------|-------------------|------|------|
-| **Claude Code** | MCP/CLI tool | Native integration, context-aware | Requires Claude Code installed |
-| **Gemini CLI** | CLI subprocess | 1M token context, free tier | Google account required |
-| **OpenAI Codex** | API/CLI | Wide adoption, good code understanding | API costs |
-| **Ollama (Local)** | Local API | Privacy, no API costs, offline | Requires local setup, GPU recommended |
-| **Custom Script** | User-defined | Full control | User must implement |
+| Provider           | Integration Method | Pros                                   | Cons                                  |
+| ------------------ | ------------------ | -------------------------------------- | ------------------------------------- |
+| **Claude Code**    | MCP/CLI tool       | Native integration, context-aware      | Requires Claude Code installed        |
+| **Gemini CLI**     | CLI subprocess     | 1M token context, free tier            | Google account required               |
+| **OpenAI Codex**   | API/CLI            | Wide adoption, good code understanding | API costs                             |
+| **Ollama (Local)** | Local API          | Privacy, no API costs, offline         | Requires local setup, GPU recommended |
+| **Custom Script**  | User-defined       | Full control                           | User must implement                   |
 
 #### Provider Configuration
 
@@ -1037,20 +1067,20 @@ async function detectAIProvider(): Promise<AIProvider | null> {
 
 ```typescript
 interface BranchNameOptions {
-  useAI?: boolean;         // Enable AI generation (default: false initially)
+  useAI?: boolean; // Enable AI generation (default: false initially)
   branchStyle?: 'conventional' | 'kebab' | 'snake' | 'custom';
-  maxLength?: number;      // Default: 50
-  includeIssueNumber?: boolean;  // If issue # detected in description
+  maxLength?: number; // Default: 50
+  includeIssueNumber?: boolean; // If issue # detected in description
 }
 ```
 
 **Examples:**
 
-| Description | Current Output | AI Output |
-|-------------|----------------|-----------|
-| "Add dark mode toggle to settings" | `feat/add-dark-mode-toggle-abc123` | `feat/settings-dark-mode-toggle` |
-| "Fix login bug on mobile devices" | `feat/fix-login-bug-on-xyz789` | `fix/mobile-login-auth-error` |
-| "JIRA-1234: Update user profile" | `feat/jira-1234-update-def456` | `feat/JIRA-1234-user-profile-update` |
+| Description                        | Current Output                     | AI Output                            |
+| ---------------------------------- | ---------------------------------- | ------------------------------------ |
+| "Add dark mode toggle to settings" | `feat/add-dark-mode-toggle-abc123` | `feat/settings-dark-mode-toggle`     |
+| "Fix login bug on mobile devices"  | `feat/fix-login-bug-on-xyz789`     | `fix/mobile-login-auth-error`        |
+| "JIRA-1234: Update user profile"   | `feat/jira-1234-update-def456`     | `feat/JIRA-1234-user-profile-update` |
 
 **CLI Usage:**
 
@@ -1069,7 +1099,7 @@ Generate rich PR descriptions from commit history and diffs:
 ```typescript
 interface PRGenerationOptions {
   useAI?: boolean;
-  template?: string;       // Path to custom template
+  template?: string; // Path to custom template
   includeChangelog?: boolean;
   includeTechDebt?: boolean;
   testPlanStyle?: 'checklist' | 'narrative' | 'none';
@@ -1100,6 +1130,7 @@ interface PRGenerationOptions {
 <!-- Add screenshots if UI changes -->
 
 ---
+
 🤖 Generated with [git-worktree-tools](https://github.com/camaradesuk/git-worktree-tools)
 ```
 
@@ -1119,8 +1150,8 @@ Create a planning document with the initial commit for AI-assisted development:
 
 ```typescript
 interface PlanDocumentOptions {
-  enabled?: boolean;        // Create plan doc with initial commit
-  path?: string;            // Default: "docs/PLAN-{branch}.md"
+  enabled?: boolean; // Create plan doc with initial commit
+  path?: string; // Default: "docs/PLAN-{branch}.md"
   includeTaskList?: boolean;
   includeTechStack?: boolean;
   includeAcceptanceCriteria?: boolean;
@@ -1167,6 +1198,7 @@ Add a dark mode toggle to the application settings that persists user preference
 <!-- Add implementation notes as you work -->
 
 ---
+
 🤖 Generated with [git-worktree-tools](https://github.com/camaradesuk/git-worktree-tools)
 ```
 
@@ -1188,18 +1220,18 @@ For the initial commit and subsequent auto-commits:
 interface CommitMessageOptions {
   useAI?: boolean;
   style?: 'conventional' | 'gitmoji' | 'simple' | 'custom';
-  scope?: string;           // e.g., "settings", "auth"
-  includeBody?: boolean;    // Multi-line commit message
+  scope?: string; // e.g., "settings", "auth"
+  includeBody?: boolean; // Multi-line commit message
 }
 ```
 
 **Examples:**
 
-| Style | Output |
-|-------|--------|
+| Style          | Output                                 |
+| -------------- | -------------------------------------- |
 | `conventional` | `feat(settings): add dark mode toggle` |
-| `gitmoji` | `✨ Add dark mode toggle to settings` |
-| `simple` | `Add dark mode toggle` |
+| `gitmoji`      | `✨ Add dark mode toggle to settings`  |
+| `simple`       | `Add dark mode toggle`                 |
 
 ---
 
@@ -1266,32 +1298,24 @@ Inspired by [Husky](https://typicode.github.io/husky/) and git hooks, but specif
 
 Hooks receive context via environment variables:
 
-| Variable | Description | Available In |
-|----------|-------------|--------------|
-| `WT_BRANCH_NAME` | New branch name | post-branch onwards |
-| `WT_PR_NUMBER` | PR number | post-pr onwards |
-| `WT_PR_URL` | PR URL | post-pr onwards |
-| `WT_WORKTREE_PATH` | New worktree path | post-worktree |
-| `WT_REPO_ROOT` | Main repo root | All hooks |
-| `WT_BASE_BRANCH` | Base branch (main) | All hooks |
-| `WT_DESCRIPTION` | PR description | All hooks |
-| `WT_SCENARIO` | Detected git state scenario | post-analyze onwards |
+| Variable           | Description                 | Available In         |
+| ------------------ | --------------------------- | -------------------- |
+| `WT_BRANCH_NAME`   | New branch name             | post-branch onwards  |
+| `WT_PR_NUMBER`     | PR number                   | post-pr onwards      |
+| `WT_PR_URL`        | PR URL                      | post-pr onwards      |
+| `WT_WORKTREE_PATH` | New worktree path           | post-worktree        |
+| `WT_REPO_ROOT`     | Main repo root              | All hooks            |
+| `WT_BASE_BRANCH`   | Base branch (main)          | All hooks            |
+| `WT_DESCRIPTION`   | PR description              | All hooks            |
+| `WT_SCENARIO`      | Detected git state scenario | post-analyze onwards |
 
 **Script Hook Interface:**
 
 ```typescript
 // hooks/my-hook.js
 export default async function hook(context) {
-  const {
-    branchName,
-    prNumber,
-    prUrl,
-    worktreePath,
-    repoRoot,
-    baseBranch,
-    description,
-    scenario,
-  } = context;
+  const { branchName, prNumber, prUrl, worktreePath, repoRoot, baseBranch, description, scenario } =
+    context;
 
   // Return { success: true } or { success: false, message: "..." }
   return { success: true };
@@ -1310,14 +1334,14 @@ wtconfig hooks --list
 wtconfig hooks --install auto-deps
 ```
 
-| Template | Description |
-|----------|-------------|
-| `auto-deps` | Run `npm/pnpm/yarn install` after worktree creation |
-| `vscode-open` | Open worktree in VS Code after creation |
-| `slack-notify` | Send Slack notification on PR creation |
-| `linear-link` | Link PR to Linear issue if detected |
-| `jira-link` | Update Jira issue with PR link |
-| `copilot-review` | Request GitHub Copilot review on PR |
+| Template         | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| `auto-deps`      | Run `npm/pnpm/yarn install` after worktree creation |
+| `vscode-open`    | Open worktree in VS Code after creation             |
+| `slack-notify`   | Send Slack notification on PR creation              |
+| `linear-link`    | Link PR to Linear issue if detected                 |
+| `jira-link`      | Update Jira issue with PR link                      |
+| `copilot-review` | Request GitHub Copilot review on PR                 |
 
 ### 6.5 Plugin System (Advanced)
 
@@ -1610,8 +1634,8 @@ CLI flags               (Per-invocation override)
 
 ```typescript
 function loadEffectiveConfig(repoRoot: string): Config {
-  const globalConfig = loadGlobalConfig();      // ~/.worktreerc
-  const repoConfig = loadRepoConfig(repoRoot);  // ./.worktreerc
+  const globalConfig = loadGlobalConfig(); // ~/.worktreerc
+  const repoConfig = loadRepoConfig(repoRoot); // ./.worktreerc
 
   // Deep merge: repo overrides global
   return deepMerge(globalConfig, repoConfig);
@@ -1657,12 +1681,12 @@ Expand `.worktreerc` to support all new features while maintaining backwards com
 interface WorktreeConfig {
   // === Existing (backwards compatible) ===
   sharedRepos?: string[];
-  baseBranch?: string;              // Default: "main"
-  draftPr?: boolean;                // Default: false
-  worktreePattern?: string;         // Default: "{repo}.pr{number}"
-  worktreeParent?: string;          // Default: ".."
+  baseBranch?: string; // Default: "main"
+  draftPr?: boolean; // Default: false
+  worktreePattern?: string; // Default: "{repo}.pr{number}"
+  worktreeParent?: string; // Default: ".."
   syncPatterns?: string[];
-  branchPrefix?: string;            // Default: "feat"
+  branchPrefix?: string; // Default: "feat"
 
   // === NEW: AI Configuration ===
   ai?: {
@@ -1670,19 +1694,19 @@ interface WorktreeConfig {
     fallback?: string;
 
     // Feature toggles
-    branchName?: boolean;           // Use AI for branch names
-    prTitle?: boolean;              // Use AI for PR titles
-    prDescription?: boolean;        // Use AI for PR descriptions
-    commitMessage?: boolean;        // Use AI for commit messages
-    planDocument?: boolean;         // Create plan doc with AI
+    branchName?: boolean; // Use AI for branch names
+    prTitle?: boolean; // Use AI for PR titles
+    prDescription?: boolean; // Use AI for PR descriptions
+    commitMessage?: boolean; // Use AI for commit messages
+    planDocument?: boolean; // Create plan doc with AI
 
     // Style preferences
     branchStyle?: 'conventional' | 'kebab' | 'snake';
     commitStyle?: 'conventional' | 'gitmoji' | 'simple';
 
     // Templates
-    prTemplate?: string;            // Path to PR description template
-    planTemplate?: string;          // Path to plan document template
+    prTemplate?: string; // Path to PR description template
+    planTemplate?: string; // Path to plan document template
 
     // Provider-specific settings
     claude?: { model?: string };
@@ -1706,7 +1730,7 @@ interface WorktreeConfig {
     'post-pr'?: HookDefinition;
     'pre-worktree'?: HookDefinition;
     'post-worktree'?: HookDefinition;
-    'cleanup'?: HookDefinition;
+    cleanup?: HookDefinition;
   };
 
   // === NEW: Plugins ===
@@ -1729,14 +1753,14 @@ interface WorktreeConfig {
 }
 
 type HookDefinition =
-  | string                          // Simple command
-  | string[]                        // Multiple commands
+  | string // Simple command
+  | string[] // Multiple commands
   | {
       command?: string;
-      script?: string;              // Path to script
-      timeout?: number;             // ms, default 30000
-      failOnError?: boolean;        // default true
-      if?: string;                  // Condition
+      script?: string; // Path to script
+      timeout?: number; // ms, default 30000
+      failOnError?: boolean; // default true
+      if?: string; // Condition
       env?: Record<string, string>; // Extra env vars
     };
 ```
@@ -1789,10 +1813,7 @@ type HookDefinition =
   },
 
   "hooks": {
-    "post-worktree": [
-      "pnpm install",
-      "code ."
-    ],
+    "post-worktree": ["pnpm install", "code ."],
     "post-pr": {
       "script": "./scripts/notify-team.js",
       "env": {
@@ -1801,9 +1822,7 @@ type HookDefinition =
     }
   },
 
-  "plugins": [
-    "@worktree-tools/plugin-linear"
-  ],
+  "plugins": ["@worktree-tools/plugin-linear"],
 
   "integrations": {
     "linear": {
@@ -1817,16 +1836,16 @@ type HookDefinition =
 
 ## Decision Matrix: AI Providers
 
-| Criterion | Claude Code | Gemini CLI | OpenAI | Ollama |
-|-----------|-------------|------------|--------|--------|
-| **Setup Complexity** | Low (if installed) | Low | Medium (API key) | High (local model) |
-| **Cost** | Subscription | Free tier | Pay-per-use | Free (hardware) |
-| **Context Window** | 200K tokens | 1M tokens | 128K tokens | Model-dependent |
-| **Offline Support** | ❌ | ❌ | ❌ | ✅ |
-| **Code Understanding** | Excellent | Good | Excellent | Good |
-| **Response Speed** | Fast | Fast | Fast | Slow (CPU) / Fast (GPU) |
-| **Privacy** | Cloud | Cloud | Cloud | Local |
-| **Integration Depth** | Native MCP | CLI | API | API |
+| Criterion              | Claude Code        | Gemini CLI | OpenAI           | Ollama                  |
+| ---------------------- | ------------------ | ---------- | ---------------- | ----------------------- |
+| **Setup Complexity**   | Low (if installed) | Low        | Medium (API key) | High (local model)      |
+| **Cost**               | Subscription       | Free tier  | Pay-per-use      | Free (hardware)         |
+| **Context Window**     | 200K tokens        | 1M tokens  | 128K tokens      | Model-dependent         |
+| **Offline Support**    | ❌                 | ❌         | ❌               | ✅                      |
+| **Code Understanding** | Excellent          | Good       | Excellent        | Good                    |
+| **Response Speed**     | Fast               | Fast       | Fast             | Slow (CPU) / Fast (GPU) |
+| **Privacy**            | Cloud              | Cloud      | Cloud            | Local                   |
+| **Integration Depth**  | Native MCP         | CLI        | API              | API                     |
 
 **Recommendation:** Default to `"provider": "auto"` which detects and uses the best available option.
 
@@ -1834,22 +1853,22 @@ type HookDefinition =
 
 ## Decision Matrix: Hook System Design
 
-| Approach | Pros | Cons | Recommendation |
-|----------|------|------|----------------|
-| **Simple commands** | Easy to configure, familiar | Limited logic | ✅ Primary |
-| **Script files** | Full programming power | More complex | ✅ Secondary |
-| **Plugin packages** | Reusable, shareable | Requires npm publish | Advanced users |
-| **Inline functions** | Concise | Security concerns | ❌ Avoid |
+| Approach             | Pros                        | Cons                 | Recommendation |
+| -------------------- | --------------------------- | -------------------- | -------------- |
+| **Simple commands**  | Easy to configure, familiar | Limited logic        | ✅ Primary     |
+| **Script files**     | Full programming power      | More complex         | ✅ Secondary   |
+| **Plugin packages**  | Reusable, shareable         | Requires npm publish | Advanced users |
+| **Inline functions** | Concise                     | Security concerns    | ❌ Avoid       |
 
 ---
 
 ## Decision Matrix: Configuration Scope
 
-| Scope | Location | Use Case |
-|-------|----------|----------|
-| **Global** | `~/.worktreerc` | Personal defaults across all repos |
-| **Repository** | `./.worktreerc` | Team-shared repo config |
-| **Command-line** | `--flag` | One-off overrides |
+| Scope            | Location        | Use Case                           |
+| ---------------- | --------------- | ---------------------------------- |
+| **Global**       | `~/.worktreerc` | Personal defaults across all repos |
+| **Repository**   | `./.worktreerc` | Team-shared repo config            |
+| **Command-line** | `--flag`        | One-off overrides                  |
 
 **Merge priority:** CLI > Repository > Global > Defaults
 
@@ -1966,16 +1985,16 @@ type HookDefinition =
 
 ## Implementation Priority Matrix
 
-| Feature | Impact | Effort | Priority |
-|---------|--------|--------|----------|
-| Non-interactive mode (`--json`) | High | Low | **P0** |
-| `wtstate` command | High | Low | **P0** |
-| MCP Server | High | Medium | **P1** |
-| AI branch names | Medium | Medium | **P1** |
-| AI PR descriptions | Medium | Medium | **P1** |
-| Hook system | Medium | Medium | **P2** |
-| Setup wizard | Medium | High | **P2** |
-| Plan document generation | Low | Medium | **P3** |
-| Plugin architecture | Low | High | **P3** |
+| Feature                         | Impact | Effort | Priority |
+| ------------------------------- | ------ | ------ | -------- |
+| Non-interactive mode (`--json`) | High   | Low    | **P0**   |
+| `wtstate` command               | High   | Low    | **P0**   |
+| MCP Server                      | High   | Medium | **P1**   |
+| AI branch names                 | Medium | Medium | **P1**   |
+| AI PR descriptions              | Medium | Medium | **P1**   |
+| Hook system                     | Medium | Medium | **P2**   |
+| Setup wizard                    | Medium | High   | **P2**   |
+| Plan document generation        | Low    | Medium | **P3**   |
+| Plugin architecture             | Low    | High   | **P3**   |
 
 **Recommended order:** P0 → P1 → P2 → P3

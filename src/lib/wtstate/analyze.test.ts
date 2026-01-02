@@ -49,7 +49,10 @@ describe('wtstate/analyze', () => {
       vi.mocked(getScenarioContext).mockReturnValue({
         message: 'What would you like to do?',
         choices: [
-          { label: 'Create empty commit', action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false } },
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
         ],
       });
 
@@ -78,7 +81,14 @@ describe('wtstate/analyze', () => {
       vi.mocked(getScenarioContext).mockReturnValue({
         message: 'Feature branch has uncommitted changes',
         choices: [
-          { label: 'Commit all and create PR', action: { action: 'pr_for_branch_commit_all', branchFrom: 'head', stashUnstaged: false } },
+          {
+            label: 'Commit all and create PR',
+            action: {
+              action: 'pr_for_branch_commit_all',
+              branchFrom: 'head',
+              stashUnstaged: false,
+            },
+          },
         ],
       });
 
@@ -133,8 +143,14 @@ describe('wtstate/analyze', () => {
       vi.mocked(getScenarioContext).mockReturnValue({
         message: 'You have staged changes',
         choices: [
-          { label: 'Commit staged changes', action: { action: 'commit_staged', branchFrom: 'origin_main', stashUnstaged: false } },
-          { label: 'Stash and empty', action: { action: 'stash_and_empty', branchFrom: 'origin_main', stashUnstaged: true } },
+          {
+            label: 'Commit staged changes',
+            action: { action: 'commit_staged', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          {
+            label: 'Stash and empty',
+            action: { action: 'stash_and_empty', branchFrom: 'origin_main', stashUnstaged: true },
+          },
         ],
       });
 
@@ -163,7 +179,10 @@ describe('wtstate/analyze', () => {
       vi.mocked(getScenarioContext).mockReturnValue({
         message: 'You have staged changes',
         choices: [
-          { label: 'Commit staged', action: { action: 'commit_staged', branchFrom: 'origin_main', stashUnstaged: false } },
+          {
+            label: 'Commit staged',
+            action: { action: 'commit_staged', branchFrom: 'origin_main', stashUnstaged: false },
+          },
         ],
       });
 

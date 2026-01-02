@@ -123,20 +123,14 @@ function findActionByKey(
  * }
  * ```
  */
-export async function setupPrWorktree(
-  options: SetupPrWorktreeOptions
-): Promise<CreatePrResult> {
+export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<CreatePrResult> {
   const { prNumber, cwd } = options;
   const warnings: string[] = [];
 
   try {
     // Verify prerequisites
     if (!github.isGhInstalled()) {
-      return createErrorResult(
-        'newpr',
-        ErrorCode.GH_NOT_INSTALLED,
-        'GitHub CLI (gh) is required'
-      );
+      return createErrorResult('newpr', ErrorCode.GH_NOT_INSTALLED, 'GitHub CLI (gh) is required');
     }
 
     if (!github.isAuthenticated()) {
@@ -249,11 +243,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
   try {
     // Verify prerequisites
     if (!github.isGhInstalled()) {
-      return createErrorResult(
-        'newpr',
-        ErrorCode.GH_NOT_INSTALLED,
-        'GitHub CLI (gh) is required'
-      );
+      return createErrorResult('newpr', ErrorCode.GH_NOT_INSTALLED, 'GitHub CLI (gh) is required');
     }
 
     if (!github.isAuthenticated()) {
@@ -525,7 +515,9 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
           git.stashApply(unstagedStashRef, worktreePath);
           git.stashDrop(unstagedStashRef);
         } catch {
-          warnings.push('Failed to apply unstaged changes to worktree. Run "git stash pop" to recover.');
+          warnings.push(
+            'Failed to apply unstaged changes to worktree. Run "git stash pop" to recover.'
+          );
         }
       }
 

@@ -7,12 +7,7 @@
 
 import * as git from '../lib/git.js';
 import * as colors from '../lib/colors.js';
-import {
-  parseArgs,
-  getHelpText,
-  analyzeState,
-  formatText,
-} from '../lib/wtstate/index.js';
+import { parseArgs, getHelpText, analyzeState, formatText } from '../lib/wtstate/index.js';
 import {
   createSuccessResult,
   createErrorResult,

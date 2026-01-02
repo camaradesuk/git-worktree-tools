@@ -113,8 +113,7 @@ const tools: Tool[] = [
       properties: {
         prNumber: {
           type: 'number',
-          description:
-            'Specific PR to clean (optional, cleans all merged/closed if not specified)',
+          description: 'Specific PR to clean (optional, cleans all merged/closed if not specified)',
         },
         deleteRemote: {
           type: 'boolean',

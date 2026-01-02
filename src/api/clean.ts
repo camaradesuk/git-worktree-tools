@@ -184,9 +184,14 @@ export async function cleanWorktrees(
           .replace('{number}', String(prNumber));
         const expectedPath = path.join(path.dirname(repoRoot), pattern);
 
-        return createErrorResult('cleanpr', ErrorCode.PR_NOT_FOUND, `No worktree found for PR #${prNumber}`, {
-          expectedPath,
-        });
+        return createErrorResult(
+          'cleanpr',
+          ErrorCode.PR_NOT_FOUND,
+          `No worktree found for PR #${prNumber}`,
+          {
+            expectedPath,
+          }
+        );
       }
 
       if (dryRun) {

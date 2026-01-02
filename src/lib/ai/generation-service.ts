@@ -112,10 +112,10 @@ export class AIGenerationService {
       this.config.provider !== 'none' &&
       Boolean(
         this.config.branchName ||
-          this.config.prTitle ||
-          this.config.prDescription ||
-          this.config.commitMessage ||
-          this.config.planDocument
+        this.config.prTitle ||
+        this.config.prDescription ||
+        this.config.commitMessage ||
+        this.config.planDocument
       )
     );
   }

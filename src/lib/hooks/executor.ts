@@ -16,12 +16,7 @@ import type {
   HooksConfig,
   ComplexHookDef,
 } from './types.js';
-import {
-  contextToEnv,
-  isSimpleHook,
-  isMultipleHook,
-  isComplexHook,
-} from './types.js';
+import { contextToEnv, isSimpleHook, isMultipleHook, isComplexHook } from './types.js';
 
 /**
  * Default timeout for hook execution (30 seconds)
@@ -179,9 +174,7 @@ function evaluateCondition(condition: string, context: HookContext, cwd: string)
 
   // Handle "has-changes" condition
   if (condition === 'has-changes') {
-    return (
-      (context.stagedFiles?.length ?? 0) > 0 || (context.unstagedFiles?.length ?? 0) > 0
-    );
+    return (context.stagedFiles?.length ?? 0) > 0 || (context.unstagedFiles?.length ?? 0) > 0;
   }
 
   // Handle "has-staged" condition

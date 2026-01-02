@@ -229,7 +229,9 @@ describe('MCP Server', () => {
         dryRun: false,
       });
       expect(result.success).toBe(true);
-      expect(result.data && 'totalCleaned' in result.data ? result.data.totalCleaned : undefined).toBe(1);
+      expect(
+        result.data && 'totalCleaned' in result.data ? result.data.totalCleaned : undefined
+      ).toBe(1);
     });
 
     it('calls cleanWorktrees with dryRun', async () => {
