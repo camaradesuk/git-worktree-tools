@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 # Run TypeScript type checking first (catches type errors that eslint/prettier miss)
 npx tsc --noEmit
