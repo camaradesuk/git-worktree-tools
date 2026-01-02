@@ -52,6 +52,7 @@ describe('cli/cleanpr', () => {
     sharedRepos: [],
     branchPrefix: 'feature',
     syncPatterns: [],
+    preferredEditor: 'auto' as const,
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({

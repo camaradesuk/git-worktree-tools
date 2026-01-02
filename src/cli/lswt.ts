@@ -17,6 +17,7 @@ import {
   formatJsonOutput,
   gatherWorktreeInfo,
   createDefaultDeps,
+  runInteractiveMode,
 } from '../lib/lswt/index.js';
 import type { WorktreeDisplay, ListOptions } from '../lib/lswt/index.js';
 
@@ -104,9 +105,17 @@ async function main(): Promise<void> {
   const deps = createDefaultDeps();
   const worktrees = await gatherWorktreeInfo(repoRoot, options, deps);
 
+  // Determine if we should use interactive mode
+  // Default to interactive if TTY and not explicitly disabled, and not JSON output
+  const useInteractive =
+    options.interactive === true ||
+    (options.interactive === undefined && process.stdout.isTTY && !options.json);
+
   // Output
   if (options.json) {
     console.log(formatJsonOutput(worktrees));
+  } else if (useInteractive) {
+    await runInteractiveMode(worktrees, options);
   } else {
     printTable(worktrees, options, process.cwd());
   }

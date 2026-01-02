@@ -90,6 +90,7 @@ describe('cli/newpr', () => {
     sharedRepos: [],
     branchPrefix: 'feature',
     syncPatterns: [],
+    preferredEditor: 'auto' as const,
   };
 
   const defaultOptions = {
