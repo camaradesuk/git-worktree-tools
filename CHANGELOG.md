@@ -1,3 +1,20 @@
+# [1.3.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.2.1...v1.3.0) (2026-01-02)
+
+
+### Bug Fixes
+
+* add missing PrInfo properties in test mocks ([222f868](https://github.com/camaradesuk/git-worktree-tools/commit/222f868e560bbc195168f89f7c25b0975f121e7c))
+* address Sentry bug reports from PR review ([a7a35f9](https://github.com/camaradesuk/git-worktree-tools/commit/a7a35f97b9592118cd808b6918d24c40113cd4a0))
+* ensure pre-commit hook exits on tsc/prettier failures ([b91904e](https://github.com/camaradesuk/git-worktree-tools/commit/b91904e7eea9898bc8db235767161ec17d799562))
+* **lswt:** honor available editor when preferred editor missing ([15daeb1](https://github.com/camaradesuk/git-worktree-tools/commit/15daeb1a7675eb9f087709cc4fbc18fd0fdad727))
+* resolve TypeScript and formatting issues in tests ([bbf68eb](https://github.com/camaradesuk/git-worktree-tools/commit/bbf68eb04b5f29313d95b9861603b88996071bfb))
+* use cross-platform paths in getMainWorktreeRoot tests ([5e5cf08](https://github.com/camaradesuk/git-worktree-tools/commit/5e5cf08723a97290fa06ab8671c4d4762b46b59d))
+
+
+### Features
+
+* **lswt:** add interactive mode with worktree actions ([ed64835](https://github.com/camaradesuk/git-worktree-tools/commit/ed6483573ea0b505785f75318cf80345ccd86c7c))
+
 ## [1.2.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.2.0...v1.2.1) (2025-12-31)
 
 
