@@ -75,6 +75,11 @@ describe('lswt/action-executors', () => {
     branchPrefix: 'feature',
     syncPatterns: [],
     preferredEditor: 'auto',
+    ai: { provider: 'none' as const },
+    hooks: {},
+    plugins: [],
+    generators: {},
+    integrations: {},
     ...overrides,
   });
 

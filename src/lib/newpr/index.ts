@@ -39,3 +39,7 @@ export {
   commitsToCurrentBranch,
   getActionDescription,
 } from './actions.js';
+
+// Hook runner
+export type { HookRunnerOptions } from './hook-runner.js';
+export { HookRunner, createHookRunner, runLifecycleHook } from './hook-runner.js';

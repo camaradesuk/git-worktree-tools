@@ -27,9 +27,11 @@ import {
   executeStateAction,
   getBranchPoint,
   getScenarioMessageLevel,
+  createHookRunner,
   type Options,
   type StateAction,
   type ActionDeps,
+  type HookRunner,
 } from '../lib/newpr/index.js';
 
 /**
@@ -413,6 +415,26 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   const config = loadConfig(repoRoot);
   const branchName = generateBranchName(config, description);
 
+  // Initialize hook runner
+  const hookRunner = createHookRunner(
+    config.hooks ?? {},
+    {
+      repoRoot,
+      baseBranch: options.baseBranch,
+      description,
+    },
+    {
+      verbose: DEBUG_ENABLED,
+      showOutput: true,
+    }
+  );
+
+  // Run pre-analyze hook
+  if (!(await hookRunner.runHook('pre-analyze'))) {
+    console.error(colors.error('Aborted by pre-analyze hook.'));
+    process.exit(1);
+  }
+
   console.log(colors.info('Fetching latest from origin...'));
   try {
     git.fetch('origin');
@@ -422,6 +444,19 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   const state = analyzeGitState(options.baseBranch);
   const scenario = detectScenario(state);
+
+  // Update context with analysis results
+  hookRunner.updateContext({
+    scenario,
+    stagedFiles: state.stagedFiles,
+    unstagedFiles: state.unstagedFiles,
+  });
+
+  // Run post-analyze hook
+  if (!(await hookRunner.runHook('post-analyze'))) {
+    console.error(colors.error('Aborted by post-analyze hook.'));
+    process.exit(1);
+  }
 
   debug('State analysis complete', {
     scenario,
@@ -445,6 +480,12 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     action: action.action,
     branchFrom: action.branchFrom,
     stashUnstaged: action.stashUnstaged,
+  });
+
+  // Update context with selected action
+  hookRunner.updateContext({
+    action: action.action,
+    branchName,
   });
 
   // Handle special case: create PR for existing branch
@@ -518,6 +559,13 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   try {
     const branchFrom = getBranchPoint(action, options.baseBranch);
+
+    // Run pre-branch hook
+    if (!(await hookRunner.runHook('pre-branch'))) {
+      console.error(colors.error('Aborted by pre-branch hook.'));
+      throw new Error('Aborted by pre-branch hook');
+    }
+
     console.log(colors.info(`Creating branch from ${branchFrom}...`));
 
     debug('Before checkout', {
@@ -556,23 +604,59 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       willCreateEmpty: stagedFiles.length === 0 && action.branchFrom === 'origin_main',
     });
 
+    // Run post-branch hook
+    await hookRunner.runHook('post-branch');
+
     if (stagedFiles.length > 0) {
+      // Run pre-commit hook
+      if (!(await hookRunner.runHook('pre-commit'))) {
+        console.error(colors.error('Aborted by pre-commit hook.'));
+        throw new Error('Aborted by pre-commit hook');
+      }
+
       console.log(colors.info('Committing staged changes...'));
       git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` });
       debug('Committed staged changes');
+
+      // Run post-commit hook
+      await hookRunner.runHook('post-commit');
     } else if (action.branchFrom === 'origin_main') {
+      // Run pre-commit hook
+      if (!(await hookRunner.runHook('pre-commit'))) {
+        console.error(colors.error('Aborted by pre-commit hook.'));
+        throw new Error('Aborted by pre-commit hook');
+      }
+
       console.log(colors.info('Creating initial commit (required for PR creation)...'));
       git.commit({
         message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
         allowEmpty: true,
       });
       debug('Created empty commit (no staged files found)');
+
+      // Run post-commit hook
+      await hookRunner.runHook('post-commit');
+    }
+
+    // Run pre-push hook
+    if (!(await hookRunner.runHook('pre-push'))) {
+      console.error(colors.error('Aborted by pre-push hook.'));
+      throw new Error('Aborted by pre-push hook');
     }
 
     console.log(colors.info('Pushing branch to origin...'));
     git.push({ setUpstream: true, remote: 'origin', branch: branchName });
 
+    // Run post-push hook
+    await hookRunner.runHook('post-push');
+
     git.checkout(originalBranch);
+
+    // Run pre-pr hook
+    if (!(await hookRunner.runHook('pre-pr'))) {
+      console.error(colors.error('Aborted by pre-pr hook.'));
+      throw new Error('Aborted by pre-pr hook');
+    }
 
     console.log(colors.info('Creating pull request...'));
 
@@ -599,7 +683,25 @@ ${description}
 
     console.log(colors.success(`Created PR #${pr.number}: ${pr.url}`));
 
+    // Update context with PR info
+    hookRunner.updateContext({
+      prNumber: pr.number,
+      prUrl: pr.url,
+    });
+
+    // Run post-pr hook
+    await hookRunner.runHook('post-pr');
+
     const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+
+    // Update context with worktree path
+    hookRunner.updateContext({ worktreePath });
+
+    // Run pre-worktree hook
+    if (!(await hookRunner.runHook('pre-worktree'))) {
+      console.error(colors.error('Aborted by pre-worktree hook.'));
+      throw new Error('Aborted by pre-worktree hook');
+    }
 
     console.log(colors.info(`Creating worktree at ${worktreePath}...`));
     git.addWorktree(worktreePath, branchName);
@@ -619,8 +721,15 @@ ${description}
     }
 
     await setupWorktree(worktreePath, config, options);
+
+    // Run post-worktree hook
+    await hookRunner.runHook('post-worktree');
+
     printSummary(pr.number, branchName, worktreePath, pr.url);
   } catch (error) {
+    // Run cleanup hook
+    await hookRunner.runCleanup(error instanceof Error ? error : undefined);
+
     if (actionResult.stashRef) {
       console.log(colors.info('Restoring stashed changes...'));
       try {

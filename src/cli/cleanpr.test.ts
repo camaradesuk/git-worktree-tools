@@ -53,6 +53,11 @@ describe('cli/cleanpr', () => {
     branchPrefix: 'feature',
     syncPatterns: [],
     preferredEditor: 'auto' as const,
+    ai: { provider: 'none' as const },
+    hooks: {},
+    plugins: [],
+    generators: {},
+    integrations: {},
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({

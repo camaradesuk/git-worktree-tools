@@ -47,6 +47,16 @@ vi.mock('../lib/state-detection.js', () => ({
   detectScenario: vi.fn(),
 }));
 
+// Create a mock hook runner that always allows hooks to pass
+const mockHookRunner = {
+  runHook: vi.fn().mockResolvedValue(true),
+  runCleanup: vi.fn().mockResolvedValue(undefined),
+  updateContext: vi.fn(),
+  hasConfiguredHooks: vi.fn().mockReturnValue(false),
+  getConfiguredHooks: vi.fn().mockReturnValue([]),
+  getContext: vi.fn().mockReturnValue({}),
+};
+
 vi.mock('../lib/newpr/index.js', () => ({
   parseArgs: vi.fn(),
   getHelpText: vi.fn(),
@@ -56,6 +66,9 @@ vi.mock('../lib/newpr/index.js', () => ({
   executeStateAction: vi.fn(),
   getBranchPoint: vi.fn(),
   getScenarioMessageLevel: vi.fn(),
+  createHookRunner: vi.fn(() => mockHookRunner),
+  HookRunner: vi.fn(),
+  runLifecycleHook: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('fs', () => ({
@@ -91,6 +104,11 @@ describe('cli/newpr', () => {
     branchPrefix: 'feature',
     syncPatterns: [],
     preferredEditor: 'auto' as const,
+    ai: { provider: 'none' as const },
+    hooks: {},
+    plugins: [],
+    generators: {},
+    integrations: {},
   };
 
   const defaultOptions = {
@@ -130,6 +148,18 @@ describe('cli/newpr', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+
+    // Reset the hook runner mock to allow all hooks to pass
+    mockHookRunner.runHook.mockResolvedValue(true);
+    mockHookRunner.runCleanup.mockResolvedValue(undefined);
+    mockHookRunner.updateContext.mockReturnValue(undefined);
+    mockHookRunner.hasConfiguredHooks.mockReturnValue(false);
+    mockHookRunner.getConfiguredHooks.mockReturnValue([]);
+    mockHookRunner.getContext.mockReturnValue({});
+
+    // Reset createHookRunner to return the mock
+    vi.mocked(newpr.createHookRunner).mockReturnValue(mockHookRunner as unknown as ReturnType<typeof newpr.createHookRunner>);
+
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     // @ts-expect-error - process.exit mock type is complex
