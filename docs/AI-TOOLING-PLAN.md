@@ -18,15 +18,15 @@ The tools should work out-of-the-box with sensible defaults while offering deep 
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 1 | Non-Interactive Foundation | ⏳ Not Started |
-| Phase 2 | State Query Command (`wtstate`) | ⏳ Not Started |
+| Phase 1 | Non-Interactive Foundation | ✅ Complete |
+| Phase 2 | State Query Command (`wtstate`) | ✅ Complete |
 | Phase 3 | Programmatic API Layer | ⏳ Not Started |
 | Phase 4 | MCP Server | ⏳ Not Started |
 | Phase 5 | AI Content Generation | ⏳ Not Started |
 | Phase 6 | Extensibility & Hooks | ⏳ Not Started |
 | Phase 7 | Setup Wizard | ⏳ Not Started |
 
-**Last Updated:** 2025-12-31
+**Last Updated:** 2026-01-02
 **Package Version:** 1.2.0
 
 ---
@@ -473,43 +473,53 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
 ## Implementation Phases
 
-### Phase 1: Non-Interactive Foundation (Priority: Critical) ⏳
+### Phase 1: Non-Interactive Foundation (Priority: Critical) ✅
 
-**Status:** Not Started
+**Status:** Complete
 **Goal:** Enable AI tools to use existing CLI commands without interaction.
 
 #### Tasks
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Add `--non-interactive` flag to `newpr` | ⏳ | Required for AI autonomy |
-| Add `--json` flag to `newpr` | ⏳ | Machine-readable output |
-| Add `--action` flag to `newpr` | ⏳ | Pre-specify scenario action |
-| Add `--json` flag to `cleanpr` | ⏳ | Machine-readable output |
-| Add `--dry-run` to `cleanpr` | ⏳ | Preview mode |
-| Add `--json` flag to `wtlink` | ⏳ | Machine-readable output |
-| Standardize error codes | ⏳ | Structured error handling |
-| Define JSON output schema | ⏳ | Consistent response format |
+| Add `--non-interactive` flag to `newpr` | ✅ | `-y`, `--yes`, `--non-interactive` flags |
+| Add `--json` flag to `newpr` | ✅ | Machine-readable output |
+| Add `--action` flag to `newpr` | ✅ | Pre-specify scenario action |
+| Add `--json` flag to `cleanpr` | ✅ | Machine-readable output |
+| Add `--dry-run` to `cleanpr` | ✅ | Preview mode with `-n` |
+| Add `--json` flag to `wtlink` | ✅ | Machine-readable output |
+| Standardize error codes | ✅ | `ErrorCode` enum in `json-output.ts` |
+| Define JSON output schema | ✅ | `CommandResult<T>` interface |
 
 **Current State:**
 - ✅ `lswt --json` already implemented
 - ✅ `cleanpr --all` provides non-interactive mode
 - ✅ `cleanpr <PR_NUMBER>` provides non-interactive mode
 - ✅ `wtlink link --yes` provides non-interactive mode
+- ✅ `newpr --json --non-interactive --action=<key>` fully supported
 
-### Phase 2: State Query Command (Priority: High) ⏳
+### Phase 2: State Query Command (Priority: High) ✅
 
-**Status:** Not Started
+**Status:** Complete
 **Goal:** Enable AI tools to query state before acting.
 
 #### Tasks
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Create `src/cli/wtstate.ts` | ⏳ | New command |
-| Add to `package.json` bin | ⏳ | Binary entry point |
-| Return scenario and available actions | ⏳ | Core functionality |
-| JSON output by default | ⏳ | AI-first design |
+| Create `src/cli/wtstate.ts` | ✅ | New command |
+| Add to `package.json` bin | ✅ | Binary entry point |
+| Return scenario and available actions | ✅ | Core functionality |
+| JSON output by default | ✅ | `--json` flag for AI-first design |
+| Create `src/lib/wtstate/` module | ✅ | Types, args, analyze logic |
+| Add unit tests | ✅ | 29 tests for args and analyze |
+
+**Implementation Details:**
+
+- `wtstate --json` returns structured state with scenario, available actions, and recommended action
+- `wtstate --verbose` includes file lists and commit details
+- `wtstate --base <branch>` specifies the base branch for comparison
+- Exports available via `src/index.ts` for programmatic usage
 
 ### Phase 3: Programmatic API Layer (Priority: High) ⏳
 
