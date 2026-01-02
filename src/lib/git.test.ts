@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execSync } from 'child_process';
+import * as path from 'path';
 import * as git from './git.js';
 
 // Mock child_process
@@ -515,27 +516,33 @@ describe('git', () => {
 
   describe('getMainWorktreeRoot', () => {
     it('returns repo root when in main worktree', () => {
-      mockExecSync.mockReturnValue('/home/user/repo/.git');
-      const result = git.getMainWorktreeRoot('/home/user/repo');
-      expect(result).toBe('/home/user/repo');
+      // Use path.join to create platform-appropriate paths
+      const repoPath = path.join('/home', 'user', 'repo');
+      const gitDir = path.join(repoPath, '.git');
+      mockExecSync.mockReturnValue(gitDir);
+      const result = git.getMainWorktreeRoot(repoPath);
+      expect(result).toBe(path.resolve(repoPath));
     });
 
     it('returns main worktree root when in linked worktree', () => {
-      mockExecSync.mockReturnValue('/home/user/main-repo/.git/worktrees/feature-branch');
-      const result = git.getMainWorktreeRoot('/home/user/main-repo.pr42');
-      expect(result).toBe('/home/user/main-repo');
+      const mainRepo = path.join('/home', 'user', 'main-repo');
+      const worktreeGitDir = path.join(mainRepo, '.git', 'worktrees', 'feature-branch');
+      mockExecSync.mockReturnValue(worktreeGitDir);
+      const result = git.getMainWorktreeRoot(path.join('/home', 'user', 'main-repo.pr42'));
+      expect(result).toBe(path.resolve(mainRepo));
     });
 
     it('falls back to getRepoRoot when commonDir is null', () => {
+      const fallbackPath = path.join('/fallback', 'root');
       mockExecSync.mockImplementation((cmd: string) => {
         if (cmd.includes('--git-common-dir')) {
           throw new Error('failed');
         }
         // getRepoRoot calls rev-parse --show-toplevel
-        return '/fallback/root';
+        return fallbackPath;
       });
       const result = git.getMainWorktreeRoot();
-      expect(result).toBe('/fallback/root');
+      expect(result).toBe(fallbackPath);
     });
   });
 
