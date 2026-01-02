@@ -3,5 +3,8 @@
 # Run TypeScript type checking first (catches type errors that eslint/prettier miss)
 npx tsc --noEmit
 
-# Then run lint-staged for eslint and prettier
+# Check formatting on all files (catches files modified after staging)
+npx prettier --check .
+
+# Then run lint-staged for eslint and prettier fixes on staged files
 npx lint-staged
