@@ -21,6 +21,7 @@ newpr --help
 cleanpr --help
 lswt --help
 wtlink --help
+wtstate --help
 ```
 
 **Note:** If you already have `@camaradesuk/git-worktree-tools` installed globally, `npm link` will override it with a symlink to your local dev copy. The original installed version remains in the global `node_modules`, but the symlink takes precedence.
@@ -33,6 +34,7 @@ node dist/cli/newpr.js --help
 node dist/cli/cleanpr.js --help
 node dist/cli/lswt.js --help
 node dist/cli/wtlink.js --help
+node dist/cli/wtstate.js --help
 ```
 
 ### Option 3: Use npx from the project directory
@@ -83,6 +85,7 @@ alias newpr-dev="node /path/to/git-worktree-tools/dist/cli/newpr.js"
 alias cleanpr-dev="node /path/to/git-worktree-tools/dist/cli/cleanpr.js"
 alias lswt-dev="node /path/to/git-worktree-tools/dist/cli/lswt.js"
 alias wtlink-dev="node /path/to/git-worktree-tools/dist/cli/wtlink.js"
+alias wtstate-dev="node /path/to/git-worktree-tools/dist/cli/wtstate.js"
 ```
 
 ## Linting & Formatting

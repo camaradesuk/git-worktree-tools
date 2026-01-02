@@ -41,6 +41,9 @@ cleanpr
 
 # Manage shared config files between worktrees
 wtlink
+
+# Query git state (for AI agents)
+wtstate --json
 ```
 
 ## Commands
@@ -204,6 +207,78 @@ The manifest lives in your repository root and tracks which files to share:
 - `node_modules/` — Use [pnpm](https://pnpm.io) for shared dependencies instead
 - `dist/`, `build/` — Build artifacts should be separate per worktree
 - `.git/` — Never link git internals
+
+### wtstate
+
+Query the current git state for AI agents and automation. Returns structured information about the repository state, available actions, and recommended next steps.
+
+```bash
+wtstate              # Human-readable output
+wtstate --json       # Machine-readable JSON output
+wtstate --verbose    # Include file lists and commit details
+wtstate --base dev   # Specify base branch (default: main)
+```
+
+**JSON output includes:**
+
+- `scenario` — Current git state scenario (e.g., `main_staged_same`, `branch_with_changes`)
+- `scenarioDescription` — Human-readable description
+- `currentBranch` — Current branch name (null if detached HEAD)
+- `baseBranch` — Base branch for comparison
+- `worktreeType` — Type: `main_worktree`, `pr_worktree`, or `other`
+- `hasChanges`, `hasStagedChanges`, `hasUnstagedChanges` — Change flags
+- `localCommits` — List of local commits not in origin
+- `availableActions` — Actions available for this scenario
+- `recommendedAction` — Suggested action to take
+
+**Example AI workflow:**
+
+```bash
+# 1. Query state
+STATE=$(wtstate --json)
+
+# 2. Extract recommended action
+ACTION=$(echo $STATE | jq -r '.data.recommendedAction')
+
+# 3. Execute with chosen action
+newpr "Add feature" --non-interactive --action=$ACTION --json
+```
+
+## AI Tool Integration
+
+All commands support `--json` for machine-readable output, enabling integration with AI CLI tools like Claude Code, Gemini CLI, and Codex.
+
+**Non-interactive mode for automation:**
+
+```bash
+# Create PR without prompts
+newpr "Feature X" --non-interactive --json
+newpr "Fix bug" --non-interactive --action=commit_staged --json
+
+# Clean PRs with dry-run preview
+cleanpr --all --dry-run --json
+cleanpr --all --json
+
+# Link configs without prompts
+wtlink link --yes --json
+```
+
+**Available actions for `--action` flag:**
+
+| Action                      | Description                               |
+| --------------------------- | ----------------------------------------- |
+| `empty_commit`              | Create empty initial commit               |
+| `commit_staged`             | Commit staged changes to new branch       |
+| `commit_all`                | Stage all and commit to new branch        |
+| `stash_and_empty`           | Stash changes, create empty commit        |
+| `use_commits`               | Use local commits (branch from HEAD)      |
+| `push_then_branch`          | Push to main first, then create branch    |
+| `use_commits_and_commit_all`| Include commits + commit uncommitted      |
+| `use_commits_and_stash`     | Include commits, stash uncommitted        |
+| `create_pr_for_branch`      | Create PR for existing branch             |
+| `pr_for_branch_commit_all`  | Create PR for branch, commit changes first|
+| `pr_for_branch_stash`       | Create PR for branch, stash changes       |
+| `branch_from_detached`      | Create branch from detached HEAD          |
 
 ## Configuration
 
