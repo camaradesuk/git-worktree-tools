@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { executeAction, createDefaultExecutorDeps, formatBranchAsTitle } from './action-executors.js';
+import {
+  executeAction,
+  createDefaultExecutorDeps,
+  formatBranchAsTitle,
+} from './action-executors.js';
 import type { WorktreeDisplay, EnvironmentInfo } from './types.js';
 import type { WorktreeConfig } from '../config.js';
 import type { ExecutorDeps } from './action-executors.js';
@@ -520,6 +524,8 @@ describe('lswt/action-executors', () => {
         state: 'OPEN',
         isDraft: false,
         title: 'Existing PR',
+        headBranch: 'feature-branch',
+        baseBranch: 'main',
       });
 
       const worktree = makeWorktree({
@@ -527,7 +533,13 @@ describe('lswt/action-executors', () => {
         branch: 'feature-branch',
       });
 
-      const result = await executeAction('create_pr', worktree, makeEnv(), makeConfig(), makeDeps());
+      const result = await executeAction(
+        'create_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('PR already exists');
@@ -543,6 +555,8 @@ describe('lswt/action-executors', () => {
         state: 'OPEN',
         isDraft: true,
         title: 'New PR',
+        headBranch: 'feature-branch',
+        baseBranch: 'main',
       });
       vi.mocked(inquirer.prompt).mockResolvedValue({ title: 'My New PR' });
 
@@ -573,6 +587,8 @@ describe('lswt/action-executors', () => {
         state: 'OPEN',
         isDraft: false,
         title: 'New PR',
+        headBranch: 'feature-branch',
+        baseBranch: 'main',
       });
       vi.mocked(inquirer.prompt)
         .mockResolvedValueOnce({ title: 'My PR Title' })
@@ -613,7 +629,7 @@ describe('lswt/action-executors', () => {
 
   describe('link_configs action', () => {
     it('returns error when repo root not found', async () => {
-      vi.mocked(git.getRepoRoot).mockReturnValue(null);
+      vi.mocked(git.getRepoRoot).mockReturnValue(null as unknown as string);
 
       const worktree = makeWorktree({
         type: 'branch',
@@ -843,6 +859,8 @@ describe('lswt/action-executors', () => {
         state: 'OPEN',
         isDraft: false,
         title: 'Test PR',
+        headBranch: 'feature-42',
+        baseBranch: 'main',
       });
 
       const deps = makeDeps();
@@ -866,6 +884,8 @@ describe('lswt/action-executors', () => {
         state: 'OPEN',
         isDraft: false,
         title: 'Test PR',
+        headBranch: 'feature-42',
+        baseBranch: 'main',
       });
 
       const deps = makeDeps({

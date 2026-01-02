@@ -335,6 +335,8 @@ describe('lswt/worktree-info', () => {
           isDraft: false,
           url: 'https://github.com/owner/repo/pull/42',
           title: 'Test PR',
+          headBranch: 'feature-42',
+          baseBranch: 'main',
         });
 
         const deps = createDefaultDeps();
@@ -351,6 +353,8 @@ describe('lswt/worktree-info', () => {
           isDraft: true,
           url: 'https://github.com/owner/repo/pull/42',
           title: 'Test PR',
+          headBranch: 'feature-42',
+          baseBranch: 'main',
         });
 
         const deps = createDefaultDeps();
@@ -386,6 +390,8 @@ describe('lswt/worktree-info', () => {
           isDraft: false,
           url: 'https://github.com/owner/repo/pull/42',
           title: 'Test PR',
+          headBranch: 'feature-42',
+          baseBranch: 'main',
         });
 
         const deps = createDefaultDeps();
@@ -401,6 +407,8 @@ describe('lswt/worktree-info', () => {
           isDraft: false,
           url: 'https://github.com/owner/repo/pull/42',
           title: 'Test PR',
+          headBranch: 'feature-42',
+          baseBranch: 'main',
         });
 
         const deps = createDefaultDeps();

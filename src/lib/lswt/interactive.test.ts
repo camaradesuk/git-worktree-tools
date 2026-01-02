@@ -297,7 +297,7 @@ describe('lswt/interactive', () => {
     });
 
     it('returns early with error when not in git repository', async () => {
-      vi.mocked(git.getRepoRoot).mockReturnValue(null);
+      vi.mocked(git.getRepoRoot).mockReturnValue(null as unknown as string);
 
       await runInteractiveMode([makeWorktree()], defaultOptions);
 
