@@ -13,6 +13,8 @@ export * as config from './lib/config.js';
 export * as stateDetection from './lib/state-detection.js';
 export * as errors from './lib/errors.js';
 export * as constants from './lib/constants.js';
+export * as jsonOutput from './lib/json-output.js';
+export * as wtstate from './lib/wtstate/index.js';
 
 // Export key types
 export type {
@@ -31,6 +33,25 @@ export type { WorktreeConfig } from './lib/config.js';
 export type { GitState, Scenario, WorktreeType, BranchType } from './lib/state-detection.js';
 
 export type { PromptOption } from './lib/prompts.js';
+
+export type {
+  CommandResult,
+  ErrorInfo,
+  StateActionKey,
+  NewprResultData,
+  CleanprResultData,
+  WtlinkResultData,
+  WtstateResultData,
+  AvailableAction,
+} from './lib/json-output.js';
+
+export { ErrorCode } from './lib/json-output.js';
+
+export type {
+  WtstateOptions,
+  WtstateResult,
+  WorktreeType as WtstateWorktreeType,
+} from './lib/wtstate/types.js';
 
 // Export error classes for direct use
 export {

@@ -9,7 +9,8 @@
     "newpr": "./dist/cli/newpr.js",
     "cleanpr": "./dist/cli/cleanpr.js",
     "lswt": "./dist/cli/lswt.js",
-    "wtlink": "./dist/cli/wtlink.js"
+    "wtlink": "./dist/cli/wtlink.js",
+    "wtstate": "./dist/cli/wtstate.js"
   },
   "scripts": {
     "build": "tsc",
