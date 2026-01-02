@@ -1,2 +1,7 @@
 #!/bin/sh
+
+# Run TypeScript type checking first (catches type errors that eslint/prettier miss)
+npx tsc --noEmit
+
+# Then run lint-staged for eslint and prettier
 npx lint-staged
