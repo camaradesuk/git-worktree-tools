@@ -413,8 +413,9 @@ async function createPr(worktree: WorktreeDisplay, config: WorktreeConfig): Prom
 
 /**
  * Format branch name as PR title
+ * Exported for testing
  */
-function formatBranchAsTitle(branch: string): string {
+export function formatBranchAsTitle(branch: string): string {
   // Remove common prefixes
   let title = branch
     .replace(/^(feat|fix|chore|docs|refactor|test|style)\//, '')

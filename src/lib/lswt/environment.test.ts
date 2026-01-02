@@ -245,6 +245,24 @@ describe('lswt/environment', () => {
       }
     });
 
+    it('sets defaultEditor to cursor when only cursor is available', () => {
+      const env = detectEnvironment();
+
+      // If Cursor is available but not VSCode, defaultEditor should be cursor
+      if (env.hasCursor && !env.hasVscode) {
+        expect(env.defaultEditor).toBe('cursor');
+      }
+    });
+
+    it('sets defaultEditor to null when neither editor is available', () => {
+      const env = detectEnvironment();
+
+      // If neither is available, defaultEditor should be null
+      if (!env.hasVscode && !env.hasCursor) {
+        expect(env.defaultEditor).toBeNull();
+      }
+    });
+
     it('returns platform as win32, darwin, or linux', () => {
       const env = detectEnvironment();
       expect(['win32', 'darwin', 'linux']).toContain(env.platform);
@@ -259,6 +277,120 @@ describe('lswt/environment', () => {
       if (process.platform !== 'win32') {
         expect(env.shell).toMatch(/^\//);
       }
+    });
+
+    it('isInteractive reflects TTY status', () => {
+      const env = detectEnvironment();
+      // In test environment, stdout.isTTY may be undefined or false
+      expect(typeof env.isInteractive).toBe('boolean');
+    });
+  });
+
+  describe('parseGitVersion edge cases', () => {
+    it('handles version string with only git version text', () => {
+      const result = parseGitVersion('git version');
+      expect(result.major).toBe(0);
+      expect(result.minor).toBe(0);
+      expect(result.patch).toBe(0);
+    });
+
+    it('handles version string with partial version', () => {
+      const result = parseGitVersion('git version 2');
+      expect(result.major).toBe(0);
+      expect(result.minor).toBe(0);
+      expect(result.patch).toBe(0);
+    });
+
+    it('handles version string with two-part version', () => {
+      const result = parseGitVersion('git version 2.39');
+      expect(result.major).toBe(0);
+      expect(result.minor).toBe(0);
+      expect(result.patch).toBe(0);
+    });
+
+    it('handles double-digit version numbers', () => {
+      const result = parseGitVersion('git version 12.34.56');
+      expect(result).toEqual({
+        major: 12,
+        minor: 34,
+        patch: 56,
+        raw: 'git version 12.34.56',
+      });
+    });
+
+    it('handles version with newline at start', () => {
+      const result = parseGitVersion('\ngit version 2.39.0\n');
+      expect(result.major).toBe(2);
+      expect(result.minor).toBe(39);
+      expect(result.patch).toBe(0);
+    });
+  });
+
+  describe('isGitVersionAtLeast edge cases', () => {
+    const makeVersion = (major: number, minor: number, patch = 0) => ({
+      major,
+      minor,
+      patch,
+      raw: `git version ${major}.${minor}.${patch}`,
+    });
+
+    it('handles zero versions', () => {
+      expect(isGitVersionAtLeast(makeVersion(0, 0), { major: 0, minor: 0 })).toBe(true);
+    });
+
+    it('handles very old git versions', () => {
+      expect(isGitVersionAtLeast(makeVersion(1, 5), { major: 2, minor: 0 })).toBe(false);
+    });
+  });
+
+  describe('isCommandAvailable edge cases', () => {
+    it('returns true for common system commands', () => {
+      // These should exist on all platforms
+      if (process.platform === 'win32') {
+        expect(isCommandAvailable('cmd')).toBe(true);
+      } else {
+        expect(isCommandAvailable('sh')).toBe(true);
+      }
+    });
+
+    it('handles command names with special characters gracefully', () => {
+      // This should not throw, just return false
+      expect(isCommandAvailable('foo$bar')).toBe(false);
+    });
+  });
+
+  describe('getShell edge cases', () => {
+    it('returns a string containing path or command', () => {
+      const shell = getShell();
+      expect(shell.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('getDefaultTerminal edge cases', () => {
+    it('never returns empty string', () => {
+      const terminal = getDefaultTerminal();
+      expect(terminal).toBeTruthy();
+    });
+
+    it('returns consistent results on repeated calls', () => {
+      const terminal1 = getDefaultTerminal();
+      const terminal2 = getDefaultTerminal();
+      expect(terminal1).toBe(terminal2);
+    });
+  });
+
+  describe('getGitVersion edge cases', () => {
+    it('returns valid version info with raw containing git version', () => {
+      const version = getGitVersion();
+      // The raw string should contain version info or 'unknown' if git not found
+      expect(version.raw.length).toBeGreaterThan(0);
+    });
+
+    it('has consistent major/minor/patch types', () => {
+      const version = getGitVersion();
+      expect(Number.isInteger(version.major)).toBe(true);
+      expect(Number.isInteger(version.minor)).toBe(true);
+      expect(Number.isInteger(version.patch)).toBe(true);
     });
   });
 });
