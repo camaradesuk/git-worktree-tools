@@ -1,0 +1,10 @@
+{
+  "description": "Template for PR creation response",
+  "template": "https://github.com/{owner}/{repo}/pull/{number}",
+  "defaults": {
+    "owner": "testorg",
+    "repo": "testrepo",
+    "state": "OPEN",
+    "isDraft": false
+  }
+}

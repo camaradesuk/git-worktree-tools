@@ -280,7 +280,24 @@ newpr "Add feature" --non-interactive --action=$ACTION --json
 
 All commands support `--json` for machine-readable output, enabling integration with AI CLI tools like Claude Code, Gemini CLI, and Codex.
 
-**Non-interactive mode for automation:**
+> **Comprehensive Guide:** See [docs/AI-TOOLING.md](docs/AI-TOOLING.md) for detailed documentation including programmatic API, error codes, lifecycle hooks, and integration examples.
+
+### Quick Start for AI Agents
+
+The recommended workflow is a three-step "look before you leap" pattern:
+
+```bash
+# 1. Query current git state
+STATE=$(wtstate --json)
+
+# 2. Extract recommended action
+ACTION=$(echo $STATE | jq -r '.data.recommendedAction')
+
+# 3. Execute with the chosen action
+newpr "Add feature X" --non-interactive --action=$ACTION --json
+```
+
+### Non-Interactive Mode
 
 ```bash
 # Create PR without prompts
@@ -295,7 +312,41 @@ cleanpr --all --json
 wtlink link --yes --json
 ```
 
-**Available actions for `--action` flag:**
+### JSON Output Schema
+
+All commands return consistent JSON:
+
+```typescript
+interface CommandResult<T> {
+  success: boolean; // Whether the command succeeded
+  command: string; // Command name (e.g., "newpr", "cleanpr")
+  timestamp: string; // ISO 8601 timestamp
+  data?: T; // Command-specific data (on success)
+  error?: {
+    // Error details (on failure)
+    code: string; // Machine-readable error code
+    message: string; // Human-readable message
+  };
+  warnings?: string[]; // Non-fatal warnings
+}
+```
+
+### Structured Error Codes
+
+Error codes enable programmatic error handling:
+
+| Code                   | Description                  |
+| ---------------------- | ---------------------------- |
+| `NOT_GIT_REPO`         | Not inside a git repository  |
+| `GH_NOT_AUTHENTICATED` | GitHub CLI not authenticated |
+| `INVALID_ACTION`       | Invalid action for scenario  |
+| `HOOK_FAILED`          | Lifecycle hook failed        |
+| `USER_CANCELLED`       | Operation cancelled          |
+| `PR_CREATE_FAILED`     | Failed to create PR          |
+
+See [docs/AI-TOOLING.md](docs/AI-TOOLING.md#structured-error-codes) for the complete list.
+
+### Available Actions for `--action` Flag
 
 | Action                       | Description                                |
 | ---------------------------- | ------------------------------------------ |
@@ -311,6 +362,35 @@ wtlink link --yes --json
 | `pr_for_branch_commit_all`   | Create PR for branch, commit changes first |
 | `pr_for_branch_stash`        | Create PR for branch, stash changes        |
 | `branch_from_detached`       | Create branch from detached HEAD           |
+
+### Programmatic API
+
+For deeper integration, use the programmatic API:
+
+```typescript
+import {
+  queryState,
+  listWorktrees,
+  cleanWorktrees,
+  createPr,
+} from '@camaradesuk/git-worktree-tools';
+
+// Query git state
+const state = queryState({ baseBranch: 'main' });
+if (state.success) {
+  console.log(`Scenario: ${state.data.scenario}`);
+  console.log(`Recommended: ${state.data.recommendedAction}`);
+}
+
+// Create PR
+const result = await createPr({
+  description: 'Add dark mode',
+  action: 'commit_staged',
+  draft: true,
+});
+```
+
+See [docs/AI-TOOLING.md](docs/AI-TOOLING.md#programmatic-api) for complete API documentation.
 
 ## Configuration
 

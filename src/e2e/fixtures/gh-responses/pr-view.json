@@ -1,0 +1,32 @@
+{
+  "description": "Template for PR view response",
+  "fields": [
+    "number",
+    "state",
+    "title",
+    "headRefName",
+    "baseRefName",
+    "url",
+    "isDraft",
+    "author"
+  ],
+  "defaults": {
+    "state": "OPEN",
+    "baseRefName": "main",
+    "isDraft": false,
+    "author": {
+      "login": "testuser"
+    }
+  },
+  "states": {
+    "open": {
+      "state": "OPEN"
+    },
+    "merged": {
+      "state": "MERGED"
+    },
+    "closed": {
+      "state": "CLOSED"
+    }
+  }
+}
