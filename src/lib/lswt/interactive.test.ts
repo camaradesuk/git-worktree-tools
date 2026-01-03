@@ -5,6 +5,8 @@ import {
   formatStatusWithColors,
   runInteractiveMode,
   getActionForShortcut,
+  getBadgeText,
+  computeMaxBadgeWidth,
   type InteractiveDeps,
 } from './interactive.js';
 import type { WorktreeDisplay, ListOptions, WorktreeAction } from './types.js';
@@ -82,7 +84,8 @@ describe('lswt/interactive', () => {
   describe('formatTypeBadgeWithColors', () => {
     it('formats main worktree badge', () => {
       const worktree = makeWorktree({ type: 'main' });
-      const result = formatTypeBadgeWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatTypeBadgeWithColors(worktree, badgeWidth);
 
       expect(result).toContain('[main]');
     });
@@ -93,7 +96,8 @@ describe('lswt/interactive', () => {
         prNumber: 42,
         prState: 'OPEN',
       });
-      const result = formatTypeBadgeWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatTypeBadgeWithColors(worktree, badgeWidth);
 
       expect(result).toContain('[PR #42]');
     });
@@ -105,7 +109,8 @@ describe('lswt/interactive', () => {
         prState: 'OPEN',
         isDraft: true,
       });
-      const result = formatTypeBadgeWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatTypeBadgeWithColors(worktree, badgeWidth);
 
       expect(result).toContain('DRAFT');
       expect(result).toContain('#42');
@@ -116,7 +121,8 @@ describe('lswt/interactive', () => {
         type: 'branch',
         branch: 'feature-branch',
       });
-      const result = formatTypeBadgeWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatTypeBadgeWithColors(worktree, badgeWidth);
 
       expect(result).toContain('[branch]');
     });
@@ -126,7 +132,8 @@ describe('lswt/interactive', () => {
         type: 'detached',
         branch: null,
       });
-      const result = formatTypeBadgeWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatTypeBadgeWithColors(worktree, badgeWidth);
 
       expect(result).toContain('[detached]');
     });
@@ -137,7 +144,8 @@ describe('lswt/interactive', () => {
         prNumber: 42,
         prState: 'OPEN',
       });
-      const result = formatTypeBadgeWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatTypeBadgeWithColors(worktree, badgeWidth);
 
       expect(result).toContain('[PR #42 REMOTE]');
     });
@@ -149,7 +157,8 @@ describe('lswt/interactive', () => {
         prState: 'OPEN',
         isDraft: true,
       });
-      const result = formatTypeBadgeWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatTypeBadgeWithColors(worktree, badgeWidth);
 
       expect(result).toContain('REMOTE');
       expect(result).toContain('DRAFT');
@@ -236,10 +245,86 @@ describe('lswt/interactive', () => {
     });
   });
 
+  describe('getBadgeText', () => {
+    it('returns [main] for main worktree', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      expect(getBadgeText(worktree)).toBe('[main]');
+    });
+
+    it('returns [PR #N] for PR worktree', () => {
+      const worktree = makeWorktree({ type: 'pr', prNumber: 42 });
+      expect(getBadgeText(worktree)).toBe('[PR #42]');
+    });
+
+    it('returns [PR #N DRAFT] for draft PR worktree', () => {
+      const worktree = makeWorktree({ type: 'pr', prNumber: 42, isDraft: true });
+      expect(getBadgeText(worktree)).toBe('[PR #42 DRAFT]');
+    });
+
+    it('returns [PR #N REMOTE] for remote PR worktree', () => {
+      const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42 });
+      expect(getBadgeText(worktree)).toBe('[PR #42 REMOTE]');
+    });
+
+    it('returns [PR #N REMOTE DRAFT] for remote draft PR worktree', () => {
+      const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, isDraft: true });
+      expect(getBadgeText(worktree)).toBe('[PR #42 REMOTE DRAFT]');
+    });
+
+    it('returns [branch] for branch worktree', () => {
+      const worktree = makeWorktree({ type: 'branch' });
+      expect(getBadgeText(worktree)).toBe('[branch]');
+    });
+
+    it('returns [detached] for detached worktree', () => {
+      const worktree = makeWorktree({ type: 'detached' });
+      expect(getBadgeText(worktree)).toBe('[detached]');
+    });
+
+    it('handles large PR numbers correctly', () => {
+      const worktree = makeWorktree({ type: 'pr', prNumber: 12345 });
+      expect(getBadgeText(worktree)).toBe('[PR #12345]');
+    });
+  });
+
+  describe('computeMaxBadgeWidth', () => {
+    it('returns sensible default for empty array', () => {
+      expect(computeMaxBadgeWidth([])).toBe(12);
+    });
+
+    it('computes width based on longest badge', () => {
+      const worktrees = [
+        makeWorktree({ type: 'main' }), // [main] = 6
+        makeWorktree({ type: 'pr', prNumber: 42 }), // [PR #42] = 8
+      ];
+      // Max is 8 + 2 padding = 10
+      expect(computeMaxBadgeWidth(worktrees)).toBe(10);
+    });
+
+    it('handles large PR numbers in width calculation', () => {
+      const worktrees = [
+        makeWorktree({ type: 'main' }), // [main] = 6
+        makeWorktree({ type: 'pr', prNumber: 99999 }), // [PR #99999] = 11
+      ];
+      // Max is 11 + 2 padding = 13
+      expect(computeMaxBadgeWidth(worktrees)).toBe(13);
+    });
+
+    it('handles remote PRs in width calculation', () => {
+      const worktrees = [
+        makeWorktree({ type: 'main' }), // [main] = 6
+        makeWorktree({ type: 'remote_pr', prNumber: 42, isDraft: true }), // [PR #42 REMOTE DRAFT] = 21
+      ];
+      // Max is 21 + 2 padding = 23
+      expect(computeMaxBadgeWidth(worktrees)).toBe(23);
+    });
+  });
+
   describe('formatWorktreeChoiceWithColors', () => {
     it('includes type badge', () => {
       const worktree = makeWorktree({ type: 'main' });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('[main]');
     });
@@ -249,7 +334,8 @@ describe('lswt/interactive', () => {
         type: 'branch',
         branch: 'feature-xyz',
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('feature-xyz');
     });
@@ -259,7 +345,8 @@ describe('lswt/interactive', () => {
         type: 'detached',
         branch: null,
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('(detached)');
     });
@@ -271,7 +358,8 @@ describe('lswt/interactive', () => {
         prState: 'OPEN',
         branch: 'feat/something',
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('[PR #42]');
       expect(result).toContain('feat/something');
@@ -286,7 +374,8 @@ describe('lswt/interactive', () => {
         isDraft: true,
         branch: 'feat/something',
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('DRAFT');
     });
@@ -297,7 +386,8 @@ describe('lswt/interactive', () => {
         branch: 'feature',
         hasChanges: true,
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('has changes');
     });
@@ -310,7 +400,8 @@ describe('lswt/interactive', () => {
         branch: 'feat/some-long-branch-name',
         prTitle: 'Add amazing new feature',
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('Add amazing new feature');
       expect(result).toContain('[PR #42 REMOTE]');
@@ -324,7 +415,8 @@ describe('lswt/interactive', () => {
         branch: 'feat/feature',
         prTitle: 'This is a very long pull request title that should be truncated for display',
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       // Title should be truncated to 30 chars with ...
       expect(result).toContain('...');
@@ -337,7 +429,8 @@ describe('lswt/interactive', () => {
         prState: 'OPEN',
         prTitle: 'New feature',
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('OPEN');
     });
@@ -350,7 +443,8 @@ describe('lswt/interactive', () => {
         isDraft: true,
         prTitle: 'Draft feature',
       });
-      const result = formatWorktreeChoiceWithColors(worktree);
+      const badgeWidth = computeMaxBadgeWidth([worktree]);
+      const result = formatWorktreeChoiceWithColors(worktree, badgeWidth);
 
       expect(result).toContain('DRAFT');
     });

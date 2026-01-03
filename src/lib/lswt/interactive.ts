@@ -27,14 +27,44 @@ const SHORTCUT_MAP: Record<string, WorktreeAction> = {
   q: 'exit',
 };
 
-/** Badge width constants for consistent formatting */
-const BADGE_WIDTH = {
-  main: 12, // '[main]' + padding
-  pr: 14, // '[PR #123]' + padding
-  remote_pr: 22, // '[PR #123 REMOTE]' + padding
-  branch: 12, // '[branch]' + padding
-  detached: 12, // '[detached]' + padding
-} as const;
+/**
+ * Get the raw badge text (without colors) for a worktree.
+ * Used to compute dynamic badge widths.
+ * Exported for testing.
+ */
+export function getBadgeText(worktree: WorktreeDisplay): string {
+  switch (worktree.type) {
+    case 'main':
+      return '[main]';
+    case 'pr':
+      if (worktree.isDraft) {
+        return `[PR #${worktree.prNumber} DRAFT]`;
+      }
+      return `[PR #${worktree.prNumber}]`;
+    case 'remote_pr':
+      if (worktree.isDraft) {
+        return `[PR #${worktree.prNumber} REMOTE DRAFT]`;
+      }
+      return `[PR #${worktree.prNumber} REMOTE]`;
+    case 'branch':
+      return '[branch]';
+    case 'detached':
+      return '[detached]';
+    default:
+      return '[unknown]';
+  }
+}
+
+/**
+ * Compute the maximum badge width needed for a list of worktrees.
+ * Adds padding for visual spacing.
+ * Exported for testing.
+ */
+export function computeMaxBadgeWidth(worktrees: WorktreeDisplay[]): number {
+  if (worktrees.length === 0) return 12; // sensible default
+  const maxTextWidth = Math.max(...worktrees.map((wt) => getBadgeText(wt).length));
+  return maxTextWidth + 2; // add padding for visual spacing
+}
 
 /**
  * Get the action for a shortcut key, handling worktree-specific rules.
@@ -281,6 +311,9 @@ async function selectWorktreeWithShortcuts(
     const exitIndex = worktrees.length; // Virtual "Exit" option
     let firstRender = true;
 
+    // Compute badge width once for consistent alignment
+    const badgeWidth = computeMaxBadgeWidth(worktrees);
+
     // Render the list
     const render = () => {
       // Move cursor up to overwrite previous render (skip on first render)
@@ -294,7 +327,7 @@ async function selectWorktreeWithShortcuts(
       for (let i = 0; i < worktrees.length; i++) {
         const wt = worktrees[i];
         const prefix = i === selectedIndex ? colors.cyan('❯ ') : '  ';
-        const line = formatWorktreeChoiceWithColors(wt);
+        const line = formatWorktreeChoiceWithColors(wt, badgeWidth);
         const highlight = i === selectedIndex ? colors.bold(line) : line;
         process.stdout.write(`\x1b[2K${prefix}${highlight}\n`);
       }
@@ -405,10 +438,15 @@ async function selectWorktreeWithShortcuts(
 
 /**
  * Format worktree choice with colors for display
+ * @param worktree - The worktree to format
+ * @param badgeWidth - The width to pad the badge to (computed dynamically via computeMaxBadgeWidth)
  * Exported for testing
  */
-export function formatWorktreeChoiceWithColors(worktree: WorktreeDisplay): string {
-  const typeLabel = formatTypeBadgeWithColors(worktree);
+export function formatWorktreeChoiceWithColors(
+  worktree: WorktreeDisplay,
+  badgeWidth: number
+): string {
+  const typeLabel = formatTypeBadgeWithColors(worktree, badgeWidth);
 
   // For remote PRs, show the PR title (truncated) instead of branch
   let displayText: string;
@@ -433,32 +471,33 @@ export function formatWorktreeChoiceWithColors(worktree: WorktreeDisplay): strin
 
 /**
  * Format type badge with colors
+ * @param worktree - The worktree to format
+ * @param badgeWidth - The width to pad the badge to (computed dynamically via computeMaxBadgeWidth)
  * Exported for testing
  */
-export function formatTypeBadgeWithColors(worktree: WorktreeDisplay): string {
+export function formatTypeBadgeWithColors(worktree: WorktreeDisplay, badgeWidth: number): string {
+  const badge = getBadgeText(worktree);
+  const paddedBadge = badge.padEnd(badgeWidth);
+
   switch (worktree.type) {
     case 'main':
-      return colors.cyan('[main]'.padEnd(BADGE_WIDTH.main));
-    case 'pr': {
+      return colors.cyan(paddedBadge);
+    case 'pr':
       if (worktree.isDraft) {
-        const label = `[PR #${worktree.prNumber} DRAFT]`;
-        return colors.yellow(label.padEnd(BADGE_WIDTH.pr));
+        return colors.yellow(paddedBadge);
       }
-      const prLabel = `[PR #${worktree.prNumber}]`;
-      return colors.green(prLabel.padEnd(BADGE_WIDTH.pr));
-    }
-    case 'remote_pr': {
+      return colors.green(paddedBadge);
+    case 'remote_pr':
       if (worktree.isDraft) {
-        const label = `[PR #${worktree.prNumber} REMOTE DRAFT]`;
-        return colors.dim(colors.yellow(label.padEnd(BADGE_WIDTH.remote_pr)));
+        return colors.dim(colors.yellow(paddedBadge));
       }
-      const prLabel = `[PR #${worktree.prNumber} REMOTE]`;
-      return colors.dim(prLabel.padEnd(BADGE_WIDTH.remote_pr));
-    }
+      return colors.dim(paddedBadge);
     case 'branch':
-      return colors.blue('[branch]'.padEnd(BADGE_WIDTH.branch));
+      return colors.blue(paddedBadge);
     case 'detached':
-      return colors.dim('[detached]'.padEnd(BADGE_WIDTH.detached));
+      return colors.dim(paddedBadge);
+    default:
+      return colors.dim(paddedBadge);
   }
 }
 
@@ -512,8 +551,9 @@ async function selectActionMenu(
   const actions = buildActionMenu(worktree, env);
 
   // Show worktree info at top
+  const badgeWidth = computeMaxBadgeWidth([worktree]);
   console.log('');
-  console.log(colors.bold(`  Selected: `) + formatWorktreeChoiceWithColors(worktree));
+  console.log(colors.bold(`  Selected: `) + formatWorktreeChoiceWithColors(worktree, badgeWidth));
   console.log(colors.dim(`  ${formatShortcutLegend(worktree)}`));
   console.log('');
 
