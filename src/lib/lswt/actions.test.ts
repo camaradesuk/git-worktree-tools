@@ -40,6 +40,7 @@ describe('lswt/actions', () => {
       expect(ACTION_SHORTCUTS.open_terminal).toBe('t');
       expect(ACTION_SHORTCUTS.open_pr_url).toBe('p');
       expect(ACTION_SHORTCUTS.create_pr).toBe('p');
+      expect(ACTION_SHORTCUTS.checkout_pr).toBe('w');
       expect(ACTION_SHORTCUTS.show_details).toBe('d');
       expect(ACTION_SHORTCUTS.copy_path).toBe('c');
       expect(ACTION_SHORTCUTS.remove_worktree).toBe('r');
@@ -230,6 +231,120 @@ describe('lswt/actions', () => {
         const values = menu.map((m) => m.value);
         expect(values).not.toContain('open_pr_url');
         expect(values).not.toContain('create_pr');
+      });
+    });
+
+    describe('for remote_pr worktree', () => {
+      it('includes checkout_pr action', () => {
+        const worktree = makeWorktree({
+          type: 'remote_pr',
+          prNumber: 42,
+          prState: 'OPEN',
+          prTitle: 'Add new feature',
+          prUrl: 'https://github.com/owner/repo/pull/42',
+        });
+        const env = makeEnv();
+        const menu = buildActionMenu(worktree, env);
+
+        const values = menu.map((m) => m.value);
+        expect(values).toContain('checkout_pr');
+      });
+
+      it('includes open_pr_url action', () => {
+        const worktree = makeWorktree({
+          type: 'remote_pr',
+          prNumber: 42,
+          prState: 'OPEN',
+        });
+        const env = makeEnv();
+        const menu = buildActionMenu(worktree, env);
+
+        const values = menu.map((m) => m.value);
+        expect(values).toContain('open_pr_url');
+      });
+
+      it('includes show_details action', () => {
+        const worktree = makeWorktree({
+          type: 'remote_pr',
+          prNumber: 42,
+          prState: 'OPEN',
+        });
+        const env = makeEnv();
+        const menu = buildActionMenu(worktree, env);
+
+        const values = menu.map((m) => m.value);
+        expect(values).toContain('show_details');
+      });
+
+      it('includes back and exit actions', () => {
+        const worktree = makeWorktree({
+          type: 'remote_pr',
+          prNumber: 42,
+          prState: 'OPEN',
+        });
+        const env = makeEnv();
+        const menu = buildActionMenu(worktree, env);
+
+        const values = menu.map((m) => m.value);
+        expect(values).toContain('back');
+        expect(values).toContain('exit');
+      });
+
+      it('does not include local-only actions', () => {
+        const worktree = makeWorktree({
+          type: 'remote_pr',
+          prNumber: 42,
+          prState: 'OPEN',
+        });
+        const env = makeEnv();
+        const menu = buildActionMenu(worktree, env);
+
+        const values = menu.map((m) => m.value);
+        expect(values).not.toContain('open_editor');
+        expect(values).not.toContain('open_terminal');
+        expect(values).not.toContain('copy_path');
+        expect(values).not.toContain('remove_worktree');
+        expect(values).not.toContain('link_configs');
+        expect(values).not.toContain('create_pr');
+      });
+
+      it('has correct shortcuts for remote PR actions', () => {
+        const worktree = makeWorktree({
+          type: 'remote_pr',
+          prNumber: 42,
+          prState: 'OPEN',
+        });
+        const env = makeEnv();
+        const menu = buildActionMenu(worktree, env);
+
+        const checkoutAction = menu.find((m) => m.value === 'checkout_pr');
+        const prUrlAction = menu.find((m) => m.value === 'open_pr_url');
+        const detailsAction = menu.find((m) => m.value === 'show_details');
+        const exitAction = menu.find((m) => m.value === 'exit');
+
+        expect(checkoutAction?.shortcut).toBe('w');
+        expect(prUrlAction?.shortcut).toBe('p');
+        expect(detailsAction?.shortcut).toBe('d');
+        expect(exitAction?.shortcut).toBe('q');
+      });
+
+      it('returns limited action set with exactly 5 items', () => {
+        const worktree = makeWorktree({
+          type: 'remote_pr',
+          prNumber: 42,
+          prState: 'OPEN',
+        });
+        const env = makeEnv();
+        const menu = buildActionMenu(worktree, env);
+
+        expect(menu).toHaveLength(5);
+        expect(menu.map((m) => m.value)).toEqual([
+          'checkout_pr',
+          'open_pr_url',
+          'show_details',
+          'back',
+          'exit',
+        ]);
       });
     });
 
@@ -428,6 +543,35 @@ describe('lswt/actions', () => {
       const result = formatShortcutLegend(worktree);
 
       expect(result).toMatch(/^\w+: \w+, /);
+    });
+
+    it('shows limited shortcuts for remote_pr worktrees', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+      });
+      const result = formatShortcutLegend(worktree);
+
+      expect(result).toContain('w: worktree');
+      expect(result).toContain('p: PR');
+      expect(result).toContain('d: details');
+      expect(result).toContain('q: quit');
+    });
+
+    it('excludes editor and terminal shortcuts for remote_pr', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+      });
+      const result = formatShortcutLegend(worktree);
+
+      expect(result).not.toContain('e: editor');
+      expect(result).not.toContain('t: terminal');
+      expect(result).not.toContain('c: copy');
+      expect(result).not.toContain('l: link');
+      expect(result).not.toContain('r: remove');
     });
   });
 });

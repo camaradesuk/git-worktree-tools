@@ -257,6 +257,223 @@ describe('lswt/worktree-info', () => {
       expect(result[1].prState).toBe('MERGED');
       expect(result[2].prState).toBe('CLOSED');
     });
+
+    describe('remote PRs', () => {
+      it('includes remote PRs when showStatus is enabled', async () => {
+        const worktrees = [makeWorktree({ path: '/home/user/repo', branch: 'main' })];
+        const remotePrs = [
+          {
+            number: 42,
+            title: 'Add new feature',
+            headBranch: 'feat/new-feature',
+            url: 'https://github.com/owner/repo/pull/42',
+            isDraft: false,
+          },
+        ];
+        const deps = makeDeps({
+          listWorktrees: () => worktrees,
+          listOpenPrs: async () => remotePrs,
+        });
+
+        const result = await gatherWorktreeInfo(
+          '/home/user/repo',
+          { ...defaultOptions, showStatus: true },
+          deps
+        );
+
+        expect(result).toHaveLength(2);
+        const remotePr = result.find((w) => w.type === 'remote_pr');
+        expect(remotePr).toBeDefined();
+        expect(remotePr?.prNumber).toBe(42);
+        expect(remotePr?.prTitle).toBe('Add new feature');
+        expect(remotePr?.branch).toBe('feat/new-feature');
+        expect(remotePr?.prUrl).toBe('https://github.com/owner/repo/pull/42');
+        expect(remotePr?.prState).toBe('OPEN');
+      });
+
+      it('does not include remote PRs when showStatus is false', async () => {
+        const worktrees = [makeWorktree({ path: '/home/user/repo', branch: 'main' })];
+        const listOpenPrs = vi.fn().mockResolvedValue([
+          {
+            number: 42,
+            title: 'Add new feature',
+            headBranch: 'feat/new-feature',
+            url: 'https://github.com/owner/repo/pull/42',
+            isDraft: false,
+          },
+        ]);
+        const deps = makeDeps({
+          listWorktrees: () => worktrees,
+          listOpenPrs,
+        });
+
+        const result = await gatherWorktreeInfo(
+          '/home/user/repo',
+          { ...defaultOptions, showStatus: false },
+          deps
+        );
+
+        expect(result).toHaveLength(1);
+        expect(result[0].type).toBe('main');
+        expect(listOpenPrs).not.toHaveBeenCalled();
+      });
+
+      it('filters out PRs that have local worktrees', async () => {
+        const worktrees = [
+          makeWorktree({ path: '/home/user/repo', branch: 'main' }),
+          makeWorktree({ path: '/home/user/repo.pr42', branch: 'feat/existing', isMain: false }),
+        ];
+        const remotePrs = [
+          {
+            number: 42,
+            title: 'Existing PR (has worktree)',
+            headBranch: 'feat/existing',
+            url: 'https://github.com/owner/repo/pull/42',
+            isDraft: false,
+          },
+          {
+            number: 99,
+            title: 'Remote PR (no worktree)',
+            headBranch: 'feat/remote',
+            url: 'https://github.com/owner/repo/pull/99',
+            isDraft: false,
+          },
+        ];
+        const deps = makeDeps({
+          listWorktrees: () => worktrees,
+          listOpenPrs: async () => remotePrs,
+          getPrInfo: async () => ({ state: 'OPEN', isDraft: false }),
+        });
+
+        const result = await gatherWorktreeInfo(
+          '/home/user/repo',
+          { ...defaultOptions, showStatus: true },
+          deps
+        );
+
+        // Should have main, local PR #42, and remote PR #99
+        expect(result).toHaveLength(3);
+        const remotePr = result.find((w) => w.type === 'remote_pr');
+        expect(remotePr?.prNumber).toBe(99);
+        expect(result.find((w) => w.type === 'remote_pr' && w.prNumber === 42)).toBeUndefined();
+      });
+
+      it('returns empty remote PRs when listOpenPrs throws error', async () => {
+        const worktrees = [makeWorktree({ path: '/home/user/repo', branch: 'main' })];
+        const deps = makeDeps({
+          listWorktrees: () => worktrees,
+          listOpenPrs: async () => {
+            throw new Error('Network error');
+          },
+        });
+
+        const result = await gatherWorktreeInfo(
+          '/home/user/repo',
+          { ...defaultOptions, showStatus: true },
+          deps
+        );
+
+        // Should only have main worktree, no remote PRs
+        expect(result).toHaveLength(1);
+        expect(result[0].type).toBe('main');
+      });
+
+      it('includes draft status for remote PRs', async () => {
+        const worktrees = [makeWorktree({ path: '/home/user/repo', branch: 'main' })];
+        const remotePrs = [
+          {
+            number: 42,
+            title: 'Draft PR',
+            headBranch: 'feat/draft',
+            url: 'https://github.com/owner/repo/pull/42',
+            isDraft: true,
+          },
+        ];
+        const deps = makeDeps({
+          listWorktrees: () => worktrees,
+          listOpenPrs: async () => remotePrs,
+        });
+
+        const result = await gatherWorktreeInfo(
+          '/home/user/repo',
+          { ...defaultOptions, showStatus: true },
+          deps
+        );
+
+        const remotePr = result.find((w) => w.type === 'remote_pr');
+        expect(remotePr?.isDraft).toBe(true);
+      });
+
+      it('sets correct defaults for remote PR fields', async () => {
+        const worktrees = [makeWorktree({ path: '/home/user/repo', branch: 'main' })];
+        const remotePrs = [
+          {
+            number: 42,
+            title: 'Test PR',
+            headBranch: 'feat/test',
+            url: 'https://github.com/owner/repo/pull/42',
+            isDraft: false,
+          },
+        ];
+        const deps = makeDeps({
+          listWorktrees: () => worktrees,
+          listOpenPrs: async () => remotePrs,
+        });
+
+        const result = await gatherWorktreeInfo(
+          '/home/user/repo',
+          { ...defaultOptions, showStatus: true },
+          deps
+        );
+
+        const remotePr = result.find((w) => w.type === 'remote_pr');
+        expect(remotePr?.path).toBe('');
+        expect(remotePr?.commit).toBe('');
+        expect(remotePr?.hasChanges).toBe(false);
+        expect(remotePr?.name).toBe('PR #42');
+      });
+
+      it('handles multiple remote PRs', async () => {
+        const worktrees = [makeWorktree({ path: '/home/user/repo', branch: 'main' })];
+        const remotePrs = [
+          {
+            number: 10,
+            title: 'First PR',
+            headBranch: 'feat/first',
+            url: 'https://github.com/owner/repo/pull/10',
+            isDraft: false,
+          },
+          {
+            number: 20,
+            title: 'Second PR',
+            headBranch: 'feat/second',
+            url: 'https://github.com/owner/repo/pull/20',
+            isDraft: true,
+          },
+          {
+            number: 30,
+            title: 'Third PR',
+            headBranch: 'feat/third',
+            url: 'https://github.com/owner/repo/pull/30',
+            isDraft: false,
+          },
+        ];
+        const deps = makeDeps({
+          listWorktrees: () => worktrees,
+          listOpenPrs: async () => remotePrs,
+        });
+
+        const result = await gatherWorktreeInfo(
+          '/home/user/repo',
+          { ...defaultOptions, showStatus: true },
+          deps
+        );
+
+        const remotePrs2 = result.filter((w) => w.type === 'remote_pr');
+        expect(remotePrs2).toHaveLength(3);
+        expect(remotePrs2.map((p) => p.prNumber)).toEqual([10, 20, 30]);
+      });
+    });
   });
 
   describe('createDefaultDeps', () => {

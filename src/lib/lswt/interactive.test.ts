@@ -129,6 +129,31 @@ describe('lswt/interactive', () => {
 
       expect(result).toContain('[detached]');
     });
+
+    it('formats remote PR worktree badge', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+      });
+      const result = formatTypeBadgeWithColors(worktree);
+
+      expect(result).toContain('[PR #42 REMOTE]');
+    });
+
+    it('formats remote PR draft worktree badge', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        isDraft: true,
+      });
+      const result = formatTypeBadgeWithColors(worktree);
+
+      expect(result).toContain('REMOTE');
+      expect(result).toContain('DRAFT');
+      expect(result).toContain('#42');
+    });
   });
 
   describe('formatStatusWithColors', () => {
@@ -274,6 +299,59 @@ describe('lswt/interactive', () => {
       const result = formatWorktreeChoiceWithColors(worktree);
 
       expect(result).toContain('has changes');
+    });
+
+    it('shows PR title for remote PRs instead of branch', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/some-long-branch-name',
+        prTitle: 'Add amazing new feature',
+      });
+      const result = formatWorktreeChoiceWithColors(worktree);
+
+      expect(result).toContain('Add amazing new feature');
+      expect(result).toContain('[PR #42 REMOTE]');
+    });
+
+    it('truncates long PR titles for remote PRs', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/feature',
+        prTitle: 'This is a very long pull request title that should be truncated for display',
+      });
+      const result = formatWorktreeChoiceWithColors(worktree);
+
+      // Title should be truncated to 30 chars with ...
+      expect(result).toContain('...');
+    });
+
+    it('shows OPEN status for remote PRs', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        prTitle: 'New feature',
+      });
+      const result = formatWorktreeChoiceWithColors(worktree);
+
+      expect(result).toContain('OPEN');
+    });
+
+    it('includes draft indicator for remote PR drafts', () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        isDraft: true,
+        prTitle: 'Draft feature',
+      });
+      const result = formatWorktreeChoiceWithColors(worktree);
+
+      expect(result).toContain('DRAFT');
     });
   });
 
@@ -493,6 +571,56 @@ describe('lswt/interactive', () => {
       await runInteractiveMode(worktrees, defaultOptions, deps);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 with changes'));
+    });
+
+    it('displays remote PR count in header', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktrees = [
+        makeWorktree({ type: 'main' }),
+        makeWorktree({ type: 'pr', prNumber: 1, prState: 'OPEN' }),
+        makeWorktree({ type: 'remote_pr', prNumber: 10, prState: 'OPEN', prTitle: 'Remote PR 1' }),
+        makeWorktree({ type: 'remote_pr', prNumber: 20, prState: 'OPEN', prTitle: 'Remote PR 2' }),
+        makeWorktree({ type: 'remote_pr', prNumber: 30, prState: 'OPEN', prTitle: 'Remote PR 3' }),
+      ];
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+      });
+
+      await runInteractiveMode(worktrees, defaultOptions, deps);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('3 remote PRs'));
+    });
+
+    it('shows worktree shortcut in header when remote PRs are present', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktrees = [
+        makeWorktree({ type: 'main' }),
+        makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN', prTitle: 'Remote PR' }),
+      ];
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+      });
+
+      await runInteractiveMode(worktrees, defaultOptions, deps);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[w]'));
+    });
+
+    it('displays correct local worktree count (excluding remote PRs)', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktrees = [
+        makeWorktree({ type: 'main' }),
+        makeWorktree({ type: 'pr', prNumber: 1, prState: 'OPEN' }),
+        makeWorktree({ type: 'remote_pr', prNumber: 10, prState: 'OPEN', prTitle: 'Remote PR' }),
+      ];
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree: null, action: null }),
+      });
+
+      await runInteractiveMode(worktrees, defaultOptions, deps);
+
+      // Should show "2 worktrees" (main + local PR), not 3
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 worktrees'));
     });
 
     it('executes shortcut action directly when provided with selection', async () => {

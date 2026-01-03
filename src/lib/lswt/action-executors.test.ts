@@ -27,9 +27,21 @@ vi.mock('../git.js', () => ({
   getRepoRoot: vi.fn(),
   removeWorktree: vi.fn(),
   getMainWorktreeRoot: vi.fn(),
+  addWorktree: vi.fn(),
 }));
 
+// Mock child_process for execSync (used by checkoutPr for git fetch)
+vi.mock('child_process', async () => {
+  const actual = await vi.importActual<typeof import('child_process')>('child_process');
+  return {
+    ...actual,
+    execSync: vi.fn().mockReturnValue(''),
+    spawn: actual.spawn,
+  };
+});
+
 import inquirer from 'inquirer';
+import { execSync } from 'child_process';
 import * as github from '../github.js';
 import * as git from '../git.js';
 
@@ -1048,6 +1060,296 @@ describe('lswt/action-executors', () => {
 
     it('handles mixed separators', () => {
       expect(formatBranchAsTitle('my_feature-branch_name')).toBe('My feature branch name');
+    });
+  });
+
+  describe('checkout_pr action', () => {
+    it('returns error for non-remote_pr worktree type', async () => {
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'OPEN',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Can only checkout remote PRs');
+    });
+
+    it('returns error when worktree has no PR number', async () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: null,
+        prState: 'OPEN',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Can only checkout remote PRs');
+    });
+
+    it('returns error when worktree has no branch', async () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: null,
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('no associated branch');
+    });
+
+    it('returns error when repo root cannot be found', async () => {
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue(null as unknown as string);
+
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Could not find repository root');
+    });
+
+    it('successfully creates worktree for remote PR', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
+      vi.mocked(git.addWorktree).mockImplementation(() => {});
+      // Mock execSync to return empty string (git fetch succeeds)
+      vi.mocked(execSync).mockReturnValue('');
+
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add remote feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+      const config = makeConfig({ worktreePattern: '{repo}.pr{number}', worktreeParent: '..' });
+
+      const result = await executeAction('checkout_pr', worktree, makeEnv(), config, makeDeps());
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Created worktree for PR #42');
+      expect(result.shouldRefresh).toBe(true);
+      expect(git.addWorktree).toHaveBeenCalledWith(
+        expect.stringContaining('.pr42'),
+        'feat/remote-feature',
+        expect.objectContaining({ cwd: '/home/user/repo' })
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('handles git fetch failure', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
+      // Mock execSync to throw (git fetch fails)
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('Failed to fetch branch');
+      });
+
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to checkout PR');
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('show_details action for remote_pr', () => {
+    it('shows PR title for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add amazing new feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('Add amazing new feature');
+      consoleSpy.mockRestore();
+    });
+
+    it('shows PR URL for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('https://github.com/owner/repo/pull/42');
+      consoleSpy.mockRestore();
+    });
+
+    it('shows message about no local checkout for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('No local checkout');
+      consoleSpy.mockRestore();
+    });
+
+    it('does not show "Changes" line for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+        hasChanges: false,
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      // For remote PRs, "Changes:" line should not appear since there's no local path
+      expect(output).not.toMatch(/Changes:.*Clean/);
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('open_pr_url action for remote_pr', () => {
+    it('uses stored prUrl for remote PRs', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Opened PR #42');
+      expect(deps.openUrl).toHaveBeenCalledWith('https://github.com/owner/repo/pull/42');
+      // Should not call github.getPr since we have the URL stored
+      expect(github.getPr).not.toHaveBeenCalled();
+    });
+
+    it('falls back to fetching URL when prUrl is not stored', async () => {
+      vi.mocked(github.getPr).mockReturnValue({
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'Test PR',
+        headBranch: 'feature-42',
+        baseBranch: 'main',
+      });
+
+      const deps = makeDeps();
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        prUrl: undefined, // No stored URL
+      });
+
+      const result = await executeAction('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
+
+      expect(result.success).toBe(true);
+      expect(github.getPr).toHaveBeenCalledWith(42);
+      expect(deps.openUrl).toHaveBeenCalledWith('https://github.com/owner/repo/pull/42');
     });
   });
 });
