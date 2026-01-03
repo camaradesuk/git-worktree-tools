@@ -874,8 +874,8 @@ describe('cli/newpr', () => {
         ],
       });
       vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
-      // User selects Cancel
-      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      // User selects Cancel (index 1 in array, so 2 in 1-based indexing)
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(2);
 
       await runCli(['test', '--json']);
 

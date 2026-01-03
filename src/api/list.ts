@@ -31,8 +31,8 @@ export interface WorktreeInfo {
   branch: string | null;
   /** Short commit hash */
   commit: string;
-  /** Type of worktree: 'main', 'pr', 'branch', or 'detached' */
-  type: 'main' | 'pr' | 'branch' | 'detached';
+  /** Type of worktree: 'main', 'pr', 'branch', 'detached', or 'remote_pr' */
+  type: 'main' | 'pr' | 'branch' | 'detached' | 'remote_pr';
   /** PR number if this is a PR worktree */
   prNumber: number | null;
   /** PR state: 'OPEN', 'MERGED', 'CLOSED', or null if not a PR */
