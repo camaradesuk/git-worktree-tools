@@ -131,6 +131,32 @@ describe('git', () => {
       const result = git.getRepoName('/home/user/my-project');
       expect(result).toBe('my-project');
     });
+
+    it('extracts name from Unix local path with .git suffix', () => {
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess('/path/to/my-repo.git'));
+      const result = git.getRepoName('/repo');
+      expect(result).toBe('my-repo');
+    });
+
+    it('extracts name from Windows local path with .git suffix', () => {
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess('C:\\Users\\test\\repos\\my-repo.git'));
+      const result = git.getRepoName('/repo');
+      expect(result).toBe('my-repo');
+    });
+
+    it('extracts name from Windows local path without .git suffix', () => {
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess('C:\\Users\\test\\repos\\my-repo'));
+      const result = git.getRepoName('/repo');
+      expect(result).toBe('my-repo');
+    });
+
+    it('extracts name from Windows short path format', () => {
+      mockSpawnSync.mockReturnValue(
+        mockSpawnSuccess('C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\main-repo.git')
+      );
+      const result = git.getRepoName('/repo');
+      expect(result).toBe('main-repo');
+    });
   });
 
   describe('getCurrentBranch', () => {

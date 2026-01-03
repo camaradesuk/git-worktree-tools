@@ -107,10 +107,12 @@ export function getRepoName(repoRoot: string): string {
   const remoteUrl = execSafe(['remote', 'get-url', 'origin'], { cwd: repoRoot });
 
   if (remoteUrl) {
-    // Extract repo name from SSH or HTTPS URL
+    // Extract repo name from SSH, HTTPS URL, or local path (Windows/Unix)
     // git@github.com:org/repo.git -> repo
     // https://github.com/org/repo.git -> repo
-    const match = remoteUrl.match(/[/:]([^/]+?)(?:\.git)?$/);
+    // /path/to/repo.git -> repo
+    // C:\path\to\repo.git -> repo
+    const match = remoteUrl.match(/[/:\\]([^/\\]+?)(?:\.git)?$/);
     if (match) {
       return match[1];
     }
