@@ -27,16 +27,37 @@ import {
   executeStateAction,
   getBranchPoint,
   getScenarioMessageLevel,
+  createHookRunner,
+  createActionDeps,
   type Options,
   type StateAction,
-  type ActionDeps,
 } from '../lib/newpr/index.js';
+import {
+  createSuccessResult,
+  createErrorResult,
+  formatJsonResult,
+  ErrorCode,
+  type NewprResultData,
+} from '../lib/json-output.js';
 
 /**
  * Debug logging - enabled with DEBUG=newpr or DEBUG=*
  */
 const DEBUG_ENABLED =
   process.env.DEBUG === 'newpr' || process.env.DEBUG === '*' || process.env.DEBUG === '1';
+
+/**
+ * Error class for non-interactive mode failures
+ */
+class NonInteractiveError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ErrorCode
+  ) {
+    super(message);
+    this.name = 'NonInteractiveError';
+  }
+}
 
 function debug(message: string, data?: Record<string, unknown>): void {
   if (!DEBUG_ENABLED) return;
@@ -47,24 +68,6 @@ function debug(message: string, data?: Record<string, unknown>): void {
       console.error(colors.dim(`  ${key}: ${JSON.stringify(value)}`));
     }
   }
-}
-
-/**
- * Create action dependencies using real git operations
- */
-function createActionDeps(cwd?: string): ActionDeps {
-  return {
-    gitAdd: (addPath: string, cwdPath?: string) => git.add(addPath, cwdPath ?? cwd),
-    gitStash: (options, cwdPath?) =>
-      git.stash({ message: options.message, keepIndex: options.keepIndex }, cwdPath ?? cwd),
-    gitPush: (options, cwdPath?) =>
-      git.push(
-        { remote: options.remote, branch: options.branch, setUpstream: options.setUpstream },
-        cwdPath ?? cwd
-      ),
-    gitCommit: (options, cwdPath?) =>
-      git.commit({ message: options.message, allowEmpty: options.allowEmpty }, cwdPath ?? cwd),
-  };
 }
 
 /**
@@ -144,11 +147,23 @@ function showUnstagedChanges(cwd?: string): void {
 /**
  * Handle scenario and return action to take
  */
-async function handleScenario(state: GitState, baseBranch: string): Promise<StateAction | null> {
+async function handleScenario(
+  state: GitState,
+  baseBranch: string,
+  options: Options
+): Promise<StateAction | null> {
   let scenario = detectScenario(state);
 
   // Handle pr_worktree scenario - re-analyze after warning
   if (isPrWorktreeScenario(scenario)) {
+    if (options.nonInteractive) {
+      // In non-interactive mode, cannot proceed from PR worktree
+      throw new NonInteractiveError(
+        'Cannot create PR from a PR worktree in non-interactive mode. Switch to the main worktree first.',
+        ErrorCode.INVALID_ARGUMENT
+      );
+    }
+
     console.log(colors.warning('You are in a PR worktree, not the main worktree.'));
     console.log();
     console.log('Creating a new PR is best done from the main worktree.');
@@ -173,7 +188,35 @@ async function handleScenario(state: GitState, baseBranch: string): Promise<Stat
     return null;
   }
 
-  // Display scenario message
+  // Non-interactive mode: use specified action or first available (default)
+  if (options.nonInteractive) {
+    if (options.action) {
+      // Find the specified action in available choices
+      const matchingChoice = context.choices.find((c) => c.action?.action === options.action);
+      if (!matchingChoice || !matchingChoice.action) {
+        const availableActions = context.choices
+          .map((c) => c.action?.action)
+          .filter(Boolean)
+          .join(', ');
+        throw new NonInteractiveError(
+          `Action '${options.action}' is not available for scenario '${scenario}'. Available: ${availableActions}`,
+          ErrorCode.INVALID_ACTION
+        );
+      }
+      return matchingChoice.action;
+    }
+    // Use first available action as default
+    const firstAction = context.choices.find((c) => c.action !== null);
+    if (!firstAction?.action) {
+      throw new NonInteractiveError(
+        `No actions available for scenario '${scenario}'`,
+        ErrorCode.INVALID_ACTION
+      );
+    }
+    return firstAction.action;
+  }
+
+  // Interactive mode: display info and prompt
   const level = getScenarioMessageLevel(scenario);
   if (level === 'warning') {
     console.log(colors.warning(context.message));
@@ -262,14 +305,30 @@ async function setupWorktree(
 }
 
 /**
- * Print summary
+ * Print summary (or JSON output)
  */
 function printSummary(
   prNumber: number,
   branchName: string,
   worktreePath: string,
-  prUrl: string
+  prUrl: string,
+  options: Options,
+  extra?: { draft?: boolean; scenario?: string; actionTaken?: string }
 ): void {
+  if (options.json) {
+    const data: NewprResultData = {
+      prNumber,
+      prUrl,
+      branch: branchName,
+      worktreePath,
+      draft: extra?.draft ?? options.draft,
+      scenario: extra?.scenario,
+      actionTaken: extra?.actionTaken,
+    };
+    console.log(formatJsonResult(createSuccessResult('newpr', data)));
+    return;
+  }
+
   console.log();
   console.log(colors.green('════════════════════════════════════════════════════════════'));
   console.log(colors.green(`  PR #${prNumber} worktree ready!`));
@@ -326,10 +385,12 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
     git.addWorktree(worktreePath, pr.headBranch);
   }
 
-  console.log(colors.success(`Created worktree: ${worktreePath}`));
+  if (!options.json) {
+    console.log(colors.success(`Created worktree: ${worktreePath}`));
+  }
 
   await setupWorktree(worktreePath, config, options);
-  printSummary(prNumber, pr.headBranch, worktreePath, pr.url);
+  printSummary(prNumber, pr.headBranch, worktreePath, pr.url, options, { draft: pr.isDraft });
 }
 
 /**
@@ -404,10 +465,12 @@ PR created from existing branch: \`${branchName}\`
     git.addWorktree(worktreePath, branchName);
   }
 
-  console.log(colors.success(`Created worktree: ${worktreePath}`));
+  if (!options.json) {
+    console.log(colors.success(`Created worktree: ${worktreePath}`));
+  }
 
   await setupWorktree(worktreePath, config, options);
-  printSummary(pr.number, branchName, worktreePath, pr.url);
+  printSummary(pr.number, branchName, worktreePath, pr.url, options);
 }
 
 /**
@@ -419,6 +482,27 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   const config = loadConfig(repoRoot);
   const branchName = generateBranchName(config, description);
 
+  // Initialize hook runner (disabled if --no-hooks flag is set)
+  const hookRunner = createHookRunner(
+    options.noHooks ? {} : (config.hooks ?? {}),
+    {
+      repoRoot,
+      baseBranch: options.baseBranch,
+      description,
+    },
+    {
+      verbose: DEBUG_ENABLED,
+      showOutput: true,
+      defaultTimeout: config.hookDefaults?.timeout,
+      maxTimeout: config.hookDefaults?.maxTimeout,
+    }
+  );
+
+  // Run pre-analyze hook
+  if (!(await hookRunner.runHook('pre-analyze'))) {
+    exitWithError('Aborted by pre-analyze hook.', ErrorCode.HOOK_FAILED, options.json);
+  }
+
   console.log(colors.info('Fetching latest from origin...'));
   try {
     git.fetch('origin');
@@ -428,6 +512,18 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   const state = analyzeGitState(options.baseBranch);
   const scenario = detectScenario(state);
+
+  // Update context with analysis results
+  hookRunner.updateContext({
+    scenario,
+    stagedFiles: state.stagedFiles,
+    unstagedFiles: state.unstagedFiles,
+  });
+
+  // Run post-analyze hook
+  if (!(await hookRunner.runHook('post-analyze'))) {
+    exitWithError('Aborted by post-analyze hook.', ErrorCode.HOOK_FAILED, options.json);
+  }
 
   debug('State analysis complete', {
     scenario,
@@ -440,9 +536,15 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     repoRoot: state.repoRoot,
   });
 
-  const action = await handleScenario(state, options.baseBranch);
+  const action = await handleScenario(state, options.baseBranch, options);
 
   if (!action) {
+    if (options.json) {
+      console.log(
+        formatJsonResult(createErrorResult('newpr', ErrorCode.USER_CANCELLED, 'User cancelled'))
+      );
+      process.exit(1);
+    }
     console.log(colors.error('Aborted by user.'));
     process.exit(1);
   }
@@ -451,6 +553,12 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     action: action.action,
     branchFrom: action.branchFrom,
     stashUnstaged: action.stashUnstaged,
+  });
+
+  // Update context with selected action
+  hookRunner.updateContext({
+    action: action.action,
+    branchName,
   });
 
   // Handle special case: create PR for existing branch
@@ -524,6 +632,12 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   try {
     const branchFrom = getBranchPoint(action, options.baseBranch);
+
+    // Run pre-branch hook
+    if (!(await hookRunner.runHook('pre-branch'))) {
+      exitWithError('Aborted by pre-branch hook.', ErrorCode.HOOK_FAILED, options.json);
+    }
+
     console.log(colors.info(`Creating branch from ${branchFrom}...`));
 
     debug('Before checkout', {
@@ -562,23 +676,55 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       willCreateEmpty: stagedFiles.length === 0 && action.branchFrom === 'origin_main',
     });
 
+    // Run post-branch hook
+    await hookRunner.runHook('post-branch');
+
     if (stagedFiles.length > 0) {
+      // Run pre-commit hook
+      if (!(await hookRunner.runHook('pre-commit'))) {
+        exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
+      }
+
       console.log(colors.info('Committing staged changes...'));
       git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` });
       debug('Committed staged changes');
+
+      // Run post-commit hook
+      await hookRunner.runHook('post-commit');
     } else if (action.branchFrom === 'origin_main') {
+      // Run pre-commit hook
+      if (!(await hookRunner.runHook('pre-commit'))) {
+        exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
+      }
+
       console.log(colors.info('Creating initial commit (required for PR creation)...'));
       git.commit({
         message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
         allowEmpty: true,
       });
       debug('Created empty commit (no staged files found)');
+
+      // Run post-commit hook
+      await hookRunner.runHook('post-commit');
+    }
+
+    // Run pre-push hook
+    if (!(await hookRunner.runHook('pre-push'))) {
+      exitWithError('Aborted by pre-push hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
     console.log(colors.info('Pushing branch to origin...'));
     git.push({ setUpstream: true, remote: 'origin', branch: branchName });
 
+    // Run post-push hook
+    await hookRunner.runHook('post-push');
+
     git.checkout(originalBranch);
+
+    // Run pre-pr hook
+    if (!(await hookRunner.runHook('pre-pr'))) {
+      exitWithError('Aborted by pre-pr hook.', ErrorCode.HOOK_FAILED, options.json);
+    }
 
     console.log(colors.info('Creating pull request...'));
 
@@ -605,7 +751,24 @@ ${description}
 
     console.log(colors.success(`Created PR #${pr.number}: ${pr.url}`));
 
+    // Update context with PR info
+    hookRunner.updateContext({
+      prNumber: pr.number,
+      prUrl: pr.url,
+    });
+
+    // Run post-pr hook
+    await hookRunner.runHook('post-pr');
+
     const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+
+    // Update context with worktree path
+    hookRunner.updateContext({ worktreePath });
+
+    // Run pre-worktree hook
+    if (!(await hookRunner.runHook('pre-worktree'))) {
+      exitWithError('Aborted by pre-worktree hook.', ErrorCode.HOOK_FAILED, options.json);
+    }
 
     console.log(colors.info(`Creating worktree at ${worktreePath}...`));
     git.addWorktree(worktreePath, branchName);
@@ -625,8 +788,18 @@ ${description}
     }
 
     await setupWorktree(worktreePath, config, options);
-    printSummary(pr.number, branchName, worktreePath, pr.url);
+
+    // Run post-worktree hook
+    await hookRunner.runHook('post-worktree');
+
+    printSummary(pr.number, branchName, worktreePath, pr.url, options, {
+      scenario,
+      actionTaken: action.action,
+    });
   } catch (error) {
+    // Run cleanup hook
+    await hookRunner.runCleanup(error instanceof Error ? error : undefined);
+
     if (actionResult.stashRef) {
       console.log(colors.info('Restoring stashed changes...'));
       try {
@@ -640,10 +813,31 @@ ${description}
 }
 
 /**
+ * Check if --json flag was passed (for error handling before parsing completes)
+ */
+function hasJsonFlag(args: string[]): boolean {
+  return args.includes('--json');
+}
+
+/**
+ * Output error and exit
+ */
+function exitWithError(message: string, code: ErrorCode, useJson: boolean): never {
+  if (useJson) {
+    console.log(formatJsonResult(createErrorResult('newpr', code, message)));
+  } else {
+    console.error(colors.error(message));
+  }
+  process.exit(1);
+}
+
+/**
  * Main entry point
  */
 async function main(): Promise<void> {
-  const result = parseArgs(process.argv.slice(2));
+  const rawArgs = process.argv.slice(2);
+  const useJson = hasJsonFlag(rawArgs);
+  const result = parseArgs(rawArgs);
 
   if (result.kind === 'help') {
     console.log(getHelpText());
@@ -651,13 +845,27 @@ async function main(): Promise<void> {
   }
 
   if (result.kind === 'error') {
-    console.error(colors.error(result.message));
-    process.exit(1);
+    exitWithError(result.message, ErrorCode.INVALID_ARGUMENT, useJson);
   }
 
   const { options } = result;
 
-  checkPrerequisites();
+  // Check prerequisites (suppressed in JSON mode)
+  if (!options.json) {
+    checkPrerequisites();
+  } else {
+    // Silent prerequisite check in JSON mode
+    if (!github.isGhInstalled()) {
+      exitWithError('GitHub CLI (gh) is required', ErrorCode.GH_NOT_INSTALLED, true);
+    }
+    if (!github.isAuthenticated()) {
+      exitWithError(
+        'GitHub CLI not authenticated. Run: gh auth login',
+        ErrorCode.GH_NOT_AUTHENTICATED,
+        true
+      );
+    }
+  }
 
   switch (options.mode) {
     case 'pr':
@@ -675,6 +883,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error(colors.error(error instanceof Error ? error.message : String(error)));
-  process.exit(1);
+  // Determine if JSON output is expected
+  const useJson = hasJsonFlag(process.argv.slice(2));
+
+  if (error instanceof NonInteractiveError) {
+    exitWithError(error.message, error.code, useJson);
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  exitWithError(message, ErrorCode.UNKNOWN_ERROR, useJson);
 });

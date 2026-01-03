@@ -8,7 +8,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: false, force: false, all: false, interactive: true },
+        options: {
+          deleteRemote: false,
+          force: false,
+          all: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -17,7 +24,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: 123,
-        options: { deleteRemote: false, force: false, all: false, interactive: false },
+        options: {
+          deleteRemote: false,
+          force: false,
+          all: false,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -26,7 +40,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: true, force: false, all: false, interactive: true },
+        options: {
+          deleteRemote: true,
+          force: false,
+          all: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -35,7 +56,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: true, force: false, all: false, interactive: true },
+        options: {
+          deleteRemote: true,
+          force: false,
+          all: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -44,7 +72,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: false, force: true, all: false, interactive: true },
+        options: {
+          deleteRemote: false,
+          force: true,
+          all: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -53,7 +88,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: false, force: true, all: false, interactive: true },
+        options: {
+          deleteRemote: false,
+          force: true,
+          all: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -62,7 +104,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: false, force: false, all: true, interactive: false },
+        options: {
+          deleteRemote: false,
+          force: false,
+          all: true,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -71,7 +120,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: false, force: false, all: true, interactive: false },
+        options: {
+          deleteRemote: false,
+          force: false,
+          all: true,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -80,7 +136,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: null,
-        options: { deleteRemote: true, force: true, all: false, interactive: true },
+        options: {
+          deleteRemote: true,
+          force: true,
+          all: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -89,7 +152,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: 42,
-        options: { deleteRemote: true, force: true, all: false, interactive: false },
+        options: {
+          deleteRemote: true,
+          force: true,
+          all: false,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 
@@ -98,7 +168,14 @@ describe('cleanpr/args', () => {
       expect(result).toEqual({
         kind: 'success',
         prNumber: 99,
-        options: { deleteRemote: true, force: false, all: false, interactive: false },
+        options: {
+          deleteRemote: true,
+          force: false,
+          all: false,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
       });
     });
 

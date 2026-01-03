@@ -53,6 +53,12 @@ describe('cli/cleanpr', () => {
     branchPrefix: 'feature',
     syncPatterns: [],
     preferredEditor: 'auto' as const,
+    ai: { provider: 'none' as const },
+    hooks: {},
+    hookDefaults: { timeout: 30000, maxTimeout: 60000 },
+    plugins: [],
+    generators: {},
+    integrations: {},
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({
@@ -118,7 +124,14 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(false);
 
@@ -132,7 +145,14 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('');
@@ -149,7 +169,14 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -179,7 +206,14 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: true, force: false, deleteRemote: false, interactive: false },
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -193,6 +227,8 @@ describe('cli/cleanpr', () => {
         success: true,
         message: 'Cleaned PR #123',
         prNumber: 123,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
       });
       vi.mocked(cleanpr.summarizeResults).mockReturnValue({ cleaned: 1, total: 1, failed: 0 });
 
@@ -211,7 +247,14 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: null,
-        options: { all: true, force: false, deleteRemote: false, interactive: false },
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -235,7 +278,14 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: 42,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -249,6 +299,8 @@ describe('cli/cleanpr', () => {
         success: true,
         message: 'Cleaned PR #42',
         prNumber: 42,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
       });
 
       await runCli(['42']);
@@ -267,7 +319,14 @@ describe('cli/cleanpr', () => {
       vi.mocked(cleanpr.parseArgs).mockReturnValue({
         kind: 'success',
         prNumber: 999,
-        options: { all: false, force: false, deleteRemote: false, interactive: true },
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
@@ -282,6 +341,477 @@ describe('cli/cleanpr', () => {
 
       expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('No worktree found'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('JSON output mode', () => {
+    it('outputs JSON error when gh not installed with --json', async () => {
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(false);
+
+      await runCli(['--json', '--all']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('GH_NOT_INSTALLED'));
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON error when not in git repo with --json', async () => {
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('');
+
+      await runCli(['--json', '--all']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('NOT_GIT_REPO'));
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON error on parse error with --json', async () => {
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'error',
+        message: 'Invalid option: --invalid',
+      });
+
+      await runCli(['--json', '--invalid']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('INVALID_ARGUMENT'));
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON success when cleaning all with --json', async () => {
+      const mockWorktrees = [makeWorktreeInfo()];
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Cleaned PR #123',
+        prNumber: 123,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
+      });
+
+      await runCli(['--json', '--all']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": true'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalCleaned": 1'));
+    });
+
+    it('outputs JSON empty result when no cleanable worktrees with --json --all', async () => {
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue([]);
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue([]);
+
+      await runCli(['--json', '--all']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": true'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalCleaned": 0'));
+    });
+
+    it('outputs JSON error when specific PR not found with --json', async () => {
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: 999,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue([]);
+      vi.mocked(cleanpr.findWorktreeByPrNumber).mockReturnValue(undefined);
+
+      await runCli(['--json', '999']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('PR_NOT_FOUND'));
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON success when cleaning specific PR with --json', async () => {
+      const mockWorktree = makeWorktreeInfo({ prNumber: 42 });
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: 42,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue([mockWorktree]);
+      vi.mocked(cleanpr.findWorktreeByPrNumber).mockReturnValue(mockWorktree);
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Cleaned PR #42',
+        prNumber: 42,
+        localBranchDeleted: true,
+        remoteBranchDeleted: true,
+      });
+
+      await runCli(['--json', '42']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": true'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalCleaned": 1'));
+    });
+
+    it('outputs JSON error when interactive mode requested with --json', async () => {
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue([makeWorktreeInfo()]);
+
+      await runCli(['--json']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('INVALID_ARGUMENT'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Interactive mode not supported')
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('dry-run mode', () => {
+    it('outputs dry-run results with --dry-run --all', async () => {
+      const mockWorktrees = [makeWorktreeInfo()];
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: false,
+          dryRun: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Would clean PR #123',
+        prNumber: 123,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
+      });
+      vi.mocked(cleanpr.summarizeResults).mockReturnValue({ cleaned: 1, total: 1, failed: 0 });
+
+      await runCli(['--dry-run', '--all']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Would clean'));
+    });
+
+    it('outputs JSON dry-run results with --json --dry-run --all', async () => {
+      const mockWorktrees = [makeWorktreeInfo()];
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: true,
+          dryRun: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Would clean PR #123',
+        prNumber: 123,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
+      });
+
+      await runCli(['--json', '--dry-run', '--all']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"wouldClean"'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalWouldClean": 1'));
+    });
+
+    it('outputs dry-run results for specific PR with --dry-run', async () => {
+      const mockWorktree = makeWorktreeInfo({ prNumber: 42 });
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: 42,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: false,
+          dryRun: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue([mockWorktree]);
+      vi.mocked(cleanpr.findWorktreeByPrNumber).mockReturnValue(mockWorktree);
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Would clean PR #42',
+        prNumber: 42,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
+      });
+
+      await runCli(['--dry-run', '42']);
+
+      expect(cleanpr.cleanWorktree).toHaveBeenCalledWith(
+        expect.objectContaining({ prNumber: 42 }),
+        expect.objectContaining({ dryRun: true }),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('failed cleanup handling', () => {
+    it('handles failed cleanup result for specific PR', async () => {
+      const mockWorktree = makeWorktreeInfo({ prNumber: 42 });
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: 42,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue([mockWorktree]);
+      vi.mocked(cleanpr.findWorktreeByPrNumber).mockReturnValue(mockWorktree);
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: false,
+        message: 'Failed to clean PR #42: worktree has uncommitted changes',
+        prNumber: 42,
+        localBranchDeleted: false,
+        remoteBranchDeleted: false,
+      });
+
+      await runCli(['42']);
+
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('handles failed cleanup in --all mode with warnings', async () => {
+      const mockWorktrees = [
+        makeWorktreeInfo({ prNumber: 1 }),
+        makeWorktreeInfo({ prNumber: 2, hasChanges: true }),
+      ];
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(cleanpr.cleanWorktree)
+        .mockReturnValueOnce({
+          success: true,
+          message: 'Cleaned PR #1',
+          prNumber: 1,
+          localBranchDeleted: true,
+          remoteBranchDeleted: false,
+        })
+        .mockReturnValueOnce({
+          success: false,
+          message: 'Skipped PR #2: has uncommitted changes',
+          prNumber: 2,
+          localBranchDeleted: false,
+          remoteBranchDeleted: false,
+        });
+      vi.mocked(cleanpr.summarizeResults).mockReturnValue({ cleaned: 1, total: 2, failed: 1 });
+
+      await runCli(['--all']);
+
+      expect(cleanpr.summarizeResults).toHaveBeenCalled();
+    });
+
+    it('includes skipped items in JSON output', async () => {
+      const mockWorktrees = [
+        makeWorktreeInfo({ prNumber: 1 }),
+        makeWorktreeInfo({ prNumber: 2, hasChanges: true }),
+      ];
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: true,
+          force: false,
+          deleteRemote: false,
+          interactive: false,
+          json: true,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(cleanpr.cleanWorktree)
+        .mockReturnValueOnce({
+          success: true,
+          message: 'Cleaned PR #1',
+          prNumber: 1,
+          localBranchDeleted: true,
+          remoteBranchDeleted: false,
+        })
+        .mockReturnValueOnce({
+          success: false,
+          message: 'Skipped PR #2: has uncommitted changes',
+          prNumber: 2,
+          localBranchDeleted: false,
+          remoteBranchDeleted: false,
+        });
+
+      await runCli(['--json', '--all']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalSkipped": 1'));
     });
   });
 });

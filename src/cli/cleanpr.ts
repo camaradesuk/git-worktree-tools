@@ -24,7 +24,21 @@ import {
   cleanWorktree,
   summarizeResults,
 } from '../lib/cleanpr/index.js';
-import type { CleanOptions, WorktreeInfo, CleanupDeps } from '../lib/cleanpr/index.js';
+import type {
+  CleanOptions,
+  WorktreeInfo,
+  CleanupDeps,
+  CleanupResult,
+} from '../lib/cleanpr/index.js';
+import {
+  createSuccessResult,
+  createErrorResult,
+  formatJsonResult,
+  ErrorCode,
+  type CleanprResultData,
+  type CleanprDryRunData,
+  type CleanedWorktreeInfo,
+} from '../lib/json-output.js';
 
 /**
  * Create cleanup dependencies using real git operations
@@ -73,6 +87,79 @@ function createCleanupDeps(repoRoot: string): CleanupDeps {
 function printWorktree(w: WorktreeInfo): void {
   const changeIndicator = w.hasChanges ? colors.red(' [has changes]') : '';
   console.log(`    PR #${w.prNumber}: ${w.branch}${changeIndicator}`);
+}
+
+/**
+ * Convert cleanup result to JSON-friendly format
+ */
+function resultToCleanedInfo(result: CleanupResult, worktree: WorktreeInfo): CleanedWorktreeInfo {
+  return {
+    prNumber: result.prNumber,
+    branch: worktree.branch,
+    path: worktree.path,
+    prState: worktree.prState,
+    localBranchDeleted: result.localBranchDeleted,
+    remoteBranchDeleted: result.remoteBranchDeleted,
+  };
+}
+
+/**
+ * Output JSON result for cleanup operation
+ */
+function outputJsonResult(
+  results: CleanupResult[],
+  worktrees: WorktreeInfo[],
+  dryRun: boolean
+): void {
+  // Create a map for quick lookup
+  const worktreeMap = new Map(worktrees.map((w) => [w.prNumber, w]));
+
+  if (dryRun) {
+    const data: CleanprDryRunData = {
+      wouldClean: results
+        .filter((r) => r.success)
+        .map((r) => {
+          const w = worktreeMap.get(r.prNumber)!;
+          return {
+            prNumber: r.prNumber,
+            branch: w.branch,
+            path: w.path,
+            prState: w.prState,
+          };
+        }),
+      totalWouldClean: results.filter((r) => r.success).length,
+    };
+    console.log(formatJsonResult(createSuccessResult('cleanpr', data)));
+  } else {
+    const cleaned: CleanedWorktreeInfo[] = [];
+    const skipped: Array<{ prNumber: number; reason: string }> = [];
+
+    for (const result of results) {
+      const w = worktreeMap.get(result.prNumber);
+      if (!w) continue;
+
+      if (result.success) {
+        cleaned.push(resultToCleanedInfo(result, w));
+      } else {
+        skipped.push({ prNumber: result.prNumber, reason: result.message });
+      }
+    }
+
+    const data: CleanprResultData = {
+      cleaned,
+      skipped,
+      totalCleaned: cleaned.length,
+      totalSkipped: skipped.length,
+    };
+    console.log(formatJsonResult(createSuccessResult('cleanpr', data)));
+  }
+}
+
+/**
+ * Output JSON error
+ */
+function outputJsonError(code: ErrorCode, message: string): void {
+  console.log(formatJsonResult(createErrorResult('cleanpr', code, message)));
 }
 
 /**
@@ -198,27 +285,49 @@ async function cleanAll(
   const cleanable = getCleanableWorktrees(worktrees);
 
   if (cleanable.length === 0) {
-    console.log(colors.info('No merged or closed PR worktrees found.'));
+    if (options.json) {
+      const data: CleanprResultData = {
+        cleaned: [],
+        skipped: [],
+        totalCleaned: 0,
+        totalSkipped: 0,
+      };
+      console.log(formatJsonResult(createSuccessResult('cleanpr', data)));
+    } else {
+      console.log(colors.info('No merged or closed PR worktrees found.'));
+    }
     return;
   }
 
-  console.log(colors.info(`Found ${cleanable.length} merged/closed PR worktrees.`));
-  console.log('');
+  if (!options.json) {
+    console.log(colors.info(`Found ${cleanable.length} merged/closed PR worktrees.`));
+    console.log('');
+  }
 
   const deps = createCleanupDeps(repoRoot);
   const results = cleanable.map((w) => {
     const result = cleanWorktree(w, options, deps);
-    if (result.success) {
-      console.log(colors.success(result.message));
-    } else {
-      console.log(colors.warning(result.message));
+    if (!options.json) {
+      if (result.success) {
+        console.log(colors.success(result.message));
+      } else {
+        console.log(colors.warning(result.message));
+      }
     }
     return result;
   });
 
-  const summary = summarizeResults(results);
-  console.log('');
-  console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
+  if (options.json) {
+    outputJsonResult(results, cleanable, options.dryRun);
+  } else {
+    const summary = summarizeResults(results);
+    console.log('');
+    if (options.dryRun) {
+      console.log(colors.info(`Would clean ${summary.cleaned} of ${summary.total} worktrees.`));
+    } else {
+      console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
+    }
+  }
 }
 
 /**
@@ -239,31 +348,52 @@ async function cleanSpecific(
       .replace('{number}', String(prNumber));
     const expectedPath = path.join(path.dirname(repoRoot), pattern);
 
-    console.error(colors.error(`No worktree found for PR #${prNumber}`));
-    console.error(colors.dim(`Expected at: ${expectedPath}`));
+    if (options.json) {
+      outputJsonError(ErrorCode.PR_NOT_FOUND, `No worktree found for PR #${prNumber}`);
+    } else {
+      console.error(colors.error(`No worktree found for PR #${prNumber}`));
+      console.error(colors.dim(`Expected at: ${expectedPath}`));
+    }
     process.exit(1);
   }
 
-  console.log(colors.info(`Cleaning PR #${prNumber} worktree...`));
-  console.log(colors.dim(`  Path: ${target.path}`));
-  console.log(colors.dim(`  Branch: ${target.branch}`));
-  console.log(colors.dim(`  State: ${target.prState}`));
-  console.log('');
+  if (!options.json) {
+    console.log(colors.info(`Cleaning PR #${prNumber} worktree...`));
+    console.log(colors.dim(`  Path: ${target.path}`));
+    console.log(colors.dim(`  Branch: ${target.branch}`));
+    console.log(colors.dim(`  State: ${target.prState}`));
+    console.log('');
+  }
 
   const deps = createCleanupDeps(repoRoot);
   const result = cleanWorktree(target, options, deps);
 
-  if (result.success) {
+  if (options.json) {
+    outputJsonResult([result], [target], options.dryRun);
+  } else if (result.success) {
     console.log('');
-    console.log(colors.success(`PR #${prNumber} worktree cleaned up successfully.`));
+    if (options.dryRun) {
+      console.log(colors.info(result.message));
+    } else {
+      console.log(colors.success(`PR #${prNumber} worktree cleaned up successfully.`));
+    }
   } else {
     console.log(colors.warning(result.message));
     process.exit(1);
   }
 }
 
+/**
+ * Check if --json flag was passed (for error handling before parsing completes)
+ */
+function hasJsonFlag(args: string[]): boolean {
+  return args.includes('--json');
+}
+
 async function main(): Promise<void> {
-  const parseResult = parseArgs(process.argv.slice(2));
+  const rawArgs = process.argv.slice(2);
+  const useJson = hasJsonFlag(rawArgs);
+  const parseResult = parseArgs(rawArgs);
 
   if (parseResult.kind === 'help') {
     console.log(getHelpText());
@@ -271,7 +401,11 @@ async function main(): Promise<void> {
   }
 
   if (parseResult.kind === 'error') {
-    console.error(colors.error(parseResult.message));
+    if (useJson) {
+      outputJsonError(ErrorCode.INVALID_ARGUMENT, parseResult.message);
+    } else {
+      console.error(colors.error(parseResult.message));
+    }
     process.exit(1);
   }
 
@@ -279,23 +413,36 @@ async function main(): Promise<void> {
 
   // Check prerequisites
   if (!github.isGhInstalled()) {
-    console.error(colors.error('GitHub CLI (gh) is required for PR status checking.'));
-    console.error(colors.dim('Install: https://cli.github.com/'));
+    if (options.json) {
+      outputJsonError(
+        ErrorCode.GH_NOT_INSTALLED,
+        'GitHub CLI (gh) is required for PR status checking'
+      );
+    } else {
+      console.error(colors.error('GitHub CLI (gh) is required for PR status checking.'));
+      console.error(colors.dim('Install: https://cli.github.com/'));
+    }
     process.exit(1);
   }
 
   // Find repo root
   const repoRoot = git.getRepoRoot();
   if (!repoRoot) {
-    console.error(colors.error('Not in a git repository.'));
+    if (options.json) {
+      outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not in a git repository');
+    } else {
+      console.error(colors.error('Not in a git repository.'));
+    }
     process.exit(1);
   }
 
   // Load configuration
   const config = loadConfig(repoRoot);
 
-  console.log('');
-  console.log(colors.info('Scanning worktrees...'));
+  if (!options.json) {
+    console.log('');
+    console.log(colors.info('Scanning worktrees...'));
+  }
 
   // Gather worktree info
   const gatherDeps = createDefaultDeps();
@@ -306,11 +453,25 @@ async function main(): Promise<void> {
   } else if (options.all) {
     await cleanAll(worktrees, repoRoot, options);
   } else {
+    // Interactive mode with JSON not supported
+    if (options.json) {
+      outputJsonError(
+        ErrorCode.INVALID_ARGUMENT,
+        'Interactive mode not supported with --json. Use --all or specify a PR number.'
+      );
+      process.exit(1);
+    }
     await interactiveClean(worktrees, repoRoot, options);
   }
 }
 
 main().catch((err) => {
-  console.error(colors.error(`Error: ${err.message}`));
+  const useJson = hasJsonFlag(process.argv.slice(2));
+  const message = err instanceof Error ? err.message : String(err);
+  if (useJson) {
+    outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
+  } else {
+    console.error(colors.error(`Error: ${message}`));
+  }
   process.exit(1);
 });

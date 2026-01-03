@@ -3,6 +3,7 @@
  */
 
 import type { Options, ParseResult } from './types.js';
+import { isValidStateActionKey } from '../json-output.js';
 
 /**
  * Default options
@@ -15,6 +16,9 @@ export function getDefaultOptions(): Options {
     installDeps: false,
     openEditor: false,
     runWtlink: true,
+    json: false,
+    nonInteractive: false,
+    noHooks: false,
   };
 }
 
@@ -84,6 +88,34 @@ export function parseArgs(args: string[]): ParseResult {
         options.runWtlink = false;
         break;
 
+      case '--no-hooks':
+        options.noHooks = true;
+        break;
+
+      case '--json':
+        options.json = true;
+        break;
+
+      case '-y':
+      case '--yes':
+      case '--non-interactive':
+        options.nonInteractive = true;
+        break;
+
+      case '--action':
+        i++;
+        if (!args[i] || args[i].startsWith('-')) {
+          return { kind: 'error', message: '--action requires an action key' };
+        }
+        if (!isValidStateActionKey(args[i])) {
+          return {
+            kind: 'error',
+            message: `Invalid action: ${args[i]}. Valid actions: empty_commit, commit_staged, commit_all, stash_and_empty, use_commits, push_then_branch, use_commits_and_commit_all, use_commits_and_stash, create_pr_for_branch, pr_for_branch_commit_all, pr_for_branch_stash, branch_from_detached`,
+          };
+        }
+        options.action = args[i] as Options['action'];
+        break;
+
       default:
         if (arg.startsWith('-')) {
           return { kind: 'error', message: `Unknown option: ${arg}` };
@@ -127,12 +159,40 @@ Options:
   -c, --code            Open editor to the new worktree
   -r, --ready           Create PR as ready for review (default: draft)
   --no-wtlink           Skip wtlink config sync
+  --no-hooks            Disable lifecycle hooks (for security)
   -h, --help            Show this help message
+
+AI/Automation Options:
+  --json                Output result as JSON for programmatic parsing
+  -y, --yes, --non-interactive
+                        Skip all interactive prompts, use defaults
+  --action ACTION       Pre-specify action for scenario handling
+                        (use with --non-interactive)
+
+Actions:
+  empty_commit          Create empty initial commit
+  commit_staged         Commit staged changes to new branch
+  commit_all            Stage all and commit to new branch
+  stash_and_empty       Stash changes, create empty commit
+  use_commits           Use local commits (branch from HEAD)
+  push_then_branch      Push to main first, then create branch
+  use_commits_and_commit_all
+                        Include commits + commit uncommitted
+  use_commits_and_stash Include commits, stash uncommitted
+  create_pr_for_branch  Create PR for existing branch
+  pr_for_branch_commit_all
+                        Create PR for branch, commit changes first
+  pr_for_branch_stash   Create PR for branch, stash changes
+  branch_from_detached  Create branch from detached HEAD
 
 Examples:
   newpr "Add user authentication"
   newpr "Fix login bug" --install --code
   newpr --pr 1234
   newpr --branch feat/my-feature
+
+  # AI/Automation usage
+  newpr "Add dark mode" --non-interactive --json
+  newpr "Fix bug" --non-interactive --action=commit_staged --json
 `.trim();
 }

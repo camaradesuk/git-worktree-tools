@@ -1,0 +1,13 @@
+{
+  "description": "Template for repo view response",
+  "fields": ["name", "owner", "defaultBranchRef"],
+  "defaults": {
+    "name": "testrepo",
+    "owner": {
+      "login": "testorg"
+    },
+    "defaultBranchRef": {
+      "name": "main"
+    }
+  }
+}
