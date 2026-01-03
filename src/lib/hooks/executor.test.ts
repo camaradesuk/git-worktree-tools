@@ -2,7 +2,7 @@
  * Hook Executor Tests
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { HookExecutor, createHookExecutor } from './executor.js';
 import type { HookContext, HooksConfig } from './types.js';
 import os from 'os';
@@ -275,6 +275,481 @@ describe('HookExecutor', () => {
       expect(results[0].skipped).toBe(true);
       expect(results[1].success).toBe(true);
       expect(results[2].skipped).toBe(true);
+    });
+  });
+});
+
+describe('HookExecutor additional coverage', () => {
+  describe('template variable expansion', () => {
+    it('expands PR_NUMBER variable', async () => {
+      const config: HooksConfig = {
+        'post-pr': 'echo "PR: {{PR_NUMBER}}"',
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        prNumber: 123,
+      });
+
+      const result = await executor.executeHook('post-pr', context);
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('123');
+    });
+
+    it('expands PR_URL variable', async () => {
+      const config: HooksConfig = {
+        'post-pr': 'echo "URL: {{PR_URL}}"',
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        prUrl: 'https://github.com/org/repo/pull/42',
+      });
+
+      const result = await executor.executeHook('post-pr', context);
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('github.com');
+    });
+
+    it('expands WORKTREE_PATH variable', async () => {
+      const config: HooksConfig = {
+        'post-worktree': 'echo "Path: {{WORKTREE_PATH}}"',
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        worktreePath: '/path/to/worktree',
+      });
+
+      const result = await executor.executeHook('post-worktree', context);
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('/path/to/worktree');
+    });
+
+    it('expands DESCRIPTION variable', async () => {
+      const config: HooksConfig = {
+        'pre-analyze': 'echo "Desc: {{DESCRIPTION}}"',
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        description: 'Test feature',
+      });
+
+      const result = await executor.executeHook('pre-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('Test feature');
+    });
+
+    it('expands SCENARIO and ACTION variables', async () => {
+      const config: HooksConfig = {
+        'post-analyze': 'echo "{{SCENARIO}} - {{ACTION}}"',
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        scenario: 'main_clean_same',
+        action: 'empty_commit',
+      });
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('main_clean_same');
+      expect(result.output).toContain('empty_commit');
+    });
+
+    it('replaces unknown variables with empty string', async () => {
+      const config: HooksConfig = {
+        'pre-analyze': 'echo "Unknown: {{UNKNOWN_VAR}}"',
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('pre-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('Unknown:');
+    });
+  });
+
+  describe('condition evaluation', () => {
+    it('evaluates not: condition (negation)', async () => {
+      const config: HooksConfig = {
+        'post-worktree': {
+          command: 'echo "no file"',
+          if: 'not:exists:nonexistent-file-xyz.txt',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-worktree', context);
+
+      // Should run because file doesn't exist, and we negate that
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBeFalsy();
+      expect(result.output).toContain('no file');
+    });
+
+    it('evaluates env: condition (true)', async () => {
+      // PATH env var should always exist
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "has PATH"',
+          if: 'env:PATH',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBeFalsy();
+    });
+
+    it('evaluates env: condition (false)', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "should not run"',
+          if: 'env:NONEXISTENT_VAR_XYZ_ABC_123',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(true);
+    });
+
+    it('evaluates has-changes condition (true)', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "has changes"',
+          if: 'has-changes',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        stagedFiles: ['file.ts'],
+      });
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBeFalsy();
+    });
+
+    it('evaluates has-changes condition (false)', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "no changes"',
+          if: 'has-changes',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        stagedFiles: [],
+        unstagedFiles: [],
+      });
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(true);
+    });
+
+    it('evaluates has-staged condition (true)', async () => {
+      const config: HooksConfig = {
+        'pre-commit': {
+          command: 'echo "staged files"',
+          if: 'has-staged',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        stagedFiles: ['file.ts'],
+      });
+
+      const result = await executor.executeHook('pre-commit', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBeFalsy();
+    });
+
+    it('evaluates has-staged condition (false)', async () => {
+      const config: HooksConfig = {
+        'pre-commit': {
+          command: 'echo "no staged"',
+          if: 'has-staged',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        stagedFiles: [],
+      });
+
+      const result = await executor.executeHook('pre-commit', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(true);
+    });
+
+    it('evaluates scenario: condition (match)', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "clean main"',
+          if: 'scenario:main_clean_same',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        scenario: 'main_clean_same',
+      });
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBeFalsy();
+    });
+
+    it('evaluates scenario: condition (no match)', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "clean main"',
+          if: 'scenario:main_clean_same',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        scenario: 'branch_with_changes',
+      });
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(true);
+    });
+
+    it('unknown condition defaults to true', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "runs anyway"',
+          if: 'unknown-condition-xyz',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBeFalsy();
+    });
+  });
+
+  describe('complex hook script execution', () => {
+    it('executes JavaScript file script', async () => {
+      const scriptPath = path.join(os.tmpdir(), 'test-hook.js');
+      fs.writeFileSync(scriptPath, 'console.log("JS hook executed")');
+
+      try {
+        const config: HooksConfig = {
+          'post-worktree': {
+            script: scriptPath,
+          },
+        };
+        const executor = new HookExecutor(config);
+        const context = createTestContext();
+
+        const result = await executor.executeHook('post-worktree', context);
+
+        expect(result.success).toBe(true);
+        expect(result.output).toContain('JS hook executed');
+      } finally {
+        fs.unlinkSync(scriptPath);
+      }
+    });
+
+    it('returns error when script not found', async () => {
+      const config: HooksConfig = {
+        'post-worktree': {
+          script: '/nonexistent/path/hook.js',
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-worktree', context);
+
+      expect(result.success).toBe(true); // failOnError defaults to false
+      expect(result.error).toContain('Script not found');
+    });
+
+    it('returns error when script not found with failOnError: true', async () => {
+      const config: HooksConfig = {
+        'post-worktree': {
+          script: '/nonexistent/path/hook.js',
+          failOnError: true,
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-worktree', context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Script not found');
+    });
+
+    it('returns error when neither command nor script specified', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          if: 'has-changes',
+          // Neither command nor script
+        } as any,
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext({
+        stagedFiles: ['file.ts'],
+      });
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('must specify either');
+    });
+
+    it('handles shell script (.sh) files', async () => {
+      // Skip on Windows
+      if (process.platform === 'win32') {
+        return;
+      }
+
+      const scriptPath = path.join(os.tmpdir(), 'test-hook.sh');
+      fs.writeFileSync(scriptPath, '#!/bin/sh\necho "Shell hook"');
+      fs.chmodSync(scriptPath, '755');
+
+      try {
+        const config: HooksConfig = {
+          'post-worktree': {
+            script: scriptPath,
+          },
+        };
+        const executor = new HookExecutor(config);
+        const context = createTestContext();
+
+        const result = await executor.executeHook('post-worktree', context);
+
+        expect(result.success).toBe(true);
+        expect(result.output).toContain('Shell hook');
+      } finally {
+        fs.unlinkSync(scriptPath);
+      }
+    });
+  });
+
+  describe('complex hook dry-run mode', () => {
+    it('returns dry-run result for complex hook', async () => {
+      const config: HooksConfig = {
+        'post-worktree': {
+          command: 'rm -rf /',
+          if: 'has-changes',
+        },
+      };
+      const executor = new HookExecutor(config, { dryRun: true });
+      const context = createTestContext({
+        stagedFiles: ['file.ts'],
+      });
+
+      const result = await executor.executeHook('post-worktree', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(true);
+      expect(result.output).toContain('DRY RUN');
+    });
+
+    it('returns dry-run result for multiple commands', async () => {
+      const config: HooksConfig = {
+        'post-analyze': ['echo "first"', 'echo "second"'],
+      };
+      const executor = new HookExecutor(config, { dryRun: true });
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(true);
+      expect(result.output).toContain('DRY RUN');
+      expect(result.output).toContain('first');
+      expect(result.output).toContain('second');
+    });
+  });
+
+  describe('verbose mode', () => {
+    it('logs hook execution in verbose mode', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        const config: HooksConfig = {
+          'post-analyze': 'echo "verbose test"',
+        };
+        const executor = new HookExecutor(config, { verbose: true });
+        const context = createTestContext();
+
+        await executor.executeHook('post-analyze', context);
+
+        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Executing hook'));
+        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('completed'));
+      } finally {
+        consoleSpy.mockRestore();
+        consoleErrorSpy.mockRestore();
+      }
+    });
+
+    it('logs errors in verbose mode when hook fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        const config: HooksConfig = {
+          'post-analyze': 'exit 1',
+        };
+        const executor = new HookExecutor(config, { verbose: true });
+        const context = createTestContext();
+
+        await executor.executeHook('post-analyze', context);
+
+        expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('failed'));
+      } finally {
+        consoleSpy.mockRestore();
+        consoleErrorSpy.mockRestore();
+      }
+    });
+  });
+
+  describe('complex hook with custom env', () => {
+    it('passes custom environment variables', async () => {
+      const cmd = process.platform === 'win32' ? 'echo %CUSTOM_VAR%' : 'echo $CUSTOM_VAR';
+
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: cmd,
+          env: {
+            CUSTOM_VAR: 'custom_value',
+          },
+        },
+      };
+      const executor = new HookExecutor(config);
+      const context = createTestContext();
+
+      const result = await executor.executeHook('post-analyze', context);
+
+      expect(result.success).toBe(true);
+      expect(result.output).toContain('custom_value');
     });
   });
 });
