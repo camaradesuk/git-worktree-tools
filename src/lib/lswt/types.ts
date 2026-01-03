@@ -21,12 +21,16 @@ export interface WorktreeDisplay {
   name: string;
   branch: string | null;
   commit: string;
-  type: 'main' | 'pr' | 'branch' | 'detached';
+  type: 'main' | 'pr' | 'branch' | 'detached' | 'remote_pr';
   prNumber: number | null;
   prState: 'OPEN' | 'CLOSED' | 'MERGED' | null;
   /** Whether the PR is a draft (null for non-PR worktrees) */
   isDraft: boolean | null;
   hasChanges: boolean;
+  /** PR title (for remote PRs that have no local checkout) */
+  prTitle?: string;
+  /** PR URL (for remote PRs) */
+  prUrl?: string;
 }
 
 /**
@@ -41,6 +45,7 @@ export type WorktreeAction =
   | 'create_pr'
   | 'remove_worktree'
   | 'link_configs'
+  | 'checkout_pr'
   | 'back'
   | 'exit';
 
@@ -89,6 +94,8 @@ export interface EnvironmentInfo {
   isInteractive: boolean;
   shell: string;
   gitVersion: GitVersion;
+  /** Whether running in Windows Subsystem for Linux */
+  isWSL: boolean;
 }
 
 /**

@@ -112,6 +112,21 @@ describe('lswt/formatters', () => {
       const display = makeDisplay({ type: 'unknown' as WorktreeDisplay['type'] });
       expect(formatTypeLabel(display)).toEqual({ text: '[unknown]', color: 'dim' });
     });
+
+    it('formats remote PR type', () => {
+      const display = makeDisplay({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+      expect(formatTypeLabel(display)).toEqual({ text: '[PR #42 REMOTE]', color: 'dim' });
+    });
+
+    it('formats remote PR draft type', () => {
+      const display = makeDisplay({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        isDraft: true,
+      });
+      expect(formatTypeLabel(display)).toEqual({ text: '[PR #42 REMOTE DRAFT]', color: 'yellow' });
+    });
   });
 
   describe('sortWorktrees', () => {
@@ -190,6 +205,61 @@ describe('lswt/formatters', () => {
       const worktrees = [makeWorktree('main', null, 'repo')];
       const sorted = sortWorktrees(worktrees);
       expect(sorted).toHaveLength(1);
+    });
+
+    it('places remote PRs after local PRs', () => {
+      const worktrees = [
+        makeWorktree('remote_pr', 42, 'remote-pr'),
+        makeWorktree('pr', 10, 'repo.pr10'),
+        makeWorktree('main', null, 'repo'),
+      ];
+      const sorted = sortWorktrees(worktrees);
+      expect(sorted[0].type).toBe('main');
+      expect(sorted[1].type).toBe('pr');
+      expect(sorted[2].type).toBe('remote_pr');
+    });
+
+    it('sorts remote PRs by number', () => {
+      const worktrees = [
+        makeWorktree('remote_pr', 99, 'remote-pr-99'),
+        makeWorktree('remote_pr', 10, 'remote-pr-10'),
+        makeWorktree('remote_pr', 42, 'remote-pr-42'),
+      ];
+      const sorted = sortWorktrees(worktrees);
+      expect(sorted.map((w) => w.prNumber)).toEqual([10, 42, 99]);
+    });
+
+    it('places remote PRs before branches', () => {
+      const worktrees = [
+        makeWorktree('branch', null, 'feature'),
+        makeWorktree('remote_pr', 42, 'remote-pr'),
+      ];
+      const sorted = sortWorktrees(worktrees);
+      expect(sorted[0].type).toBe('remote_pr');
+      expect(sorted[1].type).toBe('branch');
+    });
+
+    it('handles full mixed sorting with remote PRs', () => {
+      const worktrees = [
+        makeWorktree('branch', null, 'feature'),
+        makeWorktree('remote_pr', 99, 'remote-pr-99'),
+        makeWorktree('pr', 5, 'repo.pr5'),
+        makeWorktree('main', null, 'repo'),
+        makeWorktree('remote_pr', 10, 'remote-pr-10'),
+        makeWorktree('pr', 15, 'repo.pr15'),
+        makeWorktree('detached', null, 'detached-wt'),
+      ];
+      const sorted = sortWorktrees(worktrees);
+      // Non-PR types are sorted alphabetically by name: 'detached-wt' < 'feature'
+      expect(sorted.map((w) => ({ type: w.type, prNumber: w.prNumber }))).toEqual([
+        { type: 'main', prNumber: null },
+        { type: 'pr', prNumber: 5 },
+        { type: 'pr', prNumber: 15 },
+        { type: 'remote_pr', prNumber: 10 },
+        { type: 'remote_pr', prNumber: 99 },
+        { type: 'detached', prNumber: null },
+        { type: 'branch', prNumber: null },
+      ]);
     });
   });
 

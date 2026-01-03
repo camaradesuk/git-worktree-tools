@@ -259,7 +259,13 @@ async function handleScenario(
   const choiceLabels = context.choices.map((c) => c.label);
   const choiceIndex = await promptChoiceIndex('How would you like to proceed?', choiceLabels);
 
-  return context.choices[choiceIndex].action;
+  // promptChoiceIndex returns 1-based index, convert to 0-based for array access
+  const arrayIndex = choiceIndex - 1;
+  if (arrayIndex < 0 || arrayIndex >= context.choices.length) {
+    // Defensive check - should never happen as promptChoiceIndex validates input
+    return null;
+  }
+  return context.choices[arrayIndex].action;
 }
 
 /**

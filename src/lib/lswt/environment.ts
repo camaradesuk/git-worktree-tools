@@ -3,6 +3,7 @@
  */
 
 import { execSync } from 'child_process';
+import * as fs from 'fs';
 import type { EnvironmentInfo, GitVersion } from './types.js';
 
 /**
@@ -136,6 +137,29 @@ export function getShell(): string {
 }
 
 /**
+ * Detect if running in Windows Subsystem for Linux (WSL)
+ */
+export function isWSL(): boolean {
+  // Only possible on Linux
+  if (process.platform !== 'linux') {
+    return false;
+  }
+
+  // Check environment variable (most reliable for WSL2)
+  if (process.env.WSL_DISTRO_NAME) {
+    return true;
+  }
+
+  // Check /proc/version for Microsoft/WSL indicators
+  try {
+    const procVersion = fs.readFileSync('/proc/version', 'utf8').toLowerCase();
+    return procVersion.includes('microsoft') || procVersion.includes('wsl');
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Detect full environment information
  */
 export function detectEnvironment(): EnvironmentInfo {
@@ -159,5 +183,6 @@ export function detectEnvironment(): EnvironmentInfo {
     isInteractive: process.stdout.isTTY ?? false,
     shell: getShell(),
     gitVersion: getGitVersion(),
+    isWSL: isWSL(),
   };
 }

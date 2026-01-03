@@ -144,6 +144,7 @@ describe('MCP Server', () => {
           ],
           total: 1,
           prCount: 0,
+          remotePrCount: 0,
           openCount: 0,
           changesCount: 0,
         },
@@ -156,6 +157,59 @@ describe('MCP Server', () => {
       expect(listWorktrees).toHaveBeenCalledWith({ showStatus: true });
       expect(result.success).toBe(true);
       expect(result.data?.worktrees).toHaveLength(1);
+    });
+
+    it('includes remote PR fields when present', async () => {
+      const mockResult = {
+        success: true,
+        command: 'lswt',
+        timestamp: '2026-01-02T00:00:00.000Z',
+        data: {
+          worktrees: [
+            {
+              path: '/test/repo',
+              name: 'repo',
+              branch: 'main',
+              commit: 'abc123',
+              type: 'main' as const,
+              prNumber: null,
+              prState: null,
+              isDraft: null,
+              hasChanges: false,
+            },
+            {
+              path: '[remote]',
+              name: 'PR #42',
+              branch: 'feature/remote-pr',
+              commit: 'def456',
+              type: 'remote_pr' as const,
+              prNumber: 42,
+              prState: 'OPEN' as const,
+              isDraft: false,
+              hasChanges: false,
+              prTitle: 'Add new feature',
+              prUrl: 'https://github.com/test/repo/pull/42',
+            },
+          ],
+          total: 2,
+          prCount: 0,
+          remotePrCount: 1,
+          openCount: 1,
+          changesCount: 0,
+        },
+      };
+
+      vi.mocked(listWorktrees).mockResolvedValue(mockResult);
+
+      const result = await listWorktrees({ showStatus: true });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.worktrees).toHaveLength(2);
+      expect(result.data?.remotePrCount).toBe(1);
+
+      const remotePr = result.data?.worktrees.find((w) => w.type === 'remote_pr');
+      expect(remotePr?.prTitle).toBe('Add new feature');
+      expect(remotePr?.prUrl).toBe('https://github.com/test/repo/pull/42');
     });
   });
 

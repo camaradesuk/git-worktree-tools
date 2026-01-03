@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
 import * as github from './github.js';
 
@@ -12,6 +12,164 @@ const mockExecSync = vi.mocked(execSync);
 describe('github', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('mock mode functions', () => {
+    afterEach(() => {
+      github.disableMockMode();
+      delete process.env.NEWPR_MOCK_GITHUB;
+    });
+
+    it('enableMockMode enables mock mode', () => {
+      expect(github.isMockModeEnabled()).toBe(false);
+      github.enableMockMode();
+      expect(github.isMockModeEnabled()).toBe(true);
+    });
+
+    it('disableMockMode disables mock mode', () => {
+      github.enableMockMode();
+      expect(github.isMockModeEnabled()).toBe(true);
+      github.disableMockMode();
+      expect(github.isMockModeEnabled()).toBe(false);
+    });
+
+    it('isMockModeEnabled returns true when NEWPR_MOCK_GITHUB env is set', () => {
+      expect(github.isMockModeEnabled()).toBe(false);
+      process.env.NEWPR_MOCK_GITHUB = '1';
+      expect(github.isMockModeEnabled()).toBe(true);
+    });
+
+    it('getMockState returns the mock state', () => {
+      github.enableMockMode();
+      const state = github.getMockState();
+      expect(state.enabled).toBe(true);
+      expect(state.prCounter).toBe(1);
+      expect(state.createdPrs).toEqual([]);
+      expect(state.existingPrs.size).toBe(0);
+    });
+
+    it('resetMockState resets counter and clears PRs', () => {
+      github.enableMockMode();
+      // Create a PR to modify state
+      github.createPr({ title: 'Test PR', head: 'feature/test' });
+
+      const stateBefore = github.getMockState();
+      expect(stateBefore.prCounter).toBe(2);
+      expect(stateBefore.createdPrs.length).toBe(1);
+      expect(stateBefore.existingPrs.size).toBe(1);
+
+      github.resetMockState();
+
+      const stateAfter = github.getMockState();
+      expect(stateAfter.prCounter).toBe(1);
+      expect(stateAfter.createdPrs.length).toBe(0);
+      expect(stateAfter.existingPrs.size).toBe(0);
+    });
+  });
+
+  describe('mock mode behavior', () => {
+    beforeEach(() => {
+      github.enableMockMode();
+    });
+
+    afterEach(() => {
+      github.disableMockMode();
+    });
+
+    it('isGhInstalled returns true in mock mode', () => {
+      expect(github.isGhInstalled()).toBe(true);
+      // Verify execSync was not called
+      expect(mockExecSync).not.toHaveBeenCalled();
+    });
+
+    it('isAuthenticated returns true in mock mode', () => {
+      expect(github.isAuthenticated()).toBe(true);
+      expect(mockExecSync).not.toHaveBeenCalled();
+    });
+
+    it('getRepoInfo returns mock repo info', () => {
+      const result = github.getRepoInfo();
+      expect(result).toEqual({
+        owner: 'mock-owner',
+        name: 'mock-repo',
+        defaultBranch: 'main',
+        url: 'https://github.com/mock-owner/mock-repo',
+      });
+      expect(mockExecSync).not.toHaveBeenCalled();
+    });
+
+    it('createPr creates mock PR and increments counter', () => {
+      const pr1 = github.createPr({ title: 'PR 1', head: 'feature/1' });
+      expect(pr1.number).toBe(1);
+      expect(pr1.title).toBe('PR 1');
+      expect(pr1.url).toBe('https://github.com/mock-owner/mock-repo/pull/1');
+
+      const pr2 = github.createPr({ title: 'PR 2', head: 'feature/2', draft: true });
+      expect(pr2.number).toBe(2);
+      expect(pr2.isDraft).toBe(true);
+
+      expect(mockExecSync).not.toHaveBeenCalled();
+    });
+
+    it('createPr stores PR in existingPrs map', () => {
+      github.createPr({ title: 'Test PR', head: 'feature/test' });
+
+      const state = github.getMockState();
+      expect(state.existingPrs.has('feature/test')).toBe(true);
+    });
+
+    it('getPr returns mock PR by number', () => {
+      github.createPr({ title: 'Test PR', head: 'feature/test' });
+
+      const result = github.getPr(1);
+      expect(result?.number).toBe(1);
+      expect(result?.title).toBe('Test PR');
+    });
+
+    it('getPr returns null for non-existent PR', () => {
+      const result = github.getPr(999);
+      expect(result).toBeNull();
+    });
+
+    it('getPrByBranch returns mock PR by branch', () => {
+      github.createPr({ title: 'Test PR', head: 'feature/test' });
+
+      const result = github.getPrByBranch('feature/test');
+      expect(result?.number).toBe(1);
+    });
+
+    it('getPrByBranch returns null for non-existent branch', () => {
+      const result = github.getPrByBranch('feature/nonexistent');
+      expect(result).toBeNull();
+    });
+
+    it('listPrs returns all mock PRs', () => {
+      github.createPr({ title: 'PR 1', head: 'feature/1' });
+      github.createPr({ title: 'PR 2', head: 'feature/2' });
+
+      const result = github.listPrs();
+      expect(result.length).toBe(2);
+    });
+
+    it('listPrs filters by state', () => {
+      github.createPr({ title: 'PR 1', head: 'feature/1' });
+      // All mock PRs are OPEN by default
+
+      const openPrs = github.listPrs({ state: 'open' });
+      expect(openPrs.length).toBe(1);
+
+      const closedPrs = github.listPrs({ state: 'closed' });
+      expect(closedPrs.length).toBe(0);
+    });
+
+    it('listPrs respects limit', () => {
+      github.createPr({ title: 'PR 1', head: 'feature/1' });
+      github.createPr({ title: 'PR 2', head: 'feature/2' });
+      github.createPr({ title: 'PR 3', head: 'feature/3' });
+
+      const result = github.listPrs({ limit: 2 });
+      expect(result.length).toBe(2);
+    });
   });
 
   describe('isGhInstalled', () => {

@@ -319,5 +319,80 @@ describe('CLI e2e tests', () => {
 
       expect(result.exitCode).toBe(1);
     });
+
+    it('handles -s/--status flag gracefully', () => {
+      // The -s flag enables status checking and remote PRs
+      // Without gh authentication, it should still work (just won't show status)
+      const result = runCli('lswt', ['-s'], { cwd: repoDir });
+
+      // Should not crash, may show warning about gh but still list worktrees
+      expect(result.stdout).toContain('main-repo');
+    });
+
+    it('JSON output includes all WorktreeDisplay fields', () => {
+      const result = runCli('lswt', ['--json'], { cwd: repoDir });
+
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed.length).toBeGreaterThan(0);
+
+      // Check that all expected fields are present in the output
+      const firstWorktree = parsed[0];
+      expect(firstWorktree).toHaveProperty('path');
+      expect(firstWorktree).toHaveProperty('name');
+      expect(firstWorktree).toHaveProperty('branch');
+      expect(firstWorktree).toHaveProperty('commit');
+      expect(firstWorktree).toHaveProperty('type');
+      expect(firstWorktree).toHaveProperty('prNumber');
+      expect(firstWorktree).toHaveProperty('prState');
+      expect(firstWorktree).toHaveProperty('isDraft');
+      expect(firstWorktree).toHaveProperty('hasChanges');
+
+      // Type should be one of the valid types
+      expect(['main', 'pr', 'remote_pr', 'branch', 'detached']).toContain(firstWorktree.type);
+    });
+
+    it('JSON output with -s flag includes all fields', () => {
+      const result = runCli('lswt', ['--json', '-s'], { cwd: repoDir });
+
+      // Should succeed even if gh is not available
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed.length).toBeGreaterThan(0);
+
+      // All fields should still be present
+      const firstWorktree = parsed[0];
+      expect(firstWorktree).toHaveProperty('path');
+      expect(firstWorktree).toHaveProperty('type');
+    });
+
+    it('--no-interactive runs in list mode', () => {
+      const result = runCli('lswt', ['--no-interactive'], { cwd: repoDir });
+
+      expect(result.exitCode).toBe(0);
+      // Should list worktrees without prompting
+      expect(result.stdout).toContain('main-repo');
+    });
+
+    it('lists multiple worktrees correctly', () => {
+      const result = runCli('lswt', ['--json'], { cwd: repoDir });
+
+      expect(result.exitCode).toBe(0);
+      const parsed = JSON.parse(result.stdout);
+
+      // Should have at least main + the worktree created in beforeAll
+      expect(parsed.length).toBeGreaterThanOrEqual(2);
+
+      // Find main worktree
+      const main = parsed.find((w: { type: string }) => w.type === 'main');
+      expect(main).toBeDefined();
+      expect(main.path).toContain('main-repo');
+
+      // Find branch/pr worktree
+      const branchWorktree = parsed.find((w: { path: string }) => w.path.includes('.pr42'));
+      expect(branchWorktree).toBeDefined();
+    });
   });
 });

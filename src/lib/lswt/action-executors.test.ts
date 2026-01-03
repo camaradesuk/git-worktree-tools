@@ -27,15 +27,38 @@ vi.mock('../git.js', () => ({
   getRepoRoot: vi.fn(),
   removeWorktree: vi.fn(),
   getMainWorktreeRoot: vi.fn(),
+  addWorktree: vi.fn(),
+  deleteBranch: vi.fn(),
+  exec: vi.fn(),
 }));
+
+// Mock child_process for spawn/spawnSync
+vi.mock('child_process', async () => {
+  const actual = await vi.importActual<typeof import('child_process')>('child_process');
+  return {
+    ...actual,
+    spawnSync: vi.fn(),
+    spawn: actual.spawn,
+  };
+});
 
 import inquirer from 'inquirer';
 import * as github from '../github.js';
 import * as git from '../git.js';
+import { spawnSync } from 'child_process';
 
 describe('lswt/action-executors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset spawnSync mock for WSL path conversion
+    vi.mocked(spawnSync).mockReturnValue({
+      status: 0,
+      stdout: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      stderr: '',
+      pid: 0,
+      signal: null,
+      output: ['', '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo', ''],
+    });
   });
 
   afterEach(() => {
@@ -63,6 +86,7 @@ describe('lswt/action-executors', () => {
     isInteractive: true,
     shell: '/bin/bash',
     gitVersion: { major: 2, minor: 39, patch: 0, raw: 'git version 2.39.0' },
+    isWSL: false,
     ...overrides,
   });
 
@@ -90,6 +114,21 @@ describe('lswt/action-executors', () => {
     copyToClipboard: vi.fn(),
     openUrl: vi.fn(),
     ...overrides,
+  });
+
+  describe('createDefaultExecutorDeps', () => {
+    it('returns an object with all required methods', () => {
+      const deps = createDefaultExecutorDeps();
+
+      expect(deps).toHaveProperty('execCommand');
+      expect(deps).toHaveProperty('spawnDetached');
+      expect(deps).toHaveProperty('copyToClipboard');
+      expect(deps).toHaveProperty('openUrl');
+      expect(typeof deps.execCommand).toBe('function');
+      expect(typeof deps.spawnDetached).toBe('function');
+      expect(typeof deps.copyToClipboard).toBe('function');
+      expect(typeof deps.openUrl).toBe('function');
+    });
   });
 
   describe('executeAction', () => {
@@ -283,6 +322,39 @@ describe('lswt/action-executors', () => {
       expect(deps.spawnDetached).toHaveBeenCalled();
       expect(result.success).toBe(true);
       expect(result.message).toContain('terminal');
+    });
+
+    it('uses Windows Terminal via cmd.exe in WSL', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({ path: '/home/user/repo' });
+      const env = makeEnv({ platform: 'linux', isWSL: true });
+
+      const result = await executeAction('open_terminal', worktree, env, makeConfig(), deps);
+
+      // Should try to use cmd.exe to launch Windows Terminal
+      expect(deps.execCommand).toHaveBeenCalledWith(expect.stringContaining('cmd.exe'));
+      expect(result.success).toBe(true);
+    });
+
+    it('shows cd command fallback when WSL Windows Terminal fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const deps = makeDeps({
+        execCommand: vi.fn().mockImplementation(() => {
+          throw new Error('cmd.exe failed');
+        }),
+      });
+      const worktree = makeWorktree({ path: '/home/user/repo' });
+      const env = makeEnv({ platform: 'linux', isWSL: true });
+
+      const result = await executeAction('open_terminal', worktree, env, makeConfig(), deps);
+
+      // Should fall back to showing cd command
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('copy the cd command');
+      // Should print cd command to console
+      const output = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(output).toContain('cd');
+      consoleSpy.mockRestore();
     });
 
     it('uses osascript on macOS', async () => {
@@ -479,6 +551,40 @@ describe('lswt/action-executors', () => {
 
       expect(result.success).toBe(true);
       expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+      consoleSpy.mockRestore();
+    });
+
+    it('continues successfully when branch deletion fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ confirm: true })
+        .mockResolvedValueOnce({ shouldDelete: true });
+      vi.mocked(git.removeWorktree).mockImplementation(() => {});
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
+      // Branch deletion fails (branch might not exist locally)
+      vi.mocked(git.deleteBranch).mockImplementation(() => {
+        throw new Error('Branch not found');
+      });
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'MERGED',
+        branch: 'feature-42',
+        name: 'repo.pr42',
+      });
+
+      const result = await executeAction(
+        'remove_worktree',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should still succeed even though branch deletion failed
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Removed worktree');
       consoleSpy.mockRestore();
     });
 
@@ -698,6 +804,33 @@ describe('lswt/action-executors', () => {
         expect(result.message).toContain('Failed to link configs');
       }
     });
+
+    it('successfully links configs', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+
+      // Mock the dynamic import to succeed
+      vi.doMock('../wtlink/link-configs.js', () => ({
+        run: vi.fn().mockResolvedValue(undefined),
+      }));
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+        path: '/home/user/feature-branch',
+      });
+
+      const result = await executeAction(
+        'link_configs',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should succeed
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('linked successfully');
+    });
   });
 
   describe('show_details action', () => {
@@ -837,6 +970,115 @@ describe('lswt/action-executors', () => {
       expect(result.success).toBe(true);
       const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
       expect(output).toContain('uncommitted');
+      consoleSpy.mockRestore();
+    });
+
+    it('shows PR URL from github.getPr when prUrl is not stored', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(github.getPr).mockReturnValue({
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'Test PR',
+        headBranch: 'feature-42',
+        baseBranch: 'main',
+      });
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feature-42',
+        // prUrl is not set
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('https://github.com/owner/repo/pull/42');
+      consoleSpy.mockRestore();
+    });
+
+    it('handles PR URL fetch failure gracefully', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(github.getPr).mockReturnValue(null);
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feature-42',
+        // prUrl is not set
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should succeed even if PR URL fetch fails
+      expect(result.success).toBe(true);
+      consoleSpy.mockRestore();
+    });
+
+    it('shows recent commits when git log succeeds', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.exec).mockReturnValue(
+        'abc1234 First commit\ndef5678 Second commit\nghi9012 Third commit'
+      );
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('Recent commits');
+      expect(output).toContain('First commit');
+      consoleSpy.mockRestore();
+    });
+
+    it('handles git log failure gracefully', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.exec).mockImplementation(() => {
+        throw new Error('git log failed');
+      });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should succeed even if git log fails
+      expect(result.success).toBe(true);
       consoleSpy.mockRestore();
     });
   });
@@ -1053,6 +1295,296 @@ describe('lswt/action-executors', () => {
 
     it('handles mixed separators', () => {
       expect(formatBranchAsTitle('my_feature-branch_name')).toBe('My feature branch name');
+    });
+  });
+
+  describe('checkout_pr action', () => {
+    it('returns error for non-remote_pr worktree type', async () => {
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'OPEN',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Can only checkout remote PRs');
+    });
+
+    it('returns error when worktree has no PR number', async () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: null,
+        prState: 'OPEN',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Can only checkout remote PRs');
+    });
+
+    it('returns error when worktree has no branch', async () => {
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: null,
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('no associated branch');
+    });
+
+    it('returns error when repo root cannot be found', async () => {
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue(null as unknown as string);
+
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Could not find repository root');
+    });
+
+    it('successfully creates worktree for remote PR', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
+      vi.mocked(git.addWorktree).mockImplementation(() => {});
+      // Mock git.exec to return empty string (git fetch succeeds)
+      vi.mocked(git.exec).mockReturnValue('');
+
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add remote feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+      const config = makeConfig({ worktreePattern: '{repo}.pr{number}', worktreeParent: '..' });
+
+      const result = await executeAction('checkout_pr', worktree, makeEnv(), config, makeDeps());
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Created worktree for PR #42');
+      expect(result.shouldRefresh).toBe(true);
+      expect(git.addWorktree).toHaveBeenCalledWith(
+        expect.stringContaining('.pr42'),
+        'feat/remote-feature',
+        expect.objectContaining({ cwd: '/home/user/repo' })
+      );
+      consoleSpy.mockRestore();
+    });
+
+    it('handles git fetch failure', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
+      // Mock git.exec to throw (git fetch fails)
+      vi.mocked(git.exec).mockImplementation(() => {
+        throw new Error('Failed to fetch branch');
+      });
+
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+      });
+
+      const result = await executeAction(
+        'checkout_pr',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Failed to checkout PR');
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('show_details action for remote_pr', () => {
+    it('shows PR title for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add amazing new feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('Add amazing new feature');
+      consoleSpy.mockRestore();
+    });
+
+    it('shows PR URL for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('https://github.com/owner/repo/pull/42');
+      consoleSpy.mockRestore();
+    });
+
+    it('shows message about no local checkout for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('No local checkout');
+      consoleSpy.mockRestore();
+    });
+
+    it('does not show "Changes" line for remote PRs', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feat/remote-feature',
+        prTitle: 'Add feature',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+        hasChanges: false,
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      // For remote PRs, "Changes:" line should not appear since there's no local path
+      expect(output).not.toMatch(/Changes:.*Clean/);
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('open_pr_url action for remote_pr', () => {
+    it('uses stored prUrl for remote PRs', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        prUrl: 'https://github.com/owner/repo/pull/42',
+      });
+
+      const result = await executeAction('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Opened PR #42');
+      expect(deps.openUrl).toHaveBeenCalledWith('https://github.com/owner/repo/pull/42');
+      // Should not call github.getPr since we have the URL stored
+      expect(github.getPr).not.toHaveBeenCalled();
+    });
+
+    it('falls back to fetching URL when prUrl is not stored', async () => {
+      vi.mocked(github.getPr).mockReturnValue({
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'Test PR',
+        headBranch: 'feature-42',
+        baseBranch: 'main',
+      });
+
+      const deps = makeDeps();
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        prUrl: undefined, // No stored URL
+      });
+
+      const result = await executeAction('open_pr_url', worktree, makeEnv(), makeConfig(), deps);
+
+      expect(result.success).toBe(true);
+      expect(github.getPr).toHaveBeenCalledWith(42);
+      expect(deps.openUrl).toHaveBeenCalledWith('https://github.com/owner/repo/pull/42');
     });
   });
 });

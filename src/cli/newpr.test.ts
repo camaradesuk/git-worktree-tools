@@ -392,7 +392,7 @@ describe('cli/newpr', () => {
         ],
       });
       vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
-      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(0);
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1); // 1-based index
       vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
       vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
       vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
@@ -451,8 +451,8 @@ describe('cli/newpr', () => {
         ],
       });
       vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
-      // User selects Cancel (index 1)
-      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      // User selects Cancel (option 2 in 1-based, array index 1)
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(2); // 1-based index
 
       await runCli(['Add new feature']);
 
@@ -485,7 +485,7 @@ describe('cli/newpr', () => {
         ],
       });
       vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
-      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(0);
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1); // 1-based index
       vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
       vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
       vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
@@ -874,8 +874,8 @@ describe('cli/newpr', () => {
         ],
       });
       vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
-      // User selects Cancel
-      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      // User selects Cancel (index 1 in array, so 2 in 1-based indexing)
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(2);
 
       await runCli(['test', '--json']);
 
@@ -922,7 +922,7 @@ describe('cli/newpr', () => {
         ],
       });
       vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
-      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(0);
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1); // 1-based index
       // KEY: This is the existing branch action path
       vi.mocked(newpr.isExistingBranchAction).mockReturnValue(true);
       vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
@@ -970,7 +970,7 @@ describe('cli/newpr', () => {
         ],
       });
       vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
-      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(0);
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1); // 1-based index
       // This is the new branch action path
       vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
       vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });

@@ -1,4 +1,4 @@
-import { execSync, ExecSyncOptions } from 'child_process';
+import { execSync, spawnSync, SpawnSyncOptions } from 'child_process';
 import path from 'path';
 import { DEFAULT_REMOTE, DEFAULT_BASE_BRANCH } from './constants.js';
 
@@ -54,42 +54,30 @@ export interface PushOptions {
 }
 
 /**
- * Shell-escape a string for use in a command
- */
-function shellEscape(str: string): string {
-  // Quote any string containing shell metacharacters or special chars
-  // This includes: spaces, quotes, backslashes, slashes, commas, and other special chars
-  if (/[\s"'\\/:,;|&$!`(){}[\]*?<>~#]/.test(str)) {
-    return `"${str.replace(/["\\$`]/g, '\\$&')}"`;
-  }
-  return str;
-}
-
-/**
  * Execute a git command and return output
+ * Uses spawnSync for cross-platform compatibility (avoids shell escaping issues on Windows)
  */
 export function exec(args: string[], options: { cwd?: string; silent?: boolean } = {}): string {
-  const escapedArgs = args.map(shellEscape);
-  const cmd = `git ${escapedArgs.join(' ')}`;
-  const execOptions: ExecSyncOptions = {
+  const spawnOptions: SpawnSyncOptions = {
     encoding: 'utf8',
     cwd: options.cwd,
     stdio: options.silent ? 'pipe' : ['pipe', 'pipe', 'pipe'],
   };
 
-  try {
-    const result = execSync(cmd, execOptions) as string;
-    // Use trimEnd to preserve leading whitespace (significant in git status output)
-    return result.trimEnd();
-  } catch (error) {
-    if (error instanceof Error && 'stderr' in error) {
-      const stderr = (error as { stderr?: Buffer | string }).stderr;
-      if (stderr) {
-        throw new Error(`Git command failed: ${cmd}\n${stderr.toString()}`);
-      }
-    }
-    throw error;
+  const result = spawnSync('git', args, spawnOptions);
+
+  if (result.error) {
+    throw result.error;
   }
+
+  if (result.status !== 0) {
+    const stderr = result.stderr ? result.stderr.toString() : '';
+    throw new Error(`Git command failed: git ${args.join(' ')}\n${stderr}`);
+  }
+
+  const stdout = result.stdout ? result.stdout.toString() : '';
+  // Use trimEnd to preserve leading whitespace (significant in git status output)
+  return stdout.trimEnd();
 }
 
 /**
@@ -119,10 +107,12 @@ export function getRepoName(repoRoot: string): string {
   const remoteUrl = execSafe(['remote', 'get-url', 'origin'], { cwd: repoRoot });
 
   if (remoteUrl) {
-    // Extract repo name from SSH or HTTPS URL
+    // Extract repo name from SSH, HTTPS URL, or local path (Windows/Unix)
     // git@github.com:org/repo.git -> repo
     // https://github.com/org/repo.git -> repo
-    const match = remoteUrl.match(/[/:]([^/]+?)(?:\.git)?$/);
+    // /path/to/repo.git -> repo
+    // C:\path\to\repo.git -> repo
+    const match = remoteUrl.match(/[/:\\]([^/\\]+?)(?:\.git)?$/);
     if (match) {
       return match[1];
     }

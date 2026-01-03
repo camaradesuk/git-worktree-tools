@@ -19,12 +19,24 @@ export interface PrInfoResult {
 }
 
 /**
+ * Remote PR info for PRs without local worktrees
+ */
+export interface RemotePrInfo {
+  number: number;
+  title: string;
+  headBranch: string;
+  url: string;
+  isDraft: boolean;
+}
+
+/**
  * Dependencies interface for testing
  */
 export interface GatherDeps {
   listWorktrees: (cwd?: string) => Worktree[];
   hasUncommittedChanges: (worktreePath: string) => boolean;
   getPrInfo: (prNumber: number) => Promise<PrInfoResult>;
+  listOpenPrs: () => Promise<RemotePrInfo[]>;
 }
 
 /**
@@ -77,7 +89,48 @@ export async function gatherWorktreeInfo(
     });
   }
 
+  // Gather remote PRs when status checking is enabled
+  if (options.showStatus) {
+    const localPrNumbers = new Set(
+      result.filter((w) => w.type === 'pr' && w.prNumber !== null).map((w) => w.prNumber!)
+    );
+
+    const remotePrs = await gatherRemotePrs(localPrNumbers, deps);
+    result.push(...remotePrs);
+  }
+
   return sortWorktrees(result);
+}
+
+/**
+ * Gather remote PRs that don't have local worktrees
+ */
+async function gatherRemotePrs(
+  localPrNumbers: Set<number>,
+  deps: GatherDeps
+): Promise<WorktreeDisplay[]> {
+  try {
+    const openPrs = await deps.listOpenPrs();
+
+    return openPrs
+      .filter((pr) => !localPrNumbers.has(pr.number))
+      .map((pr) => ({
+        path: '',
+        name: `PR #${pr.number}`,
+        branch: pr.headBranch,
+        commit: '',
+        type: 'remote_pr' as const,
+        prNumber: pr.number,
+        prState: 'OPEN' as const,
+        isDraft: pr.isDraft,
+        hasChanges: false,
+        prTitle: pr.title,
+        prUrl: pr.url,
+      }));
+  } catch {
+    // Gracefully return empty array if fetching fails
+    return [];
+  }
 }
 
 /**
@@ -112,6 +165,21 @@ export function createDefaultDeps(): GatherDeps {
         return { state: null, isDraft: null };
       } catch {
         return { state: null, isDraft: null };
+      }
+    },
+
+    listOpenPrs: async (): Promise<RemotePrInfo[]> => {
+      try {
+        const prs = github.listPrs({ state: 'open' });
+        return prs.map((pr) => ({
+          number: pr.number,
+          title: pr.title,
+          headBranch: pr.headBranch,
+          url: pr.url,
+          isDraft: pr.isDraft,
+        }));
+      } catch {
+        return [];
       }
     },
   };

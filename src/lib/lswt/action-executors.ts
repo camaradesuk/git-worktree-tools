@@ -2,11 +2,13 @@
  * lswt action-executors - execute actions on worktrees
  */
 
-import { execSync, spawn } from 'child_process';
+import * as path from 'path';
+import { execSync, spawn, spawnSync } from 'child_process';
 import inquirer from 'inquirer';
 import * as colors from '../colors.js';
 import * as git from '../git.js';
 import * as github from '../github.js';
+import { generateWorktreePath, getDefaultConfig } from '../config.js';
 import type { WorktreeConfig } from '../config.js';
 import type { WorktreeDisplay, WorktreeAction, ActionResult, EnvironmentInfo } from './types.js';
 
@@ -102,6 +104,9 @@ export async function executeAction(
     case 'link_configs':
       return linkConfigs(worktree);
 
+    case 'checkout_pr':
+      return checkoutPr(worktree, config);
+
     case 'back':
       return { success: true };
 
@@ -158,6 +163,26 @@ async function openInEditor(
 }
 
 /**
+ * Convert a Linux path to Windows path for WSL interop
+ */
+function wslPathToWindows(linuxPath: string): string {
+  // Use spawnSync with array args to avoid shell escaping issues
+  const result = spawnSync('wslpath', ['-w', linuxPath], {
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  if (result.status === 0 && result.stdout) {
+    return result.stdout.trim();
+  }
+
+  // Fallback: manual conversion for common /home paths
+  // Try \\wsl.localhost\ first (Windows 11+), fall back to \\wsl$\ (Windows 10)
+  const distro = process.env.WSL_DISTRO_NAME || 'Ubuntu';
+  return `\\\\wsl.localhost\\${distro}${linuxPath.replace(/\//g, '\\')}`;
+}
+
+/**
  * Open terminal at worktree path
  */
 async function openTerminal(
@@ -180,6 +205,26 @@ async function openTerminal(
       } catch {
         // Fallback to cmd
         deps.spawnDetached('cmd', ['/c', 'start', 'cmd', '/k', `cd /d "${worktree.path}"`]);
+      }
+    } else if (env.isWSL) {
+      // WSL - open Windows Terminal with WSL
+      try {
+        const windowsPath = wslPathToWindows(worktree.path);
+        // Use cmd.exe to launch Windows Terminal
+        // wt.exe -d <path> opens a new tab at the specified directory
+        deps.execCommand(`cmd.exe /c start wt.exe -d "${windowsPath}"`);
+      } catch {
+        // Fallback: print cd command for user to copy
+        console.log('');
+        console.log(colors.yellow('Could not open Windows Terminal automatically.'));
+        console.log(colors.dim('Run the following command to navigate:'));
+        console.log('');
+        console.log(colors.cyan(`  cd "${worktree.path}"`));
+        console.log('');
+        return {
+          success: true,
+          message: 'Path printed (copy the cd command above)',
+        };
       }
     } else {
       // Linux - detect terminal
@@ -263,45 +308,56 @@ async function showDetails(worktree: WorktreeDisplay): Promise<ActionResult> {
   console.log(`  ${colors.bold('Commit:')}   ${colors.dim(worktree.commit)}`);
   console.log(`  ${colors.bold('Type:')}     ${worktree.type}`);
 
-  if (worktree.type === 'pr' && worktree.prNumber !== null) {
+  if ((worktree.type === 'pr' || worktree.type === 'remote_pr') && worktree.prNumber !== null) {
     console.log(`  ${colors.bold('PR #:')}     ${worktree.prNumber}`);
     console.log(`  ${colors.bold('PR State:')} ${worktree.prState || 'unknown'}`);
     if (worktree.isDraft) {
       console.log(`  ${colors.bold('Draft:')}    ${colors.yellow('Yes')}`);
     }
 
-    // Try to get PR URL
+    // Show PR title for remote PRs
+    if (worktree.prTitle) {
+      console.log(`  ${colors.bold('Title:')}    ${worktree.prTitle}`);
+    }
+
+    // Show PR URL (use stored URL for remote PRs, or fetch for local)
+    if (worktree.prUrl) {
+      console.log(`  ${colors.bold('PR URL:')}   ${colors.blue(worktree.prUrl)}`);
+    } else {
+      try {
+        const pr = github.getPr(worktree.prNumber);
+        if (pr) {
+          console.log(`  ${colors.bold('PR URL:')}   ${colors.blue(pr.url)}`);
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  // Skip local-only info for remote PRs (no local path)
+  if (worktree.type !== 'remote_pr') {
+    console.log(
+      `  ${colors.bold('Changes:')}  ${worktree.hasChanges ? colors.red('Yes (uncommitted changes)') : colors.green('Clean')}`
+    );
+
+    // Show recent commits
     try {
-      const pr = github.getPr(worktree.prNumber);
-      if (pr) {
-        console.log(`  ${colors.bold('PR URL:')}   ${colors.blue(pr.url)}`);
+      const logs = git.exec(['log', '--oneline', '-5'], { cwd: worktree.path, silent: true });
+
+      if (logs) {
+        console.log('');
+        console.log(`  ${colors.bold('Recent commits:')}`);
+        for (const line of logs.split('\n')) {
+          console.log(`    ${colors.dim(line)}`);
+        }
       }
     } catch {
       // Ignore
     }
-  }
-
-  console.log(
-    `  ${colors.bold('Changes:')}  ${worktree.hasChanges ? colors.red('Yes (uncommitted changes)') : colors.green('Clean')}`
-  );
-
-  // Show recent commits
-  try {
-    const logs = execSync('git log --oneline -5', {
-      cwd: worktree.path,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-
-    if (logs) {
-      console.log('');
-      console.log(`  ${colors.bold('Recent commits:')}`);
-      for (const line of logs.split('\n')) {
-        console.log(`    ${colors.dim(line)}`);
-      }
-    }
-  } catch {
-    // Ignore
+  } else {
+    console.log('');
+    console.log(colors.dim('  (No local checkout - use "Create worktree" to checkout this PR)'));
   }
 
   console.log('');
@@ -321,15 +377,20 @@ async function openPrUrl(worktree: WorktreeDisplay, deps: ExecutorDeps): Promise
   }
 
   try {
-    const pr = github.getPr(worktree.prNumber);
-    if (!pr) {
-      return {
-        success: false,
-        message: `Could not find PR #${worktree.prNumber}`,
-      };
+    // Use stored URL for remote PRs, otherwise fetch from GitHub
+    let prUrl = worktree.prUrl;
+    if (!prUrl) {
+      const pr = github.getPr(worktree.prNumber);
+      if (!pr) {
+        return {
+          success: false,
+          message: `Could not find PR #${worktree.prNumber}`,
+        };
+      }
+      prUrl = pr.url;
     }
 
-    deps.openUrl(pr.url);
+    deps.openUrl(prUrl);
     return {
       success: true,
       message: `Opened PR #${worktree.prNumber} in browser`,
@@ -499,10 +560,7 @@ async function removeWorktree(worktree: WorktreeDisplay): Promise<ActionResult> 
         console.log(colors.dim(`Deleting branch ${worktree.branch}...`));
         // Use main worktree root as cwd since the worktree was just removed
         const mainRoot = git.getMainWorktreeRoot();
-        execSync(`git branch -D "${worktree.branch}"`, {
-          cwd: mainRoot,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
+        git.deleteBranch(worktree.branch, { force: true, cwd: mainRoot });
       } catch {
         // Branch might not exist locally
       }
@@ -517,6 +575,70 @@ async function removeWorktree(worktree: WorktreeDisplay): Promise<ActionResult> 
     return {
       success: false,
       message: `Failed to remove worktree: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * Create worktree for a remote PR
+ */
+async function checkoutPr(
+  worktree: WorktreeDisplay,
+  config: WorktreeConfig
+): Promise<ActionResult> {
+  if (worktree.type !== 'remote_pr' || worktree.prNumber === null) {
+    return {
+      success: false,
+      message: 'Can only checkout remote PRs',
+    };
+  }
+
+  const prNumber = worktree.prNumber;
+  const branch = worktree.branch;
+
+  if (!branch) {
+    return {
+      success: false,
+      message: 'PR has no associated branch',
+    };
+  }
+
+  try {
+    // Get repo root and name
+    const repoRoot = git.getMainWorktreeRoot();
+    if (!repoRoot) {
+      return {
+        success: false,
+        message: 'Could not find repository root',
+      };
+    }
+    const repoName = path.basename(repoRoot);
+
+    // Generate worktree path using config
+    const fullConfig = { ...getDefaultConfig(), ...config };
+    const worktreePath = generateWorktreePath(fullConfig, repoRoot, repoName, prNumber, branch);
+
+    console.log(colors.dim('\nFetching PR branch...'));
+
+    // Fetch the PR branch from origin
+    git.exec(['fetch', 'origin', `${branch}:${branch}`], { cwd: repoRoot, silent: true });
+
+    console.log(colors.dim(`Creating worktree at ${worktreePath}...`));
+
+    // Create the worktree
+    git.addWorktree(worktreePath, branch, { cwd: repoRoot });
+
+    console.log(colors.green(`\n✓ Created worktree for PR #${prNumber} at ${worktreePath}`));
+
+    return {
+      success: true,
+      message: `Created worktree for PR #${prNumber}`,
+      shouldRefresh: true,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Failed to checkout PR: ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

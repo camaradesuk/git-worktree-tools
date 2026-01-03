@@ -1,6 +1,159 @@
 import { execSync, ExecSyncOptions } from 'child_process';
 
 /**
+ * Mock mode for testing - enabled via NEWPR_MOCK_GITHUB environment variable
+ * When enabled, returns mock data instead of calling GitHub CLI
+ */
+export interface MockState {
+  enabled: boolean;
+  prCounter: number;
+  createdPrs: PrInfo[];
+  existingPrs: Map<string, PrInfo>; // branch -> PR
+}
+
+/**
+ * Mock controller class - manages mock state with proper encapsulation.
+ * Uses singleton pattern to ensure consistent state across the application.
+ * This design prevents test isolation issues by providing explicit reset methods.
+ */
+class MockController {
+  private state: MockState;
+
+  constructor() {
+    this.state = this.createFreshState(false);
+  }
+
+  private createFreshState(enabled: boolean): MockState {
+    return {
+      enabled,
+      prCounter: 1,
+      createdPrs: [],
+      existingPrs: new Map(),
+    };
+  }
+
+  /**
+   * Enable mock mode with fresh state
+   */
+  enable(): void {
+    this.state = this.createFreshState(true);
+  }
+
+  /**
+   * Disable mock mode and reset state
+   */
+  disable(): void {
+    this.state = this.createFreshState(false);
+  }
+
+  /**
+   * Check if mock mode is enabled (either explicitly or via environment)
+   */
+  isEnabled(): boolean {
+    return this.state.enabled || process.env.NEWPR_MOCK_GITHUB === '1';
+  }
+
+  /**
+   * Get current mock state (for test assertions)
+   */
+  getState(): MockState {
+    return this.state;
+  }
+
+  /**
+   * Reset mock state without changing enabled status
+   */
+  reset(): void {
+    const wasEnabled = this.state.enabled;
+    this.state = this.createFreshState(wasEnabled);
+  }
+
+  /**
+   * Get and increment PR counter
+   */
+  getNextPrNumber(): number {
+    return this.state.prCounter++;
+  }
+
+  /**
+   * Record a created PR
+   */
+  recordCreatedPr(pr: PrInfo): void {
+    this.state.createdPrs.push(pr);
+    this.state.existingPrs.set(pr.headBranch, pr);
+  }
+
+  /**
+   * Get existing PR for a branch
+   */
+  getExistingPr(branch: string): PrInfo | undefined {
+    return this.state.existingPrs.get(branch);
+  }
+}
+
+// Singleton instance
+const mockController = new MockController();
+
+/**
+ * Enable mock mode for testing
+ */
+export function enableMockMode(): void {
+  mockController.enable();
+}
+
+/**
+ * Disable mock mode
+ */
+export function disableMockMode(): void {
+  mockController.disable();
+}
+
+/**
+ * Check if mock mode is enabled
+ */
+export function isMockModeEnabled(): boolean {
+  return mockController.isEnabled();
+}
+
+/**
+ * Get mock state (for test assertions)
+ */
+export function getMockState(): MockState {
+  return mockController.getState();
+}
+
+/**
+ * Reset mock state
+ */
+export function resetMockState(): void {
+  mockController.reset();
+}
+
+/**
+ * Get next PR number (for mock mode)
+ * @internal
+ */
+export function getNextMockPrNumber(): number {
+  return mockController.getNextPrNumber();
+}
+
+/**
+ * Record a created PR (for mock mode)
+ * @internal
+ */
+export function recordMockPr(pr: PrInfo): void {
+  mockController.recordCreatedPr(pr);
+}
+
+/**
+ * Get existing PR for a branch (for mock mode)
+ * @internal
+ */
+export function getMockExistingPr(branch: string): PrInfo | undefined {
+  return mockController.getExistingPr(branch);
+}
+
+/**
  * Shell-escape a string for use in a command
  */
 function shellEscape(str: string): string {
@@ -88,6 +241,9 @@ function execSafe(args: string[], options: { cwd?: string } = {}): string | null
  * Check if GitHub CLI is installed
  */
 export function isGhInstalled(): boolean {
+  if (isMockModeEnabled()) {
+    return true;
+  }
   try {
     execSync('gh --version', { encoding: 'utf8', stdio: 'pipe' });
     return true;
@@ -100,6 +256,9 @@ export function isGhInstalled(): boolean {
  * Check if user is authenticated with GitHub CLI
  */
 export function isAuthenticated(): boolean {
+  if (isMockModeEnabled()) {
+    return true;
+  }
   const result = execSafe(['auth', 'status']);
   return result !== null;
 }
@@ -108,6 +267,15 @@ export function isAuthenticated(): boolean {
  * Get repository information
  */
 export function getRepoInfo(cwd?: string): RepoInfo | null {
+  if (isMockModeEnabled()) {
+    return {
+      owner: 'mock-owner',
+      name: 'mock-repo',
+      defaultBranch: 'main',
+      url: 'https://github.com/mock-owner/mock-repo',
+    };
+  }
+
   const result = execSafe(['repo', 'view', '--json', 'owner,name,defaultBranchRef,url'], { cwd });
 
   if (!result) {
@@ -131,6 +299,21 @@ export function getRepoInfo(cwd?: string): RepoInfo | null {
  * Create a pull request
  */
 export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
+  if (isMockModeEnabled()) {
+    const prNumber = getNextMockPrNumber();
+    const pr: PrInfo = {
+      number: prNumber,
+      title: options.title,
+      state: 'OPEN',
+      url: `https://github.com/mock-owner/mock-repo/pull/${prNumber}`,
+      headBranch: options.head || 'unknown',
+      baseBranch: options.base || 'main',
+      isDraft: options.draft || false,
+    };
+    recordMockPr(pr);
+    return pr;
+  }
+
   const args = ['pr', 'create'];
 
   args.push('--title', options.title);
@@ -188,6 +371,11 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
  * Get PR status by number
  */
 export function getPr(prNumber: number, cwd?: string): PrInfo | null {
+  if (isMockModeEnabled()) {
+    const pr = getMockState().createdPrs.find((p) => p.number === prNumber);
+    return pr || null;
+  }
+
   const result = execSafe(
     [
       'pr',
@@ -223,6 +411,10 @@ export function getPr(prNumber: number, cwd?: string): PrInfo | null {
  * Get PR by branch name
  */
 export function getPrByBranch(branch: string, cwd?: string): PrInfo | null {
+  if (isMockModeEnabled()) {
+    return getMockExistingPr(branch) || null;
+  }
+
   const result = execSafe(
     ['pr', 'view', branch, '--json', 'number,title,state,url,headRefName,baseRefName,isDraft'],
     { cwd }
@@ -261,6 +453,22 @@ export interface ListPrsOptions {
  * List pull requests
  */
 export function listPrs(options: ListPrsOptions = {}, cwd?: string): PrInfo[] {
+  if (isMockModeEnabled()) {
+    let prs = [...getMockState().createdPrs];
+    if (options.state && options.state !== 'all') {
+      const stateMap: Record<string, string> = {
+        open: 'OPEN',
+        closed: 'CLOSED',
+        merged: 'MERGED',
+      };
+      prs = prs.filter((pr) => pr.state === stateMap[options.state!]);
+    }
+    if (options.limit) {
+      prs = prs.slice(0, options.limit);
+    }
+    return prs;
+  }
+
   const args = ['pr', 'list'];
 
   if (options.state) {
