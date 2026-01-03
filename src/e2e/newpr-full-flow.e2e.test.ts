@@ -61,6 +61,16 @@ function git(args: string[], cwd: string): string {
   return (result.stdout || '').trim();
 }
 
+// Normalize line endings for cross-platform comparison
+function normalizeLineEndings(content: string): string {
+  return content.replace(/\r\n/g, '\n');
+}
+
+// Read file with normalized line endings
+function readFileNormalized(filePath: string): string {
+  return normalizeLineEndings(fs.readFileSync(filePath, 'utf-8'));
+}
+
 describe('newpr full flow e2e tests', () => {
   let tempDir: string;
   let mainRepoDir: string;
@@ -168,10 +178,10 @@ describe('newpr full flow e2e tests', () => {
       // Verify all files exist in the worktree with correct content
       const worktreePath = path.join(tempDir, 'main-repo.pr1');
 
-      const indexContent = fs.readFileSync(path.join(worktreePath, 'src/index.ts'), 'utf-8');
+      const indexContent = readFileNormalized(path.join(worktreePath, 'src/index.ts'));
       expect(indexContent).toBe('export * from "./utils";\n');
 
-      const utilsContent = fs.readFileSync(path.join(worktreePath, 'src/utils.ts'), 'utf-8');
+      const utilsContent = readFileNormalized(path.join(worktreePath, 'src/utils.ts'));
       expect(utilsContent).toBe('export const utils = { version: "1.0.0" };\n');
 
       const pkgContent = JSON.parse(
@@ -205,7 +215,7 @@ describe('newpr full flow e2e tests', () => {
       const worktreePath = path.join(tempDir, 'main-repo.pr1');
       const worktreeFile = path.join(worktreePath, 'staged-feature.ts');
       expect(fs.existsSync(worktreeFile)).toBe(true);
-      expect(fs.readFileSync(worktreeFile, 'utf-8')).toBe('export const staged = true;\n');
+      expect(readFileNormalized(worktreeFile)).toBe('export const staged = true;\n');
     });
   });
 
