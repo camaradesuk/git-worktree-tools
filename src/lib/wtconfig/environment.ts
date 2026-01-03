@@ -54,6 +54,9 @@ function runCommand(command: string, args: string[]): string | null {
 
 /**
  * Detect operating system
+ *
+ * Note: Non-Windows/macOS platforms (e.g., FreeBSD, OpenBSD) are treated as Linux.
+ * This is a reasonable assumption since they share similar POSIX tooling and conventions.
  */
 function detectOS(): 'windows' | 'macos' | 'linux' {
   switch (process.platform) {
@@ -62,6 +65,7 @@ function detectOS(): 'windows' | 'macos' | 'linux' {
     case 'darwin':
       return 'macos';
     default:
+      // Treat all other POSIX-compatible platforms as Linux
       return 'linux';
   }
 }
