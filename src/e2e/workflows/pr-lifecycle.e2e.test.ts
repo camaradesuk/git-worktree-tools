@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import {
-  runCli,
-  runCliJson,
-  createTestContext,
-  type TestContext,
-} from '../helpers/index.js';
+import { runCli, runCliJson, createTestContext, type TestContext } from '../helpers/index.js';
 
 /**
  * E2E tests for cross-tool workflows.

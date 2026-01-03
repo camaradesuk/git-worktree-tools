@@ -43,11 +43,7 @@ export interface CliOptions {
  * @param options - Execution options
  * @returns CLI execution result
  */
-export function runCli(
-  tool: CliTool,
-  args: string[] = [],
-  options: CliOptions = {}
-): CliResult {
+export function runCli(tool: CliTool, args: string[] = [], options: CliOptions = {}): CliResult {
   const scriptPath = path.join(CLI_DIR, `${tool}.js`);
   const startTime = Date.now();
 
@@ -185,8 +181,7 @@ export function ensureCliBuild(): void {
 
   if (!fs.existsSync(testPath)) {
     throw new Error(
-      `CLI not built. Run "npm run build" before running e2e tests.\n` +
-        `Expected: ${testPath}`
+      `CLI not built. Run "npm run build" before running e2e tests.\n` + `Expected: ${testPath}`
     );
   }
 }

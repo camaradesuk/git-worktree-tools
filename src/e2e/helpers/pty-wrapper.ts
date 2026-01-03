@@ -220,8 +220,7 @@ export async function spawnPty(
       }
 
       throw new Error(
-        `Timeout waiting for pattern: ${pattern}\n` +
-          `Current output:\n${output.join('')}`
+        `Timeout waiting for pattern: ${pattern}\n` + `Current output:\n${output.join('')}`
       );
     },
 

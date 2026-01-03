@@ -61,7 +61,10 @@ function git(args: string, cwd: string, options: { stdio?: 'pipe' | 'ignore' } =
 /**
  * Create base repository structure with origin
  */
-function createBaseRepo(tempDir: string, options: Required<ScenarioOptions>): {
+function createBaseRepo(
+  tempDir: string,
+  options: Required<ScenarioOptions>
+): {
   repoPath: string;
   originPath: string;
 } {
@@ -277,10 +280,7 @@ function createBranchAncestor(tempDir: string, options: Required<ScenarioOptions
  * Create Scenario 7: branch_divergent
  * On feature branch with commits not in main
  */
-function createBranchDivergent(
-  tempDir: string,
-  options: Required<ScenarioOptions>
-): ScenarioSetup {
+function createBranchDivergent(tempDir: string, options: Required<ScenarioOptions>): ScenarioSetup {
   const { repoPath, originPath } = createBaseRepo(tempDir, options);
 
   // Create a feature branch with unique commits
@@ -393,10 +393,7 @@ function createPrWorktree(tempDir: string, options: Required<ScenarioOptions>): 
  * @param options - Configuration options
  * @returns Setup information with cleanup function
  */
-export function createScenario(
-  scenario: Scenario,
-  options: ScenarioOptions = {}
-): ScenarioSetup {
+export function createScenario(scenario: Scenario, options: ScenarioOptions = {}): ScenarioSetup {
   const opts: Required<ScenarioOptions> = { ...DEFAULT_OPTIONS, ...options };
 
   // Create temp directory with proper path resolution for cross-platform
@@ -404,7 +401,10 @@ export function createScenario(
     fs.mkdtempSync(path.join(os.tmpdir(), `e2e-scenario-${scenario}-`))
   );
 
-  const creators: Record<Scenario, (tempDir: string, opts: Required<ScenarioOptions>) => ScenarioSetup> = {
+  const creators: Record<
+    Scenario,
+    (tempDir: string, opts: Required<ScenarioOptions>) => ScenarioSetup
+  > = {
     main_clean_same: createMainCleanSame,
     main_staged_same: createMainStagedSame,
     main_unstaged_same: createMainUnstagedSame,
@@ -451,9 +451,7 @@ export const ALL_SCENARIOS: readonly Scenario[] = [
  * @param options - Configuration options
  * @returns Map of scenario to setup
  */
-export function createAllScenarios(
-  options: ScenarioOptions = {}
-): Map<Scenario, ScenarioSetup> {
+export function createAllScenarios(options: ScenarioOptions = {}): Map<Scenario, ScenarioSetup> {
   const setups = new Map<Scenario, ScenarioSetup>();
 
   for (const scenario of ALL_SCENARIOS) {

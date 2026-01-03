@@ -429,8 +429,7 @@ export function setupGhMock(options: GhMockOptions = {}): GhMockSetup {
         headRefName: pr.headRefName || `feature-${pr.number}`,
         baseRefName: pr.baseRefName || state.repo.defaultBranch,
         url:
-          pr.url ||
-          `https://github.com/${state.repo.owner}/${state.repo.name}/pull/${pr.number}`,
+          pr.url || `https://github.com/${state.repo.owner}/${state.repo.name}/pull/${pr.number}`,
         isDraft: pr.isDraft || false,
         author: pr.author || 'testuser',
       };

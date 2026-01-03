@@ -139,11 +139,10 @@ describe('newpr e2e - core functionality', () => {
     });
 
     it('rejects invalid --action value', () => {
-      const result = runCli(
-        'newpr',
-        ['test', '--non-interactive', '--action', 'invalid_action'],
-        { cwd: ctx.repoDir, env: ctx.env }
-      );
+      const result = runCli('newpr', ['test', '--non-interactive', '--action', 'invalid_action'], {
+        cwd: ctx.repoDir,
+        env: ctx.env,
+      });
 
       expect(result.exitCode).not.toBe(0);
     });
@@ -315,11 +314,10 @@ describe('newpr e2e - core functionality', () => {
       const ctx = createTestContext({ scenario: 'main_clean_same' });
 
       try {
-        const result = runCli(
-          'newpr',
-          ['ready-combined-test', '--non-interactive', '--ready'],
-          { cwd: ctx.repoDir, env: ctx.env }
-        );
+        const result = runCli('newpr', ['ready-combined-test', '--non-interactive', '--ready'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
 
         expect(result.exitCode).toBe(0);
       } finally {

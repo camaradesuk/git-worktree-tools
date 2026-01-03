@@ -1,10 +1,6 @@
 {
   "description": "Template for repo view response",
-  "fields": [
-    "name",
-    "owner",
-    "defaultBranchRef"
-  ],
+  "fields": ["name", "owner", "defaultBranchRef"],
   "defaults": {
     "name": "testrepo",
     "owner": {

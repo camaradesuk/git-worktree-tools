@@ -103,15 +103,11 @@ export function createTestContext(options: TestContextOptions = {}): TestContext
     worktreeDir = scenarioSetup.worktreePath;
   } else if (options.minimalRepo === false) {
     // Create just a temp directory (no repo)
-    tempDir = fs.realpathSync.native(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-context-'))
-    );
+    tempDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-context-')));
     repoDir = tempDir;
   } else {
     // Create minimal repo by default
-    tempDir = fs.realpathSync.native(
-      fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-context-'))
-    );
+    tempDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-context-')));
     const repos = createMinimalRepo(tempDir);
     repoDir = repos.repoDir;
     originDir = repos.originDir;

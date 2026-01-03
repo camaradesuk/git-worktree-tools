@@ -111,7 +111,9 @@ describe('cleanpr e2e - core functionality', () => {
         // Should fail because it needs to check PR status or worktree doesn't exist
         expect(result.exitCode).not.toBe(0);
         // The error could be auth-related, "not found", or "no worktree" depending on when check happens
-        expect(result.stderr.toLowerCase()).toMatch(/auth|login|credential|not found|could not|no worktree/i);
+        expect(result.stderr.toLowerCase()).toMatch(
+          /auth|login|credential|not found|could not|no worktree/i
+        );
       } finally {
         ctx.cleanup();
       }
@@ -407,7 +409,10 @@ describe('cleanpr e2e - edge cases', () => {
     const ctx = createTestContext({ scenario: 'main_clean_same' });
 
     try {
-      const worktreePath = createPrWorktree(ctx, 41, { state: 'MERGED', branchName: 'feat/orphan' });
+      const worktreePath = createPrWorktree(ctx, 41, {
+        state: 'MERGED',
+        branchName: 'feat/orphan',
+      });
 
       // Delete the branch but leave the worktree (simulating orphaned state)
       // This is tricky because git won't let us delete a branch if there's a worktree

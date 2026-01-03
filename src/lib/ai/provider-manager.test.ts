@@ -63,10 +63,18 @@ describe('provider-manager', () => {
     // Reset module state
     vi.resetModules();
     // Reset static checkAvailability mocks to default (return true)
-    (ClaudeProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }).checkAvailability = vi.fn().mockResolvedValue(true);
-    (GeminiProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }).checkAvailability = vi.fn().mockResolvedValue(true);
-    (OllamaProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }).checkAvailability = vi.fn().mockResolvedValue(true);
-    (OpenAIProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }).checkAvailability = vi.fn().mockResolvedValue(true);
+    (
+      ClaudeProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }
+    ).checkAvailability = vi.fn().mockResolvedValue(true);
+    (
+      GeminiProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }
+    ).checkAvailability = vi.fn().mockResolvedValue(true);
+    (
+      OllamaProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }
+    ).checkAvailability = vi.fn().mockResolvedValue(true);
+    (
+      OpenAIProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }
+    ).checkAvailability = vi.fn().mockResolvedValue(true);
   });
 
   describe('AIProviderManager', () => {
@@ -126,8 +134,12 @@ describe('provider-manager', () => {
           () => geminiProvider as unknown as InstanceType<typeof GeminiProvider>
         );
         // Mock static checkAvailability for lazy initialization
-        (ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(false);
-        (GeminiProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(true);
+        (
+          ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          GeminiProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(true);
 
         const manager = new AIProviderManager({ config: { provider: 'auto' } });
         await manager.initialize();
@@ -205,8 +217,12 @@ describe('provider-manager', () => {
           () => geminiProvider as unknown as InstanceType<typeof GeminiProvider>
         );
         // Mock static checkAvailability for lazy initialization
-        (ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(false);
-        (GeminiProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(true);
+        (
+          ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          GeminiProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(true);
 
         const manager = new AIProviderManager({
           config: { provider: 'claude', fallback: 'gemini' },
@@ -222,7 +238,9 @@ describe('provider-manager', () => {
           () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
         );
         // Mock static checkAvailability for lazy initialization
-        (ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
 
         const fallbackProvider = mockProvider('fallback', true);
         vi.mocked(FallbackProvider).mockImplementation(
@@ -383,10 +401,18 @@ describe('provider-manager', () => {
           () => openaiProvider as unknown as InstanceType<typeof OpenAIProvider>
         );
         // Mock static checkAvailability for lazy initialization
-        (ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(true);
-        (GeminiProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(false);
-        (OllamaProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(true);
-        (OpenAIProvider as unknown as { checkAvailability: () => Promise<boolean> }).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(true);
+        (
+          GeminiProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          OllamaProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(true);
+        (
+          OpenAIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
 
         const manager = new AIProviderManager();
         const available = await manager.getAvailableProviders();

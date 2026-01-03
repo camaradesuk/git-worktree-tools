@@ -3,7 +3,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { execSync } from 'child_process';
-import { runCli, runCliJson, createTestContext, setupGhMock, type TestContext } from '../helpers/index.js';
+import {
+  runCli,
+  runCliJson,
+  createTestContext,
+  setupGhMock,
+  type TestContext,
+} from '../helpers/index.js';
 
 /**
  * E2E tests for wtlink - config file linking tool.
@@ -230,10 +236,14 @@ describe('wtlink e2e - link subcommand', () => {
     addToGitignore(ctx.repoDir, ['.env.local']);
     createManifest(ctx.repoDir, ['.env.local']);
 
-    const result = runCli('wtlink', ['link', ctx.repoDir, worktreePath, '--type', 'symbolic', '--yes'], {
-      cwd: ctx.repoDir,
-      env: ctx.env,
-    });
+    const result = runCli(
+      'wtlink',
+      ['link', ctx.repoDir, worktreePath, '--type', 'symbolic', '--yes'],
+      {
+        cwd: ctx.repoDir,
+        env: ctx.env,
+      }
+    );
 
     expect(result.exitCode).toBe(0);
 

@@ -1,15 +1,6 @@
 {
   "description": "Template for PR view response",
-  "fields": [
-    "number",
-    "state",
-    "title",
-    "headRefName",
-    "baseRefName",
-    "url",
-    "isDraft",
-    "author"
-  ],
+  "fields": ["number", "state", "title", "headRefName", "baseRefName", "url", "isDraft", "author"],
   "defaults": {
     "state": "OPEN",
     "baseRefName": "main",

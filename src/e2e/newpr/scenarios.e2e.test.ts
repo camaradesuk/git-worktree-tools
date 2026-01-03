@@ -40,10 +40,7 @@ describe('newpr e2e - git state scenarios', () => {
     // creation fails because git can't create a worktree for a branch
     // that's already checked out. The PR is created successfully but
     // the worktree step fails.
-    const branchPrScenarios: Scenario[] = [
-      'branch_divergent',
-      'branch_with_changes',
-    ];
+    const branchPrScenarios: Scenario[] = ['branch_divergent', 'branch_with_changes'];
 
     describe.each(successScenarios)('scenario: %s', (scenario) => {
       let ctx: TestContext;
@@ -57,11 +54,10 @@ describe('newpr e2e - git state scenarios', () => {
       });
 
       it('creates PR successfully in non-interactive mode', () => {
-        const result = runCli(
-          'newpr',
-          ['test-feature-description', '--non-interactive'],
-          { cwd: ctx.repoDir, env: ctx.env }
-        );
+        const result = runCli('newpr', ['test-feature-description', '--non-interactive'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
 
         // Should succeed
         expect(result.exitCode).toBe(0);
@@ -123,11 +119,10 @@ describe('newpr e2e - git state scenarios', () => {
       });
 
       it('fails because branch is already checked out', () => {
-        const result = runCli(
-          'newpr',
-          ['test-feature-description', '--non-interactive'],
-          { cwd: ctx.repoDir, env: ctx.env }
-        );
+        const result = runCli('newpr', ['test-feature-description', '--non-interactive'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
 
         // Currently fails because git can't create worktree for a branch
         // that's already checked out. This is a known limitation.
@@ -145,11 +140,10 @@ describe('newpr e2e - git state scenarios', () => {
         const freshCtx = createTestContext({ scenario });
 
         try {
-          const result = runCli(
-            'newpr',
-            ['worktree-fix-test', '--non-interactive'],
-            { cwd: freshCtx.repoDir, env: freshCtx.env }
-          );
+          const result = runCli('newpr', ['worktree-fix-test', '--non-interactive'], {
+            cwd: freshCtx.repoDir,
+            env: freshCtx.env,
+          });
 
           // Currently this fails - when fixed, change to expect(result.exitCode).toBe(0)
           expect(result.exitCode).not.toBe(0);
@@ -172,11 +166,10 @@ describe('newpr e2e - git state scenarios', () => {
       });
 
       it('creates new branch from detached HEAD', () => {
-        const result = runCli(
-          'newpr',
-          ['detached-feature', '--non-interactive'],
-          { cwd: ctx.repoDir, env: ctx.env }
-        );
+        const result = runCli('newpr', ['detached-feature', '--non-interactive'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
 
         // Should succeed - creates a branch from the detached HEAD
         expect(result.exitCode).toBe(0);
@@ -196,11 +189,10 @@ describe('newpr e2e - git state scenarios', () => {
       });
 
       it('handles already-merged branch gracefully', () => {
-        const result = runCli(
-          'newpr',
-          ['ancestor-feature', '--non-interactive'],
-          { cwd: ctx.repoDir, env: ctx.env }
-        );
+        const result = runCli('newpr', ['ancestor-feature', '--non-interactive'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
 
         // May succeed or show a warning - verify it doesn't crash
         // The behavior depends on whether the branch has any unique commits
@@ -222,11 +214,10 @@ describe('newpr e2e - git state scenarios', () => {
 
       it('warns when running from PR worktree', () => {
         // Run from the PR worktree, not the main repo
-        const result = runCli(
-          'newpr',
-          ['nested-feature', '--non-interactive'],
-          { cwd: ctx.worktreeDir!, env: ctx.env }
-        );
+        const result = runCli('newpr', ['nested-feature', '--non-interactive'], {
+          cwd: ctx.worktreeDir!,
+          env: ctx.env,
+        });
 
         // Should either warn and fail, or proceed with caution
         // The exact behavior depends on implementation
@@ -484,11 +475,10 @@ describe('newpr e2e - git state scenarios', () => {
       const ctx = createTestContext({ scenario: 'main_clean_same' });
 
       try {
-        const result = runCli(
-          'newpr',
-          ['draft-pr-test', '--non-interactive'],
-          { cwd: ctx.repoDir, env: ctx.env }
-        );
+        const result = runCli('newpr', ['draft-pr-test', '--non-interactive'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
 
         expect(result.exitCode).toBe(0);
 
@@ -511,11 +501,10 @@ describe('newpr e2e - git state scenarios', () => {
       const ctx = createTestContext({ scenario: 'main_staged_same' });
 
       try {
-        const result = runCli(
-          'newpr',
-          ['ready-pr-test', '--non-interactive', '--ready'],
-          { cwd: ctx.repoDir, env: ctx.env }
-        );
+        const result = runCli('newpr', ['ready-pr-test', '--non-interactive', '--ready'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
 
         expect(result.exitCode).toBe(0);
 
