@@ -74,9 +74,10 @@ export type CreatePrResult = CommandResult<CreatePrResultData>;
 function findActionByKey(
   scenario: Scenario,
   baseBranch: string,
-  actionKey: StateActionKey
+  actionKey: StateActionKey,
+  cwd?: string
 ): StateAction | null {
-  const state = analyzeGitState(baseBranch);
+  const state = analyzeGitState(baseBranch, cwd);
   const context = getScenarioContext(scenario, state, baseBranch);
 
   if (!context) {
@@ -154,15 +155,16 @@ export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<
     }
 
     // Fetch and create worktree
-    git.fetch('origin');
+    git.fetch('origin', repoRoot);
 
     try {
       git.addWorktree(worktreePath, pr.headBranch, {
         createBranch: true,
         startPoint: `origin/${pr.headBranch}`,
+        cwd: repoRoot,
       });
     } catch {
-      git.addWorktree(worktreePath, pr.headBranch);
+      git.addWorktree(worktreePath, pr.headBranch, { cwd: repoRoot });
     }
 
     const data: CreatePrResultData = {
@@ -248,13 +250,13 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
     // Fetch latest
     try {
-      git.fetch('origin');
+      git.fetch('origin', repoRoot);
     } catch {
       warnings.push('Could not fetch from origin (network unavailable?)');
     }
 
     // Analyze state and detect scenario
-    const state = analyzeGitState(baseBranch);
+    const state = analyzeGitState(baseBranch, repoRoot);
     const scenario = detectScenario(state);
 
     // Check for pr_worktree scenario
@@ -278,7 +280,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         );
       }
 
-      action = findActionByKey(scenario, baseBranch, actionKey);
+      action = findActionByKey(scenario, baseBranch, actionKey, repoRoot);
       if (!action) {
         const context = getScenarioContext(scenario, state, baseBranch);
         const availableKeys = context?.choices.map((c) => c.action?.action).filter(Boolean) ?? [];
@@ -333,8 +335,8 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       }
 
       // Push if not on remote
-      if (!git.remoteBranchExists(currentBranch)) {
-        git.push({ setUpstream: true, remote: 'origin', branch: currentBranch });
+      if (!git.remoteBranchExists(currentBranch, 'origin', repoRoot)) {
+        git.push({ setUpstream: true, remote: 'origin', branch: currentBranch }, repoRoot);
       }
 
       // Check if PR already exists
@@ -348,9 +350,10 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
             git.addWorktree(worktreePath, currentBranch, {
               createBranch: true,
               startPoint: `origin/${currentBranch}`,
+              cwd: repoRoot,
             });
           } catch {
-            git.addWorktree(worktreePath, currentBranch);
+            git.addWorktree(worktreePath, currentBranch, { cwd: repoRoot });
           }
         }
 
@@ -388,9 +391,10 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         git.addWorktree(worktreePath, currentBranch, {
           createBranch: true,
           startPoint: `origin/${currentBranch}`,
+          cwd: repoRoot,
         });
       } catch {
-        git.addWorktree(worktreePath, currentBranch);
+        git.addWorktree(worktreePath, currentBranch, { cwd: repoRoot });
       }
 
       const data: CreatePrResultData = {
@@ -408,7 +412,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     }
 
     // Check if branch already exists on remote
-    if (git.remoteBranchExists(branchName)) {
+    if (git.remoteBranchExists(branchName, 'origin', repoRoot)) {
       const existingPr = github.getPrByBranch(branchName);
       if (existingPr) {
         return setupPrWorktree({ prNumber: existingPr.number, cwd });
@@ -422,7 +426,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     }
 
     // Execute the state action
-    const originalBranch = git.getCurrentBranch() || 'main';
+    const originalBranch = git.getCurrentBranch(repoRoot) || 'main';
     const deps = createActionDeps(repoRoot);
     const actionResult = executeStateAction(action, description, branchName, deps, repoRoot);
 
@@ -437,10 +441,13 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     // Stash unstaged changes if needed
     let unstagedStashRef: string | null = null;
     if (action.stashUnstaged) {
-      unstagedStashRef = git.stash({
-        keepIndex: true,
-        message: 'newpr: unstaged changes for worktree',
-      });
+      unstagedStashRef = git.stash(
+        {
+          keepIndex: true,
+          message: 'newpr: unstaged changes for worktree',
+        },
+        repoRoot
+      );
     }
 
     try {
@@ -448,12 +455,12 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       const branchFrom = getBranchPoint(action, baseBranch);
 
       try {
-        git.exec(['checkout', '-b', branchName, branchFrom]);
+        git.exec(['checkout', '-b', branchName, branchFrom], { cwd: repoRoot });
       } catch (checkoutError) {
         // Restore stash if checkout failed
         if (actionResult.stashRef) {
           try {
-            git.stashPop(actionResult.stashRef);
+            git.stashPop(actionResult.stashRef, repoRoot);
           } catch {
             // Ignore stash restore errors
           }
@@ -462,21 +469,24 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       }
 
       // Commit if we have staged files
-      const stagedFiles = git.getStagedFiles();
+      const stagedFiles = git.getStagedFiles(repoRoot);
       if (stagedFiles.length > 0) {
-        git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` });
+        git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` }, repoRoot);
       } else if (action.branchFrom === 'origin_main') {
-        git.commit({
-          message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
-          allowEmpty: true,
-        });
+        git.commit(
+          {
+            message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
+            allowEmpty: true,
+          },
+          repoRoot
+        );
       }
 
       // Push to origin
-      git.push({ setUpstream: true, remote: 'origin', branch: branchName });
+      git.push({ setUpstream: true, remote: 'origin', branch: branchName }, repoRoot);
 
       // Return to original branch
-      git.checkout(originalBranch);
+      git.checkout(originalBranch, repoRoot);
 
       // Create PR
       const pr = github.createPr({
@@ -489,7 +499,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
       // Create worktree
       const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
-      git.addWorktree(worktreePath, branchName);
+      git.addWorktree(worktreePath, branchName, { cwd: repoRoot });
 
       // Apply unstaged changes to worktree
       if (unstagedStashRef) {
@@ -519,7 +529,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       // Restore stash on error
       if (actionResult.stashRef) {
         try {
-          git.stashPop(actionResult.stashRef);
+          git.stashPop(actionResult.stashRef, repoRoot);
         } catch {
           // Ignore stash restore errors
         }
