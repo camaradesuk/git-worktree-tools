@@ -41,6 +41,10 @@ export interface WorktreeInfo {
   isDraft: boolean | null;
   /** Whether the worktree has uncommitted changes */
   hasChanges: boolean;
+  /** PR title (for remote PRs that have no local worktree) */
+  prTitle?: string;
+  /** PR URL (for remote PRs) */
+  prUrl?: string;
 }
 
 /**
@@ -61,9 +65,11 @@ export interface ListWorktreesResultData {
   worktrees: WorktreeInfo[];
   /** Total number of worktrees */
   total: number;
-  /** Number of PR worktrees */
+  /** Number of local PR worktrees */
   prCount: number;
-  /** Number of open PRs */
+  /** Number of remote PRs without local worktrees */
+  remotePrCount: number;
+  /** Number of open PRs (local and remote) */
   openCount: number;
   /** Number of worktrees with uncommitted changes */
   changesCount: number;
@@ -125,7 +131,7 @@ export async function listWorktrees(
       deps
     );
 
-    // Map to our API type
+    // Map to our API type (include prTitle and prUrl for remote PRs)
     const worktrees: WorktreeInfo[] = worktreeDisplays.map((wt) => ({
       path: wt.path,
       name: wt.name,
@@ -136,10 +142,13 @@ export async function listWorktrees(
       prState: wt.prState,
       isDraft: wt.isDraft,
       hasChanges: wt.hasChanges,
+      ...(wt.prTitle && { prTitle: wt.prTitle }),
+      ...(wt.prUrl && { prUrl: wt.prUrl }),
     }));
 
     // Calculate summary stats
     const prCount = worktrees.filter((w) => w.type === 'pr').length;
+    const remotePrCount = worktrees.filter((w) => w.type === 'remote_pr').length;
     const openCount = worktrees.filter((w) => w.prState === 'OPEN').length;
     const changesCount = worktrees.filter((w) => w.hasChanges).length;
 
@@ -147,6 +156,7 @@ export async function listWorktrees(
       worktrees,
       total: worktrees.length,
       prCount,
+      remotePrCount,
       openCount,
       changesCount,
     };
