@@ -501,6 +501,26 @@ describe('lswt/interactive', () => {
       expect(gatherWorktreeInfo).toHaveBeenCalled();
     });
 
+    it('exits when refresh results in no remaining worktrees', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+      const worktree = makeWorktree();
+      vi.mocked(executeAction).mockResolvedValueOnce({
+        success: true,
+        message: 'Worktree removed',
+        shouldRefresh: true,
+      });
+      // After refresh, no worktrees remain
+      vi.mocked(gatherWorktreeInfo).mockResolvedValueOnce([]);
+      const deps = createMockDeps({
+        selectWorktree: vi.fn().mockResolvedValue({ worktree, action: null }),
+        selectAction: vi.fn().mockResolvedValue('remove_worktree' as WorktreeAction),
+      });
+
+      await runInteractiveMode([worktree], defaultOptions, deps);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No worktrees remaining'));
+    });
+
     it('exits immediately when action returns shouldExit', async () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
       const worktree = makeWorktree();

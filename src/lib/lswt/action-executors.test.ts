@@ -309,6 +309,39 @@ describe('lswt/action-executors', () => {
       expect(result.message).toContain('terminal');
     });
 
+    it('uses Windows Terminal via cmd.exe in WSL', async () => {
+      const deps = makeDeps();
+      const worktree = makeWorktree({ path: '/home/user/repo' });
+      const env = makeEnv({ platform: 'linux', isWSL: true });
+
+      const result = await executeAction('open_terminal', worktree, env, makeConfig(), deps);
+
+      // Should try to use cmd.exe to launch Windows Terminal
+      expect(deps.execCommand).toHaveBeenCalledWith(expect.stringContaining('cmd.exe'));
+      expect(result.success).toBe(true);
+    });
+
+    it('shows cd command fallback when WSL Windows Terminal fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const deps = makeDeps({
+        execCommand: vi.fn().mockImplementation(() => {
+          throw new Error('cmd.exe failed');
+        }),
+      });
+      const worktree = makeWorktree({ path: '/home/user/repo' });
+      const env = makeEnv({ platform: 'linux', isWSL: true });
+
+      const result = await executeAction('open_terminal', worktree, env, makeConfig(), deps);
+
+      // Should fall back to showing cd command
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('copy the cd command');
+      // Should print cd command to console
+      const output = consoleSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(output).toContain('cd');
+      consoleSpy.mockRestore();
+    });
+
     it('uses osascript on macOS', async () => {
       const deps = makeDeps();
       const worktree = makeWorktree({ path: '/Users/user/repo' });
@@ -922,6 +955,115 @@ describe('lswt/action-executors', () => {
       expect(result.success).toBe(true);
       const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
       expect(output).toContain('uncommitted');
+      consoleSpy.mockRestore();
+    });
+
+    it('shows PR URL from github.getPr when prUrl is not stored', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(github.getPr).mockReturnValue({
+        number: 42,
+        url: 'https://github.com/owner/repo/pull/42',
+        state: 'OPEN',
+        isDraft: false,
+        title: 'Test PR',
+        headBranch: 'feature-42',
+        baseBranch: 'main',
+      });
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feature-42',
+        // prUrl is not set
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('https://github.com/owner/repo/pull/42');
+      consoleSpy.mockRestore();
+    });
+
+    it('handles PR URL fetch failure gracefully', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(github.getPr).mockReturnValue(null);
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'OPEN',
+        branch: 'feature-42',
+        // prUrl is not set
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should succeed even if PR URL fetch fails
+      expect(result.success).toBe(true);
+      consoleSpy.mockRestore();
+    });
+
+    it('shows recent commits when git log succeeds', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.exec).mockReturnValue(
+        'abc1234 First commit\ndef5678 Second commit\nghi9012 Third commit'
+      );
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      expect(result.success).toBe(true);
+      const output = consoleSpy.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(output).toContain('Recent commits');
+      expect(output).toContain('First commit');
+      consoleSpy.mockRestore();
+    });
+
+    it('handles git log failure gracefully', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.exec).mockImplementation(() => {
+        throw new Error('git log failed');
+      });
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+      });
+
+      const result = await executeAction(
+        'show_details',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should succeed even if git log fails
+      expect(result.success).toBe(true);
       consoleSpy.mockRestore();
     });
   });
