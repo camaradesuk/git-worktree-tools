@@ -1,3 +1,23 @@
+# [1.5.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.4.1...v1.5.0) (2026-01-03)
+
+
+### Bug Fixes
+
+* address PR review comments ([bf08444](https://github.com/camaradesuk/git-worktree-tools/commit/bf0844404947c33f644b30e7dea58dbd9ba4a0c0))
+* handle Windows backslash paths in getRepoName ([aefef73](https://github.com/camaradesuk/git-worktree-tools/commit/aefef73b7ed56b3b9aa4721f08184a549da38126))
+* normalize line endings in e2e tests for Windows ([b1f3bfb](https://github.com/camaradesuk/git-worktree-tools/commit/b1f3bfbf04530a4837cc61cf2184fd0a72ed704d))
+* replace remaining execSync calls with safe git.exec ([57d80ae](https://github.com/camaradesuk/git-worktree-tools/commit/57d80ae867337033ad2afab8571611969f43f414))
+* resolve merge conflicts with main branch ([9f89d63](https://github.com/camaradesuk/git-worktree-tools/commit/9f89d639216e660fe47399810c6937fd605d9ff4))
+* use spawnSync for cross-platform git command execution ([896eb88](https://github.com/camaradesuk/git-worktree-tools/commit/896eb88bf2d20a32ee9ccbba6709e4d8fb0dbf42))
+
+
+### Features
+
+* **api:** expose remote PR fields and add remotePrCount stat ([72c071e](https://github.com/camaradesuk/git-worktree-tools/commit/72c071e62b3983657ffcc9ce0ac716d731628cbf))
+* fix newpr ([0ff7e95](https://github.com/camaradesuk/git-worktree-tools/commit/0ff7e951bf80b6a68c642e635cad16c3ed1a8503))
+* **lswt:** compute badge width dynamically for consistent alignment ([f59fc4d](https://github.com/camaradesuk/git-worktree-tools/commit/f59fc4de10afc5bd05c4522d1d57f6bc88eb7461))
+* **lswt:** show remote PRs without local worktrees ([1b36353](https://github.com/camaradesuk/git-worktree-tools/commit/1b363534c0a232a530411838328037de1662c631)), closes [#N](https://github.com/camaradesuk/git-worktree-tools/issues/N)
+
 ## [1.4.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.4.0...v1.4.1) (2026-01-03)
 
 
