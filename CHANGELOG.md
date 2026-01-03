@@ -1,3 +1,30 @@
+# [1.4.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.3.0...v1.4.0) (2026-01-03)
+
+
+### Bug Fixes
+
+* add proper type annotation to wtstate test mock ([46ccfc0](https://github.com/camaradesuk/git-worktree-tools/commit/46ccfc0dc9176769fab269e59e9ca735aa1260fa))
+* add StateActionKey type import for invalid action tests ([d09eaf4](https://github.com/camaradesuk/git-worktree-tools/commit/d09eaf4ab8dd52c815dc643c1b6c1850a8956f39))
+* address code review feedback for AI tooling PR ([dc7367b](https://github.com/camaradesuk/git-worktree-tools/commit/dc7367b324424a38cf9f10d56b9622865dc9b044))
+* address Sentry PR review - non-interactive mode and CLI flags ([f0ab7ed](https://github.com/camaradesuk/git-worktree-tools/commit/f0ab7edc66bc72d2e1fff96c90f910c09f916337))
+* fix formatting and Windows test compatibility ([8b04f2f](https://github.com/camaradesuk/git-worktree-tools/commit/8b04f2fa4aef1d2ea9fb616d39e6d714f76a676b))
+* make cli-provider test platform-aware for Windows ([751d844](https://github.com/camaradesuk/git-worktree-tools/commit/751d844e65a81b7589b5a2e39bbcadf9ba980969))
+* make JavaScript script hook test Windows-compatible ([2878436](https://github.com/camaradesuk/git-worktree-tools/commit/2878436fe7da538c8aa59b6076927b80386fb02b))
+* resolve TypeScript compilation errors and add ci:lint script ([c550181](https://github.com/camaradesuk/git-worktree-tools/commit/c5501814f32b59a7e54ba01e7a5bdc7768d7e678))
+* skip e2e tests when GitHub CLI not available ([b254359](https://github.com/camaradesuk/git-worktree-tools/commit/b2543596b46853472a79749fbc2b2370fab8a7c3))
+* use exitWithError for hook failures to support JSON output ([64dd668](https://github.com/camaradesuk/git-worktree-tools/commit/64dd668d382891026ac35df8e1251edbc47bf71c))
+
+
+### Features
+
+* add AI generation service and lifecycle hooks (Phase 8) ([5469606](https://github.com/camaradesuk/git-worktree-tools/commit/5469606c79cc44779ef57692d529d2486a05a726))
+* add AI-friendly CLI options for automation (Phase 1) ([7c6188b](https://github.com/camaradesuk/git-worktree-tools/commit/7c6188bb42473bbe7e0273dbdef2731913773deb))
+* add MCP server for AI agent integration (Phase 8) ([3a25d8d](https://github.com/camaradesuk/git-worktree-tools/commit/3a25d8daf19da048d6b35794bb2ae27787cd860a))
+* add programmatic API layer (Phase 3) ([46ec22c](https://github.com/camaradesuk/git-worktree-tools/commit/46ec22c7110764374fd93b9840c3350bc9f41896))
+* add wtconfig command for configuration management (Phase 8) ([214abeb](https://github.com/camaradesuk/git-worktree-tools/commit/214abeb6c5c823b2a03f4d79bdb23e6ff65a834c))
+* add wtstate command for AI agent state queries (Phase 2) ([8669929](https://github.com/camaradesuk/git-worktree-tools/commit/8669929d86bf0a3ce80cb6d77dd66eb0ddc2a8d6))
+* integrate hooks into newpr workflow (Phase 8) ([7e62d86](https://github.com/camaradesuk/git-worktree-tools/commit/7e62d86aa4eda62749b76f4f15d10fbe2d9b67b4))
+
 # [1.3.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.2.1...v1.3.0) (2026-01-02)
 
 
