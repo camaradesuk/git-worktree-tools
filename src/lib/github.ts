@@ -11,59 +11,146 @@ export interface MockState {
   existingPrs: Map<string, PrInfo>; // branch -> PR
 }
 
-// Global mock state (for testing)
-let mockState: MockState = {
-  enabled: false,
-  prCounter: 1,
-  createdPrs: [],
-  existingPrs: new Map(),
-};
+/**
+ * Mock controller class - manages mock state with proper encapsulation.
+ * Uses singleton pattern to ensure consistent state across the application.
+ * This design prevents test isolation issues by providing explicit reset methods.
+ */
+class MockController {
+  private state: MockState;
+
+  constructor() {
+    this.state = this.createFreshState(false);
+  }
+
+  private createFreshState(enabled: boolean): MockState {
+    return {
+      enabled,
+      prCounter: 1,
+      createdPrs: [],
+      existingPrs: new Map(),
+    };
+  }
+
+  /**
+   * Enable mock mode with fresh state
+   */
+  enable(): void {
+    this.state = this.createFreshState(true);
+  }
+
+  /**
+   * Disable mock mode and reset state
+   */
+  disable(): void {
+    this.state = this.createFreshState(false);
+  }
+
+  /**
+   * Check if mock mode is enabled (either explicitly or via environment)
+   */
+  isEnabled(): boolean {
+    return this.state.enabled || process.env.NEWPR_MOCK_GITHUB === '1';
+  }
+
+  /**
+   * Get current mock state (for test assertions)
+   */
+  getState(): MockState {
+    return this.state;
+  }
+
+  /**
+   * Reset mock state without changing enabled status
+   */
+  reset(): void {
+    const wasEnabled = this.state.enabled;
+    this.state = this.createFreshState(wasEnabled);
+  }
+
+  /**
+   * Get and increment PR counter
+   */
+  getNextPrNumber(): number {
+    return this.state.prCounter++;
+  }
+
+  /**
+   * Record a created PR
+   */
+  recordCreatedPr(pr: PrInfo): void {
+    this.state.createdPrs.push(pr);
+    this.state.existingPrs.set(pr.headBranch, pr);
+  }
+
+  /**
+   * Get existing PR for a branch
+   */
+  getExistingPr(branch: string): PrInfo | undefined {
+    return this.state.existingPrs.get(branch);
+  }
+}
+
+// Singleton instance
+const mockController = new MockController();
 
 /**
  * Enable mock mode for testing
  */
 export function enableMockMode(): void {
-  mockState = {
-    enabled: true,
-    prCounter: 1,
-    createdPrs: [],
-    existingPrs: new Map(),
-  };
+  mockController.enable();
 }
 
 /**
  * Disable mock mode
  */
 export function disableMockMode(): void {
-  mockState = {
-    enabled: false,
-    prCounter: 1,
-    createdPrs: [],
-    existingPrs: new Map(),
-  };
+  mockController.disable();
 }
 
 /**
  * Check if mock mode is enabled
  */
 export function isMockModeEnabled(): boolean {
-  return mockState.enabled || process.env.NEWPR_MOCK_GITHUB === '1';
+  return mockController.isEnabled();
 }
 
 /**
  * Get mock state (for test assertions)
  */
 export function getMockState(): MockState {
-  return mockState;
+  return mockController.getState();
 }
 
 /**
  * Reset mock state
  */
 export function resetMockState(): void {
-  mockState.prCounter = 1;
-  mockState.createdPrs = [];
-  mockState.existingPrs.clear();
+  mockController.reset();
+}
+
+/**
+ * Get next PR number (for mock mode)
+ * @internal
+ */
+export function getNextMockPrNumber(): number {
+  return mockController.getNextPrNumber();
+}
+
+/**
+ * Record a created PR (for mock mode)
+ * @internal
+ */
+export function recordMockPr(pr: PrInfo): void {
+  mockController.recordCreatedPr(pr);
+}
+
+/**
+ * Get existing PR for a branch (for mock mode)
+ * @internal
+ */
+export function getMockExistingPr(branch: string): PrInfo | undefined {
+  return mockController.getExistingPr(branch);
 }
 
 /**
@@ -213,7 +300,7 @@ export function getRepoInfo(cwd?: string): RepoInfo | null {
  */
 export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
   if (isMockModeEnabled()) {
-    const prNumber = mockState.prCounter++;
+    const prNumber = getNextMockPrNumber();
     const pr: PrInfo = {
       number: prNumber,
       title: options.title,
@@ -223,10 +310,7 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
       baseBranch: options.base || 'main',
       isDraft: options.draft || false,
     };
-    mockState.createdPrs.push(pr);
-    if (options.head) {
-      mockState.existingPrs.set(options.head, pr);
-    }
+    recordMockPr(pr);
     return pr;
   }
 
@@ -288,7 +372,7 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
  */
 export function getPr(prNumber: number, cwd?: string): PrInfo | null {
   if (isMockModeEnabled()) {
-    const pr = mockState.createdPrs.find((p) => p.number === prNumber);
+    const pr = getMockState().createdPrs.find((p) => p.number === prNumber);
     return pr || null;
   }
 
@@ -328,7 +412,7 @@ export function getPr(prNumber: number, cwd?: string): PrInfo | null {
  */
 export function getPrByBranch(branch: string, cwd?: string): PrInfo | null {
   if (isMockModeEnabled()) {
-    return mockState.existingPrs.get(branch) || null;
+    return getMockExistingPr(branch) || null;
   }
 
   const result = execSafe(
@@ -370,7 +454,7 @@ export interface ListPrsOptions {
  */
 export function listPrs(options: ListPrsOptions = {}, cwd?: string): PrInfo[] {
   if (isMockModeEnabled()) {
-    let prs = [...mockState.createdPrs];
+    let prs = [...getMockState().createdPrs];
     if (options.state && options.state !== 'all') {
       const stateMap: Record<string, string> = {
         open: 'OPEN',
