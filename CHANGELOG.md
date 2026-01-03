@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.4.0...v1.4.1) (2026-01-03)
+
+
+### Bug Fixes
+
+* propagate cwd parameter to git operations in API functions ([60078e6](https://github.com/camaradesuk/git-worktree-tools/commit/60078e61d4d023a40f293b8fd98afdc8847dee29))
+
 # [1.4.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.3.0...v1.4.0) (2026-01-03)
 
 
