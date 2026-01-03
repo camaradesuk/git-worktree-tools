@@ -101,6 +101,21 @@ describe('lswt/action-executors', () => {
     ...overrides,
   });
 
+  describe('createDefaultExecutorDeps', () => {
+    it('returns an object with all required methods', () => {
+      const deps = createDefaultExecutorDeps();
+
+      expect(deps).toHaveProperty('execCommand');
+      expect(deps).toHaveProperty('spawnDetached');
+      expect(deps).toHaveProperty('copyToClipboard');
+      expect(deps).toHaveProperty('openUrl');
+      expect(typeof deps.execCommand).toBe('function');
+      expect(typeof deps.spawnDetached).toBe('function');
+      expect(typeof deps.copyToClipboard).toBe('function');
+      expect(typeof deps.openUrl).toBe('function');
+    });
+  });
+
   describe('executeAction', () => {
     describe('back action', () => {
       it('returns success with no message', async () => {
@@ -491,6 +506,40 @@ describe('lswt/action-executors', () => {
       consoleSpy.mockRestore();
     });
 
+    it('continues successfully when branch deletion fails', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ confirm: true })
+        .mockResolvedValueOnce({ shouldDelete: true });
+      vi.mocked(git.removeWorktree).mockImplementation(() => {});
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
+      // Branch deletion fails (branch might not exist locally)
+      vi.mocked(git.deleteBranch).mockImplementation(() => {
+        throw new Error('Branch not found');
+      });
+
+      const worktree = makeWorktree({
+        type: 'pr',
+        prNumber: 42,
+        prState: 'MERGED',
+        branch: 'feature-42',
+        name: 'repo.pr42',
+      });
+
+      const result = await executeAction(
+        'remove_worktree',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should still succeed even though branch deletion failed
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('Removed worktree');
+      consoleSpy.mockRestore();
+    });
+
     it('handles removal failure', async () => {
       vi.mocked(inquirer.prompt).mockResolvedValue({ confirm: true });
       vi.mocked(git.removeWorktree).mockImplementation(() => {
@@ -706,6 +755,33 @@ describe('lswt/action-executors', () => {
       if (!result.success) {
         expect(result.message).toContain('Failed to link configs');
       }
+    });
+
+    it('successfully links configs', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/home/user/repo');
+
+      // Mock the dynamic import to succeed
+      vi.doMock('../wtlink/link-configs.js', () => ({
+        run: vi.fn().mockResolvedValue(undefined),
+      }));
+
+      const worktree = makeWorktree({
+        type: 'branch',
+        branch: 'feature-branch',
+        path: '/home/user/feature-branch',
+      });
+
+      const result = await executeAction(
+        'link_configs',
+        worktree,
+        makeEnv(),
+        makeConfig(),
+        makeDeps()
+      );
+
+      // Should succeed
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('linked successfully');
     });
   });
 
