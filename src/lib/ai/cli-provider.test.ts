@@ -44,7 +44,8 @@ describe('cli-provider', () => {
         const available = await provider.isAvailable();
 
         expect(available).toBe(true);
-        expect(spawnSync).toHaveBeenCalledWith('which', ['claude'], expect.any(Object));
+        const whichCommand = process.platform === 'win32' ? 'where' : 'which';
+        expect(spawnSync).toHaveBeenCalledWith(whichCommand, ['claude'], expect.any(Object));
       });
 
       it('returns false when claude command not found', async () => {
