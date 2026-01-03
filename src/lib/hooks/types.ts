@@ -166,6 +166,20 @@ export interface HookExecutorOptions {
 
   /** Maximum timeout for all hooks (default: 60000ms) */
   timeout?: number;
+
+  /**
+   * Default timeout for individual hook execution (in milliseconds)
+   * Configurable via hookDefaults.timeout in .worktreerc
+   * Default: 30000 (30 seconds)
+   */
+  defaultTimeout?: number;
+
+  /**
+   * Maximum timeout allowed for any hook (in milliseconds)
+   * Configurable via hookDefaults.maxTimeout in .worktreerc
+   * Default: 60000 (60 seconds)
+   */
+  maxTimeout?: number;
 }
 
 /**

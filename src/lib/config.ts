@@ -12,6 +12,23 @@ import { DEFAULT_AI_CONFIG } from './ai/types.js';
 import type { HooksConfig } from './hooks/types.js';
 
 /**
+ * Hook execution defaults configuration
+ */
+export interface HookDefaultsConfig {
+  /**
+   * Default timeout for individual hook execution (in milliseconds)
+   * Default: 30000 (30 seconds)
+   */
+  timeout?: number;
+
+  /**
+   * Maximum timeout allowed for any hook (in milliseconds)
+   * Default: 60000 (60 seconds)
+   */
+  maxTimeout?: number;
+}
+
+/**
  * Custom generator scripts configuration
  * Paths to scripts that generate content instead of using built-in AI
  */
@@ -178,6 +195,12 @@ export interface WorktreeConfig {
   hooks?: HooksConfig;
 
   /**
+   * Default settings for hook execution
+   * Allows customizing timeout values for hooks
+   */
+  hookDefaults?: HookDefaultsConfig;
+
+  /**
    * Plugin packages to load
    * Can be npm package names or paths to local plugin files
    * e.g., ["@worktree-tools/plugin-linear", "./plugins/custom.js"]
@@ -211,6 +234,10 @@ export function getDefaultConfig(): Required<WorktreeConfig> {
     preferredEditor: 'vscode',
     ai: DEFAULT_AI_CONFIG,
     hooks: {},
+    hookDefaults: {
+      timeout: 30000,
+      maxTimeout: 60000,
+    },
     plugins: [],
     generators: {},
     integrations: {},

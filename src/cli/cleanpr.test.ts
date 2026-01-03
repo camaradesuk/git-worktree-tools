@@ -55,6 +55,7 @@ describe('cli/cleanpr', () => {
     preferredEditor: 'auto' as const,
     ai: { provider: 'none' as const },
     hooks: {},
+    hookDefaults: { timeout: 30000, maxTimeout: 60000 },
     plugins: [],
     generators: {},
     integrations: {},

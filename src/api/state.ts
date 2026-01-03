@@ -51,7 +51,7 @@ export type QueryStateResult = CommandResult<WtstateResultData>;
  * }
  * ```
  */
-export function queryState(options: QueryStateOptions = {}): QueryStateResult {
+export async function queryState(options: QueryStateOptions = {}): Promise<QueryStateResult> {
   const { baseBranch = 'main', verbose = false, cwd } = options;
 
   try {

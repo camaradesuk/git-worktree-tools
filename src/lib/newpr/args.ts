@@ -18,6 +18,7 @@ export function getDefaultOptions(): Options {
     runWtlink: true,
     json: false,
     nonInteractive: false,
+    noHooks: false,
   };
 }
 
@@ -87,6 +88,10 @@ export function parseArgs(args: string[]): ParseResult {
         options.runWtlink = false;
         break;
 
+      case '--no-hooks':
+        options.noHooks = true;
+        break;
+
       case '--json':
         options.json = true;
         break;
@@ -154,6 +159,7 @@ Options:
   -c, --code            Open editor to the new worktree
   -r, --ready           Create PR as ready for review (default: draft)
   --no-wtlink           Skip wtlink config sync
+  --no-hooks            Disable lifecycle hooks (for security)
   -h, --help            Show this help message
 
 AI/Automation Options:

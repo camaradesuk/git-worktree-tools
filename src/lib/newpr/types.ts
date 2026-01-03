@@ -30,6 +30,8 @@ export interface Options {
   nonInteractive: boolean;
   /** Pre-specify action for scenario (use with --non-interactive) */
   action?: StateActionKey;
+  /** Disable lifecycle hooks (for security-conscious environments) */
+  noHooks: boolean;
 }
 
 /**

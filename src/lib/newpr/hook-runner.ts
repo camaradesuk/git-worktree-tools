@@ -23,6 +23,18 @@ export interface HookRunnerOptions {
 
   /** Whether to continue on hook failure for non-critical hooks */
   continueOnWarning?: boolean;
+
+  /**
+   * Default timeout for hook execution (in milliseconds)
+   * Configurable via hookDefaults.timeout in .worktreerc
+   */
+  defaultTimeout?: number;
+
+  /**
+   * Maximum timeout for hook execution (in milliseconds)
+   * Configurable via hookDefaults.maxTimeout in .worktreerc
+   */
+  maxTimeout?: number;
 }
 
 /**
@@ -67,6 +79,8 @@ export class HookRunner {
       verbose: options.verbose,
       dryRun: options.dryRun,
       cwd: initialContext.repoRoot,
+      defaultTimeout: options.defaultTimeout,
+      maxTimeout: options.maxTimeout,
     });
     this.context = {
       repoRoot: initialContext.repoRoot ?? process.cwd(),

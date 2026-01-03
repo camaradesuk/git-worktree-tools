@@ -14,8 +14,8 @@ import {
   isExistingBranchAction,
   executeStateAction,
   getBranchPoint,
+  createActionDeps,
   type StateAction,
-  type ActionDeps,
 } from '../lib/newpr/index.js';
 import {
   type CommandResult,
@@ -67,24 +67,6 @@ export interface CreatePrResultData extends NewprResultData {
  * Result type for createPr
  */
 export type CreatePrResult = CommandResult<CreatePrResultData>;
-
-/**
- * Create action dependencies using real git operations
- */
-function createActionDeps(cwd?: string): ActionDeps {
-  return {
-    gitAdd: (addPath: string, cwdPath?: string) => git.add(addPath, cwdPath ?? cwd),
-    gitStash: (options, cwdPath?) =>
-      git.stash({ message: options.message, keepIndex: options.keepIndex }, cwdPath ?? cwd),
-    gitPush: (options, cwdPath?) =>
-      git.push(
-        { remote: options.remote, branch: options.branch, setUpstream: options.setUpstream },
-        cwdPath ?? cwd
-      ),
-    gitCommit: (options, cwdPath?) =>
-      git.commit({ message: options.message, allowEmpty: options.allowEmpty }, cwdPath ?? cwd),
-  };
-}
 
 /**
  * Find action from available actions by key

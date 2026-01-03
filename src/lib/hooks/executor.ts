@@ -20,13 +20,15 @@ import { contextToEnv, isSimpleHook, isMultipleHook, isComplexHook } from './typ
 
 /**
  * Default timeout for hook execution (30 seconds)
+ * Can be overridden via hookDefaults.timeout in .worktreerc
  */
 const DEFAULT_TIMEOUT = 30000;
 
 /**
  * Maximum overall timeout (60 seconds)
+ * Can be overridden via hookDefaults.maxTimeout in .worktreerc
  */
-const MAX_TIMEOUT = 60000;
+const DEFAULT_MAX_TIMEOUT = 60000;
 
 /**
  * Execute a shell command with context
@@ -219,7 +221,7 @@ async function executeSingleHook(
 
     const result = await executeCommand(definition, context, {
       cwd,
-      timeout: options.timeout ?? DEFAULT_TIMEOUT,
+      timeout: options.defaultTimeout ?? DEFAULT_TIMEOUT,
     });
 
     return {
@@ -243,7 +245,7 @@ async function executeSingleHook(
 
       const result = await executeCommand(command, context, {
         cwd,
-        timeout: options.timeout ?? DEFAULT_TIMEOUT,
+        timeout: options.defaultTimeout ?? DEFAULT_TIMEOUT,
       });
 
       if (result.output) {
@@ -363,7 +365,9 @@ async function executeComplexHook(
     };
   }
 
-  const timeout = Math.min(definition.timeout ?? DEFAULT_TIMEOUT, MAX_TIMEOUT);
+  const defaultTimeout = options.defaultTimeout ?? DEFAULT_TIMEOUT;
+  const maxTimeout = options.maxTimeout ?? DEFAULT_MAX_TIMEOUT;
+  const timeout = Math.min(definition.timeout ?? defaultTimeout, maxTimeout);
   const result = await executeCommand(command, context, {
     cwd,
     timeout,

@@ -43,3 +43,6 @@ export {
 // Hook runner
 export type { HookRunnerOptions } from './hook-runner.js';
 export { HookRunner, createHookRunner, runLifecycleHook } from './hook-runner.js';
+
+// Action dependencies factory
+export { createActionDeps } from './action-deps.js';

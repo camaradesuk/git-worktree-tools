@@ -275,10 +275,26 @@ export function formatJsonResult<T>(result: CommandResult<T>): string {
 }
 
 /**
+ * Check if an error has an ErrorCode property
+ */
+function hasErrorCode(error: unknown): error is Error & { code: ErrorCode } {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof (error as Record<string, unknown>).code === 'string'
+  );
+}
+
+/**
  * Map error class names to error codes
  */
 export function getErrorCodeFromError(error: unknown): ErrorCode {
   if (error instanceof Error) {
+    // Handle errors that carry their own ErrorCode (e.g., NonInteractiveError)
+    if (hasErrorCode(error) && Object.values(ErrorCode).includes(error.code)) {
+      return error.code;
+    }
+
     switch (error.name) {
       case 'GitCommandError':
         return ErrorCode.OPERATION_FAILED;
@@ -292,6 +308,8 @@ export function getErrorCodeFromError(error: unknown): ErrorCode {
         return ErrorCode.INVALID_CONFIG;
       case 'UserCancelledError':
         return ErrorCode.USER_CANCELLED;
+      case 'NonInteractiveError':
+        return ErrorCode.INVALID_ARGUMENT;
       default:
         return ErrorCode.UNKNOWN_ERROR;
     }

@@ -28,9 +28,9 @@ import {
   getBranchPoint,
   getScenarioMessageLevel,
   createHookRunner,
+  createActionDeps,
   type Options,
   type StateAction,
-  type ActionDeps,
 } from '../lib/newpr/index.js';
 import {
   createSuccessResult,
@@ -68,24 +68,6 @@ function debug(message: string, data?: Record<string, unknown>): void {
       console.error(colors.dim(`  ${key}: ${JSON.stringify(value)}`));
     }
   }
-}
-
-/**
- * Create action dependencies using real git operations
- */
-function createActionDeps(cwd?: string): ActionDeps {
-  return {
-    gitAdd: (addPath: string, cwdPath?: string) => git.add(addPath, cwdPath ?? cwd),
-    gitStash: (options, cwdPath?) =>
-      git.stash({ message: options.message, keepIndex: options.keepIndex }, cwdPath ?? cwd),
-    gitPush: (options, cwdPath?) =>
-      git.push(
-        { remote: options.remote, branch: options.branch, setUpstream: options.setUpstream },
-        cwdPath ?? cwd
-      ),
-    gitCommit: (options, cwdPath?) =>
-      git.commit({ message: options.message, allowEmpty: options.allowEmpty }, cwdPath ?? cwd),
-  };
 }
 
 /**
@@ -494,9 +476,9 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   const config = loadConfig(repoRoot);
   const branchName = generateBranchName(config, description);
 
-  // Initialize hook runner
+  // Initialize hook runner (disabled if --no-hooks flag is set)
   const hookRunner = createHookRunner(
-    config.hooks ?? {},
+    options.noHooks ? {} : (config.hooks ?? {}),
     {
       repoRoot,
       baseBranch: options.baseBranch,
@@ -505,6 +487,8 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     {
       verbose: DEBUG_ENABLED,
       showOutput: true,
+      defaultTimeout: config.hookDefaults?.timeout,
+      maxTimeout: config.hookDefaults?.maxTimeout,
     }
   );
 

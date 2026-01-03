@@ -60,8 +60,16 @@ export class ClaudeProvider extends BaseAIProvider {
     this.model = model;
   }
 
+  /**
+   * Static availability check for lazy initialization
+   * Avoids creating a provider instance just to check availability.
+   */
+  static checkAvailability(): Promise<boolean> {
+    return Promise.resolve(commandExists('claude'));
+  }
+
   async isAvailable(): Promise<boolean> {
-    return commandExists('claude');
+    return ClaudeProvider.checkAvailability();
   }
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {
@@ -91,8 +99,15 @@ export class GeminiProvider extends BaseAIProvider {
     this.model = model;
   }
 
+  /**
+   * Static availability check for lazy initialization
+   */
+  static checkAvailability(): Promise<boolean> {
+    return Promise.resolve(commandExists('gemini'));
+  }
+
   async isAvailable(): Promise<boolean> {
-    return commandExists('gemini');
+    return GeminiProvider.checkAvailability();
   }
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {
@@ -123,17 +138,24 @@ export class OllamaProvider extends BaseAIProvider {
     this.host = host;
   }
 
-  async isAvailable(): Promise<boolean> {
+  /**
+   * Static availability check for lazy initialization
+   */
+  static checkAvailability(host = 'http://localhost:11434'): Promise<boolean> {
     try {
       // Check if Ollama server is running
-      const result = spawnSync('curl', ['-s', `${this.host}/api/tags`], {
+      const result = spawnSync('curl', ['-s', `${host}/api/tags`], {
         encoding: 'utf-8',
         timeout: 5000,
       });
-      return result.status === 0;
+      return Promise.resolve(result.status === 0);
     } catch {
-      return false;
+      return Promise.resolve(false);
     }
+  }
+
+  async isAvailable(): Promise<boolean> {
+    return OllamaProvider.checkAvailability(this.host);
   }
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {
@@ -196,8 +218,15 @@ export class OpenAIProvider extends BaseAIProvider {
     this.apiKeyEnv = apiKeyEnv;
   }
 
+  /**
+   * Static availability check for lazy initialization
+   */
+  static checkAvailability(apiKeyEnv = 'OPENAI_API_KEY'): Promise<boolean> {
+    return Promise.resolve(!!process.env[apiKeyEnv]);
+  }
+
   async isAvailable(): Promise<boolean> {
-    return !!process.env[this.apiKeyEnv];
+    return OpenAIProvider.checkAvailability(this.apiKeyEnv);
   }
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {

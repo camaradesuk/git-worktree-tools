@@ -11,6 +11,7 @@
  * - worktree_clean: Clean up worktrees for merged or closed PRs
  */
 
+import { createRequire } from 'module';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -18,6 +19,10 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
+
+// Import package.json for version (Node 18+ compatible)
+const require = createRequire(import.meta.url);
+const packageJson = require('../../package.json') as { version: string };
 
 import { queryState } from '../api/state.js';
 import { listWorktrees } from '../api/list.js';
@@ -136,7 +141,7 @@ const tools: Tool[] = [
 const server = new Server(
   {
     name: 'git-worktree-tools',
-    version: '1.3.0',
+    version: packageJson.version,
   },
   {
     capabilities: {
@@ -160,7 +165,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const baseBranch = (args?.baseBranch as string) ?? 'main';
         const verbose = (args?.verbose as boolean) ?? false;
 
-        const result = queryState({ baseBranch, verbose });
+        const result = await queryState({ baseBranch, verbose });
 
         return {
           content: [

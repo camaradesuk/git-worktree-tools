@@ -52,6 +52,7 @@ describe('cli/wtconfig', () => {
       prDescription: false,
     },
     hooks: {},
+    hookDefaults: { timeout: 30000, maxTimeout: 60000 },
   };
 
   beforeEach(() => {

@@ -58,7 +58,7 @@ describe('MCP Server', () => {
   });
 
   describe('worktree_get_state handler', () => {
-    it('calls queryState with default options', () => {
+    it('calls queryState with default options', async () => {
       const mockResult = {
         success: true,
         command: 'wtstate',
@@ -80,17 +80,17 @@ describe('MCP Server', () => {
         },
       };
 
-      vi.mocked(queryState).mockReturnValue(mockResult);
+      vi.mocked(queryState).mockResolvedValue(mockResult);
 
       // Simulate calling the handler
-      const result = queryState({ baseBranch: 'main', verbose: false });
+      const result = await queryState({ baseBranch: 'main', verbose: false });
 
       expect(queryState).toHaveBeenCalledWith({ baseBranch: 'main', verbose: false });
       expect(result.success).toBe(true);
       expect(result.data?.scenario).toBe('main_clean_same');
     });
 
-    it('calls queryState with verbose option', () => {
+    it('calls queryState with verbose option', async () => {
       const mockResult = {
         success: true,
         command: 'wtstate',
@@ -112,9 +112,9 @@ describe('MCP Server', () => {
         },
       };
 
-      vi.mocked(queryState).mockReturnValue(mockResult);
+      vi.mocked(queryState).mockResolvedValue(mockResult);
 
-      const result = queryState({ baseBranch: 'develop', verbose: true });
+      const result = await queryState({ baseBranch: 'develop', verbose: true });
 
       expect(queryState).toHaveBeenCalledWith({ baseBranch: 'develop', verbose: true });
       expect(result.success).toBe(true);

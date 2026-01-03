@@ -24,15 +24,28 @@ export interface ProviderManagerOptions {
 }
 
 /**
+ * Lazy provider factory that delays creation until availability is confirmed
+ * This avoids creating provider instances that won't be used.
+ */
+interface LazyProviderFactory {
+  name: string;
+  checkAvailability: () => Promise<boolean>;
+  create: () => AIProvider;
+}
+
+/**
  * AI Provider Manager
  *
  * Manages provider selection and provides a unified interface for AI generation.
+ * Uses lazy initialization to avoid creating provider instances that won't be used.
  */
 export class AIProviderManager {
   private config: AIConfig;
   private primaryProvider: AIProvider | null = null;
   private fallbackProvider: AIProvider | null = null;
   private initialized = false;
+  /** Cache of availability check results to avoid re-checking */
+  private availabilityCache: Map<string, boolean> = new Map();
 
   constructor(options: ProviderManagerOptions = {}) {
     this.config = { ...DEFAULT_AI_CONFIG, ...options.config };
@@ -85,21 +98,61 @@ export class AIProviderManager {
   }
 
   /**
-   * Auto-detect available AI provider
+   * Get lazy provider factories for auto-detection
+   * These check availability before creating full provider instances.
+   */
+  private getLazyProviderFactories(): LazyProviderFactory[] {
+    return [
+      {
+        name: 'claude',
+        checkAvailability: () => ClaudeProvider.checkAvailability(),
+        create: () => new ClaudeProvider(this.config.claude?.model),
+      },
+      {
+        name: 'gemini',
+        checkAvailability: () => GeminiProvider.checkAvailability(),
+        create: () => new GeminiProvider(this.config.gemini?.model),
+      },
+      {
+        name: 'ollama',
+        checkAvailability: () => OllamaProvider.checkAvailability(this.config.ollama?.host),
+        create: () => new OllamaProvider(this.config.ollama?.model, this.config.ollama?.host),
+      },
+      {
+        name: 'openai',
+        checkAvailability: () => OpenAIProvider.checkAvailability(this.config.openai?.apiKeyEnv),
+        create: () => new OpenAIProvider(this.config.openai?.model, this.config.openai?.apiKeyEnv),
+      },
+    ];
+  }
+
+  /**
+   * Check if a provider is available (with caching)
+   */
+  private async isProviderAvailable(factory: LazyProviderFactory): Promise<boolean> {
+    // Check cache first
+    if (this.availabilityCache.has(factory.name)) {
+      return this.availabilityCache.get(factory.name)!;
+    }
+
+    // Check availability and cache result
+    const available = await factory.checkAvailability();
+    this.availabilityCache.set(factory.name, available);
+    return available;
+  }
+
+  /**
+   * Auto-detect available AI provider using lazy initialization
+   * Only creates provider instance after confirming availability.
    */
   private async autoDetectProvider(): Promise<AIProvider | null> {
-    // Try providers in order of preference
-    const providers = [
-      () => this.createClaudeProvider(),
-      () => this.createGeminiProvider(),
-      () => this.createOllamaProvider(),
-      () => this.createOpenAIProvider(),
-    ];
+    const factories = this.getLazyProviderFactories();
 
-    for (const createProvider of providers) {
-      const provider = await createProvider();
-      if (provider && (await provider.isAvailable())) {
-        return provider;
+    for (const factory of factories) {
+      const available = await this.isProviderAvailable(factory);
+      if (available) {
+        // Only create the provider if it's available
+        return factory.create();
       }
     }
 
@@ -107,23 +160,23 @@ export class AIProviderManager {
   }
 
   private async createClaudeProvider(): Promise<AIProvider | null> {
-    const provider = new ClaudeProvider(this.config.claude?.model);
-    return (await provider.isAvailable()) ? provider : null;
+    const factory = this.getLazyProviderFactories().find((f) => f.name === 'claude')!;
+    return (await this.isProviderAvailable(factory)) ? factory.create() : null;
   }
 
   private async createGeminiProvider(): Promise<AIProvider | null> {
-    const provider = new GeminiProvider(this.config.gemini?.model);
-    return (await provider.isAvailable()) ? provider : null;
+    const factory = this.getLazyProviderFactories().find((f) => f.name === 'gemini')!;
+    return (await this.isProviderAvailable(factory)) ? factory.create() : null;
   }
 
   private async createOllamaProvider(): Promise<AIProvider | null> {
-    const provider = new OllamaProvider(this.config.ollama?.model, this.config.ollama?.host);
-    return (await provider.isAvailable()) ? provider : null;
+    const factory = this.getLazyProviderFactories().find((f) => f.name === 'ollama')!;
+    return (await this.isProviderAvailable(factory)) ? factory.create() : null;
   }
 
   private async createOpenAIProvider(): Promise<AIProvider | null> {
-    const provider = new OpenAIProvider(this.config.openai?.model, this.config.openai?.apiKeyEnv);
-    return (await provider.isAvailable()) ? provider : null;
+    const factory = this.getLazyProviderFactories().find((f) => f.name === 'openai')!;
+    return (await this.isProviderAvailable(factory)) ? factory.create() : null;
   }
 
   private async createScriptProvider(): Promise<AIProvider | null> {
@@ -206,21 +259,15 @@ export class AIProviderManager {
 
   /**
    * Get information about available providers
+   * Uses cached availability checks to avoid redundant provider creation.
    */
   async getAvailableProviders(): Promise<string[]> {
     const available: string[] = [];
+    const factories = this.getLazyProviderFactories();
 
-    const providers: Array<[string, () => Promise<AIProvider | null>]> = [
-      ['claude', () => this.createClaudeProvider()],
-      ['gemini', () => this.createGeminiProvider()],
-      ['ollama', () => this.createOllamaProvider()],
-      ['openai', () => this.createOpenAIProvider()],
-    ];
-
-    for (const [name, create] of providers) {
-      const provider = await create();
-      if (provider) {
-        available.push(name);
+    for (const factory of factories) {
+      if (await this.isProviderAvailable(factory)) {
+        available.push(factory.name);
       }
     }
 

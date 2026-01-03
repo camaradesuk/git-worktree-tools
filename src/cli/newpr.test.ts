@@ -67,6 +67,12 @@ vi.mock('../lib/newpr/index.js', () => ({
   getBranchPoint: vi.fn(),
   getScenarioMessageLevel: vi.fn(),
   createHookRunner: vi.fn(() => mockHookRunner),
+  createActionDeps: vi.fn(() => ({
+    gitAdd: vi.fn(),
+    gitStash: vi.fn(),
+    gitPush: vi.fn(),
+    gitCommit: vi.fn(),
+  })),
   HookRunner: vi.fn(),
   runLifecycleHook: vi.fn().mockResolvedValue(true),
 }));
@@ -107,6 +113,7 @@ describe('cli/newpr', () => {
     preferredEditor: 'auto' as const,
     ai: { provider: 'none' as const },
     hooks: {},
+    hookDefaults: { timeout: 30000, maxTimeout: 60000 },
     plugins: [],
     generators: {},
     integrations: {},
@@ -120,6 +127,7 @@ describe('cli/newpr', () => {
     runWtlink: false,
     json: false,
     nonInteractive: false,
+    noHooks: false,
   };
 
   const makePrInfo = (overrides = {}) => ({
@@ -162,6 +170,14 @@ describe('cli/newpr', () => {
     vi.mocked(newpr.createHookRunner).mockReturnValue(
       mockHookRunner as unknown as ReturnType<typeof newpr.createHookRunner>
     );
+
+    // Reset createActionDeps to return a mock deps object
+    vi.mocked(newpr.createActionDeps).mockReturnValue({
+      gitAdd: vi.fn(),
+      gitStash: vi.fn(),
+      gitPush: vi.fn(),
+      gitCommit: vi.fn(),
+    });
 
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
