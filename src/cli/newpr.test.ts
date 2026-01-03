@@ -87,6 +87,7 @@ import * as prompts from '../lib/prompts.js';
 import { loadConfig, generateBranchName, generateWorktreePath } from '../lib/config.js';
 import { analyzeGitState, detectScenario } from '../lib/state-detection.js';
 import * as newpr from '../lib/newpr/index.js';
+import type { StateActionKey } from '../lib/json-output.js';
 import fs from 'fs';
 
 describe('cli/newpr', () => {
@@ -699,7 +700,7 @@ describe('cli/newpr', () => {
           description: 'Add new feature',
           ...defaultOptions,
           nonInteractive: true,
-          action: 'invalid_action',
+          action: 'invalid_action' as StateActionKey, // intentionally invalid for test
         },
       });
       vi.mocked(github.isGhInstalled).mockReturnValue(true);
@@ -770,7 +771,7 @@ describe('cli/newpr', () => {
           description: 'Add new feature',
           ...defaultOptions,
           nonInteractive: true,
-          action: 'invalid_action',
+          action: 'invalid_action' as StateActionKey, // intentionally invalid for test
           json: true,
         },
       });
