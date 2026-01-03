@@ -222,3 +222,26 @@ export function pathsEqual(a: string, b: string): boolean {
 export function normalizeLineEndings(text: string): string {
   return text.replace(/\r\n/g, '\n');
 }
+
+/**
+ * Check if GitHub CLI (gh) is available
+ *
+ * @returns true if gh CLI is installed and accessible
+ */
+export function isGhAvailable(): boolean {
+  try {
+    const result = spawnSync('gh', ['--version'], {
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Flag indicating if gh CLI is available (cached at module load)
+ */
+export const GH_AVAILABLE = isGhAvailable();

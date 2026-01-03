@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { runCli, runCliJson, createTestContext, type TestContext } from '../helpers/index.js';
+import {
+  runCli,
+  runCliJson,
+  createTestContext,
+  GH_AVAILABLE,
+  type TestContext,
+} from '../helpers/index.js';
 
 /**
  * E2E tests for cross-tool workflows.
@@ -33,7 +39,7 @@ function addToGitignore(dir: string, entries: string[]): void {
   execSync('git commit -m "Update gitignore" --allow-empty', { cwd: dir, stdio: 'ignore' });
 }
 
-describe('e2e workflow - full PR lifecycle', () => {
+describe.skipIf(!GH_AVAILABLE)('e2e workflow - full PR lifecycle', () => {
   let ctx: TestContext;
 
   beforeEach(() => {
@@ -113,7 +119,7 @@ describe('e2e workflow - full PR lifecycle', () => {
   });
 });
 
-describe('e2e workflow - lswt shows newpr-created worktree', () => {
+describe.skipIf(!GH_AVAILABLE)('e2e workflow - lswt shows newpr-created worktree', () => {
   let ctx: TestContext;
 
   beforeEach(() => {
@@ -292,7 +298,7 @@ describe('e2e workflow - wtlink in newpr worktree', () => {
   });
 });
 
-describe('e2e workflow - cleanpr with wtlink-managed files', () => {
+describe.skipIf(!GH_AVAILABLE)('e2e workflow - cleanpr with wtlink-managed files', () => {
   let ctx: TestContext;
 
   beforeEach(() => {

@@ -6,6 +6,7 @@ import {
   runCli,
   runCliJson,
   createTestContext,
+  GH_AVAILABLE,
   type TestContext,
   type Scenario,
   ALL_SCENARIOS,
@@ -20,7 +21,7 @@ import {
  * 3. Creates the branch, PR, and worktree
  */
 
-describe('newpr e2e - git state scenarios', () => {
+describe.skipIf(!GH_AVAILABLE)('newpr e2e - git state scenarios', () => {
   // Test each scenario with non-interactive mode
   describe('non-interactive mode', () => {
     // Scenarios where newpr should succeed and create a PR with worktree

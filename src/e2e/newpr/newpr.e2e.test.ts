@@ -7,6 +7,7 @@ import {
   runCliJson,
   createTestContext,
   setupGhMock,
+  GH_AVAILABLE,
   type TestContext,
 } from '../helpers/index.js';
 
@@ -16,7 +17,7 @@ import {
  * Tests command-line interface, error handling, and options.
  */
 
-describe('newpr e2e - core functionality', () => {
+describe.skipIf(!GH_AVAILABLE)('newpr e2e - core functionality', () => {
   describe('help and version', () => {
     it('shows help message with --help', () => {
       const result = runCli('newpr', ['--help']);
@@ -352,7 +353,7 @@ describe('newpr e2e - core functionality', () => {
   });
 });
 
-describe('newpr e2e - error recovery', () => {
+describe.skipIf(!GH_AVAILABLE)('newpr e2e - error recovery', () => {
   describe('partial failure handling', () => {
     it('cleans up on branch creation failure', () => {
       // This would require a more sophisticated mock setup

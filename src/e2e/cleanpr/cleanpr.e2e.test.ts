@@ -8,6 +8,7 @@ import {
   runCliJson,
   createTestContext,
   setupGhMock,
+  GH_AVAILABLE,
   type TestContext,
 } from '../helpers/index.js';
 
@@ -52,7 +53,7 @@ function createPrWorktree(
   return worktreePath;
 }
 
-describe('cleanpr e2e - core functionality', () => {
+describe.skipIf(!GH_AVAILABLE)('cleanpr e2e - core functionality', () => {
   describe('help and usage', () => {
     it('shows help message with --help', () => {
       const result = runCli('cleanpr', ['--help']);
@@ -139,7 +140,7 @@ describe('cleanpr e2e - core functionality', () => {
   });
 });
 
-describe('cleanpr e2e - single PR cleanup', () => {
+describe.skipIf(!GH_AVAILABLE)('cleanpr e2e - single PR cleanup', () => {
   let ctx: TestContext;
 
   beforeEach(() => {
@@ -218,7 +219,7 @@ describe('cleanpr e2e - single PR cleanup', () => {
   });
 });
 
-describe('cleanpr e2e - batch cleanup', () => {
+describe.skipIf(!GH_AVAILABLE)('cleanpr e2e - batch cleanup', () => {
   let ctx: TestContext;
 
   beforeEach(() => {
@@ -264,7 +265,7 @@ describe('cleanpr e2e - batch cleanup', () => {
   });
 });
 
-describe('cleanpr e2e - options', () => {
+describe.skipIf(!GH_AVAILABLE)('cleanpr e2e - options', () => {
   let ctx: TestContext;
 
   beforeEach(() => {
@@ -308,7 +309,7 @@ describe('cleanpr e2e - options', () => {
   });
 });
 
-describe('cleanpr e2e - JSON output', () => {
+describe.skipIf(!GH_AVAILABLE)('cleanpr e2e - JSON output', () => {
   let ctx: TestContext;
 
   beforeEach(() => {
@@ -384,7 +385,7 @@ describe('cleanpr e2e - JSON output', () => {
   });
 });
 
-describe('cleanpr e2e - edge cases', () => {
+describe.skipIf(!GH_AVAILABLE)('cleanpr e2e - edge cases', () => {
   it('handles worktree with locked files gracefully', () => {
     const ctx = createTestContext({ scenario: 'main_clean_same' });
 

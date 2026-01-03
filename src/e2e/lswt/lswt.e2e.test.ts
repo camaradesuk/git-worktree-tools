@@ -8,6 +8,7 @@ import {
   runCliJson,
   createTestContext,
   setupGhMock,
+  GH_AVAILABLE,
   type TestContext,
 } from '../helpers/index.js';
 

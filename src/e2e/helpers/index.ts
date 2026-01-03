@@ -13,6 +13,8 @@ export {
   normalizePath,
   pathsEqual,
   normalizeLineEndings,
+  isGhAvailable,
+  GH_AVAILABLE,
   CLI_DIR,
   type CliTool,
   type CliResult,
