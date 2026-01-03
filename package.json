@@ -9,7 +9,10 @@
     "newpr": "./dist/cli/newpr.js",
     "cleanpr": "./dist/cli/cleanpr.js",
     "lswt": "./dist/cli/lswt.js",
-    "wtlink": "./dist/cli/wtlink.js"
+    "wtlink": "./dist/cli/wtlink.js",
+    "wtstate": "./dist/cli/wtstate.js",
+    "wtconfig": "./dist/cli/wtconfig.js",
+    "git-worktree-mcp": "./dist/mcp/server.js"
   },
   "scripts": {
     "build": "tsc",
@@ -21,6 +24,7 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "ci:lint": "npm run lint && npm run format:check && npm run build",
     "prepare": "husky",
     "prepublishOnly": "npm run build && npm test"
   },
@@ -56,6 +60,7 @@
     "LICENSE"
   ],
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
     "@preact/signals-core": "^1.8.0",
     "inquirer": "^9.3.7",
     "yargs": "^17.7.2"
@@ -77,6 +82,7 @@
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
+    "node-pty": "^1.1.0",
     "prettier": "^3.7.4",
     "semantic-release": "^25.0.2",
     "typescript": "^5.3.0",

@@ -47,6 +47,16 @@ vi.mock('../lib/state-detection.js', () => ({
   detectScenario: vi.fn(),
 }));
 
+// Create a mock hook runner that always allows hooks to pass
+const mockHookRunner = {
+  runHook: vi.fn().mockResolvedValue(true),
+  runCleanup: vi.fn().mockResolvedValue(undefined),
+  updateContext: vi.fn(),
+  hasConfiguredHooks: vi.fn().mockReturnValue(false),
+  getConfiguredHooks: vi.fn().mockReturnValue([]),
+  getContext: vi.fn().mockReturnValue({}),
+};
+
 vi.mock('../lib/newpr/index.js', () => ({
   parseArgs: vi.fn(),
   getHelpText: vi.fn(),
@@ -56,6 +66,15 @@ vi.mock('../lib/newpr/index.js', () => ({
   executeStateAction: vi.fn(),
   getBranchPoint: vi.fn(),
   getScenarioMessageLevel: vi.fn(),
+  createHookRunner: vi.fn(() => mockHookRunner),
+  createActionDeps: vi.fn(() => ({
+    gitAdd: vi.fn(),
+    gitStash: vi.fn(),
+    gitPush: vi.fn(),
+    gitCommit: vi.fn(),
+  })),
+  HookRunner: vi.fn(),
+  runLifecycleHook: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock('fs', () => ({
@@ -74,6 +93,7 @@ import * as prompts from '../lib/prompts.js';
 import { loadConfig, generateBranchName, generateWorktreePath } from '../lib/config.js';
 import { analyzeGitState, detectScenario } from '../lib/state-detection.js';
 import * as newpr from '../lib/newpr/index.js';
+import type { StateActionKey } from '../lib/json-output.js';
 import fs from 'fs';
 
 describe('cli/newpr', () => {
@@ -91,6 +111,12 @@ describe('cli/newpr', () => {
     branchPrefix: 'feature',
     syncPatterns: [],
     preferredEditor: 'auto' as const,
+    ai: { provider: 'none' as const },
+    hooks: {},
+    hookDefaults: { timeout: 30000, maxTimeout: 60000 },
+    plugins: [],
+    generators: {},
+    integrations: {},
   };
 
   const defaultOptions = {
@@ -99,6 +125,9 @@ describe('cli/newpr', () => {
     installDeps: false,
     openEditor: false,
     runWtlink: false,
+    json: false,
+    nonInteractive: false,
+    noHooks: false,
   };
 
   const makePrInfo = (overrides = {}) => ({
@@ -128,6 +157,28 @@ describe('cli/newpr', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+
+    // Reset the hook runner mock to allow all hooks to pass
+    mockHookRunner.runHook.mockResolvedValue(true);
+    mockHookRunner.runCleanup.mockResolvedValue(undefined);
+    mockHookRunner.updateContext.mockReturnValue(undefined);
+    mockHookRunner.hasConfiguredHooks.mockReturnValue(false);
+    mockHookRunner.getConfiguredHooks.mockReturnValue([]);
+    mockHookRunner.getContext.mockReturnValue({});
+
+    // Reset createHookRunner to return the mock
+    vi.mocked(newpr.createHookRunner).mockReturnValue(
+      mockHookRunner as unknown as ReturnType<typeof newpr.createHookRunner>
+    );
+
+    // Reset createActionDeps to return a mock deps object
+    vi.mocked(newpr.createActionDeps).mockReturnValue({
+      gitAdd: vi.fn(),
+      gitStash: vi.fn(),
+      gitPush: vi.fn(),
+      gitCommit: vi.fn(),
+    });
+
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     // @ts-expect-error - process.exit mock type is complex
@@ -462,6 +513,377 @@ describe('cli/newpr', () => {
       expect(mockConsoleError).toHaveBeenCalledWith(
         expect.stringContaining('Commit your changes first')
       );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('JSON output mode', () => {
+    it('outputs JSON error when gh not installed with --json flag', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'test', ...defaultOptions, json: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(false);
+
+      await runCli(['test', '--json']);
+
+      // Should output JSON error, not plain text
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": false')
+      );
+      expect(jsonOutput).toBeDefined();
+      expect(jsonOutput![0]).toContain('"code": "GH_NOT_INSTALLED"');
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON error when gh not authenticated with --json flag', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'test', ...defaultOptions, json: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(false);
+
+      await runCli(['test', '--json']);
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": false')
+      );
+      expect(jsonOutput).toBeDefined();
+      expect(jsonOutput![0]).toContain('"code": "GH_NOT_AUTHENTICATED"');
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON success for --pr mode', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions, json: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await runCli(['--pr', '123', '--json']);
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": true')
+      );
+      expect(jsonOutput).toBeDefined();
+      expect(jsonOutput![0]).toContain('"prNumber": 123');
+    });
+
+    it('outputs JSON error when parse fails with --json flag', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'error',
+        message: 'Missing required argument',
+      });
+
+      await runCli(['--json']);
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": false')
+      );
+      expect(jsonOutput).toBeDefined();
+      expect(jsonOutput![0]).toContain('"code": "INVALID_ARGUMENT"');
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('non-interactive mode', () => {
+    it('uses first available action when no --action specified', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'Add new feature',
+          ...defaultOptions,
+          nonInteractive: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Add new feature', '--non-interactive']);
+
+      // Should not prompt - should use first available action
+      expect(prompts.promptChoiceIndex).not.toHaveBeenCalled();
+      expect(newpr.executeStateAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'empty_commit' }),
+        expect.any(String),
+        expect.any(String),
+        expect.any(Object),
+        expect.any(String)
+      );
+    });
+
+    it('uses specified action when --action is provided', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'Add new feature',
+          ...defaultOptions,
+          nonInteractive: true,
+          action: 'commit_staged',
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          workingTreeStatus: 'has_staged',
+          stagedFiles: ['file.ts'],
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('main_staged_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'You have staged changes',
+        choices: [
+          {
+            label: 'Commit staged changes',
+            action: { action: 'commit_staged', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue(['file.ts']);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Add new feature', '--non-interactive', '--action', 'commit_staged']);
+
+      expect(prompts.promptChoiceIndex).not.toHaveBeenCalled();
+      expect(newpr.executeStateAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'commit_staged' }),
+        expect.any(String),
+        expect.any(String),
+        expect.any(Object),
+        expect.any(String)
+      );
+    });
+
+    it('exits with error when --action specifies invalid action', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'Add new feature',
+          ...defaultOptions,
+          nonInteractive: true,
+          action: 'invalid_action' as StateActionKey, // intentionally invalid for test
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+
+      await runCli(['Add new feature', '--non-interactive', '--action', 'invalid_action']);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining("Action 'invalid_action' is not available")
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('exits with error in non-interactive mode from PR worktree', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'Add new feature',
+          ...defaultOptions,
+          nonInteractive: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo.pr123');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          worktreeType: 'pr_worktree',
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('pr_worktree');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(true);
+
+      await runCli(['Add new feature', '--non-interactive']);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Cannot create PR from a PR worktree in non-interactive mode')
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON error when --action is invalid with --json flag', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'Add new feature',
+          ...defaultOptions,
+          nonInteractive: true,
+          action: 'invalid_action' as StateActionKey, // intentionally invalid for test
+          json: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+
+      await runCli([
+        'Add new feature',
+        '--non-interactive',
+        '--action',
+        'invalid_action',
+        '--json',
+      ]);
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": false')
+      );
+      expect(jsonOutput).toBeDefined();
+      expect(jsonOutput![0]).toContain('"code": "INVALID_ACTION"');
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('PR not found handling', () => {
+    it('outputs JSON error when PR not found with --json flag', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 999, ...defaultOptions, json: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(github.getPr).mockReturnValue(null);
+
+      await runCli(['--pr', '999', '--json']);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Could not find PR'));
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('user cancellation handling', () => {
+    it('outputs JSON error when user cancels with --json flag', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'test', ...defaultOptions, json: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feature/test');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      // User selects Cancel
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+
+      await runCli(['test', '--json']);
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": false')
+      );
+      expect(jsonOutput).toBeDefined();
+      expect(jsonOutput![0]).toContain('"code": "USER_CANCELLED"');
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
   });

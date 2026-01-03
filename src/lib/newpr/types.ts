@@ -2,6 +2,8 @@
  * newpr types - CLI options and result types
  */
 
+import type { StateActionKey } from '../json-output.js';
+
 /**
  * CLI operation mode
  */
@@ -20,6 +22,16 @@ export interface Options {
   installDeps: boolean;
   openEditor: boolean;
   runWtlink: boolean;
+
+  // AI-friendly options (Phase 1)
+  /** Output result as JSON for programmatic parsing */
+  json: boolean;
+  /** Skip all interactive prompts, use defaults/specified action */
+  nonInteractive: boolean;
+  /** Pre-specify action for scenario (use with --non-interactive) */
+  action?: StateActionKey;
+  /** Disable lifecycle hooks (for security-conscious environments) */
+  noHooks: boolean;
 }
 
 /**

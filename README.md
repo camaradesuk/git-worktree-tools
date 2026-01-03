@@ -41,6 +41,12 @@ cleanpr
 
 # Manage shared config files between worktrees
 wtlink
+
+# Query git state (for AI agents)
+wtstate --json
+
+# Configure settings with interactive wizard
+wtconfig init
 ```
 
 ## Commands
@@ -205,15 +211,204 @@ The manifest lives in your repository root and tracks which files to share:
 - `dist/`, `build/` — Build artifacts should be separate per worktree
 - `.git/` — Never link git internals
 
+### wtstate
+
+Query the current git state for AI agents and automation. Returns structured information about the repository state, available actions, and recommended next steps.
+
+```bash
+wtstate              # Human-readable output
+wtstate --json       # Machine-readable JSON output
+wtstate --verbose    # Include file lists and commit details
+wtstate --base dev   # Specify base branch (default: main)
+```
+
+**JSON output includes:**
+
+- `scenario` — Current git state scenario (e.g., `main_staged_same`, `branch_with_changes`)
+- `scenarioDescription` — Human-readable description
+- `currentBranch` — Current branch name (null if detached HEAD)
+- `baseBranch` — Base branch for comparison
+- `worktreeType` — Type: `main_worktree`, `pr_worktree`, or `other`
+- `hasChanges`, `hasStagedChanges`, `hasUnstagedChanges` — Change flags
+- `localCommits` — List of local commits not in origin
+- `availableActions` — Actions available for this scenario
+- `recommendedAction` — Suggested action to take
+
+### wtconfig
+
+Configuration management with an interactive setup wizard.
+
+```bash
+wtconfig init           # Run interactive setup wizard
+wtconfig show           # Show current configuration
+wtconfig set <key> <val> # Set a configuration value
+wtconfig get <key>      # Get a configuration value
+wtconfig edit           # Open config in default editor
+wtconfig validate       # Validate configuration
+```
+
+**Setup wizard detects:**
+
+- Operating system and installed tools
+- Git configuration (version, user, email)
+- GitHub CLI authentication
+- Available AI tools (Claude Code, Gemini CLI, Ollama)
+- Package manager (npm, pnpm, yarn, bun)
+- IDE availability (VS Code, Cursor)
+
+**Configuration locations:**
+
+- **Global:** `~/.worktreerc` (applies to all repos)
+- **Repository:** `.worktreerc` or `.worktreerc.json` (repo-specific)
+
+Repository config overrides global settings.
+
+**Example AI workflow:**
+
+```bash
+# 1. Query state
+STATE=$(wtstate --json)
+
+# 2. Extract recommended action
+ACTION=$(echo $STATE | jq -r '.data.recommendedAction')
+
+# 3. Execute with chosen action
+newpr "Add feature" --non-interactive --action=$ACTION --json
+```
+
+## AI Tool Integration
+
+All commands support `--json` for machine-readable output, enabling integration with AI CLI tools like Claude Code, Gemini CLI, and Codex.
+
+> **Comprehensive Guide:** See [docs/AI-TOOLING.md](docs/AI-TOOLING.md) for detailed documentation including programmatic API, error codes, lifecycle hooks, and integration examples.
+
+### Quick Start for AI Agents
+
+The recommended workflow is a three-step "look before you leap" pattern:
+
+```bash
+# 1. Query current git state
+STATE=$(wtstate --json)
+
+# 2. Extract recommended action
+ACTION=$(echo $STATE | jq -r '.data.recommendedAction')
+
+# 3. Execute with the chosen action
+newpr "Add feature X" --non-interactive --action=$ACTION --json
+```
+
+### Non-Interactive Mode
+
+```bash
+# Create PR without prompts
+newpr "Feature X" --non-interactive --json
+newpr "Fix bug" --non-interactive --action=commit_staged --json
+
+# Clean PRs with dry-run preview
+cleanpr --all --dry-run --json
+cleanpr --all --json
+
+# Link configs without prompts
+wtlink link --yes --json
+```
+
+### JSON Output Schema
+
+All commands return consistent JSON:
+
+```typescript
+interface CommandResult<T> {
+  success: boolean; // Whether the command succeeded
+  command: string; // Command name (e.g., "newpr", "cleanpr")
+  timestamp: string; // ISO 8601 timestamp
+  data?: T; // Command-specific data (on success)
+  error?: {
+    // Error details (on failure)
+    code: string; // Machine-readable error code
+    message: string; // Human-readable message
+  };
+  warnings?: string[]; // Non-fatal warnings
+}
+```
+
+### Structured Error Codes
+
+Error codes enable programmatic error handling:
+
+| Code                   | Description                  |
+| ---------------------- | ---------------------------- |
+| `NOT_GIT_REPO`         | Not inside a git repository  |
+| `GH_NOT_AUTHENTICATED` | GitHub CLI not authenticated |
+| `INVALID_ACTION`       | Invalid action for scenario  |
+| `HOOK_FAILED`          | Lifecycle hook failed        |
+| `USER_CANCELLED`       | Operation cancelled          |
+| `PR_CREATE_FAILED`     | Failed to create PR          |
+
+See [docs/AI-TOOLING.md](docs/AI-TOOLING.md#structured-error-codes) for the complete list.
+
+### Available Actions for `--action` Flag
+
+| Action                       | Description                                |
+| ---------------------------- | ------------------------------------------ |
+| `empty_commit`               | Create empty initial commit                |
+| `commit_staged`              | Commit staged changes to new branch        |
+| `commit_all`                 | Stage all and commit to new branch         |
+| `stash_and_empty`            | Stash changes, create empty commit         |
+| `use_commits`                | Use local commits (branch from HEAD)       |
+| `push_then_branch`           | Push to main first, then create branch     |
+| `use_commits_and_commit_all` | Include commits + commit uncommitted       |
+| `use_commits_and_stash`      | Include commits, stash uncommitted         |
+| `create_pr_for_branch`       | Create PR for existing branch              |
+| `pr_for_branch_commit_all`   | Create PR for branch, commit changes first |
+| `pr_for_branch_stash`        | Create PR for branch, stash changes        |
+| `branch_from_detached`       | Create branch from detached HEAD           |
+
+### Programmatic API
+
+For deeper integration, use the programmatic API:
+
+```typescript
+import {
+  queryState,
+  listWorktrees,
+  cleanWorktrees,
+  createPr,
+} from '@camaradesuk/git-worktree-tools';
+
+// Query git state
+const state = queryState({ baseBranch: 'main' });
+if (state.success) {
+  console.log(`Scenario: ${state.data.scenario}`);
+  console.log(`Recommended: ${state.data.recommendedAction}`);
+}
+
+// Create PR
+const result = await createPr({
+  description: 'Add dark mode',
+  action: 'commit_staged',
+  draft: true,
+});
+```
+
+See [docs/AI-TOOLING.md](docs/AI-TOOLING.md#programmatic-api) for complete API documentation.
+
 ## Configuration
 
-Create a `.worktreerc` file in your repository root:
+Create a `.worktreerc` file in your repository root, or use `wtconfig init` to generate one interactively:
 
 ```json
 {
-  "sharedRepos": ["cluster-gitops", "infrastructure"],
   "baseBranch": "main",
-  "draftPr": true
+  "draftPr": true,
+  "branchPrefix": "feat",
+  "ai": {
+    "provider": "auto",
+    "branchName": true,
+    "prDescription": true
+  },
+  "hooks": {
+    "post-worktree": "npm install"
+  }
 }
 ```
 
@@ -228,6 +423,96 @@ Create a `.worktreerc` file in your repository root:
 | `worktreeParent`  | string   | `".."`                | Parent directory for worktrees                             |
 | `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names                     |
 | `preferredEditor` | string   | `"vscode"`            | Editor for lswt interactive: "vscode", "cursor", or "auto" |
+| `ai`              | object   | `{}`                  | AI content generation settings (see below)                 |
+| `hooks`           | object   | `{}`                  | Lifecycle hook commands (see below)                        |
+
+### AI Content Generation
+
+Enable AI-powered content generation for branch names and PR descriptions:
+
+```json
+{
+  "ai": {
+    "provider": "auto", // "auto" | "claude" | "gemini" | "openai" | "ollama" | "none"
+    "branchName": true, // Generate smart branch names from description
+    "prTitle": true, // Generate PR titles
+    "prDescription": true // Generate PR descriptions from changes
+  }
+}
+```
+
+When `provider` is `"auto"`, the tool detects available AI tools in order: Claude Code → Gemini CLI → Ollama → OpenAI API.
+
+### Lifecycle Hooks
+
+Run custom commands at various points in the `newpr` workflow:
+
+```json
+{
+  "hooks": {
+    "post-worktree": "npm install",
+    "post-pr": ["echo 'PR created!'", "./notify-team.sh"],
+    "pre-branch": {
+      "command": "npm test",
+      "failOnError": true
+    }
+  }
+}
+```
+
+**Available hooks:**
+
+| Hook            | Description               | Critical |
+| --------------- | ------------------------- | -------- |
+| `pre-analyze`   | Before git state analysis | Yes      |
+| `post-analyze`  | After state analysis      | No       |
+| `pre-branch`    | Before branch creation    | Yes      |
+| `post-branch`   | After branch creation     | No       |
+| `pre-commit`    | Before initial commit     | Yes      |
+| `post-commit`   | After initial commit      | No       |
+| `pre-push`      | Before push to origin     | Yes      |
+| `post-push`     | After push to origin      | No       |
+| `pre-pr`        | Before PR creation        | Yes      |
+| `post-pr`       | After PR creation         | No       |
+| `pre-worktree`  | Before worktree creation  | Yes      |
+| `post-worktree` | After worktree creation   | No       |
+| `cleanup`       | On error (for rollback)   | No       |
+
+**Critical hooks** abort the workflow if they fail. Non-critical hooks show a warning but continue.
+
+**Hook definition formats:**
+
+```json
+{
+  "hooks": {
+    // Simple command
+    "post-worktree": "npm install",
+
+    // Multiple commands (run in sequence)
+    "post-pr": ["echo 'Done!'", "./scripts/notify.sh"],
+
+    // Complex definition
+    "pre-commit": {
+      "command": "npm test",
+      "timeout": 60000,
+      "failOnError": true,
+      "if": "exists:package.json"
+    }
+  }
+}
+```
+
+**Hook context variables** (available as environment variables):
+
+| Variable           | Description        |
+| ------------------ | ------------------ |
+| `WT_BRANCH_NAME`   | New branch name    |
+| `WT_PR_NUMBER`     | PR number          |
+| `WT_PR_URL`        | PR URL             |
+| `WT_WORKTREE_PATH` | New worktree path  |
+| `WT_REPO_ROOT`     | Main repo root     |
+| `WT_BASE_BRANCH`   | Base branch (main) |
+| `WT_DESCRIPTION`   | PR description     |
 
 > **Note:** File syncing between worktrees is managed by `wtlink` using its own `.wtlinkrc` manifest. See the [wtlink section](#wtlink) for details.
 
@@ -284,6 +569,8 @@ npm test
 # Link for local development
 npm link
 ```
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed local development instructions, including how to test CLI commands without affecting your global install.
 
 ## License
 

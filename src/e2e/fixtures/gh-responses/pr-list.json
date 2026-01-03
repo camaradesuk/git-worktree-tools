@@ -1,0 +1,8 @@
+{
+  "description": "Template for PR list response",
+  "fields": ["number", "state", "title", "headRefName", "baseRefName", "url", "isDraft"],
+  "defaults": {
+    "state": "OPEN",
+    "baseRefName": "main"
+  }
+}
