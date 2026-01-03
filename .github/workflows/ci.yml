@@ -36,6 +36,7 @@ jobs:
         run: npm test
         env:
           CI: true
+          GH_TOKEN: ${{ github.token }}
 
   lint:
     name: Lint
@@ -86,6 +87,7 @@ jobs:
         run: npm run test:coverage
         env:
           CI: true
+          GH_TOKEN: ${{ github.token }}
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
