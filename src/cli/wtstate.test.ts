@@ -30,6 +30,7 @@ vi.mock('../lib/json-output.js', () => ({
 import * as git from '../lib/git.js';
 import * as wtstate from '../lib/wtstate/index.js';
 import * as jsonOutput from '../lib/json-output.js';
+import type { WtstateResult } from '../lib/wtstate/types.js';
 
 describe('cli/wtstate', () => {
   let mockConsoleLog: ReturnType<typeof vi.spyOn>;
@@ -133,12 +134,12 @@ describe('cli/wtstate', () => {
   });
 
   describe('successful state analysis', () => {
-    const mockStateResult = {
-      scenario: 'main_clean_same' as const,
+    const mockStateResult: WtstateResult = {
+      scenario: 'main_clean_same',
       scenarioDescription: 'On main branch, clean',
       currentBranch: 'main',
       baseBranch: 'main',
-      worktreeType: 'main_worktree' as const,
+      worktreeType: 'main_worktree',
       hasChanges: false,
       hasStagedChanges: false,
       hasUnstagedChanges: false,
@@ -146,7 +147,7 @@ describe('cli/wtstate', () => {
       stagedFiles: [],
       unstagedFiles: [],
       availableActions: [{ key: 'empty_commit', label: 'Create empty commit' }],
-      recommendedAction: 'empty_commit' as const,
+      recommendedAction: 'empty_commit',
     };
 
     it('outputs JSON when --json is used', async () => {
