@@ -510,8 +510,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   // Run pre-analyze hook
   if (!(await hookRunner.runHook('pre-analyze'))) {
-    console.error(colors.error('Aborted by pre-analyze hook.'));
-    process.exit(1);
+    exitWithError('Aborted by pre-analyze hook.', ErrorCode.HOOK_FAILED, options.json);
   }
 
   console.log(colors.info('Fetching latest from origin...'));
@@ -533,8 +532,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   // Run post-analyze hook
   if (!(await hookRunner.runHook('post-analyze'))) {
-    console.error(colors.error('Aborted by post-analyze hook.'));
-    process.exit(1);
+    exitWithError('Aborted by post-analyze hook.', ErrorCode.HOOK_FAILED, options.json);
   }
 
   debug('State analysis complete', {
@@ -647,8 +645,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     // Run pre-branch hook
     if (!(await hookRunner.runHook('pre-branch'))) {
-      console.error(colors.error('Aborted by pre-branch hook.'));
-      throw new Error('Aborted by pre-branch hook');
+      exitWithError('Aborted by pre-branch hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
     console.log(colors.info(`Creating branch from ${branchFrom}...`));
@@ -695,8 +692,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     if (stagedFiles.length > 0) {
       // Run pre-commit hook
       if (!(await hookRunner.runHook('pre-commit'))) {
-        console.error(colors.error('Aborted by pre-commit hook.'));
-        throw new Error('Aborted by pre-commit hook');
+        exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
       }
 
       console.log(colors.info('Committing staged changes...'));
@@ -708,8 +704,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     } else if (action.branchFrom === 'origin_main') {
       // Run pre-commit hook
       if (!(await hookRunner.runHook('pre-commit'))) {
-        console.error(colors.error('Aborted by pre-commit hook.'));
-        throw new Error('Aborted by pre-commit hook');
+        exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
       }
 
       console.log(colors.info('Creating initial commit (required for PR creation)...'));
@@ -725,8 +720,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     // Run pre-push hook
     if (!(await hookRunner.runHook('pre-push'))) {
-      console.error(colors.error('Aborted by pre-push hook.'));
-      throw new Error('Aborted by pre-push hook');
+      exitWithError('Aborted by pre-push hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
     console.log(colors.info('Pushing branch to origin...'));
@@ -739,8 +733,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     // Run pre-pr hook
     if (!(await hookRunner.runHook('pre-pr'))) {
-      console.error(colors.error('Aborted by pre-pr hook.'));
-      throw new Error('Aborted by pre-pr hook');
+      exitWithError('Aborted by pre-pr hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
     console.log(colors.info('Creating pull request...'));
@@ -784,8 +777,7 @@ ${description}
 
     // Run pre-worktree hook
     if (!(await hookRunner.runHook('pre-worktree'))) {
-      console.error(colors.error('Aborted by pre-worktree hook.'));
-      throw new Error('Aborted by pre-worktree hook');
+      exitWithError('Aborted by pre-worktree hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
     console.log(colors.info(`Creating worktree at ${worktreePath}...`));
