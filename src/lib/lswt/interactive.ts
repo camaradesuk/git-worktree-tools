@@ -27,6 +27,15 @@ const SHORTCUT_MAP: Record<string, WorktreeAction> = {
   q: 'exit',
 };
 
+/** Badge width constants for consistent formatting */
+const BADGE_WIDTH = {
+  main: 12, // '[main]' + padding
+  pr: 14, // '[PR #123]' + padding
+  remote_pr: 22, // '[PR #123 REMOTE]' + padding
+  branch: 12, // '[branch]' + padding
+  detached: 12, // '[detached]' + padding
+} as const;
+
 /**
  * Get the action for a shortcut key, handling worktree-specific rules.
  * Returns null if the shortcut is not valid for this worktree type.
@@ -313,7 +322,21 @@ async function selectWorktreeWithShortcuts(
     process.stdin.setRawMode(true);
     process.stdin.resume();
 
+    // Signal handler to ensure terminal is restored on unexpected termination
+    const handleSignal = () => {
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+      process.exit(0);
+    };
+
+    // Register signal handlers
+    process.on('SIGINT', handleSignal);
+    process.on('SIGTERM', handleSignal);
+
     const cleanup = () => {
+      // Remove signal handlers to prevent memory leaks
+      process.removeListener('SIGINT', handleSignal);
+      process.removeListener('SIGTERM', handleSignal);
       process.stdin.setRawMode(false);
       process.stdin.removeListener('keypress', onKeypress);
       process.stdin.pause();
@@ -322,10 +345,11 @@ async function selectWorktreeWithShortcuts(
     const onKeypress = (_str: string, key: readline.Key) => {
       if (!key) return;
 
-      // Handle Ctrl+C
+      // Handle Ctrl+C - clean exit instead of process.exit for better testability
       if (key.ctrl && key.name === 'c') {
         cleanup();
-        process.exit(0);
+        resolve({ worktree: null, action: 'exit' });
+        return;
       }
 
       // Handle arrow keys
@@ -364,37 +388,9 @@ async function selectWorktreeWithShortcuts(
         const shortcutKey = key.name.toLowerCase();
         const worktree = worktrees[selectedIndex];
 
-        if (shortcutKey in SHORTCUT_MAP) {
-          let action = SHORTCUT_MAP[shortcutKey];
-
-          // Special handling for remote PRs - limited actions
-          if (worktree.type === 'remote_pr') {
-            // Remote PRs only support: w (checkout), p (open PR), d (details), q (quit)
-            if (!['w', 'p', 'd', 'q'].includes(shortcutKey)) {
-              return;
-            }
-          } else {
-            // 'w' (checkout_pr) only works for remote_pr type
-            if (shortcutKey === 'w') {
-              return;
-            }
-          }
-
-          // Special handling for 'p' key based on worktree type
-          if (shortcutKey === 'p') {
-            if (worktree.type === 'branch') {
-              action = 'create_pr';
-            } else if (worktree.type !== 'pr' && worktree.type !== 'remote_pr') {
-              // 'p' only works for PR, remote_pr, and branch worktrees
-              return;
-            }
-          }
-
-          // 'r' (remove) doesn't work for main worktree
-          if (shortcutKey === 'r' && worktree.type === 'main') {
-            return;
-          }
-
+        // Use the shared helper function to get valid action for this shortcut
+        const action = getActionForShortcut(shortcutKey, worktree);
+        if (action) {
           cleanup();
           resolve({ worktree, action });
           return;
@@ -442,27 +438,27 @@ export function formatWorktreeChoiceWithColors(worktree: WorktreeDisplay): strin
 export function formatTypeBadgeWithColors(worktree: WorktreeDisplay): string {
   switch (worktree.type) {
     case 'main':
-      return colors.cyan('[main]      ');
+      return colors.cyan('[main]'.padEnd(BADGE_WIDTH.main));
     case 'pr': {
       if (worktree.isDraft) {
         const label = `[PR #${worktree.prNumber} DRAFT]`;
-        return colors.yellow(label.padEnd(14));
+        return colors.yellow(label.padEnd(BADGE_WIDTH.pr));
       }
       const prLabel = `[PR #${worktree.prNumber}]`;
-      return colors.green(prLabel.padEnd(14));
+      return colors.green(prLabel.padEnd(BADGE_WIDTH.pr));
     }
     case 'remote_pr': {
       if (worktree.isDraft) {
         const label = `[PR #${worktree.prNumber} REMOTE DRAFT]`;
-        return colors.dim(colors.yellow(label.padEnd(22)));
+        return colors.dim(colors.yellow(label.padEnd(BADGE_WIDTH.remote_pr)));
       }
       const prLabel = `[PR #${worktree.prNumber} REMOTE]`;
-      return colors.dim(prLabel.padEnd(22));
+      return colors.dim(prLabel.padEnd(BADGE_WIDTH.remote_pr));
     }
     case 'branch':
-      return colors.blue('[branch]    ');
+      return colors.blue('[branch]'.padEnd(BADGE_WIDTH.branch));
     case 'detached':
-      return colors.dim('[detached]  ');
+      return colors.dim('[detached]'.padEnd(BADGE_WIDTH.detached));
   }
 }
 
