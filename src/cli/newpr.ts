@@ -217,7 +217,12 @@ async function handleScenario(state: GitState, baseBranch: string): Promise<Stat
   const choiceIndex = await promptChoiceIndex('How would you like to proceed?', choiceLabels);
 
   // promptChoiceIndex returns 1-based index, convert to 0-based for array access
-  return context.choices[choiceIndex - 1].action;
+  const arrayIndex = choiceIndex - 1;
+  if (arrayIndex < 0 || arrayIndex >= context.choices.length) {
+    // Defensive check - should never happen as promptChoiceIndex validates input
+    return null;
+  }
+  return context.choices[arrayIndex].action;
 }
 
 /**

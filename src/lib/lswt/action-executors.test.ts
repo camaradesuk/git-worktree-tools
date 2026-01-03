@@ -32,24 +32,33 @@ vi.mock('../git.js', () => ({
   exec: vi.fn(),
 }));
 
-// Mock child_process for execSync (used by checkoutPr for git fetch)
+// Mock child_process for spawn/spawnSync
 vi.mock('child_process', async () => {
   const actual = await vi.importActual<typeof import('child_process')>('child_process');
   return {
     ...actual,
-    execSync: vi.fn().mockReturnValue(''),
+    spawnSync: vi.fn(),
     spawn: actual.spawn,
   };
 });
 
 import inquirer from 'inquirer';
-import { execSync } from 'child_process';
 import * as github from '../github.js';
 import * as git from '../git.js';
+import { spawnSync } from 'child_process';
 
 describe('lswt/action-executors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset spawnSync mock for WSL path conversion
+    vi.mocked(spawnSync).mockReturnValue({
+      status: 0,
+      stdout: '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo',
+      stderr: '',
+      pid: 0,
+      signal: null,
+      output: ['', '\\\\wsl.localhost\\Ubuntu\\home\\user\\repo', ''],
+    });
   });
 
   afterEach(() => {

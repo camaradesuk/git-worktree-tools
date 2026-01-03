@@ -261,15 +261,25 @@ async function selectWorktreeWithShortcuts(
   worktrees: WorktreeDisplay[],
   _env: EnvironmentInfo
 ): Promise<SelectionResult> {
+  // Guard: if stdin is not a TTY, we can't do interactive selection
+  if (!process.stdin.isTTY) {
+    // Return first worktree with no action (fallback for non-interactive mode)
+    return { worktree: worktrees[0] ?? null, action: null };
+  }
+
   return new Promise((resolve) => {
     let selectedIndex = 0;
     const exitIndex = worktrees.length; // Virtual "Exit" option
+    let firstRender = true;
 
     // Render the list
     const render = () => {
-      // Move cursor up to overwrite previous render (except first time)
+      // Move cursor up to overwrite previous render (skip on first render)
       const totalLines = worktrees.length + 2; // worktrees + exit + prompt line
-      process.stdout.write(`\x1b[${totalLines}A`);
+      if (!firstRender) {
+        process.stdout.write(`\x1b[${totalLines}A`);
+      }
+      firstRender = false;
 
       // Render each worktree
       for (let i = 0; i < worktrees.length; i++) {
@@ -298,17 +308,13 @@ async function selectWorktreeWithShortcuts(
     }
     render();
 
-    // Set up raw mode for keypress handling
-    if (process.stdin.isTTY) {
-      readline.emitKeypressEvents(process.stdin);
-      process.stdin.setRawMode(true);
-    }
+    // Set up raw mode for keypress handling (we already checked isTTY above)
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
     process.stdin.resume();
 
     const cleanup = () => {
-      if (process.stdin.isTTY) {
-        process.stdin.setRawMode(false);
-      }
+      process.stdin.setRawMode(false);
       process.stdin.removeListener('keypress', onKeypress);
       process.stdin.pause();
     };

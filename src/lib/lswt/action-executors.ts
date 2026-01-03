@@ -3,7 +3,7 @@
  */
 
 import * as path from 'path';
-import { execSync, spawn } from 'child_process';
+import { execSync, spawn, spawnSync } from 'child_process';
 import inquirer from 'inquirer';
 import * as colors from '../colors.js';
 import * as git from '../git.js';
@@ -166,19 +166,20 @@ async function openInEditor(
  * Convert a Linux path to Windows path for WSL interop
  */
 function wslPathToWindows(linuxPath: string): string {
-  try {
-    // Use wslpath to convert Linux path to Windows path
-    const windowsPath = execSync(`wslpath -w "${linuxPath}"`, {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
-    return windowsPath;
-  } catch {
-    // Fallback: manual conversion for common /home paths
-    // /home/user/... -> \\wsl$\<distro>\home\user\...
-    const distro = process.env.WSL_DISTRO_NAME || 'Ubuntu';
-    return `\\\\wsl$\\${distro}${linuxPath.replace(/\//g, '\\')}`;
+  // Use spawnSync with array args to avoid shell escaping issues
+  const result = spawnSync('wslpath', ['-w', linuxPath], {
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  if (result.status === 0 && result.stdout) {
+    return result.stdout.trim();
   }
+
+  // Fallback: manual conversion for common /home paths
+  // Try \\wsl.localhost\ first (Windows 11+), fall back to \\wsl$\ (Windows 10)
+  const distro = process.env.WSL_DISTRO_NAME || 'Ubuntu';
+  return `\\\\wsl.localhost\\${distro}${linuxPath.replace(/\//g, '\\')}`;
 }
 
 /**
