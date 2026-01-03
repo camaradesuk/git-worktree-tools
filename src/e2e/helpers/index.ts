@@ -15,6 +15,7 @@ export {
   normalizeLineEndings,
   isGhAvailable,
   GH_AVAILABLE,
+  IS_WINDOWS,
   CLI_DIR,
   type CliTool,
   type CliResult,

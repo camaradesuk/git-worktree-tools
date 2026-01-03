@@ -242,6 +242,17 @@ export function isGhAvailable(): boolean {
 }
 
 /**
- * Flag indicating if gh CLI is available (cached at module load)
+ * Check if we're running on Windows
  */
-export const GH_AVAILABLE = isGhAvailable();
+export const IS_WINDOWS = process.platform === 'win32';
+
+/**
+ * Flag indicating if gh CLI mock tests can run.
+ *
+ * The gh mock uses a shell script on Unix and a batch file on Windows.
+ * The Windows batch file mock has compatibility issues with how execSync
+ * finds executables, so we skip gh-dependent e2e tests on Windows.
+ *
+ * Tests still run on Ubuntu and macOS where the mock works correctly.
+ */
+export const GH_AVAILABLE = isGhAvailable() && !IS_WINDOWS;
