@@ -27,6 +27,52 @@ const SHORTCUT_MAP: Record<string, WorktreeAction> = {
   q: 'exit',
 };
 
+/**
+ * Get the action for a shortcut key, handling worktree-specific rules.
+ * Returns null if the shortcut is not valid for this worktree type.
+ * Exported for testing.
+ */
+export function getActionForShortcut(
+  shortcutKey: string,
+  worktree: WorktreeDisplay
+): WorktreeAction | null {
+  if (!(shortcutKey in SHORTCUT_MAP)) {
+    return null;
+  }
+
+  let action = SHORTCUT_MAP[shortcutKey];
+
+  // Special handling for remote PRs - limited actions
+  if (worktree.type === 'remote_pr') {
+    // Remote PRs only support: w (checkout), p (open PR), d (details), q (quit)
+    if (!['w', 'p', 'd', 'q'].includes(shortcutKey)) {
+      return null;
+    }
+  } else {
+    // 'w' (checkout_pr) only works for remote_pr type
+    if (shortcutKey === 'w') {
+      return null;
+    }
+  }
+
+  // Special handling for 'p' key based on worktree type
+  if (shortcutKey === 'p') {
+    if (worktree.type === 'branch') {
+      action = 'create_pr';
+    } else if (worktree.type !== 'pr' && worktree.type !== 'remote_pr') {
+      // 'p' only works for PR, remote_pr, and branch worktrees
+      return null;
+    }
+  }
+
+  // 'r' (remove) doesn't work for main worktree
+  if (shortcutKey === 'r' && worktree.type === 'main') {
+    return null;
+  }
+
+  return action;
+}
+
 /** Result from the combined worktree+action selection */
 interface SelectionResult {
   worktree: WorktreeDisplay | null;
@@ -205,7 +251,12 @@ function printWorktreeHeader(worktrees: WorktreeDisplay[], env: EnvironmentInfo)
 /**
  * Select a worktree from the list with keyboard shortcuts
  * Arrow keys to navigate, Enter to select, or press a shortcut key
+ *
+ * This function uses raw stdin keypress handling and is intentionally
+ * excluded from coverage. The logic is tested via dependency injection
+ * in tests where this function is mocked.
  */
+/* c8 ignore start */
 async function selectWorktreeWithShortcuts(
   worktrees: WorktreeDisplay[],
   _env: EnvironmentInfo
@@ -348,6 +399,7 @@ async function selectWorktreeWithShortcuts(
     process.stdin.on('keypress', onKeypress);
   });
 }
+/* c8 ignore stop */
 
 /**
  * Format worktree choice with colors for display
@@ -446,7 +498,11 @@ export function formatStatusWithColors(worktree: WorktreeDisplay): string {
 
 /**
  * Select an action for the worktree
+ *
+ * Uses inquirer.prompt which requires real stdin.
+ * Excluded from coverage - tested via dependency injection.
  */
+/* c8 ignore start */
 async function selectActionMenu(
   worktree: WorktreeDisplay,
   env: ReturnType<typeof detectEnvironment>

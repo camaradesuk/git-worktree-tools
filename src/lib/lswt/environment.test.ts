@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   parseGitVersion,
   isGitVersionAtLeast,
@@ -310,6 +310,131 @@ describe('lswt/environment', () => {
       const result1 = isWSL();
       const result2 = isWSL();
       expect(result1).toBe(result2);
+    });
+  });
+
+  describe('isWSL with environment manipulation', () => {
+    let originalWslDistroName: string | undefined;
+
+    beforeEach(() => {
+      originalWslDistroName = process.env.WSL_DISTRO_NAME;
+    });
+
+    afterEach(() => {
+      if (originalWslDistroName !== undefined) {
+        process.env.WSL_DISTRO_NAME = originalWslDistroName;
+      } else {
+        delete process.env.WSL_DISTRO_NAME;
+      }
+    });
+
+    it('returns true when WSL_DISTRO_NAME is set on linux', () => {
+      // If we're on Linux, we can test WSL_DISTRO_NAME detection
+      if (process.platform === 'linux') {
+        process.env.WSL_DISTRO_NAME = 'Ubuntu';
+        expect(isWSL()).toBe(true);
+      }
+    });
+
+    it('falls through to /proc/version check when WSL_DISTRO_NAME is not set', () => {
+      // On Linux, temporarily clear WSL_DISTRO_NAME to force /proc/version check
+      if (process.platform === 'linux') {
+        delete process.env.WSL_DISTRO_NAME;
+        // Result depends on actual /proc/version content
+        // Just verify it returns a boolean without throwing
+        const result = isWSL();
+        expect(typeof result).toBe('boolean');
+      }
+    });
+
+    it('detects WSL correctly based on actual environment', () => {
+      // This test verifies behavior matches actual environment
+      // On actual WSL, one of the detection methods will work
+      if (process.platform === 'linux') {
+        const result = isWSL();
+        // If WSL_DISTRO_NAME was set, we detected WSL via env var
+        // Otherwise we detected via /proc/version content
+        if (process.env.WSL_DISTRO_NAME) {
+          expect(result).toBe(true);
+        }
+        // Either way, no exception should be thrown
+        expect(typeof result).toBe('boolean');
+      }
+    });
+
+    it('returns false when fs.readFileSync throws on Linux without WSL_DISTRO_NAME', async () => {
+      // Only run on Linux
+      if (process.platform !== 'linux') return;
+
+      // Clear WSL_DISTRO_NAME to force /proc/version check
+      delete process.env.WSL_DISTRO_NAME;
+
+      // Reset modules and mock fs before re-importing
+      vi.resetModules();
+      vi.doMock('fs', () => ({
+        readFileSync: () => {
+          throw new Error('ENOENT: no such file or directory');
+        },
+      }));
+
+      // Import fresh module with mocked fs
+      const { isWSL: isWSLMocked } = await import('./environment.js');
+      const result = isWSLMocked();
+
+      // The catch block should return false
+      expect(result).toBe(false);
+
+      // Clean up
+      vi.doUnmock('fs');
+      vi.resetModules();
+    });
+
+    it('detects WSL via /proc/version containing "microsoft"', async () => {
+      // Only run on Linux
+      if (process.platform !== 'linux') return;
+
+      // Clear WSL_DISTRO_NAME to force /proc/version check
+      delete process.env.WSL_DISTRO_NAME;
+
+      // Reset modules and mock fs to return WSL-like content
+      vi.resetModules();
+      vi.doMock('fs', () => ({
+        readFileSync: () => 'Linux version 5.10.102.1-microsoft-standard-WSL2',
+      }));
+
+      // Import fresh module with mocked fs
+      const { isWSL: isWSLMocked } = await import('./environment.js');
+      const result = isWSLMocked();
+
+      expect(result).toBe(true);
+
+      // Clean up
+      vi.doUnmock('fs');
+      vi.resetModules();
+    });
+
+    it('returns false on Linux without WSL indicators', async () => {
+      // Only run on Linux
+      if (process.platform !== 'linux') return;
+
+      // Clear WSL_DISTRO_NAME
+      delete process.env.WSL_DISTRO_NAME;
+
+      // Reset modules and mock fs to return non-WSL content
+      vi.resetModules();
+      vi.doMock('fs', () => ({
+        readFileSync: () => 'Linux version 5.15.0-generic',
+      }));
+
+      // Import fresh module with mocked fs
+      const { isWSL: isWSLMocked } = await import('./environment.js');
+      const result = isWSLMocked();
+
+      expect(result).toBe(false);
+
+      // Clean up
+      vi.doUnmock('fs');
+      vi.resetModules();
     });
   });
 

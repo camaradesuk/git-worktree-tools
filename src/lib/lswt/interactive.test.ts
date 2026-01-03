@@ -4,6 +4,7 @@ import {
   formatTypeBadgeWithColors,
   formatStatusWithColors,
   runInteractiveMode,
+  getActionForShortcut,
   type InteractiveDeps,
 } from './interactive.js';
 import type { WorktreeDisplay, ListOptions, WorktreeAction } from './types.js';
@@ -352,6 +353,173 @@ describe('lswt/interactive', () => {
       const result = formatWorktreeChoiceWithColors(worktree);
 
       expect(result).toContain('DRAFT');
+    });
+  });
+
+  describe('getActionForShortcut', () => {
+    // Basic shortcut mapping tests
+    it('returns open_editor for "e" shortcut on regular worktrees', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      expect(getActionForShortcut('e', worktree)).toBe('open_editor');
+    });
+
+    it('returns open_terminal for "t" shortcut', () => {
+      const worktree = makeWorktree({ type: 'branch' });
+      expect(getActionForShortcut('t', worktree)).toBe('open_terminal');
+    });
+
+    it('returns copy_path for "c" shortcut', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      expect(getActionForShortcut('c', worktree)).toBe('copy_path');
+    });
+
+    it('returns show_details for "d" shortcut', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      expect(getActionForShortcut('d', worktree)).toBe('show_details');
+    });
+
+    it('returns link_configs for "l" shortcut', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      expect(getActionForShortcut('l', worktree)).toBe('link_configs');
+    });
+
+    it('returns exit for "q" shortcut', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      expect(getActionForShortcut('q', worktree)).toBe('exit');
+    });
+
+    it('returns null for unknown shortcut keys', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      expect(getActionForShortcut('x', worktree)).toBeNull();
+      expect(getActionForShortcut('z', worktree)).toBeNull();
+      expect(getActionForShortcut('1', worktree)).toBeNull();
+    });
+
+    // "p" key behavior tests
+    describe('"p" key behavior', () => {
+      it('returns open_pr_url for "p" on PR worktree', () => {
+        const worktree = makeWorktree({ type: 'pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('p', worktree)).toBe('open_pr_url');
+      });
+
+      it('returns create_pr for "p" on branch worktree', () => {
+        const worktree = makeWorktree({ type: 'branch', branch: 'feature' });
+        expect(getActionForShortcut('p', worktree)).toBe('create_pr');
+      });
+
+      it('returns open_pr_url for "p" on remote_pr worktree', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('p', worktree)).toBe('open_pr_url');
+      });
+
+      it('returns null for "p" on main worktree', () => {
+        const worktree = makeWorktree({ type: 'main' });
+        expect(getActionForShortcut('p', worktree)).toBeNull();
+      });
+
+      it('returns null for "p" on detached worktree', () => {
+        const worktree = makeWorktree({ type: 'detached' });
+        expect(getActionForShortcut('p', worktree)).toBeNull();
+      });
+    });
+
+    // "w" key behavior tests (checkout_pr - only for remote_pr)
+    describe('"w" key behavior (checkout_pr)', () => {
+      it('returns checkout_pr for "w" on remote_pr worktree', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('w', worktree)).toBe('checkout_pr');
+      });
+
+      it('returns null for "w" on main worktree', () => {
+        const worktree = makeWorktree({ type: 'main' });
+        expect(getActionForShortcut('w', worktree)).toBeNull();
+      });
+
+      it('returns null for "w" on branch worktree', () => {
+        const worktree = makeWorktree({ type: 'branch' });
+        expect(getActionForShortcut('w', worktree)).toBeNull();
+      });
+
+      it('returns null for "w" on pr worktree', () => {
+        const worktree = makeWorktree({ type: 'pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('w', worktree)).toBeNull();
+      });
+
+      it('returns null for "w" on detached worktree', () => {
+        const worktree = makeWorktree({ type: 'detached' });
+        expect(getActionForShortcut('w', worktree)).toBeNull();
+      });
+    });
+
+    // "r" key behavior tests (remove_worktree)
+    describe('"r" key behavior (remove_worktree)', () => {
+      it('returns remove_worktree for "r" on branch worktree', () => {
+        const worktree = makeWorktree({ type: 'branch' });
+        expect(getActionForShortcut('r', worktree)).toBe('remove_worktree');
+      });
+
+      it('returns remove_worktree for "r" on pr worktree', () => {
+        const worktree = makeWorktree({ type: 'pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('r', worktree)).toBe('remove_worktree');
+      });
+
+      it('returns remove_worktree for "r" on detached worktree', () => {
+        const worktree = makeWorktree({ type: 'detached' });
+        expect(getActionForShortcut('r', worktree)).toBe('remove_worktree');
+      });
+
+      it('returns null for "r" on main worktree', () => {
+        const worktree = makeWorktree({ type: 'main' });
+        expect(getActionForShortcut('r', worktree)).toBeNull();
+      });
+    });
+
+    // Remote PR limited actions tests
+    describe('remote_pr limited actions', () => {
+      it('returns null for "e" (open_editor) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('e', worktree)).toBeNull();
+      });
+
+      it('returns null for "t" (open_terminal) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('t', worktree)).toBeNull();
+      });
+
+      it('returns null for "c" (copy_path) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('c', worktree)).toBeNull();
+      });
+
+      it('returns null for "l" (link_configs) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('l', worktree)).toBeNull();
+      });
+
+      it('returns null for "r" (remove_worktree) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('r', worktree)).toBeNull();
+      });
+
+      it('allows "w" (checkout_pr) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('w', worktree)).toBe('checkout_pr');
+      });
+
+      it('allows "p" (open_pr_url) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('p', worktree)).toBe('open_pr_url');
+      });
+
+      it('allows "d" (show_details) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('d', worktree)).toBe('show_details');
+      });
+
+      it('allows "q" (exit) on remote_pr', () => {
+        const worktree = makeWorktree({ type: 'remote_pr', prNumber: 42, prState: 'OPEN' });
+        expect(getActionForShortcut('q', worktree)).toBe('exit');
+      });
     });
   });
 
