@@ -28,6 +28,8 @@ vi.mock('../git.js', () => ({
   removeWorktree: vi.fn(),
   getMainWorktreeRoot: vi.fn(),
   addWorktree: vi.fn(),
+  deleteBranch: vi.fn(),
+  exec: vi.fn(),
 }));
 
 // Mock child_process for execSync (used by checkoutPr for git fetch)
@@ -1148,8 +1150,8 @@ describe('lswt/action-executors', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
       vi.mocked(git.addWorktree).mockImplementation(() => {});
-      // Mock execSync to return empty string (git fetch succeeds)
-      vi.mocked(execSync).mockReturnValue('');
+      // Mock git.exec to return empty string (git fetch succeeds)
+      vi.mocked(git.exec).mockReturnValue('');
 
       const worktree = makeWorktree({
         type: 'remote_pr',
@@ -1177,8 +1179,8 @@ describe('lswt/action-executors', () => {
     it('handles git fetch failure', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
-      // Mock execSync to throw (git fetch fails)
-      vi.mocked(execSync).mockImplementation(() => {
+      // Mock git.exec to throw (git fetch fails)
+      vi.mocked(git.exec).mockImplementation(() => {
         throw new Error('Failed to fetch branch');
       });
 

@@ -342,11 +342,7 @@ async function showDetails(worktree: WorktreeDisplay): Promise<ActionResult> {
 
     // Show recent commits
     try {
-      const logs = execSync('git log --oneline -5', {
-        cwd: worktree.path,
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim();
+      const logs = git.exec(['log', '--oneline', '-5'], { cwd: worktree.path, silent: true });
 
       if (logs) {
         console.log('');
@@ -563,10 +559,7 @@ async function removeWorktree(worktree: WorktreeDisplay): Promise<ActionResult> 
         console.log(colors.dim(`Deleting branch ${worktree.branch}...`));
         // Use main worktree root as cwd since the worktree was just removed
         const mainRoot = git.getMainWorktreeRoot();
-        execSync(`git branch -D "${worktree.branch}"`, {
-          cwd: mainRoot,
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
+        git.deleteBranch(worktree.branch, { force: true, cwd: mainRoot });
       } catch {
         // Branch might not exist locally
       }
@@ -627,10 +620,7 @@ async function checkoutPr(
     console.log(colors.dim('\nFetching PR branch...'));
 
     // Fetch the PR branch from origin
-    execSync(`git fetch origin "${branch}:${branch}"`, {
-      cwd: repoRoot,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    git.exec(['fetch', 'origin', `${branch}:${branch}`], { cwd: repoRoot, silent: true });
 
     console.log(colors.dim(`Creating worktree at ${worktreePath}...`));
 
