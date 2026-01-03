@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execSync } from 'child_process';
 import {
   extractPrNumber,
@@ -251,8 +251,8 @@ describe('cleanpr/worktree-info', () => {
           state: 'MERGED',
           title: 'Test PR',
           url: 'https://github.com/owner/repo/pull/42',
-          headRefName: 'feature',
-          baseRefName: 'main',
+          headBranch: 'feature',
+          baseBranch: 'main',
           isDraft: false,
         });
         const deps = createDefaultDeps();

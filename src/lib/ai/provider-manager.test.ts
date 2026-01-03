@@ -13,7 +13,9 @@ import type { AIConfig, AIProvider, AIGenerationResult } from './types.js';
 // Mock the provider modules with static checkAvailability methods
 vi.mock('./cli-provider.js', () => {
   const createMockProviderClass = () => {
-    const MockClass = vi.fn();
+    const MockClass = vi.fn() as ReturnType<typeof vi.fn> & {
+      checkAvailability: ReturnType<typeof vi.fn>;
+    };
     MockClass.checkAvailability = vi.fn().mockResolvedValue(true);
     return MockClass;
   };
