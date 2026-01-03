@@ -361,12 +361,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '--all']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": false')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('GH_NOT_INSTALLED')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('GH_NOT_INSTALLED'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
@@ -388,12 +384,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '--all']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": false')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('NOT_GIT_REPO')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('NOT_GIT_REPO'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
@@ -405,12 +397,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '--invalid']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": false')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('INVALID_ARGUMENT')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('INVALID_ARGUMENT'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
@@ -447,12 +435,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '--all']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": true')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"totalCleaned": 1')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": true'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalCleaned": 1'));
     });
 
     it('outputs JSON empty result when no cleanable worktrees with --json --all', async () => {
@@ -479,12 +463,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '--all']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": true')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"totalCleaned": 0')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": true'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalCleaned": 0'));
     });
 
     it('outputs JSON error when specific PR not found with --json', async () => {
@@ -511,12 +491,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '999']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": false')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('PR_NOT_FOUND')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('PR_NOT_FOUND'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
@@ -553,12 +529,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '42']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": true')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"totalCleaned": 1')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": true'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalCleaned": 1'));
     });
 
     it('outputs JSON error when interactive mode requested with --json', async () => {
@@ -584,12 +556,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"success": false')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('INVALID_ARGUMENT')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('INVALID_ARGUMENT'));
       expect(mockConsoleLog).toHaveBeenCalledWith(
         expect.stringContaining('Interactive mode not supported')
       );
@@ -632,9 +600,7 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--dry-run', '--all']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('Would clean')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Would clean'));
     });
 
     it('outputs JSON dry-run results with --json --dry-run --all', async () => {
@@ -670,12 +636,8 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '--dry-run', '--all']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"wouldClean"')
-      );
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"totalWouldClean": 1')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"wouldClean"'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalWouldClean": 1'));
     });
 
     it('outputs dry-run results for specific PR with --dry-run', async () => {
@@ -848,9 +810,7 @@ describe('cli/cleanpr', () => {
 
       await runCli(['--json', '--all']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(
-        expect.stringContaining('"totalSkipped": 1')
-      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"totalSkipped": 1'));
     });
   });
 });

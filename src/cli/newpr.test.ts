@@ -794,7 +794,13 @@ describe('cli/newpr', () => {
         ],
       });
 
-      await runCli(['Add new feature', '--non-interactive', '--action', 'invalid_action', '--json']);
+      await runCli([
+        'Add new feature',
+        '--non-interactive',
+        '--action',
+        'invalid_action',
+        '--json',
+      ]);
 
       const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
         String(call[0]).includes('"success": false')
