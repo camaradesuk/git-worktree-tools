@@ -19,7 +19,28 @@ import {
   createDefaultDeps,
   runInteractiveMode,
 } from '../lib/lswt/index.js';
+import {
+  createErrorResult,
+  formatJsonResult,
+  ErrorCode,
+  getErrorSuggestion,
+} from '../lib/json-output.js';
 import type { WorktreeDisplay, ListOptions } from '../lib/lswt/index.js';
+
+/**
+ * Check if --json flag is present in args (for early error handling)
+ */
+function hasJsonFlag(args: string[]): boolean {
+  return args.includes('--json');
+}
+
+/**
+ * Output error in JSON format for programmatic consumers
+ */
+function outputJsonError(code: ErrorCode, message: string): void {
+  const result = createErrorResult('lswt', code, message, undefined, getErrorSuggestion(code));
+  console.log(formatJsonResult(result));
+}
 
 const colorMap = {
   cyan: colors.cyan,
@@ -73,7 +94,9 @@ function printTable(worktrees: WorktreeDisplay[], options: ListOptions, cwd: str
 }
 
 async function main(): Promise<void> {
-  const result = parseArgs(process.argv.slice(2));
+  const rawArgs = process.argv.slice(2);
+  const jsonMode = hasJsonFlag(rawArgs);
+  const result = parseArgs(rawArgs);
 
   if (result.kind === 'help') {
     console.log(getHelpText());
@@ -81,7 +104,11 @@ async function main(): Promise<void> {
   }
 
   if (result.kind === 'error') {
-    console.error(colors.error(result.message));
+    if (jsonMode) {
+      outputJsonError(ErrorCode.INVALID_ARGUMENT, result.message);
+    } else {
+      console.error(colors.error(result.message));
+    }
     process.exit(1);
   }
 
@@ -89,15 +116,22 @@ async function main(): Promise<void> {
 
   // Check for gh cli if status requested
   if (options.showStatus && !github.isGhInstalled()) {
-    console.error(colors.warning('GitHub CLI (gh) not installed. PR status will not be shown.'));
-    console.error(colors.dim('Install: https://cli.github.com/'));
+    if (!options.json) {
+      console.error(colors.warning('GitHub CLI (gh) not installed. PR status will not be shown.'));
+      console.error(colors.dim('Install: https://cli.github.com/'));
+    }
     options.showStatus = false;
   }
 
   // Find repo root
   const repoRoot = git.getRepoRoot();
   if (!repoRoot) {
-    console.error(colors.error('Not in a git repository.'));
+    if (options.json) {
+      outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not a git repository');
+    } else {
+      console.error(colors.error('Not a git repository.'));
+      console.error(colors.dim('Run this command from within a git repository.'));
+    }
     process.exit(1);
   }
 
@@ -123,13 +157,22 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
+  const jsonMode = hasJsonFlag(process.argv.slice(2));
 
   // Provide friendly message for common errors
   if (message.includes('not a git repository')) {
-    console.error(colors.error('Not a git repository'));
-    console.error(colors.dim('Run this command from within a git repository.'));
+    if (jsonMode) {
+      outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not a git repository');
+    } else {
+      console.error(colors.error('Not a git repository'));
+      console.error(colors.dim('Run this command from within a git repository.'));
+    }
   } else {
-    console.error(colors.error(`Error: ${message}`));
+    if (jsonMode) {
+      outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
+    } else {
+      console.error(colors.error(`Error: ${message}`));
+    }
   }
   process.exit(1);
 });

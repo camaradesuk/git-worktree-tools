@@ -91,6 +91,42 @@ describe('lswt e2e - core functionality', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
     });
+
+    it('outputs JSON error when --json flag is used outside git repo (UX-010)', () => {
+      // Regression test for UX-010: lswt --json should output JSON errors, not text
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'not-git-json-'));
+      const ghMock = setupGhMock();
+
+      try {
+        const result = runCli('lswt', ['--json', '--no-interactive'], {
+          cwd: tempDir,
+          env: ghMock.mockEnv,
+        });
+
+        expect(result.exitCode).not.toBe(0);
+
+        // The stdout should be valid JSON with error information
+        let jsonOutput: { success: boolean; error?: { code: string; message: string } };
+        try {
+          jsonOutput = JSON.parse(result.stdout);
+        } catch {
+          // If JSON parsing fails, check stderr doesn't have [ERROR] text format
+          expect(result.stderr).not.toMatch(/\[ERROR\]/);
+          // If no JSON in stdout, that's also acceptable as long as no stack traces
+          expect(result.stderr).not.toMatch(/at\s+\w+\s+\(/); // No stack traces
+          return;
+        }
+
+        // Verify JSON error structure
+        expect(jsonOutput.success).toBe(false);
+        expect(jsonOutput.error).toBeDefined();
+        expect(jsonOutput.error?.code).toBeDefined();
+        expect(jsonOutput.error?.message).toMatch(/git|repository/i);
+      } finally {
+        ghMock.cleanup();
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 });
 

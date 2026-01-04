@@ -94,7 +94,32 @@ describe('newpr/args', () => {
         const result = parseArgs(['--pr', 'abc']);
         expect(result.kind).toBe('error');
         if (result.kind === 'error') {
-          expect(result.message).toContain('PR number must be a positive number');
+          expect(result.message).toContain('PR number must be a positive integer');
+        }
+      });
+
+      it('returns error when PR number is a float (UX-014)', () => {
+        // Regression test for UX-014: parseInt("1.5") returns 1, but we should reject floats
+        const result = parseArgs(['--pr', '1.5']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('PR number must be a positive integer');
+        }
+      });
+
+      it('returns error for negative PR numbers', () => {
+        const result = parseArgs(['--pr', '-5']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('--pr requires a PR number');
+        }
+      });
+
+      it('returns error for zero PR number', () => {
+        const result = parseArgs(['--pr', '0']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('PR number must be a positive');
         }
       });
     });

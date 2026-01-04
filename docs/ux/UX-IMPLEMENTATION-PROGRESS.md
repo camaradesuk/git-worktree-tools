@@ -1,6 +1,6 @@
 # UX Implementation Progress Report
 
-> **Last Updated:** January 2026
+> **Last Updated:** January 4, 2026
 > **Tests Status:** 1711 tests passing
 > **Current Version:** 1.5.0
 
@@ -559,18 +559,98 @@ From [UX-IMPROVEMENT-ANALYSIS.md](./UX-IMPROVEMENT-ANALYSIS.md):
 | **Unified `wt` command** | Master command that encompasses all tools | Medium |
 | **Fuzzy search in lswt** | `/` to search worktrees by name           | Medium |
 | **Shell completion**     | Tab completion for bash/zsh/fish          | Medium |
-| **Consistent prompts**   | All prompts use arrow-key navigation      | Medium |
 
-Example `wt` command structure:
+#### 2.1 Unified `wt` Command Implementation Plan
+
+Create a master `wt` command that encompasses all existing tools via yargs subcommands, following the pattern already established by `wtlink`.
+
+**Command Structure:**
 
 ```bash
-wt new "Feature"         # Same as newpr
-wt list                  # Same as lswt
-wt clean                 # Same as cleanpr
-wt link                  # Same as wtlink
-wt state                 # Same as wtstate
-wt config                # Same as wtconfig
+wt new <description>      # → newpr functionality
+wt list                   # → lswt functionality
+wt clean [pr-number]      # → cleanpr functionality
+wt link [subcommand]      # → wtlink functionality
+wt state                  # → wtstate functionality
+wt config [subcommand]    # → wtconfig functionality
 ```
+
+**Short Aliases:**
+
+- `wt n` → `wt new`
+- `wt ls` → `wt list`
+- `wt c` → `wt clean`
+- `wt l` → `wt link`
+- `wt s` → `wt state`
+- `wt cfg` → `wt config`
+
+**Files to Create:**
+
+| File                   | Purpose                                                 |
+| ---------------------- | ------------------------------------------------------- |
+| `src/cli/wt.ts`        | Main entry point using yargs with subcommands           |
+| `src/cli/wt/new.ts`    | Handler wrapping newpr lib (maps argv to newpr options) |
+| `src/cli/wt/list.ts`   | Handler wrapping lswt lib (reuses formatters)           |
+| `src/cli/wt/clean.ts`  | Handler wrapping cleanpr lib (--all, --dry-run, --json) |
+| `src/cli/wt/link.ts`   | Handler wrapping wtlink lib (manage, link, validate)    |
+| `src/cli/wt/state.ts`  | Handler wrapping wtstate lib (--verbose, --json)        |
+| `src/cli/wt/config.ts` | Handler wrapping wtconfig lib (show, init, get, set)    |
+
+**Files to Modify:**
+
+| File           | Change                  |
+| -------------- | ----------------------- |
+| `package.json` | Add `wt` to bin entries |
+
+**Example Implementation (wt.ts):**
+
+```typescript
+#!/usr/bin/env node
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+
+import { newCommand } from './wt/new.js';
+import { listCommand } from './wt/list.js';
+import { cleanCommand } from './wt/clean.js';
+import { linkCommand } from './wt/link.js';
+import { stateCommand } from './wt/state.js';
+import { configCommand } from './wt/config.js';
+
+yargs(hideBin(process.argv))
+  .scriptName('wt')
+  .usage('$0 <command> [options]')
+  .command(newCommand)
+  .command(listCommand)
+  .command(cleanCommand)
+  .command(linkCommand)
+  .command(stateCommand)
+  .command(configCommand)
+  .demandCommand(1, 'You need to specify a command')
+  .help()
+  .version()
+  .wrap(Math.min(100, process.stdout.columns ?? 100))
+  .parseAsync();
+```
+
+**Backwards Compatibility:** Existing commands (newpr, cleanpr, lswt, etc.) remain unchanged. Users can continue using them directly or switch to the unified `wt` interface.
+
+**Testing Strategy:**
+
+1. Build and verify all subcommands work
+2. Test flag inheritance (--json, etc.)
+3. Test aliases
+4. Verify help text is consistent
+5. Run existing tests to ensure no regressions
+
+**Estimated Scope:** ~600-800 lines of new code (~200 for wt.ts, ~50-100 per handler)
+
+#### 2.2 Fuzzy Search in lswt
+
+Add `/` key to trigger fuzzy search when listing worktrees interactively.
+
+#### 2.3 Shell Completion
+
+Add tab completion scripts for bash/zsh/fish shells
 
 ### Phase 3: Advanced Features (Medium Priority)
 
@@ -642,17 +722,52 @@ wt config                # Same as wtconfig
 - [x] JSON error responses include `suggestion` field
 - [x] All 1711 tests pass
 
-### Pending Verifications
+### Pending Verifications (Updated 2026-01-04)
 
-- [x] `wtlink link` shows friendly error (not stack trace) with single worktree
+- [ ] `wtlink link` shows friendly error (not stack trace) with single worktree **(UX-001 CONFIRMED - still shows stack trace)**
 - [x] `lswt` from /tmp shows "Not a git repository" (not raw git error)
-- [x] `newpr "test" --json` outputs only JSON (no [INFO] text mixed in)
-- [x] `wtlink manage -n -d` with many files shows summary (not 400+ lines)
-- [x] `wtlink --help` text doesn't wrap mid-word
-- [x] `cleanpr --all` with no worktrees shows friendly message
-- [x] `newpr` success shows "Next steps:" suggestions
-- [x] `cleanpr` success shows "Next steps:" suggestions
-- [x] `newpr`/`cleanpr` prompts use arrow-key navigation (when TTY available)
+- [x] `newpr "test" --json` outputs only JSON (no [INFO] text mixed in) **(UX-012 FIXED)**
+- [x] `wtlink manage -n -d` with many files shows summary (not 400+ lines) **(UX-004 FIXED)**
+- [ ] `wtlink --help` text doesn't wrap mid-word **(UX-005 CONFIRMED - still wraps)**
+- [x] `cleanpr --all` with no worktrees shows friendly message **(UX-007 FIXED)**
+- [x] `newpr` success shows "Next steps:" suggestions **(UX-008 FIXED)**
+- [x] `cleanpr` success shows "Next steps:" suggestions **(UX-008 FIXED)**
+- [x] `newpr`/`cleanpr` prompts use arrow-key navigation (when TTY available) **(UX-009 FIXED)**
+- [ ] `lswt --json` shows JSON error (not [ERROR] text) when not in repo **(UX-010 CONFIRMED - still shows text)**
+
+### Comprehensive Test Session (2026-01-04)
+
+**Test Environment:** GitHub repo `wt-cli-test-*` with PRs in OPEN/MERGED/CLOSED states
+
+| Category         | Tests  | Pass   | Issues                 |
+| ---------------- | ------ | ------ | ---------------------- |
+| lswt             | 7      | 6      | UX-010                 |
+| wtstate          | 5      | 5      | -                      |
+| wtconfig         | 2      | 2      | -                      |
+| wtlink           | 5      | 2      | UX-001, UX-005, UX-015 |
+| cleanpr          | 3      | 3      | -                      |
+| newpr            | 5      | 4      | UX-014                 |
+| JSON/Exit        | 6      | 6      | -                      |
+| Performance      | 2      | 2      | -                      |
+| Input validation | 4      | 3      | UX-014                 |
+| **Total**        | **46** | **41** | **5 remaining**        |
+
+**New Issues Found:**
+
+- UX-014: Float PR numbers (1.5) are truncated to integers instead of rejected
+- UX-015: wtlink validate shows stack trace when no manifest exists
+
+**Remaining Open Issues (5):**
+
+| ID     | Severity | Tool   | Issue                                    |
+| ------ | -------- | ------ | ---------------------------------------- |
+| UX-001 | P1       | wtlink | Stack trace on single worktree           |
+| UX-005 | P2       | wtlink | Help text wraps mid-word                 |
+| UX-010 | P1       | lswt   | --json shows [ERROR] text not JSON       |
+| UX-014 | P2       | newpr  | Float PR numbers truncated               |
+| UX-015 | P1       | wtlink | validate shows stack trace (no manifest) |
+
+**See:** [UX-TESTING-PLAN.md](./UX-TESTING-PLAN.md) for full test details
 
 ---
 

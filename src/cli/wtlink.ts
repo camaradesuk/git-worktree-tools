@@ -97,8 +97,8 @@ yargs(hideBin(process.argv))
           default: false,
         });
     },
-    (argv) => {
-      manage.run(argv);
+    async (argv) => {
+      await manage.run(argv);
     }
   )
   .command<LinkArgv>(
@@ -133,8 +133,8 @@ yargs(hideBin(process.argv))
           default: false,
         });
     },
-    (argv) => {
-      link.run(argv as ArgumentsCamelCase<LinkArgv>); // Cast because positional() doesn't type argv well
+    async (argv) => {
+      await link.run(argv as ArgumentsCamelCase<LinkArgv>); // Cast because positional() doesn't type argv well
     }
   )
   .command<ValidateArgv>(
@@ -146,11 +146,11 @@ yargs(hideBin(process.argv))
         type: 'string',
       });
     },
-    (argv) => {
-      validate.run(argv as ArgumentsCamelCase<ValidateArgv>);
+    async (argv) => {
+      await validate.run(argv as ArgumentsCamelCase<ValidateArgv>);
     }
   )
-  .wrap(Math.min(100, process.stdout.columns ?? 100))
+  .wrap(Math.max(40, Math.min(100, process.stdout.columns ?? 100)))
   .help()
   .alias('h', 'help')
   .strict()
@@ -201,10 +201,28 @@ yargs(hideBin(process.argv))
     const message = err instanceof Error ? err.message : String(err);
     console.error(colors.error(message));
 
-    // Add helpful suggestions
-    if (message.includes('not a git repository')) {
+    // Add helpful suggestions based on the error
+    if (message.includes('Unable to detect an alternate worktree')) {
+      console.error('');
+      console.error(
+        colors.dim('You are running from the main worktree with only one worktree available.')
+      );
+      console.error(colors.dim('To link config files, you need at least two worktrees.'));
+      console.error('');
+      console.error(colors.dim('To fix:'));
+      console.error(colors.dim('  1. Create a PR worktree: newpr "My feature"'));
+      console.error(colors.dim('  2. Then link configs: wtlink link . ../my-repo.pr42'));
+    } else if (message.includes('Failed to inspect git worktrees')) {
+      console.error('');
+      console.error(colors.dim('Specify the source path explicitly:'));
+      console.error(colors.dim('  wtlink link /path/to/source /path/to/dest'));
+    } else if (message.includes('not a git repository')) {
       console.error('');
       console.error(colors.dim('Run this command from within a git repository.'));
+    } else if (message.includes('Manifest file not found')) {
+      console.error('');
+      console.error(colors.dim('Create a manifest first:'));
+      console.error(colors.dim('  wtlink manage'));
     }
     process.exit(1);
   });
