@@ -1,7 +1,7 @@
 # UX Implementation Progress Report
 
 > **Last Updated:** January 4, 2026
-> **Tests Status:** 1711 tests passing
+> **Tests Status:** 1742 tests passing
 > **Current Version:** 1.5.0
 
 This document tracks implementation progress of UX improvements and provides context for future LLM continuation.
@@ -542,6 +542,102 @@ Updated both `promptChoiceIndex` and `promptChoice` to use arrow-key navigation 
 
 ---
 
+### Phase 2: Unified Experience (Complete)
+
+#### 2.1 Unified `wt` Command
+
+**Files Created:**
+
+| File                       | Purpose                              |
+| -------------------------- | ------------------------------------ |
+| `src/cli/wt.ts`            | Main entry point with yargs          |
+| `src/cli/wt/new.ts`        | Handler wrapping newpr via spawnSync |
+| `src/cli/wt/list.ts`       | Handler wrapping lswt                |
+| `src/cli/wt/clean.ts`      | Handler wrapping cleanpr             |
+| `src/cli/wt/link.ts`       | Handler wrapping wtlink              |
+| `src/cli/wt/state.ts`      | Handler wrapping wtstate             |
+| `src/cli/wt/config.ts`     | Handler wrapping wtconfig            |
+| `src/cli/wt/completion.ts` | Shell completion script generator    |
+
+**Command Structure:**
+
+```bash
+wt new [description]     # Create new PR with worktree (aliases: n)
+wt list                  # List worktrees with status (aliases: ls)
+wt clean [pr-number]     # Clean up merged/closed worktrees (aliases: c)
+wt link [subcommand]     # Manage config file linking (aliases: l)
+wt state                 # Query git worktree state (aliases: s)
+wt config [subcommand]   # Configuration management (aliases: cfg)
+wt completion [shell]    # Generate shell completion scripts
+```
+
+**Files Modified:**
+
+| File           | Change                    |
+| -------------- | ------------------------- |
+| `package.json` | Added `wt` to bin entries |
+
+#### 2.2 Fuzzy Search in lswt
+
+**Files Created:**
+
+| File                                | Purpose                  |
+| ----------------------------------- | ------------------------ |
+| `src/lib/lswt/fuzzy-search.ts`      | Fuzzy matching algorithm |
+| `src/lib/lswt/fuzzy-search.test.ts` | Tests for fuzzy search   |
+
+**Files Modified:**
+
+| File                          | Changes                            |
+| ----------------------------- | ---------------------------------- |
+| `src/lib/lswt/index.ts`       | Exported fuzzy search functions    |
+| `src/lib/lswt/interactive.ts` | Added `/` key to enter search mode |
+
+**Implementation:**
+
+```typescript
+// Fuzzy scoring algorithm with bonuses for:
+// - Exact substring matches (high score)
+// - Consecutive character matches
+// - Word boundary matches (after -, _, /)
+// - Start of string matches
+
+export function fuzzyScore(pattern: string, text: string): number;
+export function filterWorktrees(worktrees: WorktreeDisplay[], pattern: string): FilteredWorktree[];
+export function highlightMatches(
+  text: string,
+  pattern: string,
+  highlightFn: (s: string) => string
+): string;
+```
+
+**Usage:** Press `/` in interactive mode to filter worktrees by branch name, PR number, PR title, or state.
+
+#### 2.3 Shell Completion
+
+**File:** `src/cli/wt/completion.ts`
+
+Generated shell completion scripts for bash, zsh, and fish:
+
+```bash
+# Bash installation
+wt completion bash >> ~/.bashrc
+source ~/.bashrc
+
+# Zsh installation
+mkdir -p ~/.zsh/completions
+wt completion zsh > ~/.zsh/completions/_wt
+# Add to .zshrc: fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+
+# Fish installation
+wt completion fish > ~/.config/fish/completions/wt.fish
+```
+
+Bash completion uses yargs' built-in `--get-yargs-completions` backend for dynamic completions. Zsh and fish use static scripts with full command/option coverage.
+
+---
+
 ## Remaining Work
 
 All planned UX improvements have been implemented. See [Long-Term Roadmap](#long-term-roadmap) for future enhancements.
@@ -552,105 +648,9 @@ All planned UX improvements have been implemented. See [Long-Term Roadmap](#long
 
 From [UX-IMPROVEMENT-ANALYSIS.md](./UX-IMPROVEMENT-ANALYSIS.md):
 
-### Phase 2: Unified Experience (High Priority)
+### Phase 2: Unified Experience ✅ COMPLETE
 
-| Item                     | Description                               | Effort |
-| ------------------------ | ----------------------------------------- | ------ |
-| **Unified `wt` command** | Master command that encompasses all tools | Medium |
-| **Fuzzy search in lswt** | `/` to search worktrees by name           | Medium |
-| **Shell completion**     | Tab completion for bash/zsh/fish          | Medium |
-
-#### 2.1 Unified `wt` Command Implementation Plan
-
-Create a master `wt` command that encompasses all existing tools via yargs subcommands, following the pattern already established by `wtlink`.
-
-**Command Structure:**
-
-```bash
-wt new <description>      # → newpr functionality
-wt list                   # → lswt functionality
-wt clean [pr-number]      # → cleanpr functionality
-wt link [subcommand]      # → wtlink functionality
-wt state                  # → wtstate functionality
-wt config [subcommand]    # → wtconfig functionality
-```
-
-**Short Aliases:**
-
-- `wt n` → `wt new`
-- `wt ls` → `wt list`
-- `wt c` → `wt clean`
-- `wt l` → `wt link`
-- `wt s` → `wt state`
-- `wt cfg` → `wt config`
-
-**Files to Create:**
-
-| File                   | Purpose                                                 |
-| ---------------------- | ------------------------------------------------------- |
-| `src/cli/wt.ts`        | Main entry point using yargs with subcommands           |
-| `src/cli/wt/new.ts`    | Handler wrapping newpr lib (maps argv to newpr options) |
-| `src/cli/wt/list.ts`   | Handler wrapping lswt lib (reuses formatters)           |
-| `src/cli/wt/clean.ts`  | Handler wrapping cleanpr lib (--all, --dry-run, --json) |
-| `src/cli/wt/link.ts`   | Handler wrapping wtlink lib (manage, link, validate)    |
-| `src/cli/wt/state.ts`  | Handler wrapping wtstate lib (--verbose, --json)        |
-| `src/cli/wt/config.ts` | Handler wrapping wtconfig lib (show, init, get, set)    |
-
-**Files to Modify:**
-
-| File           | Change                  |
-| -------------- | ----------------------- |
-| `package.json` | Add `wt` to bin entries |
-
-**Example Implementation (wt.ts):**
-
-```typescript
-#!/usr/bin/env node
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
-
-import { newCommand } from './wt/new.js';
-import { listCommand } from './wt/list.js';
-import { cleanCommand } from './wt/clean.js';
-import { linkCommand } from './wt/link.js';
-import { stateCommand } from './wt/state.js';
-import { configCommand } from './wt/config.js';
-
-yargs(hideBin(process.argv))
-  .scriptName('wt')
-  .usage('$0 <command> [options]')
-  .command(newCommand)
-  .command(listCommand)
-  .command(cleanCommand)
-  .command(linkCommand)
-  .command(stateCommand)
-  .command(configCommand)
-  .demandCommand(1, 'You need to specify a command')
-  .help()
-  .version()
-  .wrap(Math.min(100, process.stdout.columns ?? 100))
-  .parseAsync();
-```
-
-**Backwards Compatibility:** Existing commands (newpr, cleanpr, lswt, etc.) remain unchanged. Users can continue using them directly or switch to the unified `wt` interface.
-
-**Testing Strategy:**
-
-1. Build and verify all subcommands work
-2. Test flag inheritance (--json, etc.)
-3. Test aliases
-4. Verify help text is consistent
-5. Run existing tests to ensure no regressions
-
-**Estimated Scope:** ~600-800 lines of new code (~200 for wt.ts, ~50-100 per handler)
-
-#### 2.2 Fuzzy Search in lswt
-
-Add `/` key to trigger fuzzy search when listing worktrees interactively.
-
-#### 2.3 Shell Completion
-
-Add tab completion scripts for bash/zsh/fish shells
+See [Phase 2: Unified Experience (Complete)](#phase-2-unified-experience-complete) in Completed Work section above.
 
 ### Phase 3: Advanced Features (Medium Priority)
 
