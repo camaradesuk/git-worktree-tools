@@ -24,9 +24,9 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "ci:lint": "npm run lint && npm run format:check && npm run build",
+    "ci:lint": "pnpm lint && pnpm format:check && pnpm build",
     "prepare": "husky",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "pnpm build && pnpm test"
   },
   "keywords": [
     "git",
@@ -51,6 +51,7 @@
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@10.25.0",
   "publishConfig": {
     "access": "public"
   },
