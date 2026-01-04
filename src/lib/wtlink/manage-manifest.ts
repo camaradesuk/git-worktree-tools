@@ -50,6 +50,7 @@ export interface ManageArgv {
   dryRun: boolean;
   manifestFile: string;
   backup: boolean;
+  verbose: boolean;
 }
 
 // ============================================================================
@@ -505,6 +506,23 @@ export const COMMON_IGNORE_DIRS = [
 export function isCommonIgnoreDir(dirPath: string): boolean {
   const parts = dirPath.split('/');
   return COMMON_IGNORE_DIRS.some((ignoreDir) => parts.includes(ignoreDir));
+}
+
+/**
+ * Group files by their top-level directory for summary display
+ */
+export function groupByTopDirectory(files: string[]): Map<string, number> {
+  const groups = new Map<string, number>();
+
+  for (const file of files) {
+    const parts = file.split('/');
+    // Use first directory, or '.' for root-level files
+    const topDir = parts.length > 1 ? parts[0] : '.';
+    groups.set(topDir, (groups.get(topDir) ?? 0) + 1);
+  }
+
+  // Sort by count descending
+  return new Map([...groups.entries()].sort((a, b) => b[1] - a[1]));
 }
 
 // ============================================================================
@@ -1525,6 +1543,30 @@ export async function run(argv: ManageArgv): Promise<void> {
   if (argv.nonInteractive || argv.dryRun) {
     const mode = argv.dryRun ? 'Dry run' : 'Non-interactive';
     console.log(colors.blue(`\n${mode} mode: Adding new files as commented out.`));
+
+    // Show summary for large sets, detail with --verbose
+    const SUMMARY_THRESHOLD = 50;
+    if (newFiles.length > SUMMARY_THRESHOLD && !argv.verbose) {
+      console.log(colors.dim(`\nAdding ${newFiles.length} new files as commented:`));
+      const groups = groupByTopDirectory(newFiles);
+      let shown = 0;
+      for (const [dir, count] of groups) {
+        if (shown >= 10) {
+          console.log(colors.dim(`    ... and ${groups.size - shown} more directories`));
+          break;
+        }
+        const dirLabel = dir === '.' ? '(root)' : `${dir}/`;
+        console.log(
+          colors.dim(`    ${dirLabel.padEnd(30)} ${count} file${count === 1 ? '' : 's'}`)
+        );
+        shown++;
+      }
+      console.log(colors.dim(`\nUse --verbose to see the full file list.`));
+    } else if (newFiles.length > 0) {
+      console.log(colors.dim(`\nAdding ${newFiles.length} new files as commented:`));
+      newFiles.forEach((f) => console.log(colors.dim(`  # ${f}`)));
+    }
+
     finalEntries.push(...newFiles.map((f) => `# ${f}`));
   } else {
     console.log(colors.green('\nInteractive file management:'));
@@ -1577,8 +1619,41 @@ export async function run(argv: ManageArgv): Promise<void> {
     if (fs.existsSync(manifestPath)) {
       console.log(colors.cyan(`- Backup existing manifest to ${manifestBackupFile}`));
     }
-    console.log(colors.cyan(`- Write the following content to ${manifestFile}:`));
-    console.log(colors.dim(finalEntries.join('\n') + '\n'));
+
+    // Show summary by default for large file sets, full list with --verbose
+    const SUMMARY_THRESHOLD = 50;
+    if (finalEntries.length > SUMMARY_THRESHOLD && !argv.verbose) {
+      // Count entries by type
+      const activeEntries = finalEntries.filter((e) => !e.startsWith('#'));
+      const commentedEntries = finalEntries.filter((e) => e.startsWith('#'));
+
+      console.log(colors.cyan(`\nManifest would contain ${finalEntries.length} entries:`));
+      console.log(colors.green(`  ${activeEntries.length} active entries (will be linked)`));
+      console.log(colors.blue(`  ${commentedEntries.length} commented entries (tracked)`));
+
+      // Group active entries by top-level directory
+      if (activeEntries.length > 0) {
+        console.log(colors.cyan('\nTop directories for active entries:'));
+        const groups = groupByTopDirectory(activeEntries);
+        let shown = 0;
+        for (const [dir, count] of groups) {
+          if (shown >= 10) {
+            console.log(colors.dim(`    ... and ${groups.size - shown} more directories`));
+            break;
+          }
+          const dirLabel = dir === '.' ? '(root)' : `${dir}/`;
+          console.log(
+            colors.dim(`    ${dirLabel.padEnd(30)} ${count} file${count === 1 ? '' : 's'}`)
+          );
+          shown++;
+        }
+      }
+
+      console.log(colors.dim(`\nUse --verbose to see the full file list.`));
+    } else {
+      console.log(colors.cyan(`- Write the following content to ${manifestFile}:`));
+      console.log(colors.dim(finalEntries.join('\n') + '\n'));
+    }
   } else {
     if (argv.backup && fs.existsSync(manifestPath)) {
       fs.copyFileSync(manifestPath, manifestBackupFile);

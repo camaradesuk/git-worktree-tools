@@ -358,8 +358,12 @@ function printSummary(
   console.log(`  Worktree:  ${worktreePath}`);
   console.log(`  PR URL:    ${prUrl}`);
   console.log();
-  console.log('  Next steps:');
-  console.log(`    cd ${worktreePath}`);
+  console.log(colors.dim('  Next steps:'));
+  console.log(colors.dim(`    cd ${worktreePath}`));
+  console.log(colors.dim(`    gh pr view ${prNumber} --web     # Open PR in browser`));
+  console.log(
+    colors.dim(`    wtlink link                     # Link config files from main worktree`)
+  );
   console.log();
 }
 

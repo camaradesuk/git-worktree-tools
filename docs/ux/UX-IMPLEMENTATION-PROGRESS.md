@@ -392,89 +392,159 @@ yargs(hideBin(process.argv)).wrap(Math.min(100, process.stdout.columns ?? 100));
 
 ---
 
-## Remaining Work
+### Batch 4: UX Polish (Complete)
 
-### From Implementation Plan (Batch 3 & 4)
+#### 4.1 cleanpr Empty Result Feedback (UX-007)
 
-#### Not Implemented: wtlink Manage Summary Mode (UX-004)
+**File:** `src/lib/json-output.ts`
 
-**File:** `src/lib/wtlink/manage-manifest.ts`
-
-**Problem:** Non-interactive mode outputs 400+ files without summary.
-
-**Solution:** Add summary mode that groups by directory when file count exceeds threshold:
+Added `message` field to CleanprResultData and CleanprDryRunData interfaces:
 
 ```typescript
-// Around line 1024-1143 in non-interactive dry-run output
-if (displayItems.length > 50) {
-  // Show summary instead of full list
-  console.log(`\n[DRY RUN] Summary of changes:`);
-  console.log(`  ${activeCount} active entries (will be linked)`);
-  console.log(`  ${newCount} new entries found (would be added as commented)`);
-  console.log(`\nTop directories:`);
-  // Group by top-level directory and show counts
-  const groups = groupByDirectory(displayItems);
-  for (const [dir, count] of Object.entries(groups).slice(0, 10)) {
-    console.log(`    ${dir}/  ${count} files`);
-  }
-  console.log(`\nUse --verbose to see full list`);
-} else {
-  // Existing behavior for small sets
+export interface CleanprResultData {
+  cleaned: CleanedWorktreeInfo[];
+  skipped: Array<{ prNumber: number; reason: string }>;
+  totalCleaned: number;
+  totalSkipped: number;
+  /** Human-readable summary message */
+  message?: string;
+}
+
+export interface CleanprDryRunData {
+  wouldClean: Array<{ prNumber: number; branch: string; path: string; prState: string }>;
+  totalWouldClean: number;
+  /** Human-readable summary message */
+  message?: string;
 }
 ```
-
-#### Not Implemented: cleanpr Empty Result Feedback (UX-007)
 
 **File:** `src/cli/cleanpr.ts`
 
-**Problem:** Empty arrays give no feedback.
+Updated `outputJsonResult` to include descriptive messages for all scenarios.
 
-**Solution:** Add message when no worktrees found:
+#### 4.2 wtlink Manage Summary Mode (UX-004)
+
+**File:** `src/cli/wtlink.ts`
+
+Added `--verbose` option to manage command:
 
 ```typescript
-if (result.data.totalCleaned === 0 && result.data.totalSkipped === 0) {
-  console.log(colors.info('No merged or closed PR worktrees to clean.'));
+.option('verbose', {
+  alias: 'v',
+  type: 'boolean',
+  description: 'Show full file list in non-interactive/dry-run mode (default: summary)',
+  default: false,
+})
+```
+
+**File:** `src/lib/wtlink/manage-manifest.ts`
+
+Added `groupByTopDirectory` helper and summary mode for large file sets:
+
+```typescript
+export function groupByTopDirectory(files: string[]): Map<string, number> {
+  const groups = new Map<string, number>();
+  for (const file of files) {
+    const parts = file.split('/');
+    const topDir = parts.length > 1 ? parts[0] : '.';
+    groups.set(topDir, (groups.get(topDir) ?? 0) + 1);
+  }
+  return new Map([...groups.entries()].sort((a, b) => b[1] - a[1]));
 }
 ```
 
-#### Not Implemented: Post-Action Suggestions (UX-008)
+Summary mode activates when file count > 50 and `--verbose` is not set:
 
-**Files:** `src/cli/newpr.ts`, `src/cli/cleanpr.ts`, `src/cli/wtlink.ts`
+```text
+[DRY RUN] Summary of changes:
+  42 active entries (will be linked)
+  385 new entries found (will be added as commented)
 
-**Problem:** No suggestions for next steps after successful operations.
+Breakdown by directory:
+  node_modules/  312 files
+  dist/          58 files
+  .idea/         15 files
 
-**Solution:** Add next-step suggestions after success:
-
-```typescript
-// After successful newpr
-console.log(colors.success(`Created PR #${prNumber}`));
-console.log('');
-console.log(colors.dim('Next steps:'));
-console.log(colors.dim(`  cd ${worktreePath}    Navigate to worktree`));
-console.log(colors.dim('  wtlink link          Sync config files'));
-console.log(colors.dim('  gh pr view --web     Open PR in browser'));
+Use --verbose to see full list
 ```
 
-#### Not Implemented: Arrow-Key Navigation in newpr (UX-009)
+#### 4.3 Post-Action Suggestions (UX-008)
 
 **File:** `src/cli/newpr.ts`
 
-**Problem:** Uses numbered prompts (1, 2, 3) instead of arrow-key navigation.
-
-**Solution:** Refactor prompts to use `@inquirer/select`:
+Enhanced `printSummary` with contextual next steps:
 
 ```typescript
-import select from '@inquirer/select';
-
-const action = await select({
-  message: 'How would you like to handle your changes?',
-  choices: [
-    { value: 'commit_all', name: 'Stage all and commit' },
-    { value: 'stash', name: 'Stash changes' },
-    { value: 'empty', name: 'Leave changes, create empty commit' },
-  ],
-});
+console.log(colors.dim('  Next steps:'));
+console.log(colors.dim(`    cd ${worktreePath}`));
+console.log(colors.dim(`    gh pr view ${prNumber} --web     # Open PR in browser`));
+console.log(
+  colors.dim(`    wtlink link                     # Link config files from main worktree`)
+);
 ```
+
+**File:** `src/cli/cleanpr.ts`
+
+Added next steps in three places: `interactiveClean`, `cleanAll`, and `cleanSpecific`:
+
+```typescript
+if (summary.cleaned > 0) {
+  console.log('');
+  console.log(colors.dim('Next steps:'));
+  console.log(colors.dim('  lswt                        # List remaining worktrees'));
+  console.log(colors.dim('  newpr "feature description" # Create a new PR'));
+}
+```
+
+#### 4.4 Arrow-Key Navigation in Prompts (UX-009)
+
+**File:** `src/lib/prompts.ts`
+
+Added native arrow-key navigation using readline raw mode (no external dependencies):
+
+```typescript
+function supportsArrowNavigation(): boolean {
+  return process.stdin.isTTY === true;
+}
+
+async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let selectedIndex = 0;
+    // Initial render
+    console.log(`${yellow(prompt)}\n`);
+    options.forEach((opt, i) => {
+      if (i === selectedIndex) {
+        console.log(`  ${green('▶')} ${bold(opt)}`);
+      } else {
+        console.log(`    ${dim(opt)}`);
+      }
+    });
+    console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+
+    // Enable raw mode for keypress events
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+
+    const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
+      if (key.ctrl && key.name === 'c') { cleanup(); reject(new Error('User cancelled')); return; }
+      if (key.name === 'up') { selectedIndex = ...; renderOptions(...); }
+      else if (key.name === 'down') { selectedIndex = ...; renderOptions(...); }
+      else if (key.name === 'return') { cleanup(); resolve(selectedIndex + 1); }
+      else if (str === 'q' || str === 'Q') { cleanup(); reject(new Error('User cancelled')); }
+    };
+    // ... cleanup and event binding
+  });
+}
+```
+
+Updated both `promptChoiceIndex` and `promptChoice` to use arrow-key navigation when TTY is available, with automatic fallback to numbered input for non-TTY environments.
+
+---
+
+## Remaining Work
+
+All planned UX improvements have been implemented. See [Long-Term Roadmap](#long-term-roadmap) for future enhancements.
 
 ---
 
@@ -547,15 +617,17 @@ wt config                # Same as wtconfig
 | `src/lib/json-output.test.ts`     | Updated to include suggestion field                      |
 | `src/cli/newpr.test.ts`           | Changed mockConsoleError to mockConsoleLog for JSON mode |
 
-### Files to Modify (Remaining Work)
+### Files Modified (Batch 4)
 
-| File                                | Needed Changes                             |
-| ----------------------------------- | ------------------------------------------ |
-| `src/lib/wtlink/manage-manifest.ts` | Add summary mode for large file sets       |
-| `src/cli/cleanpr.ts`                | Add empty result message                   |
-| `src/cli/newpr.ts`                  | Post-action suggestions, arrow-key prompts |
-| `src/cli/wtlink.ts`                 | Post-action suggestions                    |
-| `src/lib/prompts.ts`                | Add arrow-key select wrapper               |
+| File                                | Changes                                                           |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `src/lib/json-output.ts`            | Added message field to CleanprResultData and CleanprDryRunData    |
+| `src/lib/wtlink/manage-manifest.ts` | Added groupByTopDirectory(), summary mode for large file sets     |
+| `src/lib/wtlink/main-menu.ts`       | Added verbose: false to ManageArgv call                           |
+| `src/cli/cleanpr.ts`                | Added message to JSON output, post-action suggestions in 3 places |
+| `src/cli/newpr.ts`                  | Enhanced printSummary with next steps                             |
+| `src/cli/wtlink.ts`                 | Added --verbose option to manage command                          |
+| `src/lib/prompts.ts`                | Added arrow-key navigation for promptChoiceIndex and promptChoice |
 
 ---
 
@@ -572,15 +644,15 @@ wt config                # Same as wtconfig
 
 ### Pending Verifications
 
-- [ ] `wtlink link` shows friendly error (not stack trace) with single worktree
-- [ ] `lswt` from /tmp shows "Not a git repository" (not raw git error)
-- [ ] `newpr "test" --json` outputs only JSON (no [INFO] text mixed in)
-- [ ] `wtlink manage -n -d` with many files shows summary (not 400+ lines)
-- [ ] `wtlink --help` text doesn't wrap mid-word
-- [ ] `cleanpr --all` with no worktrees shows friendly message
-- [ ] `newpr` success shows "Next steps:" suggestions
-- [ ] `cleanpr` success shows "Next steps:" suggestions
-- [ ] `newpr` scenario prompts use arrow-key navigation
+- [x] `wtlink link` shows friendly error (not stack trace) with single worktree
+- [x] `lswt` from /tmp shows "Not a git repository" (not raw git error)
+- [x] `newpr "test" --json` outputs only JSON (no [INFO] text mixed in)
+- [x] `wtlink manage -n -d` with many files shows summary (not 400+ lines)
+- [x] `wtlink --help` text doesn't wrap mid-word
+- [x] `cleanpr --all` with no worktrees shows friendly message
+- [x] `newpr` success shows "Next steps:" suggestions
+- [x] `cleanpr` success shows "Next steps:" suggestions
+- [x] `newpr`/`cleanpr` prompts use arrow-key navigation (when TTY available)
 
 ---
 

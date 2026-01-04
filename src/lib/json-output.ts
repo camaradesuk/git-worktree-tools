@@ -155,6 +155,8 @@ export interface CleanprResultData {
   }>;
   totalCleaned: number;
   totalSkipped: number;
+  /** Human-readable summary message */
+  message?: string;
 }
 
 /**
@@ -168,6 +170,8 @@ export interface CleanprDryRunData {
     prState: string;
   }>;
   totalWouldClean: number;
+  /** Human-readable summary message */
+  message?: string;
 }
 
 // ============================================================================

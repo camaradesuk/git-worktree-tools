@@ -1,5 +1,5 @@
 import readline from 'readline';
-import { yellow, dim, cyan, red, bold } from './colors.js';
+import { yellow, dim, cyan, red, bold, green } from './colors.js';
 
 /**
  * Option for prompt choices
@@ -21,10 +21,105 @@ function createInterface(): readline.Interface {
 }
 
 /**
- * Prompt user to select from a list of simple string options
+ * Check if stdin is a TTY and supports raw mode
+ */
+function supportsArrowNavigation(): boolean {
+  return process.stdin.isTTY === true;
+}
+
+/**
+ * Render arrow-key selectable options (simple strings)
+ */
+function renderSimpleOptions(options: string[], selectedIndex: number, prompt: string): void {
+  // Move cursor up to redraw (only after first render)
+  const linesToClear = options.length + 3; // prompt + blank + options + hint
+  process.stdout.write(`\x1b[${linesToClear}A`); // Move up
+  process.stdout.write('\x1b[0J'); // Clear from cursor to end
+
+  console.log(`${yellow(prompt)}\n`);
+
+  options.forEach((opt, i) => {
+    if (i === selectedIndex) {
+      console.log(`  ${green('▶')} ${bold(opt)}`);
+    } else {
+      console.log(`    ${dim(opt)}`);
+    }
+  });
+
+  console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+}
+
+/**
+ * Arrow-key navigation prompt for simple string options
  * Returns 1-based index of selected option
  */
+async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let selectedIndex = 0;
+    let isFirstRender = true;
+
+    // Initial render
+    console.log(`${yellow(prompt)}\n`);
+    options.forEach((opt, i) => {
+      if (i === selectedIndex) {
+        console.log(`  ${green('▶')} ${bold(opt)}`);
+      } else {
+        console.log(`    ${dim(opt)}`);
+      }
+    });
+    console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+    isFirstRender = false;
+
+    // Enable raw mode for keypress events
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+
+    const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
+      if (key.ctrl && key.name === 'c') {
+        cleanup();
+        reject(new Error('User cancelled'));
+        return;
+      }
+
+      if (key.name === 'up') {
+        selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : options.length - 1;
+        renderSimpleOptions(options, selectedIndex, prompt);
+      } else if (key.name === 'down') {
+        selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
+        renderSimpleOptions(options, selectedIndex, prompt);
+      } else if (key.name === 'return') {
+        cleanup();
+        resolve(selectedIndex + 1); // 1-based index
+      } else if (str === 'q' || str === 'Q') {
+        cleanup();
+        reject(new Error('User cancelled'));
+      }
+    };
+
+    const cleanup = () => {
+      process.stdin.removeListener('keypress', onKeypress);
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+    };
+
+    process.stdin.on('keypress', onKeypress);
+  });
+}
+
+/**
+ * Prompt user to select from a list of simple string options
+ * Returns 1-based index of selected option
+ *
+ * Uses arrow-key navigation in TTY mode, falls back to numbered input otherwise.
+ */
 export async function promptChoiceIndex(prompt: string, options: string[]): Promise<number> {
+  // Use arrow-key navigation if TTY is available
+  if (supportsArrowNavigation()) {
+    return promptChoiceArrowKeys(prompt, options);
+  }
+
+  // Fallback to numbered input for non-TTY environments
   const rl = createInterface();
 
   return new Promise((resolve, reject) => {
@@ -85,10 +180,116 @@ export async function promptChoiceIndex(prompt: string, options: string[]): Prom
 }
 
 /**
- * Prompt user to select from a list of options with values
+ * Render arrow-key selectable options (with labels and descriptions)
+ */
+function renderPromptOptions<T>(
+  options: PromptOption<T>[],
+  selectedIndex: number,
+  prompt: string
+): void {
+  // Calculate lines to clear: prompt + blank + (options with descriptions) + hint
+  const optionLines = options.reduce((acc, opt) => acc + 1 + (opt.description ? 1 : 0), 0);
+  const linesToClear = optionLines + 3; // prompt + blank + options + hint
+  process.stdout.write(`\x1b[${linesToClear}A`); // Move up
+  process.stdout.write('\x1b[0J'); // Clear from cursor to end
+
+  console.log(`${yellow(prompt)}\n`);
+
+  options.forEach((opt, i) => {
+    if (i === selectedIndex) {
+      console.log(`  ${green('▶')} ${bold(opt.label)}`);
+      if (opt.description) {
+        console.log(`     ${dim(opt.description)}`);
+      }
+    } else {
+      console.log(`    ${dim(opt.label)}`);
+      if (opt.description) {
+        console.log(`     ${dim(opt.description)}`);
+      }
+    }
+  });
+
+  console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+}
+
+/**
+ * Arrow-key navigation prompt for PromptOption types
  * Returns the value of the selected option
  */
+async function promptChoiceArrowKeysValue<T>(
+  prompt: string,
+  options: PromptOption<T>[]
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let selectedIndex = 0;
+
+    // Initial render
+    console.log(`${yellow(prompt)}\n`);
+    options.forEach((opt, i) => {
+      if (i === selectedIndex) {
+        console.log(`  ${green('▶')} ${bold(opt.label)}`);
+        if (opt.description) {
+          console.log(`     ${dim(opt.description)}`);
+        }
+      } else {
+        console.log(`    ${dim(opt.label)}`);
+        if (opt.description) {
+          console.log(`     ${dim(opt.description)}`);
+        }
+      }
+    });
+    console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+
+    // Enable raw mode for keypress events
+    readline.emitKeypressEvents(process.stdin);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+
+    const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
+      if (key.ctrl && key.name === 'c') {
+        cleanup();
+        reject(new Error('User cancelled'));
+        return;
+      }
+
+      if (key.name === 'up') {
+        selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : options.length - 1;
+        renderPromptOptions(options, selectedIndex, prompt);
+      } else if (key.name === 'down') {
+        selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
+        renderPromptOptions(options, selectedIndex, prompt);
+      } else if (key.name === 'return') {
+        cleanup();
+        resolve(options[selectedIndex].value);
+      } else if (str === 'q' || str === 'Q') {
+        cleanup();
+        reject(new Error('User cancelled'));
+      }
+    };
+
+    const cleanup = () => {
+      process.stdin.removeListener('keypress', onKeypress);
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+    };
+
+    process.stdin.on('keypress', onKeypress);
+  });
+}
+
+/**
+ * Prompt user to select from a list of options with values
+ * Returns the value of the selected option
+ *
+ * Uses arrow-key navigation in TTY mode, falls back to numbered input otherwise.
+ */
 export async function promptChoice<T>(prompt: string, options: PromptOption<T>[]): Promise<T> {
+  // Use arrow-key navigation if TTY is available
+  if (supportsArrowNavigation()) {
+    return promptChoiceArrowKeysValue(prompt, options);
+  }
+
+  // Fallback to numbered input for non-TTY environments
   const rl = createInterface();
 
   return new Promise((resolve, reject) => {

@@ -32,6 +32,7 @@ interface ManageArgv extends GlobalOptions {
   clean: boolean;
   dryRun: boolean;
   backup: boolean;
+  verbose: boolean;
 }
 
 interface LinkArgv extends GlobalOptions {
@@ -87,6 +88,12 @@ yargs(hideBin(process.argv))
           alias: 'b',
           type: 'boolean',
           description: 'Create a backup of the manifest before updating',
+          default: false,
+        })
+        .option('verbose', {
+          alias: 'v',
+          type: 'boolean',
+          description: 'Show full file list in non-interactive/dry-run mode (default: summary)',
           default: false,
         });
     },
