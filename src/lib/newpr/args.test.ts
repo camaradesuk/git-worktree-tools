@@ -94,7 +94,7 @@ describe('newpr/args', () => {
         const result = parseArgs(['--pr', 'abc']);
         expect(result.kind).toBe('error');
         if (result.kind === 'error') {
-          expect(result.message).toContain('PR number must be numeric');
+          expect(result.message).toContain('PR number must be a positive number');
         }
       });
     });

@@ -843,7 +843,8 @@ describe('cli/newpr', () => {
 
       await runCli(['--pr', '999', '--json']);
 
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Could not find PR'));
+      // JSON mode outputs to console.log, not console.error
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Could not find PR'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
   });

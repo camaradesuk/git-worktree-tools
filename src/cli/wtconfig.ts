@@ -102,9 +102,9 @@ async function main(): Promise<void> {
 
 function showHelp(): void {
   console.log(`
-${colors.info('wtconfig')} - Configuration management for git-worktree-tools
+${colors.cyan('wtconfig')} - Configuration management for git-worktree-tools
 
-${colors.warning('Usage:')}
+${colors.cyan('Usage:')}
   wtconfig init             Run interactive setup wizard
   wtconfig show             Show current configuration
   wtconfig set <key> <val>  Set a configuration value (e.g., "baseBranch main")
@@ -113,11 +113,11 @@ ${colors.warning('Usage:')}
   wtconfig validate         Validate current configuration
   wtconfig help             Show this help message
 
-${colors.warning('Configuration Locations:')}
+${colors.cyan('Configuration Locations:')}
   Global:     ~/.worktreerc (applies to all repos)
   Repository: .worktreerc or .worktreerc.json (repo-specific)
 
-${colors.warning('Examples:')}
+${colors.cyan('Examples:')}
   wtconfig init                          # Start interactive setup
   wtconfig set baseBranch develop        # Set base branch
   wtconfig set ai.provider claude        # Set AI provider

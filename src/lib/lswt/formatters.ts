@@ -99,6 +99,7 @@ function toPosixPath(p: string): string {
 
 /**
  * Get relative display path - pure function
+ * Returns a user-friendly path, showing "(current)" for the current directory
  */
 export function getDisplayPath(worktreePath: string, cwd: string, verbose: boolean): string {
   if (verbose) {
@@ -106,7 +107,11 @@ export function getDisplayPath(worktreePath: string, cwd: string, verbose: boole
   }
 
   if (worktreePath.startsWith(cwd)) {
-    const rel = path.relative(cwd, worktreePath) || '.';
+    const rel = path.relative(cwd, worktreePath);
+    // If relative path is empty (same directory), show basename with (current) indicator
+    if (!rel) {
+      return `${path.basename(worktreePath)} (current)`;
+    }
     return toPosixPath(rel);
   } else if (worktreePath.startsWith(path.dirname(cwd))) {
     const rel = path.relative(path.dirname(cwd), worktreePath);

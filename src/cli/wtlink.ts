@@ -143,13 +143,39 @@ yargs(hideBin(process.argv))
       validate.run(argv as ArgumentsCamelCase<ValidateArgv>);
     }
   )
+  .wrap(Math.min(100, process.stdout.columns ?? 100))
   .help()
   .alias('h', 'help')
   .strict()
   .fail((msg, err) => {
     if (err) {
-      // An error thrown from a command
-      console.error(colors.red('Error:'), err.message);
+      // An error thrown from a command - provide friendly message with suggestion
+      const message = err.message;
+      console.error(colors.error(message));
+
+      // Add helpful suggestions based on the error
+      if (message.includes('Unable to detect an alternate worktree')) {
+        console.error('');
+        console.error(
+          colors.dim('You are running from the main worktree with only one worktree available.')
+        );
+        console.error(colors.dim('To link config files, you need at least two worktrees.'));
+        console.error('');
+        console.error(colors.dim('To fix:'));
+        console.error(colors.dim('  1. Create a PR worktree: newpr "My feature"'));
+        console.error(colors.dim('  2. Then link configs: wtlink link . ../my-repo.pr42'));
+      } else if (message.includes('Failed to inspect git worktrees')) {
+        console.error('');
+        console.error(colors.dim('Specify the source path explicitly:'));
+        console.error(colors.dim('  wtlink link /path/to/source /path/to/dest'));
+      } else if (message.includes('not a git repository')) {
+        console.error('');
+        console.error(colors.dim('Run this command from within a git repository.'));
+      } else if (message.includes('Manifest file not found')) {
+        console.error('');
+        console.error(colors.dim('Create a manifest first:'));
+        console.error(colors.dim('  wtlink manage'));
+      }
     } else {
       // A yargs validation error
       console.error(colors.red(msg));
@@ -165,6 +191,13 @@ yargs(hideBin(process.argv))
     }
   })
   .catch((err) => {
-    console.error(colors.red('Error:'), err.message);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(colors.error(message));
+
+    // Add helpful suggestions
+    if (message.includes('not a git repository')) {
+      console.error('');
+      console.error(colors.dim('Run this command from within a git repository.'));
+    }
     process.exit(1);
   });

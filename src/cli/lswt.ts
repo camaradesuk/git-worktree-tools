@@ -122,6 +122,14 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(colors.error(`Error: ${err.message}`));
+  const message = err instanceof Error ? err.message : String(err);
+
+  // Provide friendly message for common errors
+  if (message.includes('not a git repository')) {
+    console.error(colors.error('Not a git repository'));
+    console.error(colors.dim('Run this command from within a git repository.'));
+  } else {
+    console.error(colors.error(`Error: ${message}`));
+  }
   process.exit(1);
 });

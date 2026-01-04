@@ -35,6 +35,8 @@ import {
   createErrorResult,
   formatJsonResult,
   ErrorCode,
+  getErrorCodeFromError,
+  getErrorSuggestion,
   type CleanprResultData,
   type CleanprDryRunData,
   type CleanedWorktreeInfo,
@@ -468,10 +470,17 @@ async function main(): Promise<void> {
 main().catch((err) => {
   const useJson = hasJsonFlag(process.argv.slice(2));
   const message = err instanceof Error ? err.message : String(err);
+  const code = getErrorCodeFromError(err);
+  const suggestion = getErrorSuggestion(code);
+
   if (useJson) {
-    outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
+    outputJsonError(code, message);
   } else {
     console.error(colors.error(`Error: ${message}`));
+    if (suggestion) {
+      console.error('');
+      console.error(colors.dim(suggestion));
+    }
   }
   process.exit(1);
 });

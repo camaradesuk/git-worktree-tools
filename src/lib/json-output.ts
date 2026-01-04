@@ -49,6 +49,8 @@ export enum ErrorCode {
 export interface ErrorInfo {
   code: ErrorCode;
   message: string;
+  /** Helpful suggestion for how to fix or work around the error */
+  suggestion?: string;
   details?: Record<string, unknown>;
 }
 
@@ -247,14 +249,40 @@ export function createSuccessResult<T>(
 }
 
 /**
+ * Get a helpful suggestion for a given error code
+ */
+export function getErrorSuggestion(code: ErrorCode): string | undefined {
+  const suggestions: Partial<Record<ErrorCode, string>> = {
+    [ErrorCode.NOT_GIT_REPO]: 'Run this command from within a git repository.',
+    [ErrorCode.PR_NOT_FOUND]: 'Run "lswt" to see available worktrees.',
+    [ErrorCode.GH_NOT_INSTALLED]: 'Install GitHub CLI: https://cli.github.com',
+    [ErrorCode.GH_NOT_AUTHENTICATED]: 'Run "gh auth login" to authenticate.',
+    [ErrorCode.BRANCH_EXISTS]: 'Use a different branch name or delete the existing branch.',
+    [ErrorCode.WORKTREE_EXISTS]: 'Use "cleanpr" to remove the existing worktree.',
+    [ErrorCode.INVALID_ARGUMENT]: 'Run with --help to see valid options.',
+    [ErrorCode.MISSING_ARGUMENT]: 'Run with --help to see required arguments.',
+    [ErrorCode.HOOK_FAILED]: 'Check hook output above, fix issues, and retry.',
+    [ErrorCode.UNCOMMITTED_CHANGES]: 'Commit or stash your changes first.',
+    [ErrorCode.MERGE_CONFLICT]: 'Resolve merge conflicts before continuing.',
+    [ErrorCode.STASH_FAILED]: 'Check for uncommitted changes in submodules.',
+    [ErrorCode.DETACHED_HEAD]: 'Create or checkout a branch before proceeding.',
+  };
+  return suggestions[code];
+}
+
+/**
  * Create a failed command result
  */
 export function createErrorResult(
   command: string,
   code: ErrorCode,
   message: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
+  suggestion?: string
 ): CommandResult<never> {
+  // Use provided suggestion or fall back to default for this error code
+  const finalSuggestion = suggestion ?? getErrorSuggestion(code);
+
   return {
     success: false,
     command,
@@ -262,6 +290,7 @@ export function createErrorResult(
     error: {
       code,
       message,
+      suggestion: finalSuggestion,
       details,
     },
   };
@@ -293,6 +322,24 @@ export function getErrorCodeFromError(error: unknown): ErrorCode {
     // Handle errors that carry their own ErrorCode (e.g., NonInteractiveError)
     if (hasErrorCode(error) && Object.values(ErrorCode).includes(error.code)) {
       return error.code;
+    }
+
+    // Check message content for specific patterns
+    const message = error.message.toLowerCase();
+    if (message.includes('not a git repository')) {
+      return ErrorCode.NOT_GIT_REPO;
+    }
+    if (message.includes('gh: command not found') || message.includes('gh is not installed')) {
+      return ErrorCode.GH_NOT_INSTALLED;
+    }
+    if (message.includes('gh auth login') || message.includes('not logged in')) {
+      return ErrorCode.GH_NOT_AUTHENTICATED;
+    }
+    if (message.includes('branch') && message.includes('already exists')) {
+      return ErrorCode.BRANCH_EXISTS;
+    }
+    if (message.includes('worktree') && message.includes('already exists')) {
+      return ErrorCode.WORKTREE_EXISTS;
     }
 
     switch (error.name) {

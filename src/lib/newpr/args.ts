@@ -45,8 +45,8 @@ export function parseArgs(args: string[]): ParseResult {
           return { kind: 'error', message: '--pr requires a PR number' };
         }
         options.prNumber = parseInt(args[i], 10);
-        if (isNaN(options.prNumber)) {
-          return { kind: 'error', message: 'PR number must be numeric' };
+        if (isNaN(options.prNumber) || options.prNumber <= 0) {
+          return { kind: 'error', message: 'PR number must be a positive number' };
         }
         break;
 

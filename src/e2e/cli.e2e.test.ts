@@ -269,7 +269,7 @@ describe('CLI e2e tests', () => {
       const result = runCli('newpr', ['--pr', 'not-a-number'], { cwd: repoDir });
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('PR number must be numeric');
+      expect(result.stderr).toContain('PR number must be a positive number');
     });
   });
 
