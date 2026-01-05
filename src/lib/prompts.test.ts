@@ -14,11 +14,13 @@ import {
 vi.mock('readline', () => ({
   default: {
     createInterface: vi.fn(),
+    emitKeypressEvents: vi.fn(),
   },
 }));
 
 // Mock console.log
 const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
 describe('prompts', () => {
   let mockRl: {
@@ -39,6 +41,7 @@ describe('prompts', () => {
 
   afterEach(() => {
     consoleSpy.mockClear();
+    stdoutWriteSpy.mockClear();
   });
 
   describe('promptChoiceIndex', () => {
@@ -598,6 +601,411 @@ describe('prompts', () => {
 
       // Should have written to clear the line
       expect(stdoutWriteSpy).toHaveBeenCalledWith(expect.stringContaining('\r'));
+    });
+  });
+
+  describe('arrow-key navigation (TTY mode)', () => {
+    let originalIsTTY: boolean | undefined;
+    let mockStdinOn: ReturnType<typeof vi.fn>;
+    let mockStdinRemoveListener: ReturnType<typeof vi.fn>;
+    let mockStdinSetRawMode: ReturnType<typeof vi.fn>;
+    let mockStdinResume: ReturnType<typeof vi.fn>;
+    let mockStdinPause: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      originalIsTTY = process.stdin.isTTY;
+
+      // Set up TTY mode
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+
+      // Mock stdin methods
+      mockStdinOn = vi.fn();
+      mockStdinRemoveListener = vi.fn();
+      mockStdinSetRawMode = vi.fn();
+      mockStdinResume = vi.fn();
+      mockStdinPause = vi.fn();
+
+      // Apply mocks to process.stdin
+      vi.spyOn(process.stdin, 'on').mockImplementation(mockStdinOn);
+      vi.spyOn(process.stdin, 'removeListener').mockImplementation(mockStdinRemoveListener);
+
+      // Mock setRawMode, resume, pause
+      Object.defineProperty(process.stdin, 'setRawMode', {
+        value: mockStdinSetRawMode,
+        writable: true,
+        configurable: true,
+      });
+      vi.spyOn(process.stdin, 'resume').mockImplementation(mockStdinResume);
+      vi.spyOn(process.stdin, 'pause').mockImplementation(mockStdinPause);
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: originalIsTTY,
+        writable: true,
+        configurable: true,
+      });
+      vi.restoreAllMocks();
+    });
+
+    describe('promptChoiceIndex with arrow keys', () => {
+      it('enters arrow-key mode when TTY is available', async () => {
+        // Simulate Enter key immediately after setup
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              // Simulate pressing Enter immediately
+              setImmediate(() => {
+                handler('', { name: 'return' });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoiceIndex('Choose:', ['A', 'B', 'C']);
+
+        expect(result).toBe(1); // First option selected (1-based)
+        expect(mockStdinSetRawMode).toHaveBeenCalledWith(true);
+        expect(mockStdinResume).toHaveBeenCalled();
+      });
+
+      it('navigates down with arrow key', async () => {
+        let keypressHandler:
+          | ((str: string, key: { name?: string; ctrl?: boolean }) => void)
+          | null = null;
+
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              keypressHandler = handler;
+              // Simulate pressing down then enter
+              setImmediate(() => {
+                handler('', { name: 'down' });
+                setImmediate(() => {
+                  handler('', { name: 'return' });
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoiceIndex('Choose:', ['A', 'B', 'C']);
+
+        expect(result).toBe(2); // Second option selected (1-based)
+      });
+
+      it('navigates up with arrow key', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              // Simulate pressing up (wraps to end) then enter
+              setImmediate(() => {
+                handler('', { name: 'up' });
+                setImmediate(() => {
+                  handler('', { name: 'return' });
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoiceIndex('Choose:', ['A', 'B', 'C']);
+
+        expect(result).toBe(3); // Last option selected (wraps around, 1-based)
+      });
+
+      it('rejects on q key press', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('q', { name: 'q' });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await expect(promptChoiceIndex('Choose:', ['A', 'B'])).rejects.toThrow('User cancelled');
+      });
+
+      it('rejects on Q key press', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('Q', { name: 'Q' });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await expect(promptChoiceIndex('Choose:', ['A', 'B'])).rejects.toThrow('User cancelled');
+      });
+
+      it('rejects on Ctrl+C', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'c', ctrl: true });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await expect(promptChoiceIndex('Choose:', ['A', 'B'])).rejects.toThrow('User cancelled');
+      });
+
+      it('cleans up stdin on selection', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'return' });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await promptChoiceIndex('Choose:', ['A', 'B']);
+
+        expect(mockStdinRemoveListener).toHaveBeenCalledWith('keypress', expect.any(Function));
+        expect(mockStdinSetRawMode).toHaveBeenCalledWith(false);
+        expect(mockStdinPause).toHaveBeenCalled();
+      });
+
+      it('wraps around when navigating past last option', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                // Navigate down 3 times on a 3-item list (wraps to first)
+                handler('', { name: 'down' });
+                setImmediate(() => {
+                  handler('', { name: 'down' });
+                  setImmediate(() => {
+                    handler('', { name: 'down' });
+                    setImmediate(() => {
+                      handler('', { name: 'return' });
+                    });
+                  });
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoiceIndex('Choose:', ['A', 'B', 'C']);
+
+        expect(result).toBe(1); // Wrapped back to first (1-based)
+      });
+
+      it('calls readline emitKeypressEvents', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'return' });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await promptChoiceIndex('Choose:', ['Option A', 'Option B']);
+
+        // Check readline.emitKeypressEvents was called
+        expect(readline.emitKeypressEvents).toHaveBeenCalledWith(process.stdin);
+      });
+    });
+
+    describe('promptChoice with arrow keys', () => {
+      it('returns value of selected option', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'down' });
+                setImmediate(() => {
+                  handler('', { name: 'return' });
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoice('Choose:', [
+          { label: 'First', value: 'first-value' },
+          { label: 'Second', value: 'second-value' },
+        ]);
+
+        expect(result).toBe('second-value');
+      });
+
+      it('handles options with descriptions', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'return' });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoice('Choose:', [
+          { label: 'Option', description: 'A helpful description', value: 'opt' },
+        ]);
+
+        expect(result).toBe('opt');
+      });
+
+      it('rejects on q key press', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('q', {});
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await expect(promptChoice('Choose:', [{ label: 'A', value: 'a' }])).rejects.toThrow(
+          'User cancelled'
+        );
+      });
+
+      it('rejects on Ctrl+C', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'c', ctrl: true });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await expect(promptChoice('Choose:', [{ label: 'A', value: 'a' }])).rejects.toThrow(
+          'User cancelled'
+        );
+      });
+
+      it('navigates up and wraps to last option', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'up' });
+                setImmediate(() => {
+                  handler('', { name: 'return' });
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoice('Choose:', [
+          { label: 'First', value: 'first' },
+          { label: 'Second', value: 'second' },
+          { label: 'Third', value: 'third' },
+        ]);
+
+        expect(result).toBe('third'); // Wrapped to last
+      });
+
+      it('navigates down and wraps to first option', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'down' });
+                setImmediate(() => {
+                  handler('', { name: 'down' });
+                  setImmediate(() => {
+                    handler('', { name: 'down' });
+                    setImmediate(() => {
+                      handler('', { name: 'return' });
+                    });
+                  });
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoice('Choose:', [
+          { label: 'First', value: 'first' },
+          { label: 'Second', value: 'second' },
+          { label: 'Third', value: 'third' },
+        ]);
+
+        expect(result).toBe('first'); // Wrapped to first
+      });
     });
   });
 });

@@ -197,6 +197,304 @@ describe('cli/cleanpr', () => {
 
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('No PR worktrees'));
     });
+
+    it('displays grouped worktrees in interactive mode', async () => {
+      const mockWorktrees = [
+        makeWorktreeInfo({ prNumber: 1, prState: 'MERGED' }),
+        makeWorktreeInfo({ prNumber: 2, prState: 'CLOSED' }),
+        makeWorktreeInfo({ prNumber: 3, prState: 'OPEN' }),
+      ];
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.groupWorktreesByState).mockReturnValue({
+        merged: [mockWorktrees[0]],
+        closed: [mockWorktrees[1]],
+        open: [mockWorktrees[2]],
+        unknown: [],
+      });
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue([]);
+
+      await runCli([]);
+
+      expect(cleanpr.groupWorktreesByState).toHaveBeenCalledWith(mockWorktrees);
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('PR Worktrees'));
+    });
+
+    it('shows no cleanable message when only open PRs exist', async () => {
+      const mockWorktrees = [makeWorktreeInfo({ prNumber: 1, prState: 'OPEN' })];
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.groupWorktreesByState).mockReturnValue({
+        merged: [],
+        closed: [],
+        open: mockWorktrees,
+        unknown: [],
+      });
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue([]);
+
+      await runCli([]);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('No merged or closed PRs')
+      );
+    });
+
+    it('handles user cancel in interactive mode', async () => {
+      const mockWorktrees = [makeWorktreeInfo({ prNumber: 1, prState: 'MERGED' })];
+      const { promptChoice } = await import('../lib/prompts.js');
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.groupWorktreesByState).mockReturnValue({
+        merged: mockWorktrees,
+        closed: [],
+        open: [],
+        unknown: [],
+      });
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(promptChoice).mockResolvedValue('cancel');
+
+      await runCli([]);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Cancelled'));
+    });
+
+    it('handles all option in interactive mode', async () => {
+      const mockWorktrees = [makeWorktreeInfo({ prNumber: 1, prState: 'MERGED' })];
+      const { promptChoice, promptConfirm } = await import('../lib/prompts.js');
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.groupWorktreesByState).mockReturnValue({
+        merged: mockWorktrees,
+        closed: [],
+        open: [],
+        unknown: [],
+      });
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(promptChoice).mockResolvedValue('all');
+      vi.mocked(promptConfirm).mockResolvedValue(false); // Don't delete remote
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Cleaned PR #1',
+        prNumber: 1,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
+      });
+      vi.mocked(cleanpr.summarizeResults).mockReturnValue({ cleaned: 1, total: 1, failed: 0 });
+
+      await runCli([]);
+
+      expect(cleanpr.cleanWorktree).toHaveBeenCalled();
+      expect(cleanpr.summarizeResults).toHaveBeenCalled();
+    });
+
+    it('handles merged option in interactive mode', async () => {
+      const mockWorktrees = [
+        makeWorktreeInfo({ prNumber: 1, prState: 'MERGED' }),
+        makeWorktreeInfo({ prNumber: 2, prState: 'CLOSED' }),
+      ];
+      const { promptChoice, promptConfirm } = await import('../lib/prompts.js');
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.groupWorktreesByState).mockReturnValue({
+        merged: [mockWorktrees[0]],
+        closed: [mockWorktrees[1]],
+        open: [],
+        unknown: [],
+      });
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(promptChoice).mockResolvedValue('merged');
+      vi.mocked(promptConfirm).mockResolvedValue(false);
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Cleaned PR #1',
+        prNumber: 1,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
+      });
+      vi.mocked(cleanpr.summarizeResults).mockReturnValue({ cleaned: 1, total: 1, failed: 0 });
+
+      await runCli([]);
+
+      // Should only clean merged (PR #1), not closed (PR #2)
+      expect(cleanpr.cleanWorktree).toHaveBeenCalledTimes(1);
+    });
+
+    it('handles select option in interactive mode', async () => {
+      const mockWorktrees = [makeWorktreeInfo({ prNumber: 1, prState: 'MERGED' })];
+      const { promptChoice, promptConfirm } = await import('../lib/prompts.js');
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.groupWorktreesByState).mockReturnValue({
+        merged: mockWorktrees,
+        closed: [],
+        open: [],
+        unknown: [],
+      });
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      // First prompt: select action, Second: individual confirm, Third: remote deletion
+      vi.mocked(promptChoice).mockResolvedValue('select');
+      vi.mocked(promptConfirm)
+        .mockResolvedValueOnce(true) // Yes, clean this PR
+        .mockResolvedValueOnce(false); // No, don't delete remote
+      vi.mocked(cleanpr.cleanWorktree).mockReturnValue({
+        success: true,
+        message: 'Cleaned PR #1',
+        prNumber: 1,
+        localBranchDeleted: true,
+        remoteBranchDeleted: false,
+      });
+      vi.mocked(cleanpr.summarizeResults).mockReturnValue({ cleaned: 1, total: 1, failed: 0 });
+
+      await runCli([]);
+
+      expect(cleanpr.cleanWorktree).toHaveBeenCalled();
+    });
+
+    it('skips PR when user declines in select mode', async () => {
+      const mockWorktrees = [makeWorktreeInfo({ prNumber: 1, prState: 'MERGED' })];
+      const { promptChoice, promptConfirm } = await import('../lib/prompts.js');
+
+      vi.mocked(cleanpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        prNumber: null,
+        options: {
+          all: false,
+          force: false,
+          deleteRemote: false,
+          interactive: true,
+          json: false,
+          dryRun: false,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(cleanpr.createDefaultDeps).mockReturnValue(
+        {} as ReturnType<typeof cleanpr.createDefaultDeps>
+      );
+      vi.mocked(cleanpr.gatherPrWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(cleanpr.groupWorktreesByState).mockReturnValue({
+        merged: mockWorktrees,
+        closed: [],
+        open: [],
+        unknown: [],
+      });
+      vi.mocked(cleanpr.getCleanableWorktrees).mockReturnValue(mockWorktrees);
+      vi.mocked(promptChoice).mockResolvedValue('select');
+      vi.mocked(promptConfirm).mockResolvedValueOnce(false); // No, don't clean this PR
+
+      await runCli([]);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Nothing to clean'));
+    });
   });
 
   describe('--all flag', () => {
