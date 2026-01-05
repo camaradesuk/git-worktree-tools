@@ -44,11 +44,10 @@ vi.mock('inquirer', () => ({
 
 // Mock console methods
 const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-const mockConsoleClear = vi.spyOn(console, 'clear').mockImplementation(() => {});
+vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.spyOn(console, 'clear').mockImplementation(() => {});
 
 import * as git from '../git.js';
-import inquirer from 'inquirer';
 
 describe('wtlink/manage-manifest pure functions', () => {
   // Helper to create a simple file tree

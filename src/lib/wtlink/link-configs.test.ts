@@ -34,7 +34,7 @@ vi.mock('inquirer', () => ({
 const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
 const mockConsoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-const mockConsoleClear = vi.spyOn(console, 'clear').mockImplementation(() => {});
+vi.spyOn(console, 'clear').mockImplementation(() => {});
 
 import * as git from '../git.js';
 import inquirer from 'inquirer';
