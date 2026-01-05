@@ -8,8 +8,9 @@ import type { CommandModule } from 'yargs';
 import { runSubcommand } from './run-command.js';
 import * as git from '../../lib/git.js';
 import { runConfigEditor, quickEditConfig } from '../../lib/config-editor.js';
-import { loadConfigWithValidation, getDefaultConfig, getConfigPath } from '../../lib/config.js';
+import { loadConfigWithValidation, getConfigPath } from '../../lib/config.js';
 import { formatValidationErrors } from '../../lib/config-validation.js';
+import { getSchemaUrl } from '../../lib/global-config.js';
 import * as colors from '../../lib/colors.js';
 
 interface ConfigArgs {
@@ -182,7 +183,6 @@ async function handleValidate(): Promise<void> {
  * Handle schema info
  */
 function handleSchema(): void {
-  const { getSchemaUrl } = require('../../lib/global-config.js');
   const schemaUrl = getSchemaUrl();
 
   console.log(colors.info('JSON Schema for .worktreerc'));

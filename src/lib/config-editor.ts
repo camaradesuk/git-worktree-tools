@@ -15,11 +15,10 @@ import { green, dim, cyan, yellow, red, bold } from './colors.js';
 import {
   loadConfigWithValidation,
   saveConfig,
-  getConfigPath,
   getDefaultConfig,
   type WorktreeConfig,
 } from './config.js';
-import { validateConfig, formatValidationErrors } from './config-validation.js';
+import { validateConfig } from './config-validation.js';
 import type { AIConfig } from './ai/types.js';
 import type { HooksConfig } from './hooks/types.js';
 

@@ -24,11 +24,6 @@ const DOC_FILE_PATTERNS = [
 ];
 
 /**
- * Package files that may contain useful project info
- */
-const PACKAGE_FILES = ['package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod'];
-
-/**
  * Repository documentation context
  */
 export interface RepoDocumentation {
