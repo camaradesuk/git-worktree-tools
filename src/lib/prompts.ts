@@ -56,7 +56,6 @@ function renderSimpleOptions(options: string[], selectedIndex: number, prompt: s
 async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise<number> {
   return new Promise((resolve, reject) => {
     let selectedIndex = 0;
-    let isFirstRender = true;
 
     // Initial render
     console.log(`${yellow(prompt)}\n`);
@@ -68,7 +67,6 @@ async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise
       }
     });
     console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
-    isFirstRender = false;
 
     // Enable raw mode for keypress events
     readline.emitKeypressEvents(process.stdin);

@@ -12,7 +12,7 @@ import { detectEnvironment } from './environment.js';
 import { buildActionMenu, formatShortcutLegend } from './actions.js';
 import { executeAction, createDefaultExecutorDeps } from './action-executors.js';
 import { gatherWorktreeInfo, createDefaultDeps } from './worktree-info.js';
-import { filterWorktrees, highlightMatches, getSearchableText } from './fuzzy-search.js';
+import { filterWorktrees, highlightMatches } from './fuzzy-search.js';
 import type { WorktreeDisplay, WorktreeAction, ListOptions, EnvironmentInfo } from './types.js';
 
 /** Map shortcut keys to actions */
@@ -353,6 +353,8 @@ async function selectWorktreeWithShortcuts(
     let searchPattern = '';
     let filteredWorktrees = worktrees;
     let filteredIndices: number[] = worktrees.map((_, i) => i);
+    // Track previous line count for correct cursor movement when exiting search mode
+    let previousTotalLines = worktrees.length + 2;
 
     // Compute badge width once for consistent alignment
     const badgeWidth = computeMaxBadgeWidth(worktrees);
@@ -379,13 +381,15 @@ async function selectWorktreeWithShortcuts(
     const render = () => {
       const totalItems = filteredWorktrees.length;
       // Total lines = worktrees + exit + prompt line + search line (if in search mode)
-      const totalLines = worktrees.length + 2 + (searchMode ? 1 : 0);
+      const currentTotalLines = worktrees.length + 2 + (searchMode ? 1 : 0);
 
       // Move cursor up to overwrite previous render (skip on first render)
+      // Use previousTotalLines to correctly clear the old screen state
       if (!firstRender) {
-        process.stdout.write(`\x1b[${totalLines}A`);
+        process.stdout.write(`\x1b[${previousTotalLines}A`);
       }
       firstRender = false;
+      previousTotalLines = currentTotalLines;
 
       // Render search bar if in search mode
       if (searchMode) {
@@ -559,7 +563,7 @@ async function selectWorktreeWithShortcuts(
       }
 
       // Handle escape or q for exit
-      if (key.name === 'escape' || (key.name === 'q' && !searchMode)) {
+      if (key.name === 'escape' || key.name === 'q') {
         cleanup();
         resolve({ worktree: null, action: 'exit' });
         return;
