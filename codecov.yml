@@ -1,0 +1,20 @@
+# Codecov configuration
+# https://docs.codecov.io/docs/codecovyml-reference
+
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 2%
+    patch:
+      default:
+        target: 70%
+        threshold: 5%
+
+# Ignore CLI entry points and TUI modules
+ignore:
+  - 'src/cli/wt.ts'
+  - 'src/lib/wtlink/main-menu.ts'
+  - 'src/lib/wtlink/manage-manifest.ts'
+  - 'src/lib/wtlink/link-configs.ts'
