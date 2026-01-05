@@ -1,3 +1,20 @@
+# [1.6.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.5.0...v1.6.0) (2026-01-05)
+
+
+### Bug Fixes
+
+* address PR review comments ([ebdc2a3](https://github.com/camaradesuk/git-worktree-tools/commit/ebdc2a398fb96e747ac7633836d405cb72d40c6c))
+* address PR review comments ([d2c3309](https://github.com/camaradesuk/git-worktree-tools/commit/d2c3309657740c213024da4de0eed34a9908b26f))
+* **ux:** resolve 5 UX issues with regression tests ([1306b2b](https://github.com/camaradesuk/git-worktree-tools/commit/1306b2bc681d376a572cb653476d72339e3e7758))
+
+
+### Features
+
+* **cli:** add unified wt command with shell completion ([0175212](https://github.com/camaradesuk/git-worktree-tools/commit/017521245332269058a6183bfd3f82341626e84c))
+* **lswt:** add fuzzy search in interactive mode ([04c01c0](https://github.com/camaradesuk/git-worktree-tools/commit/04c01c064b63c5b4382dffa7c77714f0b9bf4e7f)), closes [#42](https://github.com/camaradesuk/git-worktree-tools/issues/42)
+* UX overhaul ([ff4707d](https://github.com/camaradesuk/git-worktree-tools/commit/ff4707d0ad908da751ae29f66c2e27aa17dfe704))
+* **ux:** complete UX improvement batch 4 ([431042c](https://github.com/camaradesuk/git-worktree-tools/commit/431042cde137fde3495ad20f5151566f5e734e38))
+
 # [1.5.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.4.1...v1.5.0) (2026-01-03)
 
 
