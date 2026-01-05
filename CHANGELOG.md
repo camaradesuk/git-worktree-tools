@@ -1,3 +1,17 @@
+# [1.7.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.6.0...v1.7.0) (2026-01-05)
+
+
+### Bug Fixes
+
+* address PR [#14](https://github.com/camaradesuk/git-worktree-tools/issues/14) code review issues ([1cb8fce](https://github.com/camaradesuk/git-worktree-tools/commit/1cb8fce6289663b4eed5c32081264d8ea79eaa2e))
+* address PR review comments (Sentry + Copilot) ([72cb9cf](https://github.com/camaradesuk/git-worktree-tools/commit/72cb9cf01747ccb406fe2e1f6b617a907ed43521))
+
+
+### Features
+
+* add three-tier config, logging system, and fix PR review bugs ([8c50574](https://github.com/camaradesuk/git-worktree-tools/commit/8c505744a537807f2e40bbe7ad53aa20c75caea9))
+* This is to improve the UX of the tools significantly by adding a unified wt cli with interactive menu that covers all the tools. It also fixes several bugs. ([109b9e8](https://github.com/camaradesuk/git-worktree-tools/commit/109b9e8ba3dbf7a9b06bb3afe82b9e543ac58b12))
+
 # [1.6.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.5.0...v1.6.0) (2026-01-05)
 
 
