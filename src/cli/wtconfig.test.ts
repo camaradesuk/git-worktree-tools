@@ -53,6 +53,8 @@ describe('cli/wtconfig', () => {
     },
     hooks: {},
     hookDefaults: { timeout: 30000, maxTimeout: 60000 },
+    logging: { level: 'info' as const, timestamps: true },
+    global: { warnNotGlobal: true },
   };
 
   beforeEach(() => {
@@ -378,7 +380,7 @@ describe('cli/wtconfig', () => {
       os: 'linux' as const,
       git: { version: '2.30.0', configured: true, user: 'testuser', email: 'test@example.com' },
       github: { installed: true, authenticated: true, user: 'testuser' },
-      ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: false },
+      ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: false },
       packageManager: 'npm' as const,
       ide: { vscode: true, cursor: false },
     };
@@ -524,7 +526,7 @@ describe('cli/wtconfig', () => {
       os: 'linux' as const,
       git: { version: '2.30.0', configured: true, user: 'testuser', email: 'test@example.com' },
       github: { installed: true, authenticated: true, user: 'testuser' },
-      ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: false },
+      ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: false },
       packageManager: 'npm' as const,
       ide: { vscode: true, cursor: false },
     };
@@ -626,7 +628,7 @@ describe('cli/wtconfig', () => {
     it('displays detected AI tools', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: true, geminiCLI: true, ollama: false, openaiKey: false },
+        ai: { claudeCode: true, geminiCLI: true, ollama: false, codexCLI: false },
       });
 
       vi.mocked(inquirer.prompt)
@@ -648,7 +650,7 @@ describe('cli/wtconfig', () => {
     it('displays no AI tools message', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: false },
+        ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: false },
       });
 
       vi.mocked(inquirer.prompt)
@@ -737,7 +739,7 @@ describe('cli/wtconfig', () => {
       os: 'linux' as const,
       git: { version: '2.30.0', configured: true, user: 'testuser', email: 'test@example.com' },
       github: { installed: true, authenticated: true, user: 'testuser' },
-      ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: false },
+      ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: false },
       packageManager: 'npm' as const,
       ide: { vscode: true, cursor: false },
     };
@@ -798,7 +800,7 @@ describe('cli/wtconfig', () => {
     it('handles AI configuration with detected Claude', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: true, geminiCLI: false, ollama: false, openaiKey: false },
+        ai: { claudeCode: true, geminiCLI: false, ollama: false, codexCLI: false },
       });
 
       vi.mocked(inquirer.prompt)
@@ -822,7 +824,7 @@ describe('cli/wtconfig', () => {
     it('handles AI configuration with detected Gemini', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: false, geminiCLI: true, ollama: false, openaiKey: false },
+        ai: { claudeCode: false, geminiCLI: true, ollama: false, codexCLI: false },
       });
 
       vi.mocked(inquirer.prompt)
@@ -846,7 +848,7 @@ describe('cli/wtconfig', () => {
     it('handles AI configuration with detected Ollama', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: false, geminiCLI: false, ollama: true, openaiKey: false },
+        ai: { claudeCode: false, geminiCLI: false, ollama: true, codexCLI: false },
       });
 
       vi.mocked(inquirer.prompt)
@@ -870,7 +872,7 @@ describe('cli/wtconfig', () => {
     it('handles AI configuration with detected OpenAI', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: true },
+        ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: true },
       });
 
       vi.mocked(inquirer.prompt)
@@ -887,14 +889,14 @@ describe('cli/wtconfig', () => {
 
       await runCli(['init']);
 
-      // OpenAI is shown in environment display as "AI tools: OpenAI API"
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('OpenAI API'));
+      // Codex CLI is shown in environment display as "AI tools: Codex CLI"
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Codex CLI'));
     });
 
     it('handles manual AI provider configuration', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: true, geminiCLI: false, ollama: false, openaiKey: false },
+        ai: { claudeCode: true, geminiCLI: false, ollama: false, codexCLI: false },
       });
 
       vi.mocked(inquirer.prompt)
@@ -1015,7 +1017,7 @@ describe('cli/wtconfig', () => {
       os: 'linux' as const,
       git: { version: '2.30.0', configured: true, user: 'testuser', email: 'test@example.com' },
       github: { installed: true, authenticated: true, user: 'testuser' },
-      ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: false },
+      ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: false },
       packageManager: 'npm' as const,
       ide: { vscode: true, cursor: false },
     };
@@ -1290,7 +1292,7 @@ describe('cli/wtconfig', () => {
         os: 'linux',
         git: { version: '2.30.0', configured: true, user: 'testuser', email: 'test@example.com' },
         github: { installed: true, authenticated: true, user: 'testuser' },
-        ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: false },
+        ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: false },
         packageManager: 'npm',
         ide: { vscode: true, cursor: false },
       });
@@ -1324,7 +1326,7 @@ describe('cli/wtconfig', () => {
       os: 'linux' as const,
       git: { version: '2.30.0', configured: true, user: 'testuser', email: 'test@example.com' },
       github: { installed: true, authenticated: true, user: 'testuser' },
-      ai: { claudeCode: false, geminiCLI: false, ollama: false, openaiKey: false },
+      ai: { claudeCode: false, geminiCLI: false, ollama: false, codexCLI: false },
       packageManager: 'npm' as const,
       ide: { vscode: true, cursor: false },
     };
@@ -1430,7 +1432,7 @@ describe('cli/wtconfig', () => {
     it('builds config with AI enabled', async () => {
       vi.mocked(wtconfig.detectEnvironment).mockReturnValue({
         ...mockEnvBase,
-        ai: { claudeCode: true, geminiCLI: false, ollama: false, openaiKey: false },
+        ai: { claudeCode: true, geminiCLI: false, ollama: false, codexCLI: false },
       });
 
       vi.mocked(inquirer.prompt)

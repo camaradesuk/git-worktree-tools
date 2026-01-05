@@ -2,6 +2,16 @@ import readline from 'readline';
 import { yellow, dim, cyan, red, bold, green } from './colors.js';
 
 /**
+ * Error thrown when user navigates back (left arrow)
+ */
+export class UserNavigatedBack extends Error {
+  constructor() {
+    super('User navigated back');
+    this.name = 'UserNavigatedBack';
+  }
+}
+
+/**
  * Option for prompt choices
  */
 export interface PromptOption<T = string> {
@@ -32,7 +42,8 @@ function supportsArrowNavigation(): boolean {
  */
 function renderSimpleOptions(options: string[], selectedIndex: number, prompt: string): void {
   // Move cursor up to redraw (only after first render)
-  const linesToClear = options.length + 3; // prompt + blank + options + hint
+  // Lines: prompt (1) + blank (1) + options (n) + blank before hint (1) + hint (1) = n + 4
+  const linesToClear = options.length + 4;
   process.stdout.write(`\x1b[${linesToClear}A`); // Move up
   process.stdout.write('\x1b[0J'); // Clear from cursor to end
 
@@ -46,7 +57,7 @@ function renderSimpleOptions(options: string[], selectedIndex: number, prompt: s
     }
   });
 
-  console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+  console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
 }
 
 /**
@@ -66,7 +77,7 @@ async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise
         console.log(`    ${dim(opt)}`);
       }
     });
-    console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+    console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
 
     // Enable raw mode for keypress events
     readline.emitKeypressEvents(process.stdin);
@@ -86,7 +97,12 @@ async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise
       } else if (key.name === 'down') {
         selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
         renderSimpleOptions(options, selectedIndex, prompt);
-      } else if (key.name === 'return') {
+      } else if (key.name === 'left') {
+        // Left arrow = go back
+        cleanup();
+        reject(new UserNavigatedBack());
+      } else if (key.name === 'right' || key.name === 'return') {
+        // Right arrow or Enter = select
         cleanup();
         resolve(selectedIndex + 1); // 1-based index
       } else if (str === 'q' || str === 'Q') {
@@ -185,9 +201,9 @@ function renderPromptOptions<T>(
   selectedIndex: number,
   prompt: string
 ): void {
-  // Calculate lines to clear: prompt + blank + (options with descriptions) + hint
+  // Calculate lines to clear: prompt (1) + blank (1) + options with descriptions + blank before hint (1) + hint (1)
   const optionLines = options.reduce((acc, opt) => acc + 1 + (opt.description ? 1 : 0), 0);
-  const linesToClear = optionLines + 3; // prompt + blank + options + hint
+  const linesToClear = optionLines + 4;
   process.stdout.write(`\x1b[${linesToClear}A`); // Move up
   process.stdout.write('\x1b[0J'); // Clear from cursor to end
 
@@ -207,7 +223,7 @@ function renderPromptOptions<T>(
     }
   });
 
-  console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+  console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
 }
 
 /**
@@ -236,7 +252,7 @@ async function promptChoiceArrowKeysValue<T>(
         }
       }
     });
-    console.log(dim('\n  ↑/↓ navigate • Enter select • q quit'));
+    console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
 
     // Enable raw mode for keypress events
     readline.emitKeypressEvents(process.stdin);
@@ -256,7 +272,12 @@ async function promptChoiceArrowKeysValue<T>(
       } else if (key.name === 'down') {
         selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
         renderPromptOptions(options, selectedIndex, prompt);
-      } else if (key.name === 'return') {
+      } else if (key.name === 'left') {
+        // Left arrow = go back
+        cleanup();
+        reject(new UserNavigatedBack());
+      } else if (key.name === 'right' || key.name === 'return') {
+        // Right arrow or Enter = select
         cleanup();
         resolve(options[selectedIndex].value);
       } else if (str === 'q' || str === 'Q') {

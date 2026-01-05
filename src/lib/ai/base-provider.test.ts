@@ -86,7 +86,7 @@ describe('sanitizeBranchName', () => {
 
 describe('Prompt generators', () => {
   describe('createBranchNamePrompt', () => {
-    it('includes task description', () => {
+    it('includes task description and prefix', () => {
       const context: BranchContext = {
         description: 'Add user authentication',
         repoName: 'my-app',
@@ -96,8 +96,7 @@ describe('Prompt generators', () => {
       const prompt = createBranchNamePrompt(context);
 
       expect(prompt).toContain('Add user authentication');
-      expect(prompt).toContain('my-app');
-      expect(prompt).toContain('feat');
+      expect(prompt).toContain('feat/');
     });
 
     it('includes existing branches warning when provided', () => {
@@ -110,7 +109,7 @@ describe('Prompt generators', () => {
 
       const prompt = createBranchNamePrompt(context);
 
-      expect(prompt).toContain('Existing branches to avoid');
+      expect(prompt).toContain('Avoid:');
       expect(prompt).toContain('feat/other-feature');
     });
 
@@ -124,7 +123,7 @@ describe('Prompt generators', () => {
 
       const prompt = createBranchNamePrompt(context);
 
-      expect(prompt).toContain('40 characters');
+      expect(prompt).toContain('Max: 40 chars');
     });
   });
 
@@ -156,7 +155,7 @@ describe('Prompt generators', () => {
 
       const prompt = createPRTitlePrompt(context);
 
-      expect(prompt).toContain('Commits');
+      expect(prompt).toContain('Commits:');
       expect(prompt).toContain('Initial implementation');
       expect(prompt).toContain('Add tests');
     });
@@ -171,7 +170,7 @@ describe('Prompt generators', () => {
 
       const prompt = createPRTitlePrompt(context);
 
-      expect(prompt).toContain('Changed files');
+      expect(prompt).toContain('Files:');
       expect(prompt).toContain('src/auth.ts');
     });
   });
@@ -190,7 +189,7 @@ describe('Prompt generators', () => {
       const prompt = createPRDescriptionPrompt(context);
 
       expect(prompt).toContain('Add authentication');
-      expect(prompt).toContain('abc');
+      expect(prompt).toContain('Initial commit');
       expect(prompt).toContain('src/auth.ts');
       expect(prompt).toContain('+ added line');
     });
@@ -211,7 +210,7 @@ describe('Prompt generators', () => {
   });
 
   describe('createCommitMessagePrompt', () => {
-    it('includes staged files and style', () => {
+    it('includes staged files and style format', () => {
       const context: CommitContext = {
         stagedFiles: ['src/feature.ts', 'src/feature.test.ts'],
         style: 'conventional',
@@ -220,7 +219,7 @@ describe('Prompt generators', () => {
       const prompt = createCommitMessagePrompt(context);
 
       expect(prompt).toContain('src/feature.ts');
-      expect(prompt).toContain('conventional');
+      expect(prompt).toContain('type(scope): description'); // conventional format example
     });
 
     it('includes different style guides', () => {
@@ -238,7 +237,7 @@ describe('Prompt generators', () => {
       const simplePrompt = createCommitMessagePrompt(simpleContext);
 
       expect(gitmojiPrompt).toContain('emoji');
-      expect(simplePrompt).toContain('simple, descriptive');
+      expect(simplePrompt).toContain('Clear description');
     });
 
     it('includes recent commits when provided', () => {
@@ -249,7 +248,7 @@ describe('Prompt generators', () => {
 
       const prompt = createCommitMessagePrompt(context);
 
-      expect(prompt).toContain('Recent commits');
+      expect(prompt).toContain('Recent commits (for style)');
       expect(prompt).toContain('feat: previous feature');
     });
   });
@@ -276,7 +275,7 @@ describe('Prompt generators', () => {
 
       const prompt = createPlanDocumentPrompt(context);
 
-      expect(prompt).toContain('Tech stack');
+      expect(prompt).toContain('Tech:');
       expect(prompt).toContain('TypeScript');
       expect(prompt).toContain('React');
     });
@@ -290,7 +289,7 @@ describe('Prompt generators', () => {
 
       const prompt = createPlanDocumentPrompt(context);
 
-      expect(prompt).toContain('Repository structure');
+      expect(prompt).toContain('Structure:');
       expect(prompt).toContain('src/components/');
     });
   });

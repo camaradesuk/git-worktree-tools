@@ -19,6 +19,8 @@ export interface Options {
   branchName?: string;
   baseBranch: string;
   draft: boolean;
+  /** Tracks if draft was explicitly set via CLI flag (--draft or --ready) */
+  draftExplicitlySet?: boolean;
   installDeps: boolean;
   openEditor: boolean;
   runWtlink: boolean;

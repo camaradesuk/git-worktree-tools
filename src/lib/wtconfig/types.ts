@@ -25,7 +25,7 @@ export interface EnvironmentInfo {
     claudeCode: boolean;
     geminiCLI: boolean;
     ollama: boolean;
-    openaiKey: boolean;
+    codexCLI: boolean;
   };
 
   packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun' | null;
@@ -50,7 +50,9 @@ export interface WizardState {
   aiEnabled: boolean;
   aiProvider: 'auto' | 'claude' | 'gemini' | 'openai' | 'ollama' | 'none';
   aiBranchName: boolean;
+  aiPrTitle: boolean;
   aiPrDescription: boolean;
+  aiCommitMessage: boolean;
   hooks: {
     autoDeps: boolean;
     openEditor: boolean;

@@ -59,6 +59,8 @@ describe('cli/cleanpr', () => {
     plugins: [],
     generators: {},
     integrations: {},
+    logging: { level: 'info' as const, timestamps: true },
+    global: { warnNotGlobal: true },
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({

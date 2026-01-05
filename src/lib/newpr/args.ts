@@ -12,7 +12,7 @@ export function getDefaultOptions(): Options {
   return {
     mode: 'new',
     baseBranch: 'main',
-    draft: true,
+    draft: false,
     installDeps: false,
     openEditor: false,
     runWtlink: true,
@@ -86,6 +86,13 @@ export function parseArgs(args: string[]): ParseResult {
       case '-r':
       case '--ready':
         options.draft = false;
+        options.draftExplicitlySet = true;
+        break;
+
+      case '-d':
+      case '--draft':
+        options.draft = true;
+        options.draftExplicitlySet = true;
         break;
 
       case '--no-wtlink':
@@ -159,9 +166,10 @@ Usage:
 
 Options:
   -b, --base BRANCH     Base branch for PR (default: main)
+  -d, --draft           Create PR as draft
+  -r, --ready           Create PR as ready for review (default)
   -i, --install         Install dependencies after setup
   -c, --code            Open editor to the new worktree
-  -r, --ready           Create PR as ready for review (default: draft)
   --no-wtlink           Skip wtlink config sync
   --no-hooks            Disable lifecycle hooks (for security)
   -h, --help            Show this help message

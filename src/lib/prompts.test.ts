@@ -8,6 +8,7 @@ import {
   printHeader,
   printListItem,
   withSpinner,
+  UserNavigatedBack,
 } from './prompts.js';
 
 // Mock readline
@@ -1006,6 +1007,114 @@ describe('prompts', () => {
 
         expect(result).toBe('first'); // Wrapped to first
       });
+
+      it('selects with right arrow key', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'down' });
+                setImmediate(() => {
+                  handler('', { name: 'right' }); // Right arrow to select
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoice('Choose:', [
+          { label: 'First', value: 'first' },
+          { label: 'Second', value: 'second' },
+        ]);
+
+        expect(result).toBe('second');
+      });
+
+      it('rejects with UserNavigatedBack on left arrow', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'left' }); // Left arrow to go back
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await expect(promptChoice('Choose:', [{ label: 'A', value: 'a' }])).rejects.toBeInstanceOf(
+          UserNavigatedBack
+        );
+      });
+    });
+
+    describe('promptChoiceIndex left/right arrow navigation', () => {
+      it('selects with right arrow key', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'down' });
+                setImmediate(() => {
+                  handler('', { name: 'right' }); // Right arrow to select
+                });
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        const result = await promptChoiceIndex('Choose:', ['A', 'B', 'C']);
+
+        expect(result).toBe(2); // Second option (1-based)
+      });
+
+      it('rejects with UserNavigatedBack on left arrow', async () => {
+        mockStdinOn.mockImplementation(
+          (
+            event: string,
+            handler: (str: string, key: { name?: string; ctrl?: boolean }) => void
+          ) => {
+            if (event === 'keypress') {
+              setImmediate(() => {
+                handler('', { name: 'left' }); // Left arrow to go back
+              });
+            }
+            return process.stdin;
+          }
+        );
+
+        await expect(promptChoiceIndex('Choose:', ['A', 'B'])).rejects.toBeInstanceOf(
+          UserNavigatedBack
+        );
+      });
+    });
+  });
+
+  describe('UserNavigatedBack', () => {
+    it('is an Error instance', () => {
+      const error = new UserNavigatedBack();
+      expect(error).toBeInstanceOf(Error);
+    });
+
+    it('has correct name', () => {
+      const error = new UserNavigatedBack();
+      expect(error.name).toBe('UserNavigatedBack');
+    });
+
+    it('has correct message', () => {
+      const error = new UserNavigatedBack();
+      expect(error.message).toBe('User navigated back');
     });
   });
 });

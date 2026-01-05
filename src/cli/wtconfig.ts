@@ -544,7 +544,7 @@ function displayEnvironment(env: EnvironmentInfo): void {
   if (env.ai.claudeCode) aiTools.push('Claude Code');
   if (env.ai.geminiCLI) aiTools.push('Gemini CLI');
   if (env.ai.ollama) aiTools.push('Ollama');
-  if (env.ai.openaiKey) aiTools.push('OpenAI API');
+  if (env.ai.codexCLI) aiTools.push('Codex CLI');
 
   if (aiTools.length > 0) {
     console.log(`${check} AI tools: ${aiTools.join(', ')}`);
@@ -683,9 +683,11 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
   let aiEnabled = false;
   let aiProvider: WizardState['aiProvider'] = 'none';
   let aiBranchName = false;
+  let aiPrTitle = false;
   let aiPrDescription = false;
+  let aiCommitMessage = false;
 
-  const hasAI = env.ai.claudeCode || env.ai.geminiCLI || env.ai.ollama || env.ai.openaiKey;
+  const hasAI = env.ai.claudeCode || env.ai.geminiCLI || env.ai.ollama || env.ai.codexCLI;
 
   if (hasAI) {
     const detectedProvider = env.ai.claudeCode
@@ -694,7 +696,7 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
         ? 'Gemini CLI'
         : env.ai.ollama
           ? 'Ollama'
-          : 'OpenAI';
+          : 'Codex CLI';
 
     const step3a = await inquirer.prompt<{ aiChoice: 'yes' | 'configure' | 'no' }>([
       {
@@ -748,17 +750,25 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
           message: 'Which AI features would you like to enable?',
           choices: [
             { name: 'Generate branch names from description', value: 'branchName', checked: true },
+            { name: 'Generate PR titles from changes', value: 'prTitle', checked: true },
             {
               name: 'Generate PR descriptions from changes',
               value: 'prDescription',
               checked: true,
+            },
+            {
+              name: 'Generate commit messages from staged changes',
+              value: 'commitMessage',
+              checked: false,
             },
           ],
         },
       ]);
 
       aiBranchName = step3b.aiFeatures.includes('branchName');
+      aiPrTitle = step3b.aiFeatures.includes('prTitle');
       aiPrDescription = step3b.aiFeatures.includes('prDescription');
+      aiCommitMessage = step3b.aiFeatures.includes('commitMessage');
     }
   } else {
     console.log(colors.dim('No AI tools detected. Skipping AI configuration.'));
@@ -1026,7 +1036,9 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
     aiEnabled,
     aiProvider,
     aiBranchName,
+    aiPrTitle,
     aiPrDescription,
+    aiCommitMessage,
     hooks: {
       autoDeps,
       openEditor,
@@ -1072,7 +1084,9 @@ function buildConfigFromState(state: WizardState, env: EnvironmentInfo): Worktre
     config.ai = {
       provider: state.aiProvider,
       branchName: state.aiBranchName,
+      prTitle: state.aiPrTitle,
       prDescription: state.aiPrDescription,
+      commitMessage: state.aiCommitMessage,
     };
   }
 

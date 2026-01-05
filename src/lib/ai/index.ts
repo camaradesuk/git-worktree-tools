@@ -21,9 +21,18 @@ export type {
   CommitContext,
   PlanContext,
   CommitInfo,
+  RepoDocumentationContext,
 } from './types.js';
 
 export { DEFAULT_AI_CONFIG } from './types.js';
+
+// Repository documentation
+export {
+  gatherRepoDocumentation,
+  formatDocsForPrompt,
+  hasDocumentation,
+  type RepoDocumentation,
+} from './repo-docs.js';
 
 // Base provider utilities
 export {

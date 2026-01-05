@@ -607,6 +607,17 @@ export function branchExists(name: string, cwd?: string): boolean {
 }
 
 /**
+ * List all local branch names
+ */
+export function listLocalBranches(cwd?: string): string[] {
+  const result = execSafe(['branch', '--format=%(refname:short)'], { cwd });
+  if (!result) {
+    return [];
+  }
+  return result.split('\n').filter(Boolean);
+}
+
+/**
  * Check if a branch exists on remote
  */
 export function remoteBranchExists(
@@ -668,4 +679,22 @@ export function getMainWorktreeRoot(cwd?: string): string {
 export function isGitIgnored(filePath: string, cwd?: string): boolean {
   const result = execSafe(['check-ignore', filePath], { cwd });
   return result !== null && result.trim().length > 0;
+}
+
+/**
+ * Get list of files changed between two refs
+ */
+export function getChangedFiles(baseRef: string, headRef: string, cwd?: string): string[] {
+  const result = execSafe(['diff', '--name-only', `${baseRef}...${headRef}`], { cwd });
+  if (!result) {
+    return [];
+  }
+  return result.split('\n').filter(Boolean);
+}
+
+/**
+ * Get commit messages between two refs
+ */
+export function getCommitMessages(baseRef: string, headRef: string, cwd?: string): string[] {
+  return getLog(`${baseRef}...${headRef}`, { format: '%s', cwd });
 }

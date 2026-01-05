@@ -167,6 +167,17 @@ The TypeScript implementations were ported from bash scripts in `/home/chris/wor
 
 The `wtlink` tool was created based on the user's existing Node.js package functionality.
 
+## Testing Guidelines
+
+**IMPORTANT**: When coverage is low on files, always write actual tests to improve coverage. NEVER simply exclude files from coverage to "fix" failing coverage checks. This applies even when:
+
+- The code is interactive (TUI/prompts) - mock the interactive components
+- The code is a CLI entry point - test the handler functions directly
+- The code depends on external tools - mock the external dependencies
+- The tests seem "difficult" - find creative ways to test the logic
+
+The goal is genuine test coverage, not artificially inflated metrics.
+
 ## Notes for Continuation
 
 - All tests pass locally and in CI (Ubuntu, macOS, Windows)

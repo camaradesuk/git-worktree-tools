@@ -2,15 +2,18 @@
 
 ## Implementation Status
 
-> **Last Updated**: 2025-12-29
+> **Last Updated**: 2026-01-05
 
-| Phase          | Status      | Notes                                                  |
-| -------------- | ----------- | ------------------------------------------------------ |
-| Setup          | ✅ Complete | TypeScript project configured, CI/CD workflows created |
-| Core Libraries | ✅ Complete | All 6 libraries implemented with tests                 |
-| CLI Tools      | ✅ Complete | newpr, cleanpr, lswt, wtlink all ported                |
-| Testing        | ✅ Complete | 231 tests passing, cross-platform CI green             |
-| npm Publishing | ⏳ Pending  | Requires NPM_TOKEN secret, then create v0.1.0 tag      |
+| Phase             | Status      | Notes                                                  |
+| ----------------- | ----------- | ------------------------------------------------------ |
+| Setup             | ✅ Complete | TypeScript project configured, CI/CD workflows created |
+| Core Libraries    | ✅ Complete | All libraries implemented with tests                   |
+| CLI Tools         | ✅ Complete | newpr, cleanpr, lswt, wtlink, wtstate, wtconfig ported |
+| Unified `wt` CLI  | ✅ Complete | Interactive menu, subcommands, shell completion        |
+| Three-Tier Config | ✅ Complete | Global, repo, local config with JSON schema validation |
+| Logging System    | ✅ Complete | Configurable levels, file output, CLI flags            |
+| Testing           | ✅ Complete | 2400+ tests passing, cross-platform CI green           |
+| npm Publishing    | ⏳ Pending  | Requires NPM_TOKEN secret, then create version tag     |
 
 ## Overview
 
@@ -21,8 +24,8 @@ This document provides the comprehensive implementation plan for `@camaradesuk/g
 - **Cross-platform**: Windows native, macOS, Linux (not dependent on bash/WSL)
 - **Single install**: `npm install -g @camaradesuk/git-worktree-tools`
 - **Generic**: Works with any git repository (not tied to specific repos)
-- **Configurable**: Per-repo settings via `.worktreerc`
-- **Bundled**: All tools in one package (newpr, cleanpr, lswt, wtlink)
+- **Configurable**: Three-tier config (global, repo, local) via `.worktreerc`
+- **Bundled**: All tools in one package with unified `wt` command
 
 ---
 
