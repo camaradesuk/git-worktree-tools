@@ -55,8 +55,10 @@
   "publishConfig": {
     "access": "public"
   },
+  "preferGlobal": true,
   "files": [
     "dist",
+    "schemas",
     "README.md",
     "LICENSE"
   ],

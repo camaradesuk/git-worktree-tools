@@ -69,8 +69,10 @@ describe('wt CLI entry point', () => {
       expect(result.stdout).toContain('Commands:');
     });
 
-    it('supports short -v alias for version', () => {
-      const result = spawnSync(process.execPath, [wtCliPath, '-v'], {
+    // Note: -v is now used for verbose mode, not version
+    // Use --version to get version information
+    it('supports --version flag for version', () => {
+      const result = spawnSync(process.execPath, [wtCliPath, '--version'], {
         encoding: 'utf-8',
       });
 

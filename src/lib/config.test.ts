@@ -212,7 +212,8 @@ describe('config', () => {
         const config = loadConfig(tempDir);
         expect(config).toEqual(getDefaultConfig());
         expect(warnings.length).toBeGreaterThan(0);
-        expect(warnings[0]).toContain('Warning');
+        // Logger formats warnings with WARN prefix
+        expect(warnings[0]).toMatch(/WARN.*Failed to parse/);
       } finally {
         console.warn = originalWarn;
       }

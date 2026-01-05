@@ -226,6 +226,16 @@ async function handleNewPRFromDescription(): Promise<FlowResult> {
   console.log();
 
   try {
+    // Check if we're in a git repository first
+    let repoRoot: string;
+    try {
+      repoRoot = git.getRepoRoot();
+    } catch {
+      console.log(red('Not in a git repository'));
+      console.log(dim('Please run this command from within a git repository.'));
+      return CANCELLED;
+    }
+
     // Required: description
     const description = await promptInput('PR description (what are you building?)');
     if (!description) {
@@ -234,7 +244,6 @@ async function handleNewPRFromDescription(): Promise<FlowResult> {
     }
 
     // Load config for defaults
-    const repoRoot = git.getRepoRoot();
     const config = loadConfig(repoRoot);
 
     // Optional: base branch
@@ -334,12 +343,22 @@ async function handleNewPRFromBranch(): Promise<FlowResult> {
   console.log();
 
   try {
-    // Get list of local branches (excluding main/master)
-    const branches = git
-      .listLocalBranches()
-      .filter(
-        (b: string) => !['main', 'master', 'develop'].includes(b) && !b.startsWith('origin/')
-      );
+    // Check if we're in a git repository first
+    let repoRoot: string;
+    let branches: string[];
+    try {
+      repoRoot = git.getRepoRoot();
+      // Get list of local branches (excluding main/master)
+      branches = git
+        .listLocalBranches()
+        .filter(
+          (b: string) => !['main', 'master', 'develop'].includes(b) && !b.startsWith('origin/')
+        );
+    } catch {
+      console.log(red('Not in a git repository'));
+      console.log(dim('Please run this command from within a git repository.'));
+      return CANCELLED;
+    }
 
     let branchName: string;
 
@@ -367,7 +386,6 @@ async function handleNewPRFromBranch(): Promise<FlowResult> {
     }
 
     // Load config for defaults
-    const repoRoot = git.getRepoRoot();
     const config = loadConfig(repoRoot);
 
     // Optional: base branch

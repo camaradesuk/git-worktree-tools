@@ -125,6 +125,8 @@ describe('cli/newpr', () => {
     plugins: [],
     generators: {},
     integrations: {},
+    logging: { level: 'info' as const, timestamps: true },
+    global: { warnNotGlobal: true },
   };
 
   const defaultOptions = {

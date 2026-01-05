@@ -6,6 +6,7 @@ import {
   DEFAULT_WORKTREE_PARENT,
   DEFAULT_BRANCH_PREFIX,
   CONFIG_FILE_NAMES,
+  LogLevel,
 } from './constants.js';
 import type { AIConfig, BranchContext, PRContext } from './ai/types.js';
 import { DEFAULT_AI_CONFIG } from './ai/types.js';
@@ -16,6 +17,15 @@ import {
   formatValidationErrors,
   type ValidationResult,
 } from './config-validation.js';
+import {
+  loadGlobalConfig,
+  findRepoConfigFile,
+  findLocalConfigFile,
+  getSchemaUrl,
+  getConfigPaths,
+  type ConfigSource,
+} from './global-config.js';
+import { logger } from './logger.js';
 
 /**
  * Hook execution defaults configuration
@@ -133,6 +143,47 @@ export interface IntegrationsConfig {
 }
 
 /**
+ * Logging configuration
+ */
+export interface LoggingConfig {
+  /**
+   * Log level threshold
+   * Options: "silent", "error", "warn", "info", "debug", "trace"
+   * Default: "info"
+   */
+  level?: 'silent' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+
+  /**
+   * Path to log file for persistent logging
+   * If set, logs will be written to this file in addition to console
+   * Supports ~ for home directory
+   */
+  logFile?: string;
+
+  /**
+   * Enable timestamps in log output
+   * Default: true
+   */
+  timestamps?: boolean;
+}
+
+/**
+ * Global settings that typically live in the global config
+ */
+export interface GlobalSettings {
+  /**
+   * Warn if the package is not installed globally
+   * Default: true
+   */
+  warnNotGlobal?: boolean;
+
+  /**
+   * Logging configuration (also applies to repo/local configs)
+   */
+  logging?: LoggingConfig;
+}
+
+/**
  * Configuration for git-worktree-tools
  */
 export interface WorktreeConfig {
@@ -223,6 +274,18 @@ export interface WorktreeConfig {
    * Third-party integrations configuration
    */
   integrations?: IntegrationsConfig;
+
+  /**
+   * Logging configuration
+   * Controls verbosity and log file output
+   */
+  logging?: LoggingConfig;
+
+  /**
+   * Global settings
+   * These are typically set in the global config file
+   */
+  global?: GlobalSettings;
 }
 
 /**
@@ -247,21 +310,17 @@ export function getDefaultConfig(): Required<WorktreeConfig> {
     plugins: [],
     generators: {},
     integrations: {},
+    logging: {
+      level: 'info',
+      timestamps: true,
+    },
+    global: {
+      warnNotGlobal: true,
+    },
   };
 }
 
-/**
- * Find config file in repository
- */
-function findConfigFile(repoRoot: string): string | null {
-  for (const fileName of CONFIG_FILE_NAMES) {
-    const configPath = path.join(repoRoot, fileName);
-    if (fs.existsSync(configPath)) {
-      return configPath;
-    }
-  }
-  return null;
-}
+// Note: findConfigFile functionality moved to global-config.ts (findRepoConfigFile, findLocalConfigFile)
 
 /**
  * Options for loading configuration
@@ -274,20 +333,34 @@ export interface LoadConfigOptions {
 }
 
 /**
- * Result of loading and validating config
+ * Information about a loaded config source
  */
-export interface LoadConfigResult {
-  config: Required<WorktreeConfig>;
-  configPath: string | null;
+export interface LoadedConfigSource {
+  path: string;
+  level: 'global' | 'repo' | 'local';
+  config: WorktreeConfig;
   validation: ValidationResult | null;
 }
 
 /**
- * Load configuration from repository
- * Merges with defaults, repo config takes precedence
+ * Result of loading and validating config
+ */
+export interface LoadConfigResult {
+  config: Required<WorktreeConfig>;
+  /** Primary config path (for backward compatibility - now refers to highest priority loaded config) */
+  configPath: string | null;
+  /** Validation result for the merged config */
+  validation: ValidationResult | null;
+  /** All config sources that were loaded */
+  sources: LoadedConfigSource[];
+}
+
+/**
+ * Load configuration from repository (or global config only if no repoRoot)
+ * Implements three-tier hierarchy: defaults ← global ← repo ← local
  */
 export function loadConfig(
-  repoRoot: string,
+  repoRoot?: string,
   options: LoadConfigOptions = {}
 ): Required<WorktreeConfig> {
   const result = loadConfigWithValidation(repoRoot, options);
@@ -295,78 +368,176 @@ export function loadConfig(
 }
 
 /**
+ * Load a single config file and validate it
+ */
+function loadSingleConfigFile(
+  filePath: string,
+  level: 'global' | 'repo' | 'local',
+  validate: boolean
+): LoadedConfigSource | null {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const config: WorktreeConfig = JSON.parse(content);
+
+    let validation: ValidationResult | null = null;
+    if (validate) {
+      validation = validateConfig(config);
+    }
+
+    return { path: filePath, level, config, validation };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn(`Failed to parse config file ${filePath}: ${message}`);
+    return {
+      path: filePath,
+      level,
+      config: {},
+      validation: { valid: false, errors: [{ path: '', message: `Parse error: ${message}` }] },
+    };
+  }
+}
+
+/**
  * Load configuration with full validation result
+ * Implements three-tier hierarchy: defaults ← global ← repo ← local
  */
 export function loadConfigWithValidation(
-  repoRoot: string,
+  repoRoot?: string,
   options: LoadConfigOptions = {}
 ): LoadConfigResult {
   const { validate = true, warnOnErrors = true } = options;
   const defaults = getDefaultConfig();
-  const configPath = findConfigFile(repoRoot);
+  const sources: LoadedConfigSource[] = [];
 
-  if (!configPath) {
-    return { config: defaults, configPath: null, validation: null };
-  }
-
-  try {
-    const content = fs.readFileSync(configPath, 'utf8');
-    const userConfig: WorktreeConfig = JSON.parse(content);
-
-    // Validate config if requested
+  // 1. Load global config (lowest priority after defaults)
+  const globalConfig = loadGlobalConfig();
+  if (globalConfig) {
+    const globalPath = getConfigPaths().global.path;
     let validation: ValidationResult | null = null;
     if (validate) {
-      validation = validateConfig(userConfig);
+      validation = validateConfig(globalConfig);
       if (!validation.valid && warnOnErrors) {
-        console.warn(`Warning: ${configPath} has validation errors:`);
-        console.warn(formatValidationErrors(validation.errors));
+        logger.warn(
+          `Global config has validation errors: ${formatValidationErrors(validation.errors)}`
+        );
+      }
+    }
+    sources.push({ path: globalPath, level: 'global', config: globalConfig, validation });
+    logger.debug(`Loaded global config from ${globalPath}`);
+  }
+
+  // 2. Load repo config (medium priority)
+  if (repoRoot) {
+    const repoConfigPath = findRepoConfigFile(repoRoot);
+    if (repoConfigPath) {
+      const repoSource = loadSingleConfigFile(repoConfigPath, 'repo', validate);
+      if (repoSource) {
+        if (!repoSource.validation?.valid && warnOnErrors && repoSource.validation) {
+          logger.warn(
+            `Repo config has validation errors: ${formatValidationErrors(repoSource.validation.errors)}`
+          );
+        }
+        sources.push(repoSource);
+        logger.debug(`Loaded repo config from ${repoConfigPath}`);
       }
     }
 
-    // Merge with defaults (deep merge for nested config objects)
-    const mergedConfig: Required<WorktreeConfig> = {
-      ...defaults,
-      ...userConfig,
-      ai: {
-        ...defaults.ai,
-        ...userConfig.ai,
-      },
-      hooks: {
-        ...defaults.hooks,
-        ...userConfig.hooks,
-      },
-      plugins: userConfig.plugins ?? defaults.plugins,
-      generators: {
-        ...defaults.generators,
-        ...userConfig.generators,
-      },
-      integrations: {
-        ...defaults.integrations,
-        ...userConfig.integrations,
-        // Deep merge nested integration configs
-        linear: userConfig.integrations?.linear
-          ? { ...defaults.integrations?.linear, ...userConfig.integrations.linear }
-          : defaults.integrations?.linear,
-        jira: userConfig.integrations?.jira
-          ? { ...defaults.integrations?.jira, ...userConfig.integrations.jira }
-          : defaults.integrations?.jira,
-        slack: userConfig.integrations?.slack
-          ? { ...defaults.integrations?.slack, ...userConfig.integrations.slack }
-          : defaults.integrations?.slack,
-      },
-    };
-
-    return { config: mergedConfig, configPath, validation };
-  } catch (error) {
-    // If config file exists but is invalid, warn but continue with defaults
-    const message = error instanceof Error ? error.message : String(error);
-    console.warn(`Warning: Failed to parse ${configPath}: ${message}`);
-    return {
-      config: defaults,
-      configPath,
-      validation: { valid: false, errors: [{ path: '', message: `Parse error: ${message}` }] },
-    };
+    // 3. Load local config (highest priority)
+    const localConfigPath = findLocalConfigFile(repoRoot);
+    if (localConfigPath) {
+      const localSource = loadSingleConfigFile(localConfigPath, 'local', validate);
+      if (localSource) {
+        if (!localSource.validation?.valid && warnOnErrors && localSource.validation) {
+          logger.warn(
+            `Local config has validation errors: ${formatValidationErrors(localSource.validation.errors)}`
+          );
+        }
+        sources.push(localSource);
+        logger.debug(`Loaded local config from ${localConfigPath}`);
+      }
+    }
   }
+
+  // Merge configs in order: defaults ← global ← repo ← local
+  let merged: Required<WorktreeConfig> = defaults;
+
+  for (const source of sources) {
+    merged = mergeConfigs(merged, source.config);
+  }
+
+  // Determine primary config path (highest priority loaded)
+  const primarySource = sources.length > 0 ? sources[sources.length - 1] : null;
+  const configPath = primarySource?.path ?? null;
+
+  // Aggregate validation errors
+  const allErrors = sources
+    .filter((s) => s.validation && !s.validation.valid)
+    .flatMap((s) => s.validation!.errors.map((e) => ({ ...e, source: s.path })));
+
+  const validation: ValidationResult | null =
+    allErrors.length > 0 ? { valid: false, errors: allErrors } : { valid: true, errors: [] };
+
+  return { config: merged, configPath, validation, sources };
+}
+
+/**
+ * Merge two configs with deep merging for nested objects
+ */
+function mergeConfigs(
+  base: Required<WorktreeConfig>,
+  override: WorktreeConfig
+): Required<WorktreeConfig> {
+  return {
+    ...base,
+    ...override,
+    sharedRepos: override.sharedRepos ?? base.sharedRepos,
+    syncPatterns: override.syncPatterns ?? base.syncPatterns,
+    plugins: override.plugins ?? base.plugins,
+    ai: {
+      ...base.ai,
+      ...override.ai,
+    },
+    hooks: {
+      ...base.hooks,
+      ...override.hooks,
+    },
+    hookDefaults: {
+      ...base.hookDefaults,
+      ...override.hookDefaults,
+    },
+    generators: {
+      ...base.generators,
+      ...override.generators,
+    },
+    integrations: {
+      ...base.integrations,
+      ...override.integrations,
+      linear: override.integrations?.linear
+        ? { ...base.integrations?.linear, ...override.integrations.linear }
+        : base.integrations?.linear,
+      jira: override.integrations?.jira
+        ? { ...base.integrations?.jira, ...override.integrations.jira }
+        : base.integrations?.jira,
+      slack: override.integrations?.slack
+        ? { ...base.integrations?.slack, ...override.integrations.slack }
+        : base.integrations?.slack,
+    },
+    logging: {
+      ...base.logging,
+      ...override.logging,
+    },
+    global: {
+      ...base.global,
+      ...override.global,
+      logging: override.global?.logging
+        ? { ...base.global?.logging, ...override.global.logging }
+        : base.global?.logging,
+    },
+  };
 }
 
 /**
@@ -394,7 +565,7 @@ export function saveConfig(
   }
 
   // Find existing config or use default name
-  let configPath = findConfigFile(repoRoot);
+  let configPath = findRepoConfigFile(repoRoot);
   if (!configPath) {
     configPath = path.join(repoRoot, CONFIG_FILE_NAMES[0]); // Use .worktreerc
   }
@@ -454,17 +625,25 @@ function deepMergeConfigs(base: WorktreeConfig, override: WorktreeConfig): Workt
 
 /**
  * Get config file path for a repository (or null if none exists)
+ * Returns the highest priority config that exists (local > repo)
  */
 export function getConfigPath(repoRoot: string): string | null {
-  return findConfigFile(repoRoot);
+  // Check local config first (highest priority)
+  const localPath = findLocalConfigFile(repoRoot);
+  if (localPath) return localPath;
+
+  // Then check repo config
+  const repoPath = findRepoConfigFile(repoRoot);
+  if (repoPath) return repoPath;
+
+  return null;
 }
 
 /**
  * Get the schema URL for IDE support
+ * Uses unpkg.com to serve the schema directly from npm
  */
-export function getSchemaUrl(): string {
-  return 'https://raw.githubusercontent.com/camaradesuk/git-worktree-tools/main/schemas/worktreerc.schema.json';
-}
+export { getSchemaUrl } from './global-config.js';
 
 /**
  * Generate worktree path based on config pattern

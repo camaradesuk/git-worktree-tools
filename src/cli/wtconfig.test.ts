@@ -53,6 +53,8 @@ describe('cli/wtconfig', () => {
     },
     hooks: {},
     hookDefaults: { timeout: 30000, maxTimeout: 60000 },
+    logging: { level: 'info' as const, timestamps: true },
+    global: { warnNotGlobal: true },
   };
 
   beforeEach(() => {

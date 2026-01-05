@@ -58,6 +58,8 @@ vi.mock('../../lib/config.js', () => ({
     plugins: [],
     generators: {},
     integrations: {},
+    logging: { level: 'info' as const, timestamps: true },
+    global: { warnNotGlobal: true },
   })),
 }));
 
@@ -813,6 +815,8 @@ describe('Config loading in flows', () => {
       plugins: [],
       generators: {},
       integrations: {},
+      logging: { level: 'info' as const, timestamps: true },
+      global: { warnNotGlobal: true },
     });
 
     vi.mocked(promptChoice).mockResolvedValueOnce('from-description').mockResolvedValueOnce(true);

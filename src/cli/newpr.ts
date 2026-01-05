@@ -783,12 +783,13 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     progress(options, colors.info('Creating pull request...'));
 
     // Generate AI-enhanced PR content if enabled
+    // Use origin/baseBranch to compare against remote, not potentially stale local branch
     const prContent = await generatePRContentAsync(config, {
       description,
       branchName,
       baseBranch: options.baseBranch,
-      changedFiles: git.getChangedFiles(options.baseBranch, branchName),
-      commitMessages: git.getCommitMessages(options.baseBranch, branchName),
+      changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
+      commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
     });
 
     if (prContent.aiGenerated) {

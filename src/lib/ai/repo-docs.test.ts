@@ -42,7 +42,9 @@ describe('repo-docs', () => {
         const docs = gatherRepoDocumentation(tempDir);
 
         expect(docs.readme).toContain('# Lower Case');
-        expect(docs.readmeSource).toBe('readme.md');
+        // On case-insensitive filesystems (macOS, Windows), the pattern 'README.md'
+        // matches 'readme.md', so the source may be reported as either case
+        expect(docs.readmeSource?.toLowerCase()).toBe('readme.md');
       });
 
       it('finds README without extension', () => {

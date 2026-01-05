@@ -32,12 +32,79 @@ import { cleanCommand } from './wt/clean.js';
 import { linkCommand } from './wt/link.js';
 import { stateCommand } from './wt/state.js';
 import { configCommand } from './wt/config.js';
+import { initCommand } from './wt/init.js';
 import { completionCommand } from './wt/completion.js';
 import { showMainMenu } from './wt/interactive-menu.js';
+import { initializeLogger, parseLogLevel, LogLevel } from '../lib/logger.js';
+import { loadConfig } from '../lib/config.js';
+import { checkAndWarnGlobalInstall } from '../lib/global-check.js';
+import * as git from '../lib/git.js';
+
+// Initialize logger and check global install before parsing
+function initializeCliEnvironment(): void {
+  // Try to load config for logging settings
+  let config;
+  try {
+    const repoRoot = git.getRepoRoot();
+    config = loadConfig(repoRoot);
+  } catch {
+    // Not in a git repo, load global config only
+    config = loadConfig();
+  }
+
+  // Parse args manually to check for verbose/debug flags before yargs runs
+  const args = process.argv.slice(2);
+  const verbose = args.includes('-v') || args.includes('--verbose');
+  const veryVerbose = args.filter((a) => a === '-v').length >= 2;
+  const debug = args.includes('--debug');
+  const quiet = args.includes('-q') || args.includes('--quiet');
+
+  // Get log file from args
+  const logFileIdx = args.findIndex((a) => a === '--log-file');
+  const logFile = logFileIdx >= 0 ? args[logFileIdx + 1] : undefined;
+
+  // Initialize logger
+  initializeLogger({
+    verbose: veryVerbose ? 2 : verbose,
+    debug,
+    quiet,
+    logFile,
+    configLogLevel: config.logging?.level,
+    configLogFile: config.logging?.logFile,
+  });
+
+  // Check global installation
+  checkAndWarnGlobalInstall(config);
+}
+
+// Initialize before yargs parses
+initializeCliEnvironment();
 
 yargs(hideBin(process.argv))
   .scriptName('wt')
   .usage('$0 [command] [options]')
+  .option('verbose', {
+    alias: 'v',
+    type: 'count',
+    description: 'Increase verbosity (-v for debug, -vv for trace)',
+    global: true,
+  })
+  .option('debug', {
+    type: 'boolean',
+    description: 'Enable debug output',
+    global: true,
+  })
+  .option('quiet', {
+    alias: 'q',
+    type: 'boolean',
+    description: 'Suppress non-essential output',
+    global: true,
+  })
+  .option('log-file', {
+    type: 'string',
+    description: 'Write logs to file',
+    global: true,
+  })
   .command(
     '$0',
     'Interactive main menu (when no command specified)',
@@ -52,10 +119,10 @@ yargs(hideBin(process.argv))
   .command(linkCommand)
   .command(stateCommand)
   .command(configCommand)
+  .command(initCommand)
   .command(completionCommand)
   .completion('get-yargs-completions', false) // Enable yargs completion for bash script
   .alias('h', 'help')
-  .alias('v', 'version')
   .help()
   .version()
   .wrap(Math.min(100, process.stdout.columns ?? 100))
@@ -69,6 +136,8 @@ yargs(hideBin(process.argv))
   .example('wt link', 'Interactive config file linking')
   .example('wt state', 'Show current worktree state')
   .example('wt config show', 'Show current configuration')
+  .example('wt init', 'Initialize local/global configuration')
+  .example('wt -v new "Feature"', 'Create PR with verbose logging')
   .strict()
   .fail((msg, err) => {
     if (err) {

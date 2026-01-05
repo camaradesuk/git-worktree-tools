@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/camaradesuk/git-worktree-tools/schemas/worktreerc.schema.json",
+  "$id": "https://unpkg.com/@camaradesuk/git-worktree-tools@latest/schemas/worktreerc.schema.json",
   "title": "Git Worktree Tools Configuration",
-  "description": "Configuration schema for .worktreerc files used by git-worktree-tools",
+  "description": "Configuration schema for .worktreerc, .worktreerc.local, and global config files used by git-worktree-tools. Config priority: local > repo > global > defaults.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "JSON Schema reference for editor support"
+      "description": "JSON Schema reference for editor support. Recommended: https://unpkg.com/@camaradesuk/git-worktree-tools@latest/schemas/worktreerc.schema.json"
     },
     "sharedRepos": {
       "type": "array",
@@ -70,6 +70,12 @@
     },
     "integrations": {
       "$ref": "#/definitions/IntegrationsConfig"
+    },
+    "logging": {
+      "$ref": "#/definitions/LoggingConfig"
+    },
+    "global": {
+      "$ref": "#/definitions/GlobalSettings"
     }
   },
   "definitions": {
@@ -365,6 +371,44 @@
         "channel": {
           "type": "string",
           "description": "Default channel for notifications"
+        }
+      }
+    },
+    "LoggingConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Logging configuration for controlling verbosity and output",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["silent", "error", "warn", "info", "debug", "trace"],
+          "default": "info",
+          "description": "Log level threshold. Options: silent (no output), error, warn, info (default), debug, trace (most verbose)"
+        },
+        "logFile": {
+          "type": "string",
+          "description": "Path to log file for persistent logging. Logs are written in JSON Lines format. Supports ~ for home directory."
+        },
+        "timestamps": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include timestamps in log output"
+        }
+      }
+    },
+    "GlobalSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Global settings that typically live in the global config file (~/.config/git-worktree-tools/config.json)",
+      "properties": {
+        "warnNotGlobal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a warning if the package is not installed globally"
+        },
+        "logging": {
+          "$ref": "#/definitions/LoggingConfig",
+          "description": "Default logging configuration (can be overridden by repo/local configs)"
         }
       }
     }

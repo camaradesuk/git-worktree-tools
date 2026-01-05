@@ -182,14 +182,17 @@ async function handleValidate(): Promise<void> {
  * Handle schema info
  */
 function handleSchema(): void {
-  const schemaUrl =
-    'https://raw.githubusercontent.com/camaradesuk/git-worktree-tools/main/schemas/worktreerc.schema.json';
+  const { getSchemaUrl } = require('../../lib/global-config.js');
+  const schemaUrl = getSchemaUrl();
 
   console.log(colors.info('JSON Schema for .worktreerc'));
   console.log();
   console.log(`URL: ${colors.cyan(schemaUrl)}`);
   console.log();
-  console.log(colors.dim('Add this to your .worktreerc for editor support:'));
+  console.log(colors.dim('Add this to any config file for editor support:'));
+  console.log(colors.dim('  .worktreerc (repo shared)'));
+  console.log(colors.dim('  .worktreerc.local (personal, gitignored)'));
+  console.log(colors.dim('  ~/.config/git-worktree-tools/config.json (global)'));
   console.log();
   console.log(
     colors.yellow(`{
