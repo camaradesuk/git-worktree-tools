@@ -13,8 +13,9 @@ import * as colors from '../lib/colors.js';
 import { promptChoiceIndex } from '../lib/prompts.js';
 import {
   loadConfig,
-  generateBranchName,
+  generateBranchNameAsync,
   generateWorktreePath,
+  generatePRContentAsync,
   type WorktreeConfig,
 } from '../lib/config.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
@@ -455,14 +456,26 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
 
   progress(options, colors.info('Creating pull request...'));
 
-  const title = branchName
+  // Generate description from branch name for AI context
+  const descriptionFromBranch = branchName
     .replace(/^(feat|fix|chore)\//, '')
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
-  const pr = github.createPr({
-    title,
-    body: `## Summary
+  // Generate AI-enhanced PR content if enabled
+  const prContent = await generatePRContentAsync(config, {
+    description: descriptionFromBranch,
+    branchName,
+    baseBranch: options.baseBranch,
+    changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
+    commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
+  });
+
+  if (prContent.aiGenerated) {
+    progress(options, colors.info('✨ AI-generated PR content'));
+  }
+
+  const defaultBody = `## Summary
 
 PR created from existing branch: \`${branchName}\`
 
@@ -475,7 +488,11 @@ PR created from existing branch: \`${branchName}\`
 - [ ]
 
 ---
-🤖 PR created with \`newpr --branch\``,
+🤖 PR created with \`newpr --branch\``;
+
+  const pr = github.createPr({
+    title: prContent.title,
+    body: prContent.description || defaultBody,
     base: options.baseBranch,
     head: branchName,
     draft: options.draft,
@@ -508,7 +525,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfig(repoRoot);
-  const branchName = generateBranchName(config, description);
+  const branchName = await generateBranchNameAsync(config, description, repoName);
 
   // Initialize hook runner (disabled if --no-hooks flag is set)
   const hookRunner = createHookRunner(
@@ -765,9 +782,20 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     progress(options, colors.info('Creating pull request...'));
 
-    const pr = github.createPr({
-      title: description,
-      body: `## Summary
+    // Generate AI-enhanced PR content if enabled
+    const prContent = await generatePRContentAsync(config, {
+      description,
+      branchName,
+      baseBranch: options.baseBranch,
+      changedFiles: git.getChangedFiles(options.baseBranch, branchName),
+      commitMessages: git.getCommitMessages(options.baseBranch, branchName),
+    });
+
+    if (prContent.aiGenerated) {
+      progress(options, colors.info('✨ AI-generated PR content'));
+    }
+
+    const defaultBody = `## Summary
 
 ${description}
 
@@ -780,7 +808,11 @@ ${description}
 - [ ]
 
 ---
-🤖 PR created with \`newpr\``,
+🤖 PR created with \`newpr\``;
+
+    const pr = github.createPr({
+      title: prContent.title,
+      body: prContent.description || defaultBody,
       base: options.baseBranch,
       head: branchName,
       draft: options.draft,
@@ -886,6 +918,17 @@ async function main(): Promise<void> {
   }
 
   const { options } = result;
+
+  // Apply config.draftPr if user didn't explicitly set --draft or --ready
+  try {
+    const repoRoot = git.getRepoRoot();
+    const config = loadConfig(repoRoot);
+    if (!options.draftExplicitlySet && config.draftPr !== undefined) {
+      options.draft = config.draftPr;
+    }
+  } catch {
+    // If we can't get repo root yet, config will be loaded later in mode handlers
+  }
 
   // Check prerequisites (suppressed in JSON mode)
   if (!options.json) {

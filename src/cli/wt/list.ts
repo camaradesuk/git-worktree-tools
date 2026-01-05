@@ -10,9 +10,9 @@ import { runSubcommand } from './run-command.js';
 interface ListArgs {
   verbose?: boolean;
   json?: boolean;
-  'no-status'?: boolean;
+  status?: boolean;
+  interactive?: boolean;
   'no-interactive'?: boolean;
-  filter?: string;
 }
 
 export const listCommand: CommandModule<object, ListArgs> = {
@@ -21,37 +21,37 @@ export const listCommand: CommandModule<object, ListArgs> = {
   builder: (yargs) => {
     return yargs
       .option('verbose', {
-        alias: 'v',
         type: 'boolean',
         description: 'Show full paths and commit hashes',
         default: false,
       })
       .option('json', {
+        alias: 'j',
         type: 'boolean',
         description: 'Output as JSON',
         default: false,
       })
-      .option('no-status', {
+      .option('status', {
         alias: 's',
         type: 'boolean',
-        description: 'Skip GitHub PR status lookup',
+        description: 'Include PR status from GitHub (open/merged/closed)',
         default: false,
       })
+      .option('interactive', {
+        alias: 'i',
+        type: 'boolean',
+        description: 'Enable interactive mode (default in TTY)',
+      })
       .option('no-interactive', {
-        alias: 'n',
         type: 'boolean',
         description: 'Disable interactive mode',
         default: false,
       })
-      .option('filter', {
-        alias: 'f',
-        type: 'string',
-        description: 'Filter worktrees by type (pr, main, feature)',
-      })
-      .example('$0 list', 'List all worktrees')
-      .example('$0 ls -v', 'Verbose output with full paths')
+      .example('$0 list', 'List all worktrees (interactive in terminal)')
+      .example('$0 ls --verbose', 'Verbose output with full paths')
       .example('$0 list --json', 'JSON output for scripting')
-      .example('$0 ls -n', 'Non-interactive (no menu)');
+      .example('$0 ls --status', 'Include PR status from GitHub')
+      .example('$0 ls --no-interactive', 'Non-interactive (no menu)');
   },
   handler: (argv) => {
     const args: string[] = [];
@@ -64,16 +64,16 @@ export const listCommand: CommandModule<object, ListArgs> = {
       args.push('--json');
     }
 
-    if (argv['no-status']) {
-      args.push('--no-status');
+    if (argv.status) {
+      args.push('--status');
+    }
+
+    if (argv.interactive) {
+      args.push('--interactive');
     }
 
     if (argv['no-interactive']) {
       args.push('--no-interactive');
-    }
-
-    if (argv.filter) {
-      args.push('--filter', argv.filter);
     }
 
     runSubcommand('lswt', args);

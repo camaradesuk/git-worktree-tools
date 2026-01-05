@@ -10,6 +10,15 @@ import { runSubcommand } from './run-command.js';
 interface LinkArgs {
   subcommand?: string;
   args?: string[];
+  'manifest-file'?: string;
+  json?: boolean;
+  'dry-run'?: boolean;
+  'non-interactive'?: boolean;
+  verbose?: boolean;
+  yes?: boolean;
+  clean?: boolean;
+  backup?: boolean;
+  type?: string;
 }
 
 export const linkCommand: CommandModule<object, LinkArgs> = {
@@ -59,8 +68,26 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
         description: 'Skip confirmation prompts',
         default: false,
       })
+      .option('clean', {
+        alias: 'c',
+        type: 'boolean',
+        description: 'Remove stale entries automatically (manage subcommand)',
+        default: false,
+      })
+      .option('backup', {
+        alias: 'b',
+        type: 'boolean',
+        description: 'Create a backup of the manifest before updating',
+        default: false,
+      })
+      .option('type', {
+        type: 'string',
+        description: 'Link type: hard or symbolic (link subcommand)',
+        choices: ['hard', 'symbolic'],
+      })
       .example('$0 link', 'Show interactive menu')
       .example('$0 l manage', 'Manage manifest entries')
+      .example('$0 link manage --clean', 'Remove stale entries')
       .example('$0 link link . ../repo.pr42', 'Link configs to worktree')
       .example('$0 link validate', 'Validate manifest entries');
   },
@@ -76,7 +103,7 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
     }
 
     if (argv['manifest-file']) {
-      args.push('--manifest-file', argv['manifest-file'] as string);
+      args.push('--manifest-file', argv['manifest-file']);
     }
 
     if (argv.json) {
@@ -97,6 +124,18 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
 
     if (argv.yes) {
       args.push('--yes');
+    }
+
+    if (argv.clean) {
+      args.push('--clean');
+    }
+
+    if (argv.backup) {
+      args.push('--backup');
+    }
+
+    if (argv.type) {
+      args.push('--type', argv.type);
     }
 
     runSubcommand('wtlink', args);

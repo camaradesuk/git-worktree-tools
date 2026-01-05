@@ -89,6 +89,7 @@ export class ClaudeProvider extends BaseAIProvider {
  * Gemini CLI provider
  *
  * Uses the `gemini` command-line tool for generation.
+ * CLI syntax: gemini -p "prompt" (non-interactive mode)
  */
 export class GeminiProvider extends BaseAIProvider {
   readonly name = 'gemini';
@@ -112,8 +113,8 @@ export class GeminiProvider extends BaseAIProvider {
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {
     try {
-      // Use gemini CLI with the prompt
-      const output = execCommand('gemini', ['prompt', prompt, '--model', this.model]);
+      // Use gemini CLI in non-interactive mode with -p flag
+      const output = execCommand('gemini', ['-p', prompt, '--model', this.model]);
       return createSuccessResult(output.trim(), this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -203,82 +204,41 @@ export class OllamaProvider extends BaseAIProvider {
 }
 
 /**
- * OpenAI API provider
+ * OpenAI Codex CLI provider
  *
- * Uses the OpenAI API via curl (no SDK dependency).
+ * Uses the Codex CLI for generation.
+ * CLI syntax: codex exec "prompt" (non-interactive mode)
+ *
+ * Note: This provider ONLY uses the Codex CLI tool. No API key fallback.
+ * Users must have Codex CLI installed and authenticated.
  */
 export class OpenAIProvider extends BaseAIProvider {
-  readonly name = 'openai';
-  private model: string;
-  private apiKeyEnv: string;
+  readonly name = 'codex';
 
-  constructor(model = 'gpt-4o', apiKeyEnv = 'OPENAI_API_KEY') {
+  constructor() {
     super();
-    this.model = model;
-    this.apiKeyEnv = apiKeyEnv;
   }
 
   /**
    * Static availability check for lazy initialization
+   * Only available if Codex CLI is installed
    */
-  static checkAvailability(apiKeyEnv = 'OPENAI_API_KEY'): Promise<boolean> {
-    return Promise.resolve(!!process.env[apiKeyEnv]);
+  static checkAvailability(): Promise<boolean> {
+    return Promise.resolve(commandExists('codex'));
   }
 
   async isAvailable(): Promise<boolean> {
-    return OpenAIProvider.checkAvailability(this.apiKeyEnv);
+    return OpenAIProvider.checkAvailability();
   }
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {
-    const apiKey = process.env[this.apiKeyEnv];
-    if (!apiKey) {
-      return createErrorResult(`OpenAI API key not found in ${this.apiKeyEnv}`, this.name);
-    }
-
     try {
-      const payload = JSON.stringify({
-        model: this.model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 2000,
-      });
-
-      const result = spawnSync(
-        'curl',
-        [
-          '-s',
-          '-X',
-          'POST',
-          'https://api.openai.com/v1/chat/completions',
-          '-H',
-          'Content-Type: application/json',
-          '-H',
-          `Authorization: Bearer ${apiKey}`,
-          '-d',
-          payload,
-        ],
-        {
-          encoding: 'utf-8',
-          timeout: 60000,
-        }
-      );
-
-      if (result.status !== 0) {
-        throw new Error(result.stderr || 'OpenAI API request failed');
-      }
-
-      const response = JSON.parse(result.stdout);
-      if (response.choices && response.choices[0]?.message?.content) {
-        return createSuccessResult(response.choices[0].message.content.trim(), this.name);
-      }
-
-      if (response.error) {
-        throw new Error(response.error.message || 'OpenAI API error');
-      }
-
-      throw new Error('Invalid OpenAI response');
+      // Codex CLI: codex exec "prompt" for non-interactive execution
+      const output = execCommand('codex', ['exec', prompt]);
+      return createSuccessResult(output.trim(), this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResult(`OpenAI error: ${message}`, this.name);
+      return createErrorResult(`Codex CLI error: ${message}`, this.name);
     }
   }
 }

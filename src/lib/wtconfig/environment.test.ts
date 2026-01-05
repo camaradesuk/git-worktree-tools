@@ -172,13 +172,6 @@ describe('environment', () => {
       expect(result.ai.geminiCLI).toBe(false);
     });
 
-    it('detects OpenAI API key from environment', () => {
-      process.env.OPENAI_API_KEY = 'sk-test123';
-
-      const result = detectEnvironment();
-      expect(result.ai.openaiKey).toBe(true);
-    });
-
     it('detects package manager from lock files', () => {
       vi.mocked(fs.existsSync).mockImplementation((p) => {
         return (p as string).endsWith('pnpm-lock.yaml');
@@ -269,9 +262,9 @@ describe('environment', () => {
       expect(getEditorCommand(ide, 'cursor')).toBeNull();
     });
 
-    it('prefers cursor when auto and both available', () => {
+    it('prefers vscode when auto and both available', () => {
       const ide: EnvironmentInfo['ide'] = { vscode: true, cursor: true };
-      expect(getEditorCommand(ide, 'auto')).toBe('cursor .');
+      expect(getEditorCommand(ide, 'auto')).toBe('code .');
     });
 
     it('returns vscode when auto and only vscode available', () => {

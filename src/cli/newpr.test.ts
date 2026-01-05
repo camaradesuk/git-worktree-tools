@@ -22,6 +22,8 @@ vi.mock('../lib/git.js', () => ({
   getCommitsAhead: vi.fn(),
   remoteBranchExists: vi.fn(),
   branchExists: vi.fn(),
+  getChangedFiles: vi.fn(),
+  getCommitMessages: vi.fn(),
 }));
 
 vi.mock('../lib/github.js', () => ({
@@ -38,8 +40,9 @@ vi.mock('../lib/prompts.js', () => ({
 
 vi.mock('../lib/config.js', () => ({
   loadConfig: vi.fn(),
-  generateBranchName: vi.fn(),
+  generateBranchNameAsync: vi.fn(),
   generateWorktreePath: vi.fn(),
+  generatePRContentAsync: vi.fn(),
 }));
 
 vi.mock('../lib/state-detection.js', () => ({
@@ -90,7 +93,12 @@ vi.mock('fs', () => ({
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as prompts from '../lib/prompts.js';
-import { loadConfig, generateBranchName, generateWorktreePath } from '../lib/config.js';
+import {
+  loadConfig,
+  generateBranchNameAsync,
+  generateWorktreePath,
+  generatePRContentAsync,
+} from '../lib/config.js';
 import { analyzeGitState, detectScenario } from '../lib/state-detection.js';
 import * as newpr from '../lib/newpr/index.js';
 import type { StateActionKey } from '../lib/json-output.js';
@@ -178,6 +186,15 @@ describe('cli/newpr', () => {
       gitPush: vi.fn(),
       gitCommit: vi.fn(),
     });
+
+    // Default mocks for AI generation functions
+    vi.mocked(generatePRContentAsync).mockResolvedValue({
+      title: 'Test PR',
+      description: '',
+      aiGenerated: false,
+    });
+    vi.mocked(git.getChangedFiles).mockReturnValue([]);
+    vi.mocked(git.getCommitMessages).mockReturnValue([]);
 
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -377,7 +394,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
@@ -401,6 +418,11 @@ describe('cli/newpr', () => {
       vi.mocked(git.getStagedFiles).mockReturnValue([]);
       vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
       vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+      vi.mocked(generatePRContentAsync).mockResolvedValue({
+        title: 'Add new feature',
+        description: '',
+        aiGenerated: false,
+      });
 
       await runCli(['Add new feature']);
 
@@ -408,10 +430,10 @@ describe('cli/newpr', () => {
       expect(git.exec).toHaveBeenCalledWith([
         'checkout',
         '-b',
-        'feature/add-new-feature', // from generateBranchName
+        'feature/add-new-feature', // from generateBranchNameAsync
         'origin/main', // from getBranchPoint
       ]);
-      // Verify wiring: createPr receives correct branch and description
+      // Verify wiring: createPr receives correct branch and title (from generatePRContentAsync)
       expect(github.createPr).toHaveBeenCalledWith(
         expect.objectContaining({
           head: 'feature/add-new-feature',
@@ -436,7 +458,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
@@ -470,7 +492,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
@@ -610,7 +632,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
@@ -663,7 +685,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(
         makeGitState({
           workingTreeStatus: 'has_staged',
@@ -724,7 +746,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
@@ -762,7 +784,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo.pr123');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(
         makeGitState({
           worktreeType: 'pr_worktree',
@@ -796,7 +818,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
@@ -860,7 +882,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/test');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/test');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
@@ -901,7 +923,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(
         makeGitState({
           currentBranch: 'feature/existing-branch',
@@ -956,7 +978,7 @@ describe('cli/newpr', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
       vi.mocked(git.getRepoName).mockReturnValue('repo');
       vi.mocked(loadConfig).mockReturnValue(defaultConfig);
-      vi.mocked(generateBranchName).mockReturnValue('feature/add-new-feature');
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
       vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
       vi.mocked(detectScenario).mockReturnValue('main_clean_same');
       vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);

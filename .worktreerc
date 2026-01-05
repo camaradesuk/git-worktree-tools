@@ -1,9 +1,15 @@
 {
-  "baseBranch": "main",
-  "draftPr": false,
-  "worktreePattern": "{repo}.pr{number}",
-  "worktreeParent": "..",
-  "branchPrefix": "feat",
-  "sharedRepos": [],
-  "syncPatterns": ["node_modules"]
+  "ai": {
+    "provider": "auto",
+    "branchName": true,
+    "prTitle": true,
+    "prDescription": true,
+    "commitMessage": true
+  },
+  "hooks": {
+    "post-worktree": [
+      "npm install",
+      "code ."
+    ]
+  }
 }

@@ -8,7 +8,7 @@ describe('newpr/args', () => {
 
       expect(defaults.mode).toBe('new');
       expect(defaults.baseBranch).toBe('main');
-      expect(defaults.draft).toBe(true);
+      expect(defaults.draft).toBe(false);
       expect(defaults.installDeps).toBe(false);
       expect(defaults.openEditor).toBe(false);
       expect(defaults.runWtlink).toBe(true);

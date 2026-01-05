@@ -47,186 +47,291 @@ export function sanitizeBranchName(name: string, maxLength = 50): string {
 }
 
 /**
+ * Format repository documentation context for prompt inclusion
+ */
+function formatRepoContext(
+  docs: BranchContext['repoDocumentation'] | PRContext['repoDocumentation']
+): string {
+  if (!docs) return '';
+
+  const parts: string[] = [];
+
+  if (docs.projectDescription) {
+    parts.push(`Project: ${docs.projectDescription}`);
+  }
+
+  if (docs.techStack && docs.techStack.length > 0) {
+    parts.push(`Tech: ${docs.techStack.join(', ')}`);
+  }
+
+  // For branch names and titles, only include a brief README excerpt
+  if (docs.readme) {
+    // Extract just the first meaningful paragraph (skip title)
+    const lines = docs.readme.split('\n').filter((l) => l.trim() && !l.startsWith('#'));
+    const firstParagraph = lines.slice(0, 3).join(' ').slice(0, 200);
+    if (firstParagraph) {
+      parts.push(`About: ${firstParagraph}${firstParagraph.length >= 200 ? '...' : ''}`);
+    }
+  }
+
+  return parts.length > 0 ? '\n' + parts.join('\n') : '';
+}
+
+/**
+ * Format full repository documentation for detailed prompts (PR description, plan)
+ */
+function formatFullRepoContext(
+  docs: PRContext['repoDocumentation'] | PlanContext['repoDocumentation']
+): string {
+  if (!docs) return '';
+
+  const parts: string[] = [];
+
+  if (docs.projectDescription) {
+    parts.push(`Project: ${docs.projectDescription}`);
+  }
+
+  if (docs.techStack && docs.techStack.length > 0) {
+    parts.push(`Tech: ${docs.techStack.join(', ')}`);
+  }
+
+  // Include more README content for detailed prompts
+  if (docs.readme) {
+    // Truncate to first ~500 chars for full context
+    const truncated =
+      docs.readme.length > 500 ? docs.readme.slice(0, 500) + '...[truncated]' : docs.readme;
+    parts.push(`README:\n${truncated}`);
+  }
+
+  return parts.length > 0 ? '\nRepository Context:\n' + parts.join('\n') : '';
+}
+
+/**
  * Generate a prompt for branch name generation
+ *
+ * Context: Called at the START of newpr/wt workflow.
+ * User has only provided a description - no code changes yet.
+ * Output must be a valid git branch name.
  */
 export function createBranchNamePrompt(context: BranchContext): string {
-  const existingWarning =
+  const maxLen = context.maxLength ?? 50;
+  const avoid =
     context.existingBranches && context.existingBranches.length > 0
-      ? `\n\nExisting branches to avoid: ${context.existingBranches.slice(0, 10).join(', ')}`
+      ? `\nAvoid: ${context.existingBranches.slice(0, 5).join(', ')}`
       : '';
+  const repoContext = formatRepoContext(context.repoDocumentation);
 
-  return `Generate a concise git branch name for the following task.
+  // Structure: Context → Format → Constraint → Output instruction
+  // Keeping it terse works better across all models (Claude, Gemini, Ollama, GPT)
+  return `Task: ${context.description}${repoContext}
 
-Task description: ${context.description}
-Repository: ${context.repoName}
-Branch prefix: ${context.branchPrefix}
-Max length: ${context.maxLength ?? 50} characters${existingWarning}
+Generate a git branch name.
+Format: ${context.branchPrefix}/<short-kebab-description>
+Max: ${maxLen} chars${avoid}
 
-Requirements:
-- Use kebab-case (lowercase with hyphens)
-- Start with the prefix "${context.branchPrefix}/"
-- Be descriptive but concise
-- Avoid special characters except hyphens
-- The total length should not exceed ${context.maxLength ?? 50} characters
-
-Respond with ONLY the branch name, nothing else.`;
+Branch name only:`;
 }
 
 /**
  * Generate a prompt for PR title generation
+ *
+ * Context: Often called at the START of work when creating a PR.
+ * May have NO commits yet - the user's description is the PRIMARY signal.
+ * If commits exist, they describe what was DONE and should be prioritized.
  */
 export function createPRTitlePrompt(context: PRContext): string {
-  const commitsInfo =
-    context.commits && context.commits.length > 0
-      ? `\n\nCommits:\n${context.commits.map((c) => `- ${c.message}`).join('\n')}`
+  const hasCommits = context.commits && context.commits.length > 0;
+  const hasFiles = context.changedFiles && context.changedFiles.length > 0;
+  const repoContext = formatRepoContext(context.repoDocumentation);
+
+  // Build context based on what's available
+  const parts: string[] = [`Intent: ${context.description}`];
+
+  if (hasCommits) {
+    const commits = context
+      .commits!.slice(0, 5)
+      .map((c) => c.message)
+      .join('; ');
+    parts.push(`Commits: ${commits}`);
+  }
+
+  if (hasFiles) {
+    parts.push(`Files: ${context.changedFiles!.slice(0, 10).join(', ')}`);
+  }
+
+  parts.push(`${context.branchName} → ${context.baseBranch}`);
+
+  // Adjust guidance based on available context
+  const contextNote =
+    !hasCommits && !hasFiles
+      ? '\nNote: No commits yet - base title on intent and branch name.'
       : '';
 
-  const filesInfo =
-    context.changedFiles && context.changedFiles.length > 0
-      ? `\n\nChanged files:\n${context.changedFiles.slice(0, 20).join('\n')}`
-      : '';
+  return `Generate a PR title (max 72 chars, imperative mood).
 
-  return `Generate a concise PR title for the following changes.
+${parts.join('\n')}${repoContext}${contextNote}
 
-Description: ${context.description}
-Branch: ${context.branchName}
-Base: ${context.baseBranch}${commitsInfo}${filesInfo}
-
-Requirements:
-- Be concise but descriptive (max 72 characters)
-- Use imperative mood (e.g., "Add", "Fix", "Update")
-- Summarize the main purpose of the PR
-
-Respond with ONLY the PR title, nothing else.`;
+Title only:`;
 }
 
 /**
  * Generate a prompt for PR description generation
+ *
+ * Context: Often called at the START of work when creating a draft PR.
+ * May have NO commits yet - focus on intent and planned work.
+ * If commits/diff exist, they provide concrete context about what was done.
+ *
+ * Key insight: Early PRs describe INTENT, later PRs describe IMPLEMENTATION.
  */
 export function createPRDescriptionPrompt(context: PRContext): string {
-  const commitsInfo =
-    context.commits && context.commits.length > 0
-      ? `\n\nCommits:\n${context.commits.map((c) => `- ${c.hash}: ${c.message}`).join('\n')}`
-      : '';
+  const hasCommits = context.commits && context.commits.length > 0;
+  const hasFiles = context.changedFiles && context.changedFiles.length > 0;
+  const hasDiff = context.diff && context.diff.length > 0;
+  const isEarlyStage = !hasCommits && !hasFiles;
+  const repoContext = formatFullRepoContext(context.repoDocumentation);
 
-  const filesInfo =
-    context.changedFiles && context.changedFiles.length > 0
-      ? `\n\nChanged files:\n${context.changedFiles.slice(0, 30).join('\n')}`
-      : '';
+  // Build context section - structured for easy parsing by LLM
+  const sections: string[] = [];
 
-  const diffInfo = context.diff ? `\n\nDiff (truncated):\n${context.diff.slice(0, 3000)}` : '';
+  sections.push(`Intent: ${context.description}`);
+  sections.push(`Branch: ${context.branchName} → ${context.baseBranch}`);
 
-  return `Generate a PR description for the following changes.
+  if (hasCommits) {
+    const commitList = context
+      .commits!.slice(0, 10)
+      .map((c) => `- ${c.message}`)
+      .join('\n');
+    sections.push(`Commits:\n${commitList}`);
+  }
 
-Description: ${context.description}
-Branch: ${context.branchName}
-Base: ${context.baseBranch}${commitsInfo}${filesInfo}${diffInfo}
+  if (hasFiles) {
+    const fileCount = context.changedFiles!.length;
+    const fileList = context.changedFiles!.slice(0, 15).join(', ');
+    const suffix = fileCount > 15 ? ` (+${fileCount - 15} more)` : '';
+    sections.push(`Files (${fileCount}): ${fileList}${suffix}`);
+  }
 
-Format the description using this structure:
+  if (hasDiff) {
+    sections.push(`Diff preview:\n\`\`\`\n${context.diff!.slice(0, 1500)}\n\`\`\``);
+  }
+
+  // Adapt the output guidance based on stage
+  const summaryGuidance = isEarlyStage
+    ? '[Describe what this PR will accomplish - this is a draft for early work]'
+    : '[2-3 sentences: what this does and why]';
+
+  const changesGuidance = isEarlyStage
+    ? '- [ ] [Planned change 1]\n- [ ] [Planned change 2]\n- [ ] [etc. - as checklist]'
+    : '- [Key change 1]\n- [Key change 2]\n- [etc.]';
+
+  const contextNote = isEarlyStage
+    ? '\n\nNote: This is an early-stage PR with no commits yet. Focus on planned work and objectives.'
+    : '';
+
+  return `Generate a PR description for code review.
+
+${sections.join('\n\n')}${repoContext}${contextNote}
+
+Output format (markdown):
 
 ## Summary
-
-[1-3 sentence summary of what this PR does]
+${summaryGuidance}
 
 ## Changes
-
-- [List key changes as bullet points]
+${changesGuidance}
 
 ## Test Plan
+- [ ] [How to verify this works]
 
-- [ ] [Checklist of testing steps]
-
-Requirements:
-- Be clear and helpful for reviewers
-- Focus on the "what" and "why", not "how"
-- Keep it concise but informative`;
+Be concise.${isEarlyStage ? ' This will be updated as work progresses.' : ' Reviewers will see the diff separately.'}`;
 }
 
 /**
  * Generate a prompt for commit message generation
+ *
+ * Context: User is committing staged changes.
+ * We have: staged files, potentially a diff, maybe recent commits for style.
+ * Output: A commit message following the configured style.
  */
 export function createCommitMessagePrompt(context: CommitContext): string {
-  const styleGuide = {
-    conventional: 'Use conventional commits format: type(scope): description',
-    gitmoji: 'Start with an appropriate emoji (e.g., ✨ for features, 🐛 for bugs)',
-    simple: 'Use a simple, descriptive format',
+  const style = context.style ?? 'conventional';
+
+  const styleFormats: Record<string, string> = {
+    conventional: 'type(scope): description  (e.g., feat(auth): add login flow)',
+    gitmoji: '🔧 description  (use appropriate emoji: ✨ feat, 🐛 fix, 📝 docs, ♻️ refactor)',
+    simple: 'Clear description of what changed',
   };
 
-  const recentInfo =
+  // Recent commits help match the repo's style
+  const styleRef =
     context.recentCommits && context.recentCommits.length > 0
-      ? `\n\nRecent commits for style reference:\n${context.recentCommits.slice(0, 5).join('\n')}`
+      ? `\nRecent commits (for style): ${context.recentCommits.slice(0, 3).join(' | ')}`
       : '';
 
-  const diffInfo = context.diff ? `\n\nDiff (truncated):\n${context.diff.slice(0, 2000)}` : '';
+  // Diff is the PRIMARY context - it shows exactly what changed
+  const diff = context.diff ? `\nChanges:\n\`\`\`\n${context.diff.slice(0, 1500)}\n\`\`\`` : '';
 
-  return `Generate a commit message for the following staged changes.
+  return `Generate a commit message (first line max 72 chars).
 
-Staged files:
-${context.stagedFiles.join('\n')}
+Staged: ${context.stagedFiles.join(', ')}
+Style: ${styleFormats[style]}${styleRef}${diff}
 
-Style: ${context.style ?? 'conventional'}
-${styleGuide[context.style ?? 'conventional']}${recentInfo}${diffInfo}
-
-Requirements:
-- First line should be max 72 characters
-- Be specific about what changed
-- Use present tense, imperative mood
-
-Respond with ONLY the commit message.`;
+Commit message only:`;
 }
 
 /**
  * Generate a prompt for plan document generation
+ *
+ * Context: User wants a planning document for a new feature/task.
+ * We may have repo structure and tech stack info to provide context.
+ * Output: A structured markdown document with tasks and approach.
  */
 export function createPlanDocumentPrompt(context: PlanContext): string {
-  const structureInfo =
-    context.repoStructure && context.repoStructure.length > 0
-      ? `\n\nRepository structure:\n${context.repoStructure.slice(0, 30).join('\n')}`
-      : '';
+  const sections: string[] = [];
 
-  const techInfo =
-    context.techStack && context.techStack.length > 0
-      ? `\n\nTech stack: ${context.techStack.join(', ')}`
-      : '';
+  sections.push(`Task: ${context.description}`);
+  sections.push(`Branch: ${context.branchName}`);
 
-  return `Create a planning document for implementing the following task.
+  // Prefer tech stack from repoDocumentation if available
+  const techStack = context.repoDocumentation?.techStack || context.techStack;
+  if (techStack && techStack.length > 0) {
+    sections.push(`Tech: ${techStack.join(', ')}`);
+  }
 
-Task: ${context.description}
-Branch: ${context.branchName}${structureInfo}${techInfo}
+  if (context.repoStructure && context.repoStructure.length > 0) {
+    sections.push(`Structure:\n${context.repoStructure.slice(0, 20).join('\n')}`);
+  }
 
-Format as Markdown with this structure:
+  // Add full repo context for planning
+  const repoContext = formatFullRepoContext(context.repoDocumentation);
 
-# Plan: [Task Title]
+  return `Create a development plan document.
+
+${sections.join('\n')}${repoContext}
+
+Output format (markdown):
+
+# Plan: [Concise Task Title]
 
 **Branch:** \`${context.branchName}\`
-**Created:** [Today's date]
 **Status:** In Progress
 
 ## Objective
-
-[Clear description of what we're building]
+[1-2 sentences: what we're building and why]
 
 ## Tasks
-
-- [ ] [Task 1]
-- [ ] [Task 2]
-- [ ] [Task 3]
+- [ ] [Specific, actionable task 1]
+- [ ] [Specific, actionable task 2]
+- [ ] [etc.]
 
 ## Technical Approach
-
-[Brief technical overview]
+[Brief description of implementation strategy]
 
 ## Acceptance Criteria
+- [ ] [Testable criterion 1]
+- [ ] [Testable criterion 2]
 
-- [ ] [Criterion 1]
-- [ ] [Criterion 2]
-
-## Notes
-
-[Any important notes or considerations]
-
----
-🤖 Generated with [git-worktree-tools](https://github.com/camaradesuk/git-worktree-tools)`;
+Keep tasks concrete and actionable. Focus on the implementation path.`;
 }
 
 /**

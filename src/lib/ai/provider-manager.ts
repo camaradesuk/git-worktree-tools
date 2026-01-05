@@ -120,8 +120,8 @@ export class AIProviderManager {
       },
       {
         name: 'openai',
-        checkAvailability: () => OpenAIProvider.checkAvailability(this.config.openai?.apiKeyEnv),
-        create: () => new OpenAIProvider(this.config.openai?.model, this.config.openai?.apiKeyEnv),
+        checkAvailability: () => OpenAIProvider.checkAvailability(),
+        create: () => new OpenAIProvider(),
       },
     ];
   }

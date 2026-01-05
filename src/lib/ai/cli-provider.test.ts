@@ -358,10 +358,47 @@ describe('cli-provider', () => {
     });
   });
 
-  describe('OpenAIProvider', () => {
+  describe('OpenAIProvider (Codex CLI only)', () => {
+    // Helper to mock spawnSync for Codex CLI
+    const mockSpawnForCodex = (codexExists: boolean, codexOutput?: string) => {
+      vi.mocked(spawnSync).mockImplementation((cmd, args) => {
+        // Check for 'which codex' or 'where codex' (commandExists check)
+        if ((cmd === 'which' || cmd === 'where') && args?.[0] === 'codex') {
+          return {
+            status: codexExists ? 0 : 1,
+            stdout: codexExists ? '/usr/bin/codex' : '',
+            stderr: '',
+            pid: 0,
+            output: [],
+            signal: null,
+          };
+        }
+        // Codex CLI execution
+        if (cmd === 'codex' && codexOutput !== undefined) {
+          return {
+            status: 0,
+            stdout: codexOutput,
+            stderr: '',
+            pid: 0,
+            output: [],
+            signal: null,
+          };
+        }
+        // Default fallback
+        return {
+          status: 1,
+          stdout: '',
+          stderr: 'Command not found',
+          pid: 0,
+          output: [],
+          signal: null,
+        };
+      });
+    };
+
     describe('isAvailable', () => {
-      it('returns true when API key is set', async () => {
-        process.env.OPENAI_API_KEY = 'sk-test-key';
+      it('returns true when Codex CLI is available', async () => {
+        mockSpawnForCodex(true);
 
         const provider = new OpenAIProvider();
         const available = await provider.isAvailable();
@@ -369,40 +406,19 @@ describe('cli-provider', () => {
         expect(available).toBe(true);
       });
 
-      it('returns false when API key is not set', async () => {
-        delete process.env.OPENAI_API_KEY;
+      it('returns false when Codex CLI is not available', async () => {
+        mockSpawnForCodex(false);
 
         const provider = new OpenAIProvider();
         const available = await provider.isAvailable();
 
         expect(available).toBe(false);
       });
-
-      it('uses custom env var when provided', async () => {
-        process.env.MY_OPENAI_KEY = 'sk-custom-key';
-        delete process.env.OPENAI_API_KEY;
-
-        const provider = new OpenAIProvider('gpt-4o', 'MY_OPENAI_KEY');
-        const available = await provider.isAvailable();
-
-        expect(available).toBe(true);
-      });
     });
 
     describe('generateBranchName', () => {
-      it('generates branch name using OpenAI API', async () => {
-        process.env.OPENAI_API_KEY = 'sk-test-key';
-
-        vi.mocked(spawnSync).mockReturnValue({
-          status: 0,
-          stdout: JSON.stringify({
-            choices: [{ message: { content: 'chore/update-dependencies' } }],
-          }),
-          stderr: '',
-          pid: 0,
-          output: [],
-          signal: null,
-        });
+      it('generates branch name using Codex CLI', async () => {
+        mockSpawnForCodex(true, 'chore/update-dependencies');
 
         const provider = new OpenAIProvider();
         const result = await provider.generateBranchName({
@@ -413,11 +429,11 @@ describe('cli-provider', () => {
 
         expect(result.success).toBe(true);
         expect(result.content).toBe('chore/update-dependencies');
-        expect(result.provider).toBe('openai');
+        expect(result.provider).toBe('codex');
       });
 
-      it('returns error when API key is missing', async () => {
-        delete process.env.OPENAI_API_KEY;
+      it('returns error when Codex CLI is not available', async () => {
+        mockSpawnForCodex(false);
 
         const provider = new OpenAIProvider();
         const result = await provider.generateBranchName({
@@ -427,32 +443,7 @@ describe('cli-provider', () => {
         });
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain('API key not found');
-      });
-
-      it('returns error on OpenAI API error', async () => {
-        process.env.OPENAI_API_KEY = 'sk-test-key';
-
-        vi.mocked(spawnSync).mockReturnValue({
-          status: 0,
-          stdout: JSON.stringify({
-            error: { message: 'Rate limit exceeded' },
-          }),
-          stderr: '',
-          pid: 0,
-          output: [],
-          signal: null,
-        });
-
-        const provider = new OpenAIProvider();
-        const result = await provider.generateBranchName({
-          description: 'Test',
-          repoName: 'test-repo',
-          branchPrefix: 'feat',
-        });
-
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('Rate limit exceeded');
+        expect(result.error).toContain('Codex CLI error');
       });
     });
   });

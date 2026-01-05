@@ -135,14 +135,15 @@ function detectGitHub(): EnvironmentInfo['github'] {
 }
 
 /**
- * Detect AI tool availability
+ * Detect AI CLI tool availability
+ * Note: Only CLI tools are supported, no API keys
  */
 function detectAI(): EnvironmentInfo['ai'] {
   return {
     claudeCode: commandExists('claude'),
     geminiCLI: commandExists('gemini'),
     ollama: commandExists('ollama'),
-    openaiKey: !!process.env.OPENAI_API_KEY,
+    codexCLI: commandExists('codex'),
   };
 }
 
@@ -249,8 +250,9 @@ export function getEditorCommand(
   if (preferred === 'cursor' && ide.cursor) return 'cursor .';
   if (preferred === 'vscode' && ide.vscode) return 'code .';
   if (preferred === 'auto') {
-    if (ide.cursor) return 'cursor .';
+    // VSCode is preferred when 'auto' as it's more common
     if (ide.vscode) return 'code .';
+    if (ide.cursor) return 'cursor .';
   }
   return null;
 }

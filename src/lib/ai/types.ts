@@ -5,6 +5,18 @@
  */
 
 /**
+ * Repository documentation for context
+ */
+export interface RepoDocumentationContext {
+  /** README content (truncated) */
+  readme?: string;
+  /** Project description from package file */
+  projectDescription?: string;
+  /** Tech stack keywords */
+  techStack?: string[];
+}
+
+/**
  * Context for generating branch names
  */
 export interface BranchContext {
@@ -18,6 +30,8 @@ export interface BranchContext {
   existingBranches?: string[];
   /** Maximum length for branch name */
   maxLength?: number;
+  /** Repository documentation for additional context */
+  repoDocumentation?: RepoDocumentationContext;
 }
 
 /**
@@ -36,6 +50,8 @@ export interface PRContext {
   baseBranch: string;
   /** List of changed files */
   changedFiles?: string[];
+  /** Repository documentation for additional context */
+  repoDocumentation?: RepoDocumentationContext;
 }
 
 /**
@@ -76,6 +92,8 @@ export interface PlanContext {
   techStack?: string[];
   /** Branch name */
   branchName: string;
+  /** Repository documentation for additional context */
+  repoDocumentation?: RepoDocumentationContext;
 }
 
 /**
@@ -158,10 +176,9 @@ export interface AIConfig {
   gemini?: {
     model?: string;
   };
-  /** OpenAI-specific settings */
+  /** OpenAI Codex CLI-specific settings */
   openai?: {
     model?: string;
-    apiKeyEnv?: string;
   };
   /** Ollama-specific settings */
   ollama?: {

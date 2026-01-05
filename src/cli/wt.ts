@@ -6,6 +6,7 @@
  * via subcommands, providing a consistent interface.
  *
  * Commands:
+ *   wt                       Interactive main menu
  *   wt new <description>     Create a new PR with worktree (newpr)
  *   wt list                  List worktrees with status (lswt)
  *   wt clean [pr-number]     Clean up merged/closed worktrees (cleanpr)
@@ -32,10 +33,19 @@ import { linkCommand } from './wt/link.js';
 import { stateCommand } from './wt/state.js';
 import { configCommand } from './wt/config.js';
 import { completionCommand } from './wt/completion.js';
+import { showMainMenu } from './wt/interactive-menu.js';
 
 yargs(hideBin(process.argv))
   .scriptName('wt')
-  .usage('$0 <command> [options]')
+  .usage('$0 [command] [options]')
+  .command(
+    '$0',
+    'Interactive main menu (when no command specified)',
+    () => {},
+    async () => {
+      await showMainMenu();
+    }
+  )
   .command(newCommand)
   .command(listCommand)
   .command(cleanCommand)
@@ -44,12 +54,12 @@ yargs(hideBin(process.argv))
   .command(configCommand)
   .command(completionCommand)
   .completion('get-yargs-completions', false) // Enable yargs completion for bash script
-  .demandCommand(1, 'You need to specify a command. Run "wt --help" for usage.')
   .alias('h', 'help')
   .alias('v', 'version')
   .help()
   .version()
   .wrap(Math.min(100, process.stdout.columns ?? 100))
+  .example('wt', 'Launch interactive main menu')
   .example('wt new "Add dark mode"', 'Create new PR with worktree')
   .example('wt n "Fix bug"', 'Short alias for wt new')
   .example('wt list', 'List all worktrees with PR status')

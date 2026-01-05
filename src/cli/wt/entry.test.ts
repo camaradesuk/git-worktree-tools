@@ -22,8 +22,8 @@ describe('wt CLI entry point', () => {
       });
 
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('wt <command> [options]');
       expect(result.stdout).toContain('Commands:');
+      expect(result.stdout).toContain('wt new');
     });
 
     it('lists all available commands in help', () => {
@@ -66,7 +66,7 @@ describe('wt CLI entry point', () => {
       });
 
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('wt <command> [options]');
+      expect(result.stdout).toContain('Commands:');
     });
 
     it('supports short -v alias for version', () => {
@@ -81,13 +81,14 @@ describe('wt CLI entry point', () => {
   });
 
   describe('error handling', () => {
-    it('requires a command and shows error when none provided', () => {
+    it('runs interactive menu when no command provided', () => {
       const result = spawnSync(process.execPath, [wtCliPath], {
         encoding: 'utf-8',
+        // Non-TTY environment - interactive menu should exit cleanly
       });
 
-      expect(result.status).toBe(1);
-      expect(result.stderr).toContain('You need to specify a command');
+      // In non-TTY mode, the interactive menu exits gracefully
+      expect(result.status).toBe(0);
     });
 
     it('shows error for unknown command', () => {
@@ -173,7 +174,7 @@ describe('wt CLI entry point', () => {
 
       expect(result.status).toBe(0);
       expect(result.stdout).toContain('--pr');
-      expect(result.stdout).toContain('--draft');
+      expect(result.stdout).toContain('--ready');
       expect(result.stdout).toContain('--json');
     });
 
