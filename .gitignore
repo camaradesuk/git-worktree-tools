@@ -21,6 +21,9 @@ npm-debug.log*
 # Test coverage
 coverage/
 
+# Test results (JUnit XML for Codecov)
+test-results/
+
 # Environment
 .env
 .env.local

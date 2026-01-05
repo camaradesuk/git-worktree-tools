@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -9,7 +9,35 @@ import {
   detectConflicts,
   updateManifest,
   isBaseBranch,
+  getWorktreeBranch,
+  run,
+  type LinkArgv,
 } from './link-configs.js';
+
+// Mock git module
+vi.mock('../git.js', () => ({
+  exec: vi.fn(),
+  checkGitInstalled: vi.fn().mockReturnValue(true),
+  getRepoRoot: vi.fn().mockReturnValue('/mock/repo'),
+  getMainWorktreeRoot: vi.fn().mockReturnValue('/mock/main-worktree'),
+  isGitIgnored: vi.fn().mockReturnValue(true),
+}));
+
+// Mock inquirer
+vi.mock('inquirer', () => ({
+  default: {
+    prompt: vi.fn(),
+  },
+}));
+
+// Mock console methods for testing output
+const mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+const mockConsoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+const mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.spyOn(console, 'clear').mockImplementation(() => {});
+
+import * as git from '../git.js';
+import inquirer from 'inquirer';
 
 describe('wtlink/link-configs', () => {
   describe('parseWorktreeList', () => {
@@ -420,6 +448,328 @@ config/local.json`);
 
     it('should return false for empty string', () => {
       expect(isBaseBranch('')).toBe(false);
+    });
+  });
+
+  describe('getWorktreeBranch', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return branch name from worktree list', () => {
+      const worktreeOutput = `worktree /home/user/project
+HEAD abc123
+branch refs/heads/main
+
+worktree /home/user/project.pr42
+HEAD def456
+branch refs/heads/feature/auth
+
+`;
+      vi.mocked(git.exec).mockReturnValue(worktreeOutput);
+
+      const branch = getWorktreeBranch('/home/user/project');
+      expect(branch).toBe('main');
+    });
+
+    it('should return null for detached HEAD', () => {
+      const worktreeOutput = `worktree /home/user/project
+HEAD abc123
+detached
+
+`;
+      vi.mocked(git.exec).mockReturnValue(worktreeOutput);
+
+      const branch = getWorktreeBranch('/home/user/project');
+      expect(branch).toBeNull();
+    });
+
+    it('should return null for unknown worktree path', () => {
+      const worktreeOutput = `worktree /home/user/project
+HEAD abc123
+branch refs/heads/main
+
+`;
+      vi.mocked(git.exec).mockReturnValue(worktreeOutput);
+
+      const branch = getWorktreeBranch('/home/user/unknown');
+      expect(branch).toBeNull();
+    });
+
+    it('should return null on git error', () => {
+      vi.mocked(git.exec).mockImplementation(() => {
+        throw new Error('git error');
+      });
+
+      const branch = getWorktreeBranch('/home/user/project');
+      expect(branch).toBeNull();
+    });
+  });
+
+  describe('run', () => {
+    let tempDir: string;
+    let sourceDir: string;
+    let destDir: string;
+    let manifestPath: string;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'link-configs-run-test-'));
+      sourceDir = path.join(tempDir, 'source');
+      destDir = path.join(tempDir, 'dest');
+      fs.mkdirSync(sourceDir, { recursive: true });
+      fs.mkdirSync(destDir, { recursive: true });
+
+      // Set up mocks
+      vi.mocked(git.checkGitInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(destDir);
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue(sourceDir);
+      vi.mocked(git.isGitIgnored).mockReturnValue(true);
+
+      manifestPath = path.join(sourceDir, '.wtlink');
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      vi.clearAllMocks();
+    });
+
+    it('should throw error if git is not installed', async () => {
+      vi.mocked(git.checkGitInstalled).mockReturnValue(false);
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await expect(run(argv)).rejects.toThrow('Git is not installed');
+    });
+
+    it('should throw error if source directory does not exist', async () => {
+      const argv: LinkArgv = {
+        source: '/nonexistent/source',
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await expect(run(argv)).rejects.toThrow('Source directory does not exist');
+    });
+
+    it('should throw error if destination directory does not exist', async () => {
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: '/nonexistent/dest',
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await expect(run(argv)).rejects.toThrow('Destination directory does not exist');
+    });
+
+    it('should throw error if manifest file not found', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({ proceed: true });
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await expect(run(argv)).rejects.toThrow('Manifest file not found');
+    });
+
+    it('should handle empty manifest gracefully', async () => {
+      fs.writeFileSync(manifestPath, '');
+      vi.mocked(inquirer.prompt).mockResolvedValue({ proceed: true });
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await run(argv);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Manifest is empty'));
+    });
+
+    it('should link files in dry-run mode without creating actual links', async () => {
+      fs.writeFileSync(manifestPath, '.env\nconfig.json');
+      fs.writeFileSync(path.join(sourceDir, '.env'), 'ENV_VAR=value');
+      fs.writeFileSync(path.join(sourceDir, 'config.json'), '{}');
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: true,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await run(argv);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('[DRY RUN]'));
+      // Files should NOT be linked in dry-run mode
+      expect(fs.existsSync(path.join(destDir, '.env'))).toBe(false);
+    });
+
+    it('should create hard links with --yes flag', async () => {
+      fs.writeFileSync(manifestPath, '.env');
+      fs.writeFileSync(path.join(sourceDir, '.env'), 'ENV_VAR=value');
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await run(argv);
+
+      expect(fs.existsSync(path.join(destDir, '.env'))).toBe(true);
+      // Verify it's a hard link (same inode)
+      const sourceStats = fs.statSync(path.join(sourceDir, '.env'));
+      const destStats = fs.statSync(path.join(destDir, '.env'));
+      expect(sourceStats.ino).toBe(destStats.ino);
+    });
+
+    it('should create symbolic links when type is symbolic', async () => {
+      fs.writeFileSync(manifestPath, '.env');
+      fs.writeFileSync(path.join(sourceDir, '.env'), 'ENV_VAR=value');
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'symbolic',
+        yes: true,
+      };
+
+      await run(argv);
+
+      expect(fs.existsSync(path.join(destDir, '.env'))).toBe(true);
+      const destStats = fs.lstatSync(path.join(destDir, '.env'));
+      expect(destStats.isSymbolicLink()).toBe(true);
+    });
+
+    it('should warn when source file is not git-ignored', async () => {
+      fs.writeFileSync(manifestPath, '.env');
+      fs.writeFileSync(path.join(sourceDir, '.env'), 'ENV_VAR=value');
+      vi.mocked(git.isGitIgnored).mockReturnValue(false);
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await run(argv);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('DANGER'));
+    });
+
+    it('should skip files that do not exist in source', async () => {
+      fs.writeFileSync(manifestPath, 'nonexistent.txt');
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await run(argv);
+
+      expect(mockConsoleWarn).toHaveBeenCalledWith(
+        expect.stringContaining('Source file not found')
+      );
+    });
+
+    it('should cancel operation when user declines confirmation', async () => {
+      fs.writeFileSync(manifestPath, '.env');
+      fs.writeFileSync(path.join(sourceDir, '.env'), 'ENV_VAR=value');
+
+      // User declines initial confirmation
+      vi.mocked(inquirer.prompt).mockResolvedValue({ proceed: false });
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: false,
+      };
+
+      await run(argv);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('cancelled'));
+      expect(fs.existsSync(path.join(destDir, '.env'))).toBe(false);
+    });
+
+    it('should handle conflicts with --yes flag by replacing files', async () => {
+      fs.writeFileSync(manifestPath, '.env');
+      fs.writeFileSync(path.join(sourceDir, '.env'), 'source content');
+      fs.writeFileSync(path.join(destDir, '.env'), 'dest content');
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await run(argv);
+
+      // File should be replaced with hard link
+      expect(fs.existsSync(path.join(destDir, '.env'))).toBe(true);
+      const content = fs.readFileSync(path.join(destDir, '.env'), 'utf-8');
+      expect(content).toBe('source content');
+    });
+
+    it('should create nested directories when linking files in subdirectories', async () => {
+      fs.writeFileSync(manifestPath, 'config/nested/settings.json');
+      fs.mkdirSync(path.join(sourceDir, 'config', 'nested'), { recursive: true });
+      fs.writeFileSync(path.join(sourceDir, 'config', 'nested', 'settings.json'), '{}');
+
+      const argv: LinkArgv = {
+        source: sourceDir,
+        destination: destDir,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        type: 'hard',
+        yes: true,
+      };
+
+      await run(argv);
+
+      expect(fs.existsSync(path.join(destDir, 'config', 'nested', 'settings.json'))).toBe(true);
     });
   });
 });

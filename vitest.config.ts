@@ -5,16 +5,17 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // JUnit XML reporter for Codecov Test Analytics
+    reporters: ['default', 'junit'],
+    outputFile: {
+      junit: 'test-results/junit.xml',
+    },
     coverage: {
       reporter: ['text', 'json', 'html'],
       include: ['src/lib/**/*.ts', 'src/cli/**/*.ts'],
       exclude: [
         'src/lib/**/*.test.ts',
         'src/cli/**/*.test.ts',
-        // TUI modules with interactive terminal I/O (not unit testable)
-        'src/lib/wtlink/main-menu.ts',
-        'src/lib/wtlink/manage-manifest.ts',
-        'src/lib/wtlink/link-configs.ts',
         // Type-only files (no runtime code)
         'src/lib/**/types.ts',
         'src/lib/**/index.ts',

@@ -93,6 +93,7 @@ async function runManage(): Promise<void> {
     dryRun: false,
     manifestFile: DEFAULT_MANIFEST_FILE,
     backup: false,
+    verbose: false,
   });
 
   // Ask if user wants to link after managing

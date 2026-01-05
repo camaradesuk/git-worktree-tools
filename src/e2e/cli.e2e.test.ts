@@ -208,6 +208,124 @@ describe('CLI e2e tests', () => {
         expect(result.stderr).toContain('Unknown argument');
       });
     });
+
+    describe('link (additional)', () => {
+      it('shows error when source directory does not exist', () => {
+        const result = runCli('wtlink', ['link', '/nonexistent/source', worktreeDir, '--yes'], {
+          cwd: repoDir,
+        });
+
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain('Source directory does not exist');
+      });
+
+      it('shows error when destination directory does not exist', () => {
+        const result = runCli('wtlink', ['link', repoDir, '/nonexistent/dest', '--yes'], {
+          cwd: repoDir,
+        });
+
+        expect(result.exitCode).toBe(1);
+        expect(result.stderr).toContain('Destination directory does not exist');
+      });
+
+      it('respects --type symbolic option', () => {
+        const result = runCli('wtlink', ['link', '--help']);
+
+        expect(result.stdout).toContain('symbolic');
+        expect(result.stdout).toContain('hard');
+      });
+    });
+
+    describe('validate (additional)', () => {
+      it('validates manifest with valid gitignored file', () => {
+        // Create manifest with gitignored file
+        const manifestPath = path.join(repoDir, '.wtlinkrc');
+        const configPath = path.join(repoDir, '.secret.env');
+        const gitignorePath = path.join(repoDir, '.gitignore');
+
+        fs.writeFileSync(manifestPath, '.secret.env\n');
+        fs.writeFileSync(configPath, 'SECRET=value\n');
+        fs.writeFileSync(gitignorePath, '.secret.env\n.wtlinkrc\n');
+
+        try {
+          const result = runCli('wtlink', ['validate'], { cwd: repoDir });
+
+          expect(result.exitCode).toBe(0);
+          expect(result.stdout).toContain('valid');
+        } finally {
+          fs.unlinkSync(manifestPath);
+          fs.unlinkSync(configPath);
+          fs.unlinkSync(gitignorePath);
+        }
+      });
+
+      it('reports file not gitignored', () => {
+        // Create manifest with non-ignored file
+        const manifestPath = path.join(repoDir, '.wtlinkrc');
+        const configPath = path.join(repoDir, 'config.json');
+
+        fs.writeFileSync(manifestPath, 'config.json\n');
+        fs.writeFileSync(configPath, '{"key": "value"}\n');
+
+        // Ensure file is NOT gitignored
+        const gitignorePath = path.join(repoDir, '.gitignore');
+        if (fs.existsSync(gitignorePath)) {
+          fs.unlinkSync(gitignorePath);
+        }
+        fs.writeFileSync(gitignorePath, '');
+
+        try {
+          const result = runCli('wtlink', ['validate'], { cwd: repoDir });
+
+          expect(result.exitCode).toBe(1);
+          expect(result.stderr).toContain('not ignored by git');
+        } finally {
+          fs.unlinkSync(manifestPath);
+          fs.unlinkSync(configPath);
+          fs.unlinkSync(gitignorePath);
+        }
+      });
+    });
+
+    describe('manage (additional)', () => {
+      it('shows manifest up to date message when no changes', () => {
+        // Create empty manifest
+        const manifestPath = path.join(repoDir, '.wtlinkrc');
+        fs.writeFileSync(manifestPath, '');
+
+        // Ensure no gitignored files
+        const gitignorePath = path.join(repoDir, '.gitignore');
+        fs.writeFileSync(gitignorePath, '.wtlinkrc\n');
+
+        try {
+          const result = runCli('wtlink', ['manage', '--non-interactive'], { cwd: repoDir });
+
+          expect(result.exitCode).toBe(0);
+          expect(result.stdout).toContain('up to date');
+        } finally {
+          fs.unlinkSync(manifestPath);
+          fs.unlinkSync(gitignorePath);
+        }
+      });
+
+      it('supports --clean flag', () => {
+        const result = runCli('wtlink', ['manage', '--help']);
+
+        expect(result.stdout).toContain('--clean');
+      });
+
+      it('supports --backup flag', () => {
+        const result = runCli('wtlink', ['manage', '--help']);
+
+        expect(result.stdout).toContain('--backup');
+      });
+
+      it('supports --verbose flag', () => {
+        const result = runCli('wtlink', ['manage', '--help']);
+
+        expect(result.stdout).toContain('--verbose');
+      });
+    });
   });
 
   describe('lswt', () => {
@@ -269,7 +387,7 @@ describe('CLI e2e tests', () => {
       const result = runCli('newpr', ['--pr', 'not-a-number'], { cwd: repoDir });
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain('PR number must be numeric');
+      expect(result.stderr).toContain('PR number must be a positive integer');
     });
   });
 

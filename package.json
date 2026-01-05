@@ -6,6 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
+    "wt": "./dist/cli/wt.js",
     "newpr": "./dist/cli/newpr.js",
     "cleanpr": "./dist/cli/cleanpr.js",
     "lswt": "./dist/cli/lswt.js",

@@ -94,7 +94,32 @@ describe('newpr/args', () => {
         const result = parseArgs(['--pr', 'abc']);
         expect(result.kind).toBe('error');
         if (result.kind === 'error') {
-          expect(result.message).toContain('PR number must be numeric');
+          expect(result.message).toContain('PR number must be a positive integer');
+        }
+      });
+
+      it('returns error when PR number is a float (UX-014)', () => {
+        // Regression test for UX-014: parseInt("1.5") returns 1, but we should reject floats
+        const result = parseArgs(['--pr', '1.5']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('PR number must be a positive integer');
+        }
+      });
+
+      it('returns error for negative PR numbers', () => {
+        const result = parseArgs(['--pr', '-5']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('--pr requires a PR number');
+        }
+      });
+
+      it('returns error for zero PR number', () => {
+        const result = parseArgs(['--pr', '0']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('PR number must be a positive');
         }
       });
     });
@@ -223,6 +248,217 @@ describe('newpr/args', () => {
         expect(result.kind).toBe('success');
         if (result.kind === 'success') {
           expect(result.options.runWtlink).toBe(false);
+        }
+      });
+    });
+
+    describe('--action flag', () => {
+      it('parses --action with valid action key', () => {
+        const result = parseArgs(['--action', 'commit_all', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('commit_all');
+        }
+      });
+
+      it('parses --action with commit_staged', () => {
+        const result = parseArgs(['--action', 'commit_staged', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('commit_staged');
+        }
+      });
+
+      it('parses --action with stash_and_empty', () => {
+        const result = parseArgs(['--action', 'stash_and_empty', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('stash_and_empty');
+        }
+      });
+
+      it('parses --action with empty_commit', () => {
+        const result = parseArgs(['--action', 'empty_commit', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('empty_commit');
+        }
+      });
+
+      it('parses --action with use_commits', () => {
+        const result = parseArgs(['--action', 'use_commits', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('use_commits');
+        }
+      });
+
+      it('parses --action with push_then_branch', () => {
+        const result = parseArgs(['--action', 'push_then_branch', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('push_then_branch');
+        }
+      });
+
+      it('parses --action with use_commits_and_commit_all', () => {
+        const result = parseArgs(['--action', 'use_commits_and_commit_all', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('use_commits_and_commit_all');
+        }
+      });
+
+      it('parses --action with use_commits_and_stash', () => {
+        const result = parseArgs(['--action', 'use_commits_and_stash', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('use_commits_and_stash');
+        }
+      });
+
+      it('parses --action with create_pr_for_branch', () => {
+        const result = parseArgs(['--action', 'create_pr_for_branch', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('create_pr_for_branch');
+        }
+      });
+
+      it('parses --action with pr_for_branch_commit_all', () => {
+        const result = parseArgs(['--action', 'pr_for_branch_commit_all', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('pr_for_branch_commit_all');
+        }
+      });
+
+      it('parses --action with pr_for_branch_stash', () => {
+        const result = parseArgs(['--action', 'pr_for_branch_stash', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('pr_for_branch_stash');
+        }
+      });
+
+      it('parses --action with branch_from_detached', () => {
+        const result = parseArgs(['--action', 'branch_from_detached', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('branch_from_detached');
+        }
+      });
+
+      it('returns error when --action has no value', () => {
+        const result = parseArgs(['--action']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('--action requires an action key');
+        }
+      });
+
+      it('returns error when --action value starts with dash', () => {
+        const result = parseArgs(['--action', '-h']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('--action requires an action key');
+        }
+      });
+
+      it('returns error for invalid action key', () => {
+        const result = parseArgs(['--action', 'invalid_action', 'My feature']);
+        expect(result.kind).toBe('error');
+        if (result.kind === 'error') {
+          expect(result.message).toContain('Invalid action: invalid_action');
+          expect(result.message).toContain('Valid actions:');
+        }
+      });
+
+      it('combines --action with --non-interactive', () => {
+        const result = parseArgs(['--action', 'commit_all', '--non-interactive', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('commit_all');
+          expect(result.options.nonInteractive).toBe(true);
+        }
+      });
+
+      it('combines --action with --json', () => {
+        const result = parseArgs(['--action', 'commit_staged', '--json', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.action).toBe('commit_staged');
+          expect(result.options.json).toBe(true);
+        }
+      });
+    });
+
+    describe('--no-hooks flag', () => {
+      it('parses --no-hooks flag', () => {
+        const result = parseArgs(['--no-hooks', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.noHooks).toBe(true);
+        }
+      });
+
+      it('defaults noHooks to false', () => {
+        const result = parseArgs(['My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.noHooks).toBe(false);
+        }
+      });
+    });
+
+    describe('--json flag', () => {
+      it('parses --json flag', () => {
+        const result = parseArgs(['--json', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.json).toBe(true);
+        }
+      });
+
+      it('defaults json to false', () => {
+        const result = parseArgs(['My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.json).toBe(false);
+        }
+      });
+    });
+
+    describe('non-interactive flags', () => {
+      it('parses -y flag', () => {
+        const result = parseArgs(['-y', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.nonInteractive).toBe(true);
+        }
+      });
+
+      it('parses --yes flag', () => {
+        const result = parseArgs(['--yes', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.nonInteractive).toBe(true);
+        }
+      });
+
+      it('parses --non-interactive flag', () => {
+        const result = parseArgs(['--non-interactive', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.nonInteractive).toBe(true);
+        }
+      });
+
+      it('defaults nonInteractive to false', () => {
+        const result = parseArgs(['My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.nonInteractive).toBe(false);
         }
       });
     });

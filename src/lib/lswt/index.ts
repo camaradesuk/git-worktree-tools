@@ -60,3 +60,11 @@ export { executeAction, createDefaultExecutorDeps } from './action-executors.js'
 // Interactive mode
 export type { InteractiveDeps } from './interactive.js';
 export { runInteractiveMode, createDefaultInteractiveDeps } from './interactive.js';
+
+// Fuzzy search
+export {
+  fuzzyScore,
+  getSearchableText,
+  filterWorktrees,
+  highlightMatches,
+} from './fuzzy-search.js';

@@ -17,6 +17,7 @@ vi.mock('../lib/lswt/index.js', () => ({
   formatJsonOutput: vi.fn(),
   gatherWorktreeInfo: vi.fn(),
   createDefaultDeps: vi.fn(),
+  runInteractiveMode: vi.fn(),
 }));
 
 // Import after mocking
@@ -210,6 +211,245 @@ describe('cli/lswt', () => {
       await runCli([]);
 
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('No worktrees'));
+    });
+
+    it('shows commit hash when verbose flag is set', async () => {
+      const mockWorktrees = [
+        {
+          path: '/repo',
+          name: 'repo',
+          branch: 'main',
+          commit: 'abc123def',
+          type: 'main' as const,
+          prNumber: null,
+          prState: null,
+          isDraft: null,
+          hasChanges: false,
+        },
+      ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
+
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { verbose: true, json: false, showStatus: false },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
+      vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
+      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
+
+      await runCli(['--verbose']);
+
+      // Verify commit is printed in verbose mode
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Commit:'));
+    });
+
+    it('shows change indicator for worktrees with uncommitted changes', async () => {
+      const mockWorktrees = [
+        {
+          path: '/repo',
+          name: 'repo',
+          branch: 'main',
+          commit: 'abc123',
+          type: 'main' as const,
+          prNumber: null,
+          prState: null,
+          isDraft: null,
+          hasChanges: true,
+        },
+      ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
+
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { verbose: false, json: false, showStatus: false },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
+      vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
+      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
+
+      await runCli([]);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('with changes'));
+    });
+
+    it('shows detached label when branch is missing', async () => {
+      const mockWorktrees = [
+        {
+          path: '/repo',
+          name: 'repo',
+          branch: '',
+          commit: 'abc123',
+          type: 'main' as const,
+          prNumber: null,
+          prState: null,
+          isDraft: null,
+          hasChanges: false,
+        },
+      ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
+
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { verbose: false, json: false, showStatus: false },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
+      vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
+      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
+
+      await runCli([]);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('(detached)'));
+    });
+
+    it('shows PR count in summary', async () => {
+      const mockWorktrees = [
+        {
+          path: '/repo',
+          name: 'repo',
+          branch: 'main',
+          commit: 'abc123',
+          type: 'main' as const,
+          prNumber: null,
+          prState: null,
+          isDraft: null,
+          hasChanges: false,
+        },
+        {
+          path: '/repo.pr42',
+          name: 'repo.pr42',
+          branch: 'feature-1',
+          commit: 'def456',
+          type: 'pr' as const,
+          prNumber: 42,
+          prState: 'OPEN' as const,
+          isDraft: false,
+          hasChanges: false,
+        },
+      ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
+
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { verbose: false, json: false, showStatus: false },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
+      vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
+      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
+
+      await runCli([]);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('2 worktrees'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('1 PRs'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('1 open'));
+    });
+  });
+
+  describe('JSON error output', () => {
+    it('outputs JSON error when not in git repo with --json', async () => {
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { verbose: false, json: true, showStatus: false },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('');
+
+      await runCli(['--json']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('NOT_GIT_REPO'));
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON error on parse error with --json', async () => {
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'error',
+        message: 'Unknown option: --invalid',
+      });
+
+      await runCli(['--json', '--invalid']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success": false'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('INVALID_ARGUMENT'));
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('interactive mode', () => {
+    it('runs interactive mode when TTY and not JSON', async () => {
+      const mockWorktrees = [
+        {
+          path: '/repo',
+          name: 'repo',
+          branch: 'main',
+          commit: 'abc123',
+          type: 'main' as const,
+          prNumber: null,
+          prState: null,
+          isDraft: null,
+          hasChanges: false,
+        },
+      ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
+
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { verbose: false, json: false, showStatus: false, interactive: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
+      vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
+
+      await runCli(['--interactive']);
+
+      expect(lswt.runInteractiveMode).toHaveBeenCalledWith(
+        mockWorktrees,
+        expect.objectContaining({ interactive: true })
+      );
+    });
+
+    it('skips interactive mode when --no-interactive is set', async () => {
+      const mockWorktrees = [
+        {
+          path: '/repo',
+          name: 'repo',
+          branch: 'main',
+          commit: 'abc123',
+          type: 'main' as const,
+          prNumber: null,
+          prState: null,
+          isDraft: null,
+          hasChanges: false,
+        },
+      ];
+      const mockDeps = {} as ReturnType<typeof lswt.createDefaultDeps>;
+
+      vi.mocked(lswt.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { verbose: false, json: false, showStatus: false, interactive: false },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
+      vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
+      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
+      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
+
+      await runCli(['--no-interactive']);
+
+      expect(lswt.runInteractiveMode).not.toHaveBeenCalled();
     });
   });
 });

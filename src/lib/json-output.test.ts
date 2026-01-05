@@ -190,6 +190,8 @@ describe('json-output', () => {
       expect(result.error).toEqual({
         code: ErrorCode.NOT_GIT_REPO,
         message: 'Not in a git repository',
+        suggestion: 'Run this command from within a git repository.',
+        details: undefined,
       });
       expect(result.data).toBeUndefined();
     });

@@ -30,26 +30,50 @@ npm install -g @camaradesuk/git-worktree-tools
 ## Quick Start
 
 ```bash
-# Create a new PR with worktree
+# Using the unified wt command (recommended)
+wt new "Add user authentication feature"  # Create PR with worktree
+wt list                                    # List worktrees
+wt clean                                   # Clean up merged/closed PRs
+wt link                                    # Manage shared config files
+wt state --json                            # Query git state
+wt config init                             # Configure settings
+
+# Or use individual commands directly
 newpr "Add user authentication feature"
-
-# List all worktrees
 lswt
-
-# Clean up merged/closed PR worktrees
 cleanpr
-
-# Manage shared config files between worktrees
 wtlink
-
-# Query git state (for AI agents)
 wtstate --json
-
-# Configure settings with interactive wizard
 wtconfig init
 ```
 
 ## Commands
+
+### wt (Unified Command)
+
+The `wt` command provides a single entry point for all git-worktree-tools functionality:
+
+```bash
+wt <command> [options]
+```
+
+| Command              | Alias    | Description                         |
+| -------------------- | -------- | ----------------------------------- |
+| `wt new <desc>`      | `wt n`   | Create a new PR with worktree       |
+| `wt list`            | `wt ls`  | List worktrees with PR status       |
+| `wt clean [pr]`      | `wt c`   | Clean up merged/closed PR worktrees |
+| `wt link [cmd]`      | `wt l`   | Manage gitignored files via links   |
+| `wt state`           | `wt s`   | Query git worktree state            |
+| `wt config [cmd]`    | `wt cfg` | Configuration management            |
+| `wt completion <sh>` | -        | Generate shell completion scripts   |
+
+All subcommands accept the same options as their standalone equivalents. For example:
+
+```bash
+wt new "Add feature" --draft    # Same as: newpr "Add feature" --draft
+wt list --json                  # Same as: lswt --json
+wt clean --all                  # Same as: cleanpr --all
+```
 
 ### newpr
 
@@ -106,6 +130,15 @@ When running in a TTY terminal, `lswt` enters interactive mode where you can sel
 | `l`      | Link config files (via wtlink)             |
 | `r`      | Remove worktree (not available for main)   |
 | `q`      | Quit                                       |
+
+**Fuzzy search** — Press `/` to enter search mode and filter worktrees by:
+
+- Branch name (`dark-mode`, `feat/auth`)
+- PR number (`#42`, `42`)
+- PR title (`Add dark mode`)
+- PR state (`OPEN`, `MERGED`, `CLOSED`)
+
+The search uses fuzzy matching, so typing `dm` will match `dark-mode`. Press `Enter` to confirm the filter, `Escape` to cancel, or `Backspace` to edit.
 
 Use `--no-interactive` to disable interactive mode, or pipe output to automatically switch to list mode.
 
@@ -548,6 +581,44 @@ lswt
 cleanpr
 # → Removes worktrees for merged PRs
 # → Deletes local branches
+```
+
+## Shell Completion
+
+Enable tab completion for `wt` commands in your shell:
+
+### Bash
+
+```bash
+# Add to ~/.bashrc
+wt completion bash >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Zsh
+
+```bash
+# Create completion directory and add completion
+mkdir -p ~/.zsh/completions
+wt completion zsh > ~/.zsh/completions/_wt
+
+# Add to ~/.zshrc (if not already present)
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+### Fish
+
+```bash
+wt completion fish > ~/.config/fish/completions/wt.fish
+```
+
+After setup, you can tab-complete commands and options:
+
+```bash
+wt <TAB>           # Shows: new, list, clean, link, state, config, completion
+wt new --<TAB>     # Shows: --pr, --draft, --json, --non-interactive, --action
+wt list --<TAB>    # Shows: --verbose, --json, --no-status, --no-interactive
 ```
 
 ## Development

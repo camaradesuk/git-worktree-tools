@@ -117,6 +117,57 @@ describe('cli/wtlink', () => {
         })
       );
     });
+
+    it('passes --verbose flag', async () => {
+      await runCli(['manage', '--verbose']);
+
+      expect(manage.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          verbose: true,
+        })
+      );
+    });
+
+    it('passes -v shorthand for verbose', async () => {
+      await runCli(['manage', '-v']);
+
+      expect(manage.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          verbose: true,
+        })
+      );
+    });
+
+    it('combines multiple flags correctly', async () => {
+      await runCli([
+        'manage',
+        '--non-interactive',
+        '--clean',
+        '--dry-run',
+        '--backup',
+        '--verbose',
+      ]);
+
+      expect(manage.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          nonInteractive: true,
+          clean: true,
+          dryRun: true,
+          backup: true,
+          verbose: true,
+        })
+      );
+    });
+
+    it('passes --json flag', async () => {
+      await runCli(['manage', '--json']);
+
+      expect(manage.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          json: true,
+        })
+      );
+    });
   });
 
   describe('link command', () => {
@@ -203,6 +254,115 @@ describe('cli/wtlink', () => {
 
       expect(mockConsoleError).toHaveBeenCalled();
       expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('shows suggestion for single worktree error from link command', async () => {
+      vi.mocked(link.run).mockRejectedValue(new Error('Unable to detect an alternate worktree'));
+
+      await runCli(['link', '/source', '/dest']);
+
+      // Error is caught by yargs fail handler
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Unable to detect an alternate worktree')
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('shows suggestion for manifest not found error from validate command', async () => {
+      vi.mocked(validate.run).mockRejectedValue(new Error('Manifest file not found'));
+
+      await runCli(['validate']);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Manifest file not found')
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('shows suggestion for not git repository error', async () => {
+      vi.mocked(manage.run).mockRejectedValue(new Error('not a git repository'));
+
+      await runCli(['manage']);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('not a git repository')
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('shows suggestion for inspect worktrees error', async () => {
+      vi.mocked(link.run).mockRejectedValue(new Error('Failed to inspect git worktrees'));
+
+      await runCli(['link', '/source', '/dest']);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to inspect git worktrees')
+      );
+      expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('main menu', () => {
+    it('shows main menu when no command is provided', async () => {
+      const { showMainMenu } = await import('../lib/wtlink/main-menu.js');
+
+      await runCli([]);
+
+      expect(showMainMenu).toHaveBeenCalled();
+    });
+  });
+
+  describe('link command variations', () => {
+    it('passes -d shorthand for dry-run', async () => {
+      await runCli(['link', '/source', '/dest', '-d']);
+
+      expect(link.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dryRun: true,
+        })
+      );
+    });
+
+    it('passes -y shorthand for yes', async () => {
+      await runCli(['link', '/source', '/dest', '-y']);
+
+      expect(link.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          yes: true,
+        })
+      );
+    });
+
+    it('passes --json flag to link command', async () => {
+      await runCli(['link', '/source', '/dest', '--json']);
+
+      expect(link.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          json: true,
+        })
+      );
+    });
+  });
+
+  describe('validate command variations', () => {
+    it('passes custom manifest file to validate', async () => {
+      await runCli(['validate', '--manifest-file', 'custom.wtlinkrc']);
+
+      expect(validate.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          manifestFile: 'custom.wtlinkrc',
+        })
+      );
+    });
+
+    it('passes --json flag to validate command', async () => {
+      await runCli(['validate', '--json']);
+
+      expect(validate.run).toHaveBeenCalledWith(
+        expect.objectContaining({
+          json: true,
+        })
+      );
     });
   });
 });

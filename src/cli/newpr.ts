@@ -37,6 +37,8 @@ import {
   createErrorResult,
   formatJsonResult,
   ErrorCode,
+  getErrorCodeFromError,
+  getErrorSuggestion,
   type NewprResultData,
 } from '../lib/json-output.js';
 
@@ -67,6 +69,24 @@ function debug(message: string, data?: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(data)) {
       console.error(colors.dim(`  ${key}: ${JSON.stringify(value)}`));
     }
+  }
+}
+
+/**
+ * Progress logging - suppressed in JSON mode for clean output
+ */
+function progress(options: Options, ...args: unknown[]): void {
+  if (!options.json) {
+    console.log(...args);
+  }
+}
+
+/**
+ * Progress error logging - suppressed in JSON mode
+ */
+function progressError(options: Options, ...args: unknown[]): void {
+  if (!options.json) {
+    console.error(...args);
   }
 }
 
@@ -274,14 +294,14 @@ async function handleScenario(
 async function setupWorktree(
   worktreePath: string,
   config: Required<WorktreeConfig>,
-  _options: Options
+  options: Options
 ): Promise<void> {
   const repoRoot = git.getRepoRoot();
   const parentDir = path.dirname(repoRoot);
 
   // Create symlinks for shared repos
   if (config.sharedRepos.length > 0) {
-    console.log(colors.info('Creating symlinks for shared repositories...'));
+    progress(options, colors.info('Creating symlinks for shared repositories...'));
     for (const repo of config.sharedRepos) {
       const target = path.join(parentDir, repo);
       const link = path.join(worktreePath, repo);
@@ -290,15 +310,15 @@ async function setupWorktree(
         if (!fs.existsSync(link)) {
           try {
             fs.symlinkSync(target, link, 'dir');
-            console.log(colors.success(`Linked ${repo}`));
+            progress(options, colors.success(`Linked ${repo}`));
           } catch (error) {
-            console.log(colors.warning(`Failed to link ${repo}: ${error}`));
+            progress(options, colors.warning(`Failed to link ${repo}: ${error}`));
           }
         } else {
-          console.log(colors.warning(`${repo} already exists in worktree`));
+          progress(options, colors.warning(`${repo} already exists in worktree`));
         }
       } else {
-        console.log(colors.warning(`${repo} not found at ${target}`));
+        progress(options, colors.warning(`${repo} not found at ${target}`));
       }
     }
   }
@@ -338,8 +358,12 @@ function printSummary(
   console.log(`  Worktree:  ${worktreePath}`);
   console.log(`  PR URL:    ${prUrl}`);
   console.log();
-  console.log('  Next steps:');
-  console.log(`    cd ${worktreePath}`);
+  console.log(colors.dim('  Next steps:'));
+  console.log(colors.dim(`    cd ${worktreePath}`));
+  console.log(colors.dim(`    gh pr view ${prNumber} --web     # Open PR in browser`));
+  console.log(
+    colors.dim(`    wtlink link                     # Link config files from main worktree`)
+  );
   console.log();
 }
 
@@ -347,7 +371,7 @@ function printSummary(
  * Mode: Setup worktree for existing PR
  */
 async function modeExistingPr(prNumber: number, options: Options): Promise<void> {
-  console.log(colors.info(`Setting up worktree for existing PR #${prNumber}...`));
+  progress(options, colors.info(`Setting up worktree for existing PR #${prNumber}...`));
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
@@ -355,27 +379,29 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   const pr = github.getPr(prNumber);
   if (!pr) {
-    console.error(colors.error(`Could not find PR #${prNumber}`));
-    process.exit(1);
+    exitWithError(`Could not find PR #${prNumber}`, ErrorCode.PR_NOT_FOUND, options.json);
   }
 
   if (pr.state !== 'OPEN') {
-    console.log(colors.warning(`PR #${prNumber} is ${pr.state}`));
+    progress(options, colors.warning(`PR #${prNumber} is ${pr.state}`));
   }
 
-  console.log(colors.info(`PR branch: ${pr.headBranch}`));
+  progress(options, colors.info(`PR branch: ${pr.headBranch}`));
 
   const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber);
 
   if (fs.existsSync(worktreePath)) {
-    console.error(colors.error(`Worktree already exists: ${worktreePath}`));
-    process.exit(1);
+    exitWithError(
+      `Worktree already exists: ${worktreePath}`,
+      ErrorCode.WORKTREE_EXISTS,
+      options.json
+    );
   }
 
-  console.log(colors.info('Fetching branch from origin...'));
+  progress(options, colors.info('Fetching branch from origin...'));
   git.fetch('origin');
 
-  console.log(colors.info(`Creating worktree at ${worktreePath}...`));
+  progress(options, colors.info(`Creating worktree at ${worktreePath}...`));
   try {
     git.addWorktree(worktreePath, pr.headBranch, {
       createBranch: true,
@@ -385,9 +411,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
     git.addWorktree(worktreePath, pr.headBranch);
   }
 
-  if (!options.json) {
-    console.log(colors.success(`Created worktree: ${worktreePath}`));
-  }
+  progress(options, colors.success(`Created worktree: ${worktreePath}`));
 
   await setupWorktree(worktreePath, config, options);
   printSummary(prNumber, pr.headBranch, worktreePath, pr.url, options, { draft: pr.isDraft });
@@ -397,33 +421,39 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
  * Mode: Create PR for existing branch
  */
 async function modeExistingBranch(branchName: string, options: Options): Promise<void> {
-  console.log(colors.info(`Creating PR for existing branch: ${branchName}...`));
+  progress(options, colors.info(`Creating PR for existing branch: ${branchName}...`));
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfig(repoRoot);
 
-  console.log(colors.info('Fetching latest from origin...'));
+  progress(options, colors.info('Fetching latest from origin...'));
   git.fetch('origin');
 
   if (!git.remoteBranchExists(branchName)) {
     if (git.branchExists(branchName)) {
-      console.log(colors.info('Branch exists locally, pushing to origin...'));
+      progress(options, colors.info('Branch exists locally, pushing to origin...'));
       git.push({ setUpstream: true, remote: 'origin', branch: branchName });
     } else {
-      console.error(colors.error(`Branch '${branchName}' does not exist locally or on remote`));
-      process.exit(1);
+      exitWithError(
+        `Branch '${branchName}' does not exist locally or on remote`,
+        ErrorCode.BRANCH_NOT_FOUND,
+        options.json
+      );
     }
   }
 
   const existingPr = github.getPrByBranch(branchName);
   if (existingPr) {
-    console.log(colors.info(`PR #${existingPr.number} already exists for branch ${branchName}`));
+    progress(
+      options,
+      colors.info(`PR #${existingPr.number} already exists for branch ${branchName}`)
+    );
     await modeExistingPr(existingPr.number, options);
     return;
   }
 
-  console.log(colors.info('Creating pull request...'));
+  progress(options, colors.info('Creating pull request...'));
 
   const title = branchName
     .replace(/^(feat|fix|chore)\//, '')
@@ -451,11 +481,11 @@ PR created from existing branch: \`${branchName}\`
     draft: options.draft,
   });
 
-  console.log(colors.success(`Created PR #${pr.number}: ${pr.url}`));
+  progress(options, colors.success(`Created PR #${pr.number}: ${pr.url}`));
 
   const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
 
-  console.log(colors.info(`Creating worktree at ${worktreePath}...`));
+  progress(options, colors.info(`Creating worktree at ${worktreePath}...`));
   try {
     git.addWorktree(worktreePath, branchName, {
       createBranch: true,
@@ -465,9 +495,7 @@ PR created from existing branch: \`${branchName}\`
     git.addWorktree(worktreePath, branchName);
   }
 
-  if (!options.json) {
-    console.log(colors.success(`Created worktree: ${worktreePath}`));
-  }
+  progress(options, colors.success(`Created worktree: ${worktreePath}`));
 
   await setupWorktree(worktreePath, config, options);
   printSummary(pr.number, branchName, worktreePath, pr.url, options);
@@ -503,11 +531,11 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     exitWithError('Aborted by pre-analyze hook.', ErrorCode.HOOK_FAILED, options.json);
   }
 
-  console.log(colors.info('Fetching latest from origin...'));
+  progress(options, colors.info('Fetching latest from origin...'));
   try {
     git.fetch('origin');
   } catch {
-    console.log(colors.warning('Could not fetch from origin (network unavailable?)'));
+    progress(options, colors.warning('Could not fetch from origin (network unavailable?)'));
   }
 
   const state = analyzeGitState(options.baseBranch);
@@ -565,15 +593,14 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   if (isExistingBranchAction(action)) {
     const currentBranch = state.currentBranch;
     if (!currentBranch) {
-      console.error(colors.error('Cannot determine current branch'));
-      process.exit(1);
+      exitWithError('Cannot determine current branch', ErrorCode.DETACHED_HEAD, options.json);
     }
 
     const deps = createActionDeps(repoRoot);
     executeStateAction(action, description, currentBranch, deps, repoRoot);
 
     if (!git.remoteBranchExists(currentBranch)) {
-      console.log(colors.info('Pushing branch to origin...'));
+      progress(options, colors.info('Pushing branch to origin...'));
       git.push({ setUpstream: true, remote: 'origin', branch: currentBranch });
     }
 
@@ -581,16 +608,19 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     return;
   }
 
-  console.log(colors.info(`Creating feature branch: ${branchName}`));
+  progress(options, colors.info(`Creating feature branch: ${branchName}`));
 
   if (git.remoteBranchExists(branchName)) {
-    console.log(colors.warning(`Branch ${branchName} already exists on remote`));
+    progress(options, colors.warning(`Branch ${branchName} already exists on remote`));
     const existingPr = github.getPrByBranch(branchName);
     if (existingPr) {
-      console.log(colors.info(`PR #${existingPr.number} already exists, setting up worktree...`));
+      progress(
+        options,
+        colors.info(`PR #${existingPr.number} already exists, setting up worktree...`)
+      );
       await modeExistingPr(existingPr.number, options);
     } else {
-      console.log(colors.info('No PR exists, creating one...'));
+      progress(options, colors.info('No PR exists, creating one...'));
       await modeExistingBranch(branchName, options);
     }
     return;
@@ -616,14 +646,17 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   });
 
   if (!actionResult.success) {
-    console.error(colors.error(`Action failed: ${actionResult.message}`));
-    process.exit(1);
+    exitWithError(
+      `Action failed: ${actionResult.message}`,
+      ErrorCode.OPERATION_FAILED,
+      options.json
+    );
   }
 
   // Stash unstaged changes if needed
   let unstagedStashRef: string | null = null;
   if (action.stashUnstaged) {
-    console.log(colors.info('Stashing unstaged changes (will move to worktree)...'));
+    progress(options, colors.info('Stashing unstaged changes (will move to worktree)...'));
     unstagedStashRef = git.stash({
       keepIndex: true,
       message: 'newpr: unstaged changes for worktree',
@@ -638,7 +671,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       exitWithError('Aborted by pre-branch hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    console.log(colors.info(`Creating branch from ${branchFrom}...`));
+    progress(options, colors.info(`Creating branch from ${branchFrom}...`));
 
     debug('Before checkout', {
       branchFrom,
@@ -655,11 +688,15 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       const errorMessage =
         checkoutError instanceof Error ? checkoutError.message : String(checkoutError);
       if (errorMessage.includes('overwritten') || errorMessage.includes('conflict')) {
-        console.error(colors.error('Checkout failed due to conflicting changes.'));
-        console.error(colors.info('Your staged changes are preserved. To resolve this, either:'));
-        console.error(colors.info('  1. Commit your changes first, then run newpr again'));
-        console.error(colors.info('  2. Stash your changes: git stash push'));
-        console.error(
+        progressError(options, colors.error('Checkout failed due to conflicting changes.'));
+        progressError(
+          options,
+          colors.info('Your staged changes are preserved. To resolve this, either:')
+        );
+        progressError(options, colors.info('  1. Commit your changes first, then run newpr again'));
+        progressError(options, colors.info('  2. Stash your changes: git stash push'));
+        progressError(
+          options,
           colors.info('  3. Use a different branch point (e.g., HEAD instead of origin/main)')
         );
       }
@@ -685,7 +722,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
         exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
       }
 
-      console.log(colors.info('Committing staged changes...'));
+      progress(options, colors.info('Committing staged changes...'));
       git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` });
       debug('Committed staged changes');
 
@@ -697,7 +734,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
         exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
       }
 
-      console.log(colors.info('Creating initial commit (required for PR creation)...'));
+      progress(options, colors.info('Creating initial commit (required for PR creation)...'));
       git.commit({
         message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
         allowEmpty: true,
@@ -713,7 +750,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       exitWithError('Aborted by pre-push hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    console.log(colors.info('Pushing branch to origin...'));
+    progress(options, colors.info('Pushing branch to origin...'));
     git.push({ setUpstream: true, remote: 'origin', branch: branchName });
 
     // Run post-push hook
@@ -726,7 +763,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       exitWithError('Aborted by pre-pr hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    console.log(colors.info('Creating pull request...'));
+    progress(options, colors.info('Creating pull request...'));
 
     const pr = github.createPr({
       title: description,
@@ -749,7 +786,7 @@ ${description}
       draft: options.draft,
     });
 
-    console.log(colors.success(`Created PR #${pr.number}: ${pr.url}`));
+    progress(options, colors.success(`Created PR #${pr.number}: ${pr.url}`));
 
     // Update context with PR info
     hookRunner.updateContext({
@@ -770,20 +807,20 @@ ${description}
       exitWithError('Aborted by pre-worktree hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    console.log(colors.info(`Creating worktree at ${worktreePath}...`));
+    progress(options, colors.info(`Creating worktree at ${worktreePath}...`));
     git.addWorktree(worktreePath, branchName);
 
-    console.log(colors.success(`Created worktree: ${worktreePath}`));
+    progress(options, colors.success(`Created worktree: ${worktreePath}`));
 
     if (unstagedStashRef) {
-      console.log(colors.info('Moving unstaged changes to worktree...'));
+      progress(options, colors.info('Moving unstaged changes to worktree...'));
       try {
         git.stashApply(unstagedStashRef, worktreePath);
-        console.log(colors.success('Unstaged changes applied to worktree'));
+        progress(options, colors.success('Unstaged changes applied to worktree'));
         git.stashDrop(unstagedStashRef);
       } catch {
-        console.log(colors.warning('Failed to apply unstaged changes to worktree.'));
-        console.log(colors.warning("Run 'git stash pop' in main worktree to recover them."));
+        progress(options, colors.warning('Failed to apply unstaged changes to worktree.'));
+        progress(options, colors.warning("Run 'git stash pop' in main worktree to recover them."));
       }
     }
 
@@ -801,11 +838,11 @@ ${description}
     await hookRunner.runCleanup(error instanceof Error ? error : undefined);
 
     if (actionResult.stashRef) {
-      console.log(colors.info('Restoring stashed changes...'));
+      progress(options, colors.info('Restoring stashed changes...'));
       try {
         git.stashPop(actionResult.stashRef);
       } catch {
-        console.log(colors.warning("Failed to restore stash. Run 'git stash pop' manually."));
+        progress(options, colors.warning("Failed to restore stash. Run 'git stash pop' manually."));
       }
     }
     throw error;
@@ -891,5 +928,18 @@ main().catch((error) => {
   }
 
   const message = error instanceof Error ? error.message : String(error);
-  exitWithError(message, ErrorCode.UNKNOWN_ERROR, useJson);
+  const code = getErrorCodeFromError(error);
+  const suggestion = getErrorSuggestion(code);
+
+  if (useJson) {
+    exitWithError(message, code, useJson);
+  } else {
+    // Show friendly error with suggestion for non-JSON mode
+    console.error(colors.error(`Error: ${message}`));
+    if (suggestion) {
+      console.error('');
+      console.error(colors.dim(suggestion));
+    }
+    process.exit(1);
+  }
 });

@@ -113,6 +113,68 @@ describe('wtlink e2e - core functionality', () => {
         ctx.cleanup();
       }
     });
+
+    it('link shows friendly error with no stack trace for single worktree (UX-001)', () => {
+      // Regression test for UX-001: wtlink link should show helpful message, not stack trace
+      const ctx = createTestContext({ scenario: 'main_clean_same' });
+
+      try {
+        // Create a manifest but only have one worktree (main)
+        createManifest(ctx.repoDir, ['.env']);
+        fs.writeFileSync(path.join(ctx.repoDir, '.env'), 'SECRET=value');
+        addToGitignore(ctx.repoDir, ['.env']);
+
+        // Run link without specifying source/destination (should auto-detect)
+        const result = runCli('wtlink', ['link', '--yes'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
+
+        expect(result.exitCode).not.toBe(0);
+
+        // Should show helpful error message, not stack trace
+        const stderr = result.stderr.toLowerCase();
+        expect(stderr).toMatch(/unable to detect|alternate worktree|source/i);
+        // Should NOT show stack traces
+        expect(result.stderr).not.toMatch(/at\s+\w+\s+\(/); // No "at Function (" patterns
+        expect(result.stderr).not.toMatch(/^\s+at\s+/m); // No stack trace lines
+
+        // Should show suggestion about creating a worktree
+        const output = result.stdout + result.stderr;
+        expect(output.toLowerCase()).toMatch(/worktree|newpr|fix/i);
+      } finally {
+        ctx.cleanup();
+      }
+    });
+
+    it('validate shows friendly error with no stack trace for missing manifest (UX-015)', () => {
+      // Regression test for UX-015: wtlink validate should show helpful message, not stack trace
+      const ctx = createTestContext({ scenario: 'main_clean_same' });
+
+      try {
+        // Don't create a manifest file - it should be missing
+        const result = runCli('wtlink', ['validate'], {
+          cwd: ctx.repoDir,
+          env: ctx.env,
+        });
+
+        expect(result.exitCode).not.toBe(0);
+
+        // Should show helpful error message about manifest
+        const stderr = result.stderr.toLowerCase();
+        expect(stderr).toMatch(/manifest|not found|missing/i);
+
+        // Should NOT show stack traces
+        expect(result.stderr).not.toMatch(/at\s+\w+\s+\(/); // No "at Function (" patterns
+        expect(result.stderr).not.toMatch(/^\s+at\s+/m); // No stack trace lines
+
+        // Should show suggestion about creating manifest
+        const output = result.stdout + result.stderr;
+        expect(output.toLowerCase()).toMatch(/create|manage|wtlink/i);
+      } finally {
+        ctx.cleanup();
+      }
+    });
   });
 });
 

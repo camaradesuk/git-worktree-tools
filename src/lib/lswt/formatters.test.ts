@@ -272,8 +272,8 @@ describe('lswt/formatters', () => {
       expect(getDisplayPath('/home/user/repo.pr1', '/home/user/repo', false)).toBe('../repo.pr1');
     });
 
-    it('returns dot for current directory', () => {
-      expect(getDisplayPath('/home/user/repo', '/home/user/repo', false)).toBe('.');
+    it('returns basename with (current) for current directory', () => {
+      expect(getDisplayPath('/home/user/repo', '/home/user/repo', false)).toBe('repo (current)');
     });
 
     it('returns relative path when in parent directory', () => {

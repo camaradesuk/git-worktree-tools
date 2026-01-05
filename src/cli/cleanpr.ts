@@ -35,6 +35,8 @@ import {
   createErrorResult,
   formatJsonResult,
   ErrorCode,
+  getErrorCodeFromError,
+  getErrorSuggestion,
   type CleanprResultData,
   type CleanprDryRunData,
   type CleanedWorktreeInfo,
@@ -115,6 +117,7 @@ function outputJsonResult(
   const worktreeMap = new Map(worktrees.map((w) => [w.prNumber, w]));
 
   if (dryRun) {
+    const wouldCleanCount = results.filter((r) => r.success).length;
     const data: CleanprDryRunData = {
       wouldClean: results
         .filter((r) => r.success)
@@ -127,7 +130,11 @@ function outputJsonResult(
             prState: w.prState,
           };
         }),
-      totalWouldClean: results.filter((r) => r.success).length,
+      totalWouldClean: wouldCleanCount,
+      message:
+        wouldCleanCount === 0
+          ? 'No PR worktrees would be cleaned.'
+          : `Would clean ${wouldCleanCount} PR worktree${wouldCleanCount === 1 ? '' : 's'}.`,
     };
     console.log(formatJsonResult(createSuccessResult('cleanpr', data)));
   } else {
@@ -150,6 +157,10 @@ function outputJsonResult(
       skipped,
       totalCleaned: cleaned.length,
       totalSkipped: skipped.length,
+      message:
+        cleaned.length === 0 && skipped.length === 0
+          ? 'No PR worktrees were cleaned.'
+          : `Cleaned ${cleaned.length} PR worktree${cleaned.length === 1 ? '' : 's'}${skipped.length > 0 ? `, skipped ${skipped.length}` : ''}.`,
     };
     console.log(formatJsonResult(createSuccessResult('cleanpr', data)));
   }
@@ -272,6 +283,12 @@ async function interactiveClean(
   const summary = summarizeResults(results);
   console.log('');
   console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
+  if (summary.cleaned > 0) {
+    console.log('');
+    console.log(colors.dim('Next steps:'));
+    console.log(colors.dim('  lswt                        # List remaining worktrees'));
+    console.log(colors.dim('  newpr "feature description" # Create a new PR'));
+  }
 }
 
 /**
@@ -291,10 +308,11 @@ async function cleanAll(
         skipped: [],
         totalCleaned: 0,
         totalSkipped: 0,
+        message: 'No merged or closed PR worktrees to clean.',
       };
       console.log(formatJsonResult(createSuccessResult('cleanpr', data)));
     } else {
-      console.log(colors.info('No merged or closed PR worktrees found.'));
+      console.log(colors.info('No merged or closed PR worktrees to clean.'));
     }
     return;
   }
@@ -326,6 +344,12 @@ async function cleanAll(
       console.log(colors.info(`Would clean ${summary.cleaned} of ${summary.total} worktrees.`));
     } else {
       console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
+      if (summary.cleaned > 0) {
+        console.log('');
+        console.log(colors.dim('Next steps:'));
+        console.log(colors.dim('  lswt                        # List remaining worktrees'));
+        console.log(colors.dim('  newpr "feature description" # Create a new PR'));
+      }
     }
   }
 }
@@ -376,6 +400,11 @@ async function cleanSpecific(
       console.log(colors.info(result.message));
     } else {
       console.log(colors.success(`PR #${prNumber} worktree cleaned up successfully.`));
+      console.log('');
+      console.log(colors.dim('Next steps:'));
+      console.log(colors.dim('  lswt                        # List remaining worktrees'));
+      console.log(colors.dim('  cleanpr --all               # Clean all merged/closed PRs'));
+      console.log(colors.dim('  newpr "feature description" # Create a new PR'));
     }
   } else {
     console.log(colors.warning(result.message));
@@ -468,10 +497,17 @@ async function main(): Promise<void> {
 main().catch((err) => {
   const useJson = hasJsonFlag(process.argv.slice(2));
   const message = err instanceof Error ? err.message : String(err);
+  const code = getErrorCodeFromError(err);
+  const suggestion = getErrorSuggestion(code);
+
   if (useJson) {
-    outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
+    outputJsonError(code, message);
   } else {
     console.error(colors.error(`Error: ${message}`));
+    if (suggestion) {
+      console.error('');
+      console.error(colors.dim(suggestion));
+    }
   }
   process.exit(1);
 });

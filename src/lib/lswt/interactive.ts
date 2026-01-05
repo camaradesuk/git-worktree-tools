@@ -12,6 +12,7 @@ import { detectEnvironment } from './environment.js';
 import { buildActionMenu, formatShortcutLegend } from './actions.js';
 import { executeAction, createDefaultExecutorDeps } from './action-executors.js';
 import { gatherWorktreeInfo, createDefaultDeps } from './worktree-info.js';
+import { filterWorktrees, highlightMatches } from './fuzzy-search.js';
 import type { WorktreeDisplay, WorktreeAction, ListOptions, EnvironmentInfo } from './types.js';
 
 /** Map shortcut keys to actions */
@@ -282,14 +283,53 @@ function printWorktreeHeader(worktrees: WorktreeDisplay[], env: EnvironmentInfo)
   shortcuts.push(
     `${colors.cyan('[l]')} link`,
     `${colors.cyan('[r]')} remove`,
+    `${colors.cyan('[/]')} search`,
     `${colors.cyan('[q]')} quit`
   );
   console.log(colors.dim('Shortcuts: ') + shortcuts.join(colors.dim(' · ')) + '\n');
 }
 
 /**
- * Select a worktree from the list with keyboard shortcuts
+ * Format worktree choice with search highlighting
+ * @param worktree - The worktree to format
+ * @param badgeWidth - The width to pad the badge to
+ * @param searchPattern - Optional search pattern to highlight matches
+ * Exported for testing
+ */
+export function formatWorktreeChoiceWithSearch(
+  worktree: WorktreeDisplay,
+  badgeWidth: number,
+  searchPattern?: string
+): string {
+  const typeLabel = formatTypeBadgeWithColors(worktree, badgeWidth);
+
+  // For remote PRs, show the PR title (truncated) instead of branch
+  let displayText: string;
+  if (worktree.type === 'remote_pr' && worktree.prTitle) {
+    const maxLength = 30;
+    displayText =
+      worktree.prTitle.length > maxLength
+        ? worktree.prTitle.substring(0, maxLength - 3) + '...'
+        : worktree.prTitle;
+  } else {
+    displayText = worktree.branch || colors.dim('(detached)');
+  }
+
+  // Apply search highlighting if pattern provided
+  if (searchPattern && searchPattern.length > 0) {
+    displayText = highlightMatches(displayText, searchPattern, colors.yellow);
+  }
+
+  const status = formatStatusWithColors(worktree);
+  const paddedDisplay = displayText.padEnd(30);
+
+  return `${typeLabel}  ${paddedDisplay} ${status}`;
+}
+
+/**
+ * Select a worktree from the list with keyboard shortcuts and fuzzy search
  * Arrow keys to navigate, Enter to select, or press a shortcut key
+ * Press '/' to enter search mode
  *
  * This function uses raw stdin keypress handling and is intentionally
  * excluded from coverage. The logic is tested via dependency injection
@@ -308,40 +348,105 @@ async function selectWorktreeWithShortcuts(
 
   return new Promise((resolve) => {
     let selectedIndex = 0;
-    const exitIndex = worktrees.length; // Virtual "Exit" option
     let firstRender = true;
+    let searchMode = false;
+    let searchPattern = '';
+    let filteredWorktrees = worktrees;
+    let filteredIndices: number[] = worktrees.map((_, i) => i);
+    // Track previous line count for correct cursor movement when exiting search mode
+    let previousTotalLines = worktrees.length + 2;
 
     // Compute badge width once for consistent alignment
     const badgeWidth = computeMaxBadgeWidth(worktrees);
 
+    // Update filtered list based on search pattern
+    const updateFiltered = () => {
+      if (searchPattern.length === 0) {
+        filteredWorktrees = worktrees;
+        filteredIndices = worktrees.map((_, i) => i);
+      } else {
+        const results = filterWorktrees(worktrees, searchPattern);
+        filteredWorktrees = results.map((r) => r.worktree);
+        filteredIndices = results.map((r) => r.originalIndex);
+      }
+      // Clamp selected index to valid range
+      if (selectedIndex >= filteredWorktrees.length) {
+        selectedIndex = Math.max(0, filteredWorktrees.length - 1);
+      }
+    };
+
+    const exitIndex = () => filteredWorktrees.length; // Virtual "Exit" option
+
     // Render the list
     const render = () => {
+      const totalItems = filteredWorktrees.length;
+      // Total lines = worktrees + exit + prompt line + search line (if in search mode)
+      const currentTotalLines = worktrees.length + 2 + (searchMode ? 1 : 0);
+
       // Move cursor up to overwrite previous render (skip on first render)
-      const totalLines = worktrees.length + 2; // worktrees + exit + prompt line
+      // Use previousTotalLines to correctly clear the old screen state
+      const linesToClear = previousTotalLines;
       if (!firstRender) {
-        process.stdout.write(`\x1b[${totalLines}A`);
+        process.stdout.write(`\x1b[${linesToClear}A`);
       }
       firstRender = false;
+      previousTotalLines = currentTotalLines;
 
-      // Render each worktree
+      // Render search bar if in search mode
+      if (searchMode) {
+        const searchPrompt = colors.cyan('🔍 Search: ');
+        const cursor = colors.dim('▊');
+        process.stdout.write(`\x1b[2K${searchPrompt}${searchPattern}${cursor}\n`);
+      }
+
+      // Render each worktree (always render all slots for consistent display)
       for (let i = 0; i < worktrees.length; i++) {
-        const wt = worktrees[i];
-        const prefix = i === selectedIndex ? colors.cyan('❯ ') : '  ';
-        const line = formatWorktreeChoiceWithColors(wt, badgeWidth);
-        const highlight = i === selectedIndex ? colors.bold(line) : line;
-        process.stdout.write(`\x1b[2K${prefix}${highlight}\n`);
+        if (i < totalItems) {
+          const wt = filteredWorktrees[i];
+          const prefix = i === selectedIndex ? colors.cyan('❯ ') : '  ';
+          const line = formatWorktreeChoiceWithSearch(
+            wt,
+            badgeWidth,
+            searchMode ? searchPattern : undefined
+          );
+          const highlight = i === selectedIndex ? colors.bold(line) : line;
+          process.stdout.write(`\x1b[2K${prefix}${highlight}\n`);
+        } else {
+          // Clear unused lines
+          process.stdout.write(`\x1b[2K\n`);
+        }
       }
 
       // Exit option
-      const exitPrefix = selectedIndex === exitIndex ? colors.cyan('❯ ') : '  ';
+      const exitPrefix = selectedIndex === exitIndex() ? colors.cyan('❯ ') : '  ';
       const exitText =
-        selectedIndex === exitIndex ? colors.bold(colors.dim('Exit')) : colors.dim('Exit');
+        selectedIndex === exitIndex() ? colors.bold(colors.dim('Exit')) : colors.dim('Exit');
       process.stdout.write(`\x1b[2K${exitPrefix}${exitText}\n`);
 
       // Prompt line
-      process.stdout.write(
-        `\x1b[2K${colors.dim('↑/↓ navigate • enter select • shortcuts: e,t,c,d,p,l,r,q')}\n`
-      );
+      if (searchMode) {
+        const matchCount =
+          filteredWorktrees.length === worktrees.length
+            ? ''
+            : ` (${filteredWorktrees.length}/${worktrees.length})`;
+        process.stdout.write(
+          `\x1b[2K${colors.dim(`Type to search${matchCount} • esc cancel • enter select`)}\n`
+        );
+      } else {
+        process.stdout.write(
+          `\x1b[2K${colors.dim('↑/↓ navigate • enter select • / search • shortcuts: e,t,c,d,p,l,r,q')}\n`
+        );
+      }
+
+      // Clear any extra lines from previous render (e.g., when exiting search mode)
+      // This fixes visual artifacts when transitioning from search mode to normal mode
+      if (linesToClear > currentTotalLines) {
+        for (let i = 0; i < linesToClear - currentTotalLines; i++) {
+          process.stdout.write(`\x1b[2K\n`);
+        }
+        // Move cursor back up to the end of the current content
+        process.stdout.write(`\x1b[${linesToClear - currentTotalLines}A`);
+      }
     };
 
     // Initial render (print blank lines first)
@@ -375,7 +480,7 @@ async function selectWorktreeWithShortcuts(
       process.stdin.pause();
     };
 
-    const onKeypress = (_str: string, key: readline.Key) => {
+    const onKeypress = (str: string, key: readline.Key) => {
       if (!key) return;
 
       // Handle Ctrl+C - clean exit instead of process.exit for better testability
@@ -385,6 +490,65 @@ async function selectWorktreeWithShortcuts(
         return;
       }
 
+      // Search mode handling
+      if (searchMode) {
+        // Escape exits search mode
+        if (key.name === 'escape') {
+          searchMode = false;
+          searchPattern = '';
+          updateFiltered();
+          selectedIndex = 0;
+          render();
+          return;
+        }
+
+        // Enter confirms selection
+        if (key.name === 'return') {
+          cleanup();
+          if (selectedIndex === exitIndex() || filteredWorktrees.length === 0) {
+            resolve({ worktree: null, action: null });
+          } else {
+            resolve({ worktree: filteredWorktrees[selectedIndex], action: null });
+          }
+          return;
+        }
+
+        // Arrow keys for navigation
+        if (key.name === 'up') {
+          selectedIndex = Math.max(0, selectedIndex - 1);
+          render();
+          return;
+        }
+
+        if (key.name === 'down') {
+          selectedIndex = Math.min(exitIndex(), selectedIndex + 1);
+          render();
+          return;
+        }
+
+        // Backspace removes last character
+        if (key.name === 'backspace') {
+          if (searchPattern.length > 0) {
+            searchPattern = searchPattern.slice(0, -1);
+            updateFiltered();
+          }
+          render();
+          return;
+        }
+
+        // Any printable character adds to search
+        if (str && str.length === 1 && str.charCodeAt(0) >= 32) {
+          searchPattern += str;
+          updateFiltered();
+          render();
+          return;
+        }
+
+        return;
+      }
+
+      // Normal mode handling
+
       // Handle arrow keys
       if (key.name === 'up') {
         selectedIndex = Math.max(0, selectedIndex - 1);
@@ -393,7 +557,7 @@ async function selectWorktreeWithShortcuts(
       }
 
       if (key.name === 'down') {
-        selectedIndex = Math.min(exitIndex, selectedIndex + 1);
+        selectedIndex = Math.min(exitIndex(), selectedIndex + 1);
         render();
         return;
       }
@@ -401,10 +565,10 @@ async function selectWorktreeWithShortcuts(
       // Handle Enter
       if (key.name === 'return') {
         cleanup();
-        if (selectedIndex === exitIndex) {
+        if (selectedIndex === exitIndex()) {
           resolve({ worktree: null, action: null });
         } else {
-          resolve({ worktree: worktrees[selectedIndex], action: null });
+          resolve({ worktree: filteredWorktrees[selectedIndex], action: null });
         }
         return;
       }
@@ -416,10 +580,21 @@ async function selectWorktreeWithShortcuts(
         return;
       }
 
+      // Handle '/' to enter search mode
+      if (str === '/') {
+        searchMode = true;
+        searchPattern = '';
+        // Add extra line for search bar
+        console.log('');
+        firstRender = true;
+        render();
+        return;
+      }
+
       // Handle shortcut keys (only if a worktree is selected, not exit)
-      if (selectedIndex < worktrees.length && key.name && key.name.length === 1) {
+      if (selectedIndex < filteredWorktrees.length && key.name && key.name.length === 1) {
         const shortcutKey = key.name.toLowerCase();
-        const worktree = worktrees[selectedIndex];
+        const worktree = filteredWorktrees[selectedIndex];
 
         // Use the shared helper function to get valid action for this shortcut
         const action = getActionForShortcut(shortcutKey, worktree);

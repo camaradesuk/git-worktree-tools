@@ -44,9 +44,13 @@ export function parseArgs(args: string[]): ParseResult {
         if (!args[i] || args[i].startsWith('-')) {
           return { kind: 'error', message: '--pr requires a PR number' };
         }
+        // Validate that input is a valid integer (reject floats like "1.5")
+        if (!/^\d+$/.test(args[i])) {
+          return { kind: 'error', message: 'PR number must be a positive integer (e.g., 42)' };
+        }
         options.prNumber = parseInt(args[i], 10);
-        if (isNaN(options.prNumber)) {
-          return { kind: 'error', message: 'PR number must be numeric' };
+        if (isNaN(options.prNumber) || options.prNumber <= 0) {
+          return { kind: 'error', message: 'PR number must be a positive integer (e.g., 42)' };
         }
         break;
 
