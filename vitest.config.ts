@@ -5,6 +5,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // JUnit XML reporter for Codecov Test Analytics
+    reporters: ['default', 'junit'],
+    outputFile: {
+      junit: 'test-results/junit.xml',
+    },
     coverage: {
       reporter: ['text', 'json', 'html'],
       include: ['src/lib/**/*.ts', 'src/cli/**/*.ts'],
