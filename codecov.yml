@@ -12,9 +12,4 @@ coverage:
         target: 70%
         threshold: 5%
 
-# Ignore CLI entry points and TUI modules
-ignore:
-  - 'src/cli/wt.ts'
-  - 'src/lib/wtlink/main-menu.ts'
-  - 'src/lib/wtlink/manage-manifest.ts'
-  - 'src/lib/wtlink/link-configs.ts'
+# All code should be tested - no files are excluded from coverage

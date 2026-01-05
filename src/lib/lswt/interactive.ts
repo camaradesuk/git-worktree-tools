@@ -385,8 +385,9 @@ async function selectWorktreeWithShortcuts(
 
       // Move cursor up to overwrite previous render (skip on first render)
       // Use previousTotalLines to correctly clear the old screen state
+      const linesToClear = previousTotalLines;
       if (!firstRender) {
-        process.stdout.write(`\x1b[${previousTotalLines}A`);
+        process.stdout.write(`\x1b[${linesToClear}A`);
       }
       firstRender = false;
       previousTotalLines = currentTotalLines;
@@ -435,6 +436,16 @@ async function selectWorktreeWithShortcuts(
         process.stdout.write(
           `\x1b[2K${colors.dim('↑/↓ navigate • enter select • / search • shortcuts: e,t,c,d,p,l,r,q')}\n`
         );
+      }
+
+      // Clear any extra lines from previous render (e.g., when exiting search mode)
+      // This fixes visual artifacts when transitioning from search mode to normal mode
+      if (linesToClear > currentTotalLines) {
+        for (let i = 0; i < linesToClear - currentTotalLines; i++) {
+          process.stdout.write(`\x1b[2K\n`);
+        }
+        // Move cursor back up to the end of the current content
+        process.stdout.write(`\x1b[${linesToClear - currentTotalLines}A`);
       }
     };
 

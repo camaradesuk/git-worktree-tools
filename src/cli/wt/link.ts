@@ -4,12 +4,8 @@
  * Wraps the wtlink CLI tool functionality
  */
 
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import type { CommandModule } from 'yargs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { runSubcommand } from './run-command.js';
 
 interface LinkArgs {
   subcommand?: string;
@@ -69,20 +65,16 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
       .example('$0 link validate', 'Validate manifest entries');
   },
   handler: (argv) => {
-    // Build args array for wtlink
     const args: string[] = [];
 
-    // Add subcommand if provided
     if (argv.subcommand) {
       args.push(argv.subcommand);
     }
 
-    // Add positional args
     if (argv.args && argv.args.length > 0) {
       args.push(...argv.args);
     }
 
-    // Add options
     if (argv['manifest-file']) {
       args.push('--manifest-file', argv['manifest-file'] as string);
     }
@@ -107,13 +99,6 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
       args.push('--yes');
     }
 
-    // Spawn wtlink with inherited stdio
-    const wtlinkPath = path.resolve(__dirname, '../wtlink.js');
-    const result = spawnSync(process.execPath, [wtlinkPath, ...args], {
-      stdio: 'inherit',
-      env: process.env,
-    });
-
-    process.exit(result.status ?? 1);
+    runSubcommand('wtlink', args);
   },
 };

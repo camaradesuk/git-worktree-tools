@@ -4,12 +4,8 @@
  * Wraps the lswt CLI tool functionality
  */
 
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import type { CommandModule } from 'yargs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { runSubcommand } from './run-command.js';
 
 interface ListArgs {
   verbose?: boolean;
@@ -58,7 +54,6 @@ export const listCommand: CommandModule<object, ListArgs> = {
       .example('$0 ls -n', 'Non-interactive (no menu)');
   },
   handler: (argv) => {
-    // Build args array for lswt
     const args: string[] = [];
 
     if (argv.verbose) {
@@ -81,13 +76,6 @@ export const listCommand: CommandModule<object, ListArgs> = {
       args.push('--filter', argv.filter);
     }
 
-    // Spawn lswt with inherited stdio
-    const lswtPath = path.resolve(__dirname, '../lswt.js');
-    const result = spawnSync(process.execPath, [lswtPath, ...args], {
-      stdio: 'inherit',
-      env: process.env,
-    });
-
-    process.exit(result.status ?? 1);
+    runSubcommand('lswt', args);
   },
 };

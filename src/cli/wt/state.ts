@@ -4,12 +4,8 @@
  * Wraps the wtstate CLI tool functionality
  */
 
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import type { CommandModule } from 'yargs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { runSubcommand } from './run-command.js';
 
 interface StateArgs {
   verbose?: boolean;
@@ -37,7 +33,6 @@ export const stateCommand: CommandModule<object, StateArgs> = {
       .example('$0 state --json', 'JSON output for AI agents');
   },
   handler: (argv) => {
-    // Build args array for wtstate
     const args: string[] = [];
 
     if (argv.verbose) {
@@ -48,13 +43,6 @@ export const stateCommand: CommandModule<object, StateArgs> = {
       args.push('--json');
     }
 
-    // Spawn wtstate with inherited stdio
-    const wtstatePath = path.resolve(__dirname, '../wtstate.js');
-    const result = spawnSync(process.execPath, [wtstatePath, ...args], {
-      stdio: 'inherit',
-      env: process.env,
-    });
-
-    process.exit(result.status ?? 1);
+    runSubcommand('wtstate', args);
   },
 };

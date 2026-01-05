@@ -4,12 +4,8 @@
  * Wraps the wtconfig CLI tool functionality
  */
 
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import type { CommandModule } from 'yargs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { runSubcommand } from './run-command.js';
 
 interface ConfigArgs {
   subcommand?: string;
@@ -39,26 +35,16 @@ export const configCommand: CommandModule<object, ConfigArgs> = {
       .example('$0 config validate', 'Validate configuration');
   },
   handler: (argv) => {
-    // Build args array for wtconfig
     const args: string[] = [];
 
-    // Add subcommand (defaults to 'show')
     if (argv.subcommand) {
       args.push(argv.subcommand);
     }
 
-    // Add additional positional args (like key value for set)
     if (argv.args && argv.args.length > 0) {
       args.push(...argv.args);
     }
 
-    // Spawn wtconfig with inherited stdio
-    const wtconfigPath = path.resolve(__dirname, '../wtconfig.js');
-    const result = spawnSync(process.execPath, [wtconfigPath, ...args], {
-      stdio: 'inherit',
-      env: process.env,
-    });
-
-    process.exit(result.status ?? 1);
+    runSubcommand('wtconfig', args);
   },
 };

@@ -4,12 +4,8 @@
  * Wraps the newpr CLI tool functionality
  */
 
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import type { CommandModule } from 'yargs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { runSubcommand } from './run-command.js';
 
 interface NewArgs {
   description?: string;
@@ -67,7 +63,6 @@ export const newCommand: CommandModule<object, NewArgs> = {
       .example('$0 new "WIP" --draft', 'Create as draft PR');
   },
   handler: (argv) => {
-    // Build args array for newpr
     const args: string[] = [];
 
     if (argv.description) {
@@ -98,13 +93,6 @@ export const newCommand: CommandModule<object, NewArgs> = {
       args.push('--stash-untracked');
     }
 
-    // Spawn newpr with inherited stdio
-    const newprPath = path.resolve(__dirname, '../newpr.js');
-    const result = spawnSync(process.execPath, [newprPath, ...args], {
-      stdio: 'inherit',
-      env: process.env,
-    });
-
-    process.exit(result.status ?? 1);
+    runSubcommand('newpr', args);
   },
 };

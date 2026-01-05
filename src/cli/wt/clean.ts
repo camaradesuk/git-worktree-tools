@@ -4,12 +4,8 @@
  * Wraps the cleanpr CLI tool functionality
  */
 
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import type { CommandModule } from 'yargs';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { runSubcommand } from './run-command.js';
 
 interface CleanArgs {
   prNumber?: number;
@@ -57,7 +53,6 @@ export const cleanCommand: CommandModule<object, CleanArgs> = {
       .example('$0 clean --dry-run', 'Preview what would be cleaned');
   },
   handler: (argv) => {
-    // Build args array for cleanpr
     const args: string[] = [];
 
     if (argv.prNumber !== undefined) {
@@ -80,13 +75,6 @@ export const cleanCommand: CommandModule<object, CleanArgs> = {
       args.push('--json');
     }
 
-    // Spawn cleanpr with inherited stdio
-    const cleanprPath = path.resolve(__dirname, '../cleanpr.js');
-    const result = spawnSync(process.execPath, [cleanprPath, ...args], {
-      stdio: 'inherit',
-      env: process.env,
-    });
-
-    process.exit(result.status ?? 1);
+    runSubcommand('cleanpr', args);
   },
 };
