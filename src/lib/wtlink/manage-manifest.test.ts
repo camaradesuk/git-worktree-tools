@@ -17,6 +17,7 @@ import {
   getDisplayItems,
   isCommonIgnoreDir,
   COMMON_IGNORE_DIRS,
+  groupByTopDirectory,
   run,
   type FileNode,
   type FileDecision,
@@ -482,7 +483,84 @@ describe('wtlink/manage-manifest pure functions', () => {
       expect(COMMON_IGNORE_DIRS).toContain('coverage');
     });
   });
+
+  describe('groupByTopDirectory', () => {
+    it('groups files by top-level directory', () => {
+      const files = ['src/index.ts', 'src/utils.ts', 'lib/helper.ts', 'config.json'];
+      const groups = groupByTopDirectory(files);
+
+      expect(groups.get('src')).toBe(2);
+      expect(groups.get('lib')).toBe(1);
+      expect(groups.get('.')).toBe(1); // root level files
+    });
+
+    it('handles empty file list', () => {
+      const groups = groupByTopDirectory([]);
+      expect(groups.size).toBe(0);
+    });
+
+    it('handles root-level files only', () => {
+      const files = ['file1.ts', 'file2.ts', 'file3.ts'];
+      const groups = groupByTopDirectory(files);
+
+      expect(groups.get('.')).toBe(3);
+      expect(groups.size).toBe(1);
+    });
+
+    it('handles deeply nested files', () => {
+      const files = ['a/b/c/d/file.ts', 'a/b/x/file.ts', 'a/other.ts'];
+      const groups = groupByTopDirectory(files);
+
+      // All should be grouped under 'a'
+      expect(groups.get('a')).toBe(3);
+    });
+
+    it('sorts groups by count descending', () => {
+      const files = ['lib/a.ts', 'src/a.ts', 'src/b.ts', 'src/c.ts', 'config.json', 'other.json'];
+      const groups = groupByTopDirectory(files);
+      const entries = [...groups.entries()];
+
+      // src (3) should come before . (2) should come before lib (1)
+      expect(entries[0][0]).toBe('src');
+      expect(entries[0][1]).toBe(3);
+      expect(entries[1][0]).toBe('.');
+      expect(entries[1][1]).toBe(2);
+      expect(entries[2][0]).toBe('lib');
+      expect(entries[2][1]).toBe(1);
+    });
+  });
+
+  describe('getDisplayItems - edge cases', () => {
+    it('does not add back navigation when not showing undecided only', () => {
+      const tree = createSimpleTree();
+      const state: AppState = {
+        fileTree: tree,
+        decisions: new Map(),
+        viewMode: 'hierarchical',
+        activeFilters: new Set<ItemState>(['undecided', 'add']), // Multiple filters
+        showHelp: false,
+        navigationStack: ['src'],
+        cursorIndex: 0,
+        scrollOffset: 0,
+      };
+
+      const items = getDisplayItems(state);
+      // Should not have back navigation because not showing undecided only
+      expect(items.every((i) => i.path !== '..')).toBe(true);
+    });
+  });
 });
+
+// Mock child_process for getIgnoredFiles
+vi.mock('child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('child_process')>();
+  return {
+    ...actual,
+    execSync: vi.fn().mockReturnValue(''),
+  };
+});
+
+import { execSync } from 'child_process';
 
 describe('wtlink/manage-manifest TUI functions', () => {
   let tempDir: string;
@@ -504,7 +582,7 @@ describe('wtlink/manage-manifest TUI functions', () => {
     vi.mocked(git.getRepoRoot).mockReturnValue(gitRoot);
     vi.mocked(git.getMainWorktreeRoot).mockReturnValue(mainWorktreeRoot);
     vi.mocked(git.isGitIgnored).mockReturnValue(true);
-    vi.mocked(git.exec).mockReturnValue('');
+    vi.mocked(execSync).mockReturnValue(Buffer.from(''));
   });
 
   afterEach(() => {
@@ -518,7 +596,7 @@ describe('wtlink/manage-manifest TUI functions', () => {
       fs.writeFileSync(manifestPath, '');
 
       // Mock git ls-files to return empty (no ignored files)
-      vi.mocked(git.exec).mockReturnValue('');
+      vi.mocked(execSync).mockReturnValue(Buffer.from(''));
 
       const argv: ManageArgv = {
         nonInteractive: true,
@@ -539,7 +617,7 @@ describe('wtlink/manage-manifest TUI functions', () => {
       fs.writeFileSync(manifestPath, 'deleted-file.txt');
 
       // Mock git ls-files to return empty (no new ignored files)
-      vi.mocked(git.exec).mockReturnValue('');
+      vi.mocked(execSync).mockReturnValue(Buffer.from(''));
 
       const argv: ManageArgv = {
         nonInteractive: true,
@@ -564,7 +642,7 @@ describe('wtlink/manage-manifest TUI functions', () => {
       fs.writeFileSync(path.join(gitRoot, 'existing-file.txt'), 'content');
 
       // Mock new ignored file
-      vi.mocked(git.exec).mockReturnValue('new-ignored-file.txt');
+      vi.mocked(execSync).mockReturnValue(Buffer.from('new-ignored-file.txt'));
 
       const argv: ManageArgv = {
         nonInteractive: true,
@@ -589,7 +667,7 @@ describe('wtlink/manage-manifest TUI functions', () => {
 
       // Mock file as not ignored (tracked by git)
       vi.mocked(git.isGitIgnored).mockReturnValue(false);
-      vi.mocked(git.exec).mockReturnValue('');
+      vi.mocked(execSync).mockReturnValue(Buffer.from(''));
 
       const argv: ManageArgv = {
         nonInteractive: true,
@@ -612,7 +690,7 @@ describe('wtlink/manage-manifest TUI functions', () => {
       fs.writeFileSync(manifestPath, originalContent);
 
       // Mock no new ignored files, file doesn't exist so it's "deleted"
-      vi.mocked(git.exec).mockReturnValue('');
+      vi.mocked(execSync).mockReturnValue(Buffer.from(''));
 
       const argv: ManageArgv = {
         nonInteractive: true,
@@ -631,6 +709,100 @@ describe('wtlink/manage-manifest TUI functions', () => {
         expect(fs.readFileSync(backupPath, 'utf-8')).toBe(originalContent);
       }
       // If backup wasn't created, it means manifest wasn't modified - that's also valid
+    });
+
+    it('should add new ignored files as commented in non-interactive mode', async () => {
+      // Create empty manifest
+      fs.writeFileSync(manifestPath, '');
+
+      // Mock new ignored files
+      vi.mocked(execSync).mockReturnValue(Buffer.from('new-file.txt\nconfig.json'));
+
+      const argv: ManageArgv = {
+        nonInteractive: true,
+        clean: false,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        backup: false,
+        verbose: false,
+      };
+
+      await run(argv);
+
+      // New files should be added as commented
+      const content = fs.readFileSync(manifestPath, 'utf-8');
+      expect(content).toContain('# new-file.txt');
+      expect(content).toContain('# config.json');
+    });
+
+    it('should show verbose output when verbose flag is set', async () => {
+      // Create empty manifest
+      fs.writeFileSync(manifestPath, '');
+
+      // Mock many new ignored files
+      const files = Array.from({ length: 100 }, (_, i) => `file${i}.txt`).join('\n');
+      vi.mocked(execSync).mockReturnValue(Buffer.from(files));
+
+      const argv: ManageArgv = {
+        nonInteractive: true,
+        clean: false,
+        dryRun: true,
+        manifestFile: '.wtlink',
+        backup: false,
+        verbose: true, // verbose mode
+      };
+
+      await run(argv);
+
+      // With verbose mode, should see individual file names logged
+      expect(mockConsoleLog).toHaveBeenCalled();
+    });
+
+    it('should show summary for large file sets in dry-run without verbose', async () => {
+      // Create empty manifest
+      fs.writeFileSync(manifestPath, '');
+
+      // Mock many new ignored files in src/ directory
+      const files = Array.from({ length: 100 }, (_, i) => `src/file${i}.txt`).join('\n');
+      vi.mocked(execSync).mockReturnValue(Buffer.from(files));
+
+      const argv: ManageArgv = {
+        nonInteractive: true,
+        clean: false,
+        dryRun: true,
+        manifestFile: '.wtlink',
+        backup: false,
+        verbose: false, // no verbose
+      };
+
+      await run(argv);
+
+      // Should show summary instead of full list
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('100'));
+    });
+
+    it('should handle git ls-files error gracefully', async () => {
+      // Create empty manifest
+      fs.writeFileSync(manifestPath, '');
+
+      // Mock git ls-files to throw error
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('Git command failed');
+      });
+
+      const argv: ManageArgv = {
+        nonInteractive: true,
+        clean: false,
+        dryRun: false,
+        manifestFile: '.wtlink',
+        backup: false,
+        verbose: false,
+      };
+
+      await run(argv);
+
+      // Should show warning and continue
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('up to date'));
     });
   });
 });

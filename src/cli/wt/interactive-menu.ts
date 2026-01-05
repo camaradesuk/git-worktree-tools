@@ -37,6 +37,21 @@ const CANCELLED: FlowResult = { completed: false, returnToMenu: true };
  */
 const COMPLETED_EXIT: FlowResult = { completed: true, returnToMenu: false };
 
+/**
+ * Get the display name for the preferred editor
+ */
+function getEditorDisplayName(preferredEditor?: 'vscode' | 'cursor' | 'auto'): string {
+  switch (preferredEditor) {
+    case 'cursor':
+      return 'Cursor';
+    case 'auto':
+      return 'editor';
+    case 'vscode':
+    default:
+      return 'VS Code';
+  }
+}
+
 // ============================================================================
 // Main Menu
 // ============================================================================
@@ -260,7 +275,8 @@ async function handleNewPRFromDescription(): Promise<FlowResult> {
     const shouldInstall = await promptConfirm('Install dependencies after setup?', false);
 
     // Optional: open in editor
-    const shouldOpenEditor = await promptConfirm('Open in VS Code?', false);
+    const editorName = getEditorDisplayName(config.preferredEditor);
+    const shouldOpenEditor = await promptConfirm(`Open in ${editorName}?`, false);
 
     // Build args
     const args: string[] = [description];
@@ -309,11 +325,21 @@ async function handleNewPRFromExisting(): Promise<FlowResult> {
       return CANCELLED;
     }
 
+    // Load config for editor preference
+    let editorName = 'VS Code';
+    try {
+      const repoRoot = git.getRepoRoot();
+      const config = loadConfig(repoRoot);
+      editorName = getEditorDisplayName(config.preferredEditor);
+    } catch {
+      // Not in a repo, use default
+    }
+
     // Optional: install dependencies
     const shouldInstall = await promptConfirm('Install dependencies after setup?', false);
 
     // Optional: open in editor
-    const shouldOpenEditor = await promptConfirm('Open in VS Code?', false);
+    const shouldOpenEditor = await promptConfirm(`Open in ${editorName}?`, false);
 
     // Build args
     const args: string[] = ['--pr', String(prNumber)];

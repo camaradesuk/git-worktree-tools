@@ -40,8 +40,29 @@ import { loadConfig } from '../lib/config.js';
 import { checkAndWarnGlobalInstall } from '../lib/global-check.js';
 import * as git from '../lib/git.js';
 
-// Initialize logger and check global install before parsing
-function initializeCliEnvironment(): void {
+// Initialize logger early (before yargs) for proper log output
+// Only reads CLI flags - config-based settings applied later
+function initializeLoggerFromCliFlags(): void {
+  const args = process.argv.slice(2);
+  const verbose = args.includes('-v') || args.includes('--verbose');
+  const veryVerbose = args.filter((a) => a === '-v').length >= 2;
+  const debug = args.includes('--debug');
+  const quiet = args.includes('-q') || args.includes('--quiet');
+  const logFileIdx = args.findIndex((a) => a === '--log-file');
+  const logFile = logFileIdx >= 0 ? args[logFileIdx + 1] : undefined;
+
+  // Initialize logger with CLI flags first
+  initializeLogger({
+    verbose: veryVerbose ? 2 : verbose,
+    debug,
+    quiet,
+    logFile,
+  });
+}
+
+// Non-critical initialization that can run after yargs parsing
+// Exported for testing
+export function initializeCliEnvironment(): void {
   // Try to load config for logging settings
   let config;
   try {
@@ -52,37 +73,45 @@ function initializeCliEnvironment(): void {
     config = loadConfig();
   }
 
-  // Parse args manually to check for verbose/debug flags before yargs runs
+  // Re-initialize logger with config values (if not already set by CLI flags)
   const args = process.argv.slice(2);
-  const verbose = args.includes('-v') || args.includes('--verbose');
-  const veryVerbose = args.filter((a) => a === '-v').length >= 2;
-  const debug = args.includes('--debug');
-  const quiet = args.includes('-q') || args.includes('--quiet');
+  const hasCliLogLevel =
+    args.includes('-v') ||
+    args.includes('--verbose') ||
+    args.includes('--debug') ||
+    args.includes('-q') ||
+    args.includes('--quiet');
+  const hasCliLogFile = args.includes('--log-file');
 
-  // Get log file from args
-  const logFileIdx = args.findIndex((a) => a === '--log-file');
-  const logFile = logFileIdx >= 0 ? args[logFileIdx + 1] : undefined;
+  // Apply config-based logging if CLI flags weren't provided
+  if (!hasCliLogLevel || !hasCliLogFile) {
+    initializeLogger({
+      configLogLevel: hasCliLogLevel ? undefined : config.logging?.level,
+      configLogFile: hasCliLogFile ? undefined : config.logging?.logFile,
+    });
+  }
 
-  // Initialize logger
-  initializeLogger({
-    verbose: veryVerbose ? 2 : verbose,
-    debug,
-    quiet,
-    logFile,
-    configLogLevel: config.logging?.level,
-    configLogFile: config.logging?.logFile,
-  });
-
-  // Check global installation
+  // Check global installation (non-critical warning)
   checkAndWarnGlobalInstall(config);
 }
 
-// Initialize before yargs parses
-initializeCliEnvironment();
+// Initialize logger early (CLI flags only)
+initializeLoggerFromCliFlags();
+
+// Track if deferred init has run to avoid duplicates
+let deferredInitComplete = false;
 
 yargs(hideBin(process.argv))
   .scriptName('wt')
   .usage('$0 [command] [options]')
+  .middleware(() => {
+    // Run deferred initialization once per CLI invocation
+    // This runs after yargs parses but before command handlers
+    if (!deferredInitComplete) {
+      deferredInitComplete = true;
+      initializeCliEnvironment();
+    }
+  })
   .option('verbose', {
     alias: 'v',
     type: 'count',

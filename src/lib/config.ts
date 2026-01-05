@@ -576,8 +576,13 @@ export function saveConfig(
     try {
       const content = fs.readFileSync(configPath, 'utf8');
       existingConfig = JSON.parse(content);
-    } catch {
+    } catch (error) {
       // If existing config is invalid, start fresh
+      logger.debug(
+        'Failed to parse existing config at %s, starting fresh: %s',
+        configPath,
+        error instanceof Error ? error.message : String(error)
+      );
     }
   }
 
@@ -732,8 +737,13 @@ export async function generateBranchNameAsync(
         return result.content;
       }
       // Fall through to rule-based on failure
-    } catch {
+      logger.debug('AI branch name generation returned unsuccessful result, using rule-based');
+    } catch (error) {
       // Fall through to rule-based on error
+      logger.debug(
+        'AI branch name generation failed, using rule-based: %s',
+        error instanceof Error ? error.message : String(error)
+      );
     }
   }
 
@@ -828,8 +838,12 @@ export async function generatePRContentAsync(
       if (anyGenerated) {
         return { title, description, aiGenerated: true };
       }
-    } catch {
+    } catch (error) {
       // Fall through to defaults on error
+      logger.debug(
+        'AI PR content generation failed, using defaults: %s',
+        error instanceof Error ? error.message : String(error)
+      );
     }
   }
 

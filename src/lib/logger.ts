@@ -319,6 +319,18 @@ class Logger {
    * Internal log method
    */
   private log(level: LogLevel, message: string, ...args: unknown[]): void {
+    this.logWithContext(level, this.context, message, ...args);
+  }
+
+  /**
+   * Internal log method with explicit context (thread-safe for child loggers)
+   */
+  logWithContext(
+    level: LogLevel,
+    context: string | null,
+    message: string,
+    ...args: unknown[]
+  ): void {
     if (level > this.level) {
       return;
     }
@@ -351,8 +363,8 @@ class Logger {
         level: getLevelName(level),
         message: formattedMessage,
       };
-      if (this.context) {
-        entry.context = this.context;
+      if (context) {
+        entry.context = context;
       }
       if (args.length > 0 && typeof args[0] === 'object') {
         entry.data = args[0];
@@ -473,6 +485,7 @@ class Logger {
 
 /**
  * Child logger with a specific context
+ * Uses logWithContext to avoid race conditions with concurrent logging
  */
 class ChildLogger {
   constructor(
@@ -481,33 +494,23 @@ class ChildLogger {
   ) {}
 
   error(message: string, ...args: unknown[]): void {
-    this.parent.setContext(this.context);
-    this.parent.error(message, ...args);
-    this.parent.setContext(null);
+    this.parent.logWithContext(LogLevel.ERROR, this.context, message, ...args);
   }
 
   warn(message: string, ...args: unknown[]): void {
-    this.parent.setContext(this.context);
-    this.parent.warn(message, ...args);
-    this.parent.setContext(null);
+    this.parent.logWithContext(LogLevel.WARN, this.context, message, ...args);
   }
 
   info(message: string, ...args: unknown[]): void {
-    this.parent.setContext(this.context);
-    this.parent.info(message, ...args);
-    this.parent.setContext(null);
+    this.parent.logWithContext(LogLevel.INFO, this.context, message, ...args);
   }
 
   debug(message: string, ...args: unknown[]): void {
-    this.parent.setContext(this.context);
-    this.parent.debug(message, ...args);
-    this.parent.setContext(null);
+    this.parent.logWithContext(LogLevel.DEBUG, this.context, message, ...args);
   }
 
   trace(message: string, ...args: unknown[]): void {
-    this.parent.setContext(this.context);
-    this.parent.trace(message, ...args);
-    this.parent.setContext(null);
+    this.parent.logWithContext(LogLevel.TRACE, this.context, message, ...args);
   }
 }
 

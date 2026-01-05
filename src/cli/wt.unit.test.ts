@@ -43,6 +43,11 @@ vi.mock('yargs', () => {
   const mockYargs = {
     scriptName: vi.fn().mockReturnThis(),
     usage: vi.fn().mockReturnThis(),
+    middleware: vi.fn().mockImplementation(function (this: unknown, fn: () => void) {
+      // Execute middleware immediately to simulate yargs behavior
+      fn();
+      return this;
+    }),
     option: vi.fn().mockReturnThis(),
     command: vi.fn().mockReturnThis(),
     completion: vi.fn().mockReturnThis(),
