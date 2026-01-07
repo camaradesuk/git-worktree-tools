@@ -508,6 +508,175 @@ export function listPrs(options: ListPrsOptions = {}, cwd?: string): PrInfo[] {
 }
 
 /**
+ * Extended PR information with additional metadata
+ */
+export interface PrListItem extends PrInfo {
+  /** GitHub username of PR author */
+  author: string;
+  /** ISO 8601 timestamp of PR creation */
+  createdAt: string;
+  /** ISO 8601 timestamp of last update */
+  updatedAt: string;
+  /** Labels attached to the PR */
+  labels: string[];
+  /** Overall review decision */
+  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  /** Number of approving reviews */
+  approvalCount: number;
+  /** Total number of reviews */
+  reviewCount: number;
+  /** Combined status of all CI checks */
+  checksStatus: 'SUCCESS' | 'FAILURE' | 'PENDING' | null;
+  /** Lines added */
+  additions: number;
+  /** Lines deleted */
+  deletions: number;
+  /** Number of files changed */
+  changedFiles: number;
+}
+
+/**
+ * Extended list options for PRs
+ */
+export interface ListPrsExtendedOptions {
+  state?: 'open' | 'closed' | 'merged' | 'all';
+  author?: string;
+  labels?: string[];
+  limit?: number;
+}
+
+/**
+ * List pull requests with extended metadata
+ * Fetches additional info like reviews, CI status, labels
+ */
+export function listPrsExtended(options: ListPrsExtendedOptions = {}, cwd?: string): PrListItem[] {
+  if (isMockModeEnabled()) {
+    // In mock mode, return mock data with extended fields
+    let prs = [...getMockState().createdPrs];
+    if (options.state && options.state !== 'all') {
+      const stateMap: Record<string, string> = {
+        open: 'OPEN',
+        closed: 'CLOSED',
+        merged: 'MERGED',
+      };
+      prs = prs.filter((pr) => pr.state === stateMap[options.state!]);
+    }
+    if (options.limit) {
+      prs = prs.slice(0, options.limit);
+    }
+    // Return PRs with mock extended fields
+    return prs.map((pr) => ({
+      ...pr,
+      author: 'mock-user',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      labels: [],
+      reviewDecision: null,
+      approvalCount: 0,
+      reviewCount: 0,
+      checksStatus: null,
+      additions: 0,
+      deletions: 0,
+      changedFiles: 0,
+    }));
+  }
+
+  const args = ['pr', 'list'];
+
+  if (options.state) {
+    args.push('--state', options.state);
+  }
+
+  if (options.author) {
+    args.push('--author', options.author);
+  }
+
+  if (options.labels && options.labels.length > 0) {
+    for (const label of options.labels) {
+      args.push('--label', label);
+    }
+  }
+
+  if (options.limit) {
+    args.push('--limit', String(options.limit));
+  }
+
+  // Request extended fields from GitHub CLI
+  args.push(
+    '--json',
+    'number,title,state,url,headRefName,baseRefName,isDraft,author,createdAt,updatedAt,labels,reviewDecision,additions,deletions,changedFiles,reviews,statusCheckRollup'
+  );
+
+  const result = execSafe(args, { cwd });
+
+  if (!result) {
+    return [];
+  }
+
+  try {
+    const data = JSON.parse(result);
+    return data.map((pr: Record<string, unknown>) => {
+      // Extract review counts
+      const reviews = (pr.reviews as Array<{ state: string }>) || [];
+      const approvalCount = reviews.filter((r) => r.state === 'APPROVED').length;
+
+      // Extract CI status from statusCheckRollup
+      let checksStatus: 'SUCCESS' | 'FAILURE' | 'PENDING' | null = null;
+      const statusChecks = pr.statusCheckRollup as Array<{
+        status: string;
+        conclusion: string;
+      }> | null;
+      if (statusChecks && statusChecks.length > 0) {
+        const hasFailure = statusChecks.some(
+          (c) => c.conclusion === 'FAILURE' || c.conclusion === 'ERROR'
+        );
+        const hasPending = statusChecks.some(
+          (c) => c.status === 'IN_PROGRESS' || c.status === 'QUEUED' || !c.conclusion
+        );
+        if (hasFailure) {
+          checksStatus = 'FAILURE';
+        } else if (hasPending) {
+          checksStatus = 'PENDING';
+        } else {
+          checksStatus = 'SUCCESS';
+        }
+      }
+
+      // Extract labels
+      const labels = ((pr.labels as Array<{ name: string }>) || []).map((l) => l.name);
+
+      // Extract author login
+      const authorObj = pr.author as { login: string } | null;
+      const author = authorObj?.login || 'unknown';
+
+      return {
+        number: pr.number as number,
+        title: pr.title as string,
+        state: pr.state as 'OPEN' | 'CLOSED' | 'MERGED',
+        url: pr.url as string,
+        headBranch: pr.headRefName as string,
+        baseBranch: pr.baseRefName as string,
+        isDraft: pr.isDraft as boolean,
+        author,
+        createdAt: pr.createdAt as string,
+        updatedAt: pr.updatedAt as string,
+        labels,
+        reviewDecision:
+          (pr.reviewDecision as 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED') || null,
+        approvalCount,
+        reviewCount: reviews.length,
+        checksStatus,
+        additions: (pr.additions as number) || 0,
+        deletions: (pr.deletions as number) || 0,
+        changedFiles: (pr.changedFiles as number) || 0,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Check out a PR by number
  */
 export function checkoutPr(prNumber: number, cwd?: string): void {

@@ -42,6 +42,7 @@ describe('cli/wtconfig', () => {
     sharedRepos: [] as string[],
     syncPatterns: [] as string[],
     preferredEditor: 'auto' as const,
+    previewLabel: 'preview',
     plugins: [] as string[],
     generators: {},
     integrations: {},

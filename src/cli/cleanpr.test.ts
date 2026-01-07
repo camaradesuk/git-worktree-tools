@@ -51,6 +51,7 @@ describe('cli/cleanpr', () => {
     draftPr: false,
     sharedRepos: [],
     branchPrefix: 'feature',
+    previewLabel: 'preview',
     syncPatterns: [],
     preferredEditor: 'auto' as const,
     ai: { provider: 'none' as const },

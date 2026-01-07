@@ -45,6 +45,11 @@
       "default": "feat",
       "description": "Branch name prefix for auto-generated branches"
     },
+    "previewLabel": {
+      "type": "string",
+      "default": "preview",
+      "description": "Label name to highlight in PR list"
+    },
     "preferredEditor": {
       "type": "string",
       "enum": ["vscode", "cursor", "auto"],

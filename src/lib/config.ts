@@ -230,6 +230,12 @@ export interface WorktreeConfig {
   branchPrefix?: string;
 
   /**
+   * Label name to highlight in PR list
+   * Default: "preview"
+   */
+  previewLabel?: string;
+
+  /**
    * Preferred editor for "Open in editor" action in lswt interactive mode
    * Options: "vscode" | "cursor" | "auto"
    * Default: "vscode"
@@ -300,6 +306,7 @@ export function getDefaultConfig(): Required<WorktreeConfig> {
     worktreeParent: DEFAULT_WORKTREE_PARENT,
     syncPatterns: [],
     branchPrefix: DEFAULT_BRANCH_PREFIX,
+    previewLabel: 'preview',
     preferredEditor: 'vscode',
     ai: DEFAULT_AI_CONFIG,
     hooks: {},

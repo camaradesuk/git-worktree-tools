@@ -15,9 +15,6 @@
     "commitMessage": true
   },
   "hooks": {
-    "post-worktree": [
-      "npm install",
-      "code ."
-    ]
+    "post-worktree": "cd {{WORKTREE_PATH}} && npm install && code . && wt link link --yes"
   }
 }
