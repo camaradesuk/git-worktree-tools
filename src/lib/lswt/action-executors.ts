@@ -11,6 +11,7 @@ import * as github from '../github.js';
 import { generateWorktreePath, getDefaultConfig } from '../config.js';
 import type { WorktreeConfig } from '../config.js';
 import type { WorktreeDisplay, WorktreeAction, ActionResult, EnvironmentInfo } from './types.js';
+import { DEFAULT_MANIFEST_FILE } from '../constants.js';
 
 /**
  * Dependencies for action executors (for testing)
@@ -668,7 +669,7 @@ async function linkConfigs(worktree: WorktreeDisplay): Promise<ActionResult> {
     const wtlink = await import('../wtlink/link-configs.js');
 
     await wtlink.run({
-      manifestFile: '.wtlinkrc',
+      manifestFile: DEFAULT_MANIFEST_FILE,
       dryRun: false,
       type: 'hard',
       yes: false,

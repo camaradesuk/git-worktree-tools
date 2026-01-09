@@ -99,7 +99,7 @@ describe('CLI e2e tests', () => {
         const result = runCli('wtlink', ['validate'], { cwd: repoDir });
 
         expect(result.exitCode).toBe(1);
-        expect(result.stderr).toContain('Manifest file not found');
+        expect(result.stderr).toContain('No manifest found');
       });
 
       it('succeeds with empty manifest', () => {

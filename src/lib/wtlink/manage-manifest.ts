@@ -7,6 +7,8 @@ import * as colors from '../colors.js';
 import * as git from '../git.js';
 import * as readline from 'readline';
 import { signal, computed } from '@preact/signals-core';
+import { DEFAULT_MANIFEST_FILE } from '../constants.js';
+import { loadManifestData, saveManifestData } from './config-manifest.js';
 
 // ============================================================================
 // TYPES - Clear type definitions for the domain
@@ -1368,6 +1370,13 @@ function getIgnoredFiles(gitRoot: string, manifestFile: string): string[] {
 }
 
 function getManifestEntries(gitRoot: string, manifestFile: string): string[] {
+  // Use config-manifest adapter for default manifest file
+  if (manifestFile === DEFAULT_MANIFEST_FILE) {
+    const data = loadManifestData(gitRoot);
+    return data.enabled;
+  }
+
+  // Legacy behavior for custom manifest files
   const manifestPath = path.join(gitRoot, manifestFile);
   if (!fs.existsSync(manifestPath)) return [];
   return fs
@@ -1377,9 +1386,22 @@ function getManifestEntries(gitRoot: string, manifestFile: string): string[] {
 }
 
 function getManifestDecisions(gitRoot: string, manifestFile: string): Map<string, FileDecision> {
-  const manifestPath = path.join(gitRoot, manifestFile);
   const decisions = new Map<string, FileDecision>();
 
+  // Use config-manifest adapter for default manifest file
+  if (manifestFile === DEFAULT_MANIFEST_FILE) {
+    const data = loadManifestData(gitRoot);
+    for (const file of data.enabled) {
+      decisions.set(file, 'add');
+    }
+    for (const file of data.disabled) {
+      decisions.set(file, 'comment');
+    }
+    return decisions;
+  }
+
+  // Legacy behavior for custom manifest files
+  const manifestPath = path.join(gitRoot, manifestFile);
   if (!fs.existsSync(manifestPath)) return decisions;
 
   const lines = fs.readFileSync(manifestPath, 'utf-8').split('\n');
@@ -1655,11 +1677,39 @@ export async function run(argv: ManageArgv): Promise<void> {
       console.log(colors.dim(finalEntries.join('\n') + '\n'));
     }
   } else {
-    if (argv.backup && fs.existsSync(manifestPath)) {
-      fs.copyFileSync(manifestPath, manifestBackupFile);
-      console.log(`Backed up existing manifest to ${manifestBackupFile}`);
+    // Determine if using default manifest file (config-based) or custom file (legacy)
+    const usingConfigManifest = manifestFile === DEFAULT_MANIFEST_FILE;
+
+    if (usingConfigManifest) {
+      // Convert finalEntries to enabled/disabled arrays for config-based storage
+      const enabled: string[] = [];
+      const disabled: string[] = [];
+
+      for (const entry of finalEntries) {
+        if (entry.startsWith('#')) {
+          // Extract file path from commented entry (handles various prefixes)
+          const commentContent = entry.substring(1).trim();
+          let filePath = commentContent;
+          const prefixMatch = commentContent.match(/^(TRACKED|DELETED|STALE):\s*(.+)/);
+          if (prefixMatch) {
+            filePath = prefixMatch[2];
+          }
+          disabled.push(filePath);
+        } else {
+          enabled.push(entry);
+        }
+      }
+
+      saveManifestData(mainWorktreeRoot, enabled, disabled);
+      console.log(colors.green(`Successfully updated wtlink config in .worktreerc.`));
+    } else {
+      // Legacy behavior for custom manifest files
+      if (argv.backup && fs.existsSync(manifestPath)) {
+        fs.copyFileSync(manifestPath, manifestBackupFile);
+        console.log(`Backed up existing manifest to ${manifestBackupFile}`);
+      }
+      fs.writeFileSync(manifestPath, finalEntries.join('\n') + '\n');
+      console.log(colors.green(`Successfully updated ${manifestFile}.`));
     }
-    fs.writeFileSync(manifestPath, finalEntries.join('\n') + '\n');
-    console.log(colors.green(`Successfully updated ${manifestFile}.`));
   }
 }

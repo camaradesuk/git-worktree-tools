@@ -62,6 +62,7 @@ describe('cli/cleanpr', () => {
     integrations: {},
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
+    wtlink: { enabled: [], disabled: [] },
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({

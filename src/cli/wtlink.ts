@@ -3,13 +3,14 @@
  * wtlink - Worktree Config Link Manager
  *
  * Manages linking of configuration files between git worktrees using hard links.
- * Uses a .wtlinkrc manifest file to track which files should be linked.
+ * Config is stored in the wtlink section of .worktreerc (recommended) or legacy .wtlinkrc file.
  *
  * Commands:
  *   wtlink              Show interactive main menu
  *   wtlink manage       Discover and manage the config manifest
  *   wtlink link         Link config files between worktrees
  *   wtlink validate     Validate manifest entries
+ *   wtlink migrate      Migrate legacy .wtlinkrc to .worktreerc
  */
 
 import yargs, { ArgumentsCamelCase } from 'yargs';
@@ -18,6 +19,8 @@ import * as colors from '../lib/colors.js';
 import * as manage from '../lib/wtlink/manage-manifest.js';
 import * as link from '../lib/wtlink/link-configs.js';
 import * as validate from '../lib/wtlink/validate-manifest.js';
+import { migrateLegacyManifest, hasLegacyManifest } from '../lib/wtlink/config-manifest.js';
+import * as git from '../lib/git.js';
 import { DEFAULT_MANIFEST_FILE } from '../lib/constants.js';
 
 // Define interfaces for command arguments for type safety
@@ -47,14 +50,20 @@ interface ValidateArgv extends GlobalOptions {
   source?: string;
 }
 
+interface MigrateArgv extends GlobalOptions {
+  deleteLegacy: boolean;
+  dryRun: boolean;
+}
+
 yargs(hideBin(process.argv))
   .scriptName('wtlink')
   .pkgConf('wtlink')
   .usage('$0 [command] [options]')
   .option('manifest-file', {
-    description: 'The name of the manifest file.',
+    description: '[Deprecated] The name of the manifest file. Config is now stored in .worktreerc.',
     type: 'string',
     default: DEFAULT_MANIFEST_FILE,
+    hidden: true, // Hide from help since it's deprecated
   })
   .option('json', {
     description: 'Output result as JSON for programmatic parsing (AI/automation)',
@@ -148,6 +157,49 @@ yargs(hideBin(process.argv))
     },
     async (argv) => {
       await validate.run(argv as ArgumentsCamelCase<ValidateArgv>);
+    }
+  )
+  .command<MigrateArgv>(
+    'migrate',
+    'Migrate legacy .wtlinkrc manifest to .worktreerc config',
+    (yargs) => {
+      return yargs
+        .option('delete-legacy', {
+          type: 'boolean',
+          description: 'Delete the legacy .wtlinkrc file after successful migration',
+          default: false,
+        })
+        .option('dry-run', {
+          alias: 'd',
+          type: 'boolean',
+          description: 'Show what would be migrated without making changes',
+          default: false,
+        });
+    },
+    async (argv) => {
+      const mainWorktreeRoot = git.getMainWorktreeRoot();
+
+      if (!hasLegacyManifest(mainWorktreeRoot)) {
+        console.log(colors.yellow(`No legacy ${DEFAULT_MANIFEST_FILE} file found.`));
+        console.log(
+          colors.dim('Your config is already using .worktreerc or no manifest exists yet.')
+        );
+        console.log(colors.dim("Run 'wtlink manage' to create or modify your manifest."));
+        return;
+      }
+
+      const result = migrateLegacyManifest(mainWorktreeRoot, {
+        deleteLegacy: argv.deleteLegacy,
+        dryRun: argv.dryRun,
+      });
+
+      if (result.migrated) {
+        console.log(colors.green(result.message));
+      } else if (argv.dryRun) {
+        console.log(colors.cyan(result.message));
+      } else {
+        console.log(colors.yellow(result.message));
+      }
     }
   )
   .wrap(Math.max(40, Math.min(100, process.stdout.columns ?? 100)))

@@ -31,6 +31,7 @@ describe('cli/wtconfig', () => {
     branchPrefix: 'feat',
     worktreePattern: '{repo}.pr{number}',
     worktreeParent: '..',
+    wtlink: { enabled: [], disabled: [] },
   };
 
   const mockDefaultConfig = {
@@ -56,6 +57,7 @@ describe('cli/wtconfig', () => {
     hookDefaults: { timeout: 30000, maxTimeout: 60000 },
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
+    wtlink: { enabled: [], disabled: [] },
   };
 
   beforeEach(() => {

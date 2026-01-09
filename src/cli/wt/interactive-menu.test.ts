@@ -61,6 +61,7 @@ vi.mock('../../lib/config.js', () => ({
     integrations: {},
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
+    wtlink: { enabled: [], disabled: [] },
   })),
 }));
 
@@ -843,6 +844,7 @@ describe('Config loading in flows', () => {
       integrations: {},
       logging: { level: 'info' as const, timestamps: true },
       global: { warnNotGlobal: true },
+      wtlink: { enabled: [], disabled: [] },
     });
 
     vi.mocked(promptChoice).mockResolvedValueOnce('from-description').mockResolvedValueOnce(true);

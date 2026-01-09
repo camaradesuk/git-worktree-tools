@@ -215,19 +215,24 @@ wt link manage                # Interactive file browser
 wt link link                  # Create hard links based on manifest
 wt link link ../my-app.pr42   # Link to specific worktree
 wt link validate              # Verify manifest integrity
+wt link migrate               # Migrate legacy .wtlinkrc to .worktreerc
 ```
 
-**Manifest format (`.wtlink`):**
+**Configuration format (`.worktreerc`):**
 
-```text
-.vscode/settings.json
-.editorconfig
-.env.local
-# .vscode/launch.json
+```json
+{
+  "wtlink": {
+    "enabled": [".vscode/settings.json", ".editorconfig", ".env.local"],
+    "disabled": [".vscode/launch.json"]
+  }
+}
 ```
 
-- Active entries (no `#`) are hard-linked between worktrees
-- Commented entries (`#`) are tracked but not linked
+- `enabled` — Files that are hard-linked between worktrees
+- `disabled` — Files tracked but not currently linked (toggle on/off via manage)
+
+**Legacy format (`.wtlinkrc`):** Still supported for backwards compatibility. Run `wtlink migrate` to convert to the new JSON format.
 
 **Best practices:**
 
@@ -531,6 +536,11 @@ wtlink link --yes               # Skip confirmation prompts
 
 # validate - Check manifest integrity
 wtlink validate                 # Validate against current worktree
+
+# migrate - Convert legacy .wtlinkrc to .worktreerc
+wtlink migrate                  # Migrate to new JSON format
+wtlink migrate --delete-legacy  # Also delete old .wtlinkrc file
+wtlink migrate --dry-run        # Preview migration
 ```
 
 ---

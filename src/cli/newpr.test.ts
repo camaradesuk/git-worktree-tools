@@ -128,6 +128,7 @@ describe('cli/newpr', () => {
     integrations: {},
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
+    wtlink: { enabled: [], disabled: [] },
   };
 
   const defaultOptions = {
