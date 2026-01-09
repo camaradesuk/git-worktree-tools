@@ -435,23 +435,32 @@ describe('wt command e2e tests', () => {
       expect(result.stderr).not.toContain('Unknown argument');
     });
 
-    it('fails when gh is not authenticated', () => {
-      // Create unauthenticated mock
-      const unauthMock = setupGhMock({ authenticated: false });
+    // Skip on Windows CI: gh mock (gh.cmd) can't reliably intercept real gh.exe
+    // because Windows searches for .exe before .cmd in PATHEXT order
+    it.skipIf(process.platform === 'win32' && process.env.CI === 'true')(
+      'fails when gh is not authenticated',
+      () => {
+        // Create unauthenticated mock
+        const unauthMock = setupGhMock({ authenticated: false });
 
-      try {
-        const result = spawnSync('node', [path.join(CLI_DIR, 'wt.js'), 'prs', '--no-interactive'], {
-          cwd: repoDir,
-          encoding: 'utf-8',
-          env: { ...unauthMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
-        });
+        try {
+          const result = spawnSync(
+            'node',
+            [path.join(CLI_DIR, 'wt.js'), 'prs', '--no-interactive'],
+            {
+              cwd: repoDir,
+              encoding: 'utf-8',
+              env: { ...unauthMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+            }
+          );
 
-        expect(result.status).not.toBe(0);
-        expect(result.stderr.toLowerCase()).toMatch(/auth|login|authenticated/i);
-      } finally {
-        unauthMock.cleanup();
+          expect(result.status).not.toBe(0);
+          expect(result.stderr.toLowerCase()).toMatch(/auth|login|authenticated/i);
+        } finally {
+          unauthMock.cleanup();
+        }
       }
-    });
+    );
 
     it('fails outside git repository', () => {
       const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'not-git-'));

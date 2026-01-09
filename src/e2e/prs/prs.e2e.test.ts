@@ -165,23 +165,28 @@ describe('wt prs e2e - error conditions', () => {
     }
   });
 
-  it('fails when gh is not authenticated', () => {
-    const ghMock = setupGhMock({ authenticated: false });
-    const ctx = createTestContext({ scenario: 'main_clean_same', skipGhMock: true });
+  // Skip on Windows CI: gh mock (gh.cmd) can't reliably intercept real gh.exe
+  // because Windows searches for .exe before .cmd in PATHEXT order
+  it.skipIf(process.platform === 'win32' && process.env.CI === 'true')(
+    'fails when gh is not authenticated',
+    () => {
+      const ghMock = setupGhMock({ authenticated: false });
+      const ctx = createTestContext({ scenario: 'main_clean_same', skipGhMock: true });
 
-    try {
-      const result = runWt(['prs', '--no-interactive'], {
-        cwd: ctx.repoDir,
-        env: ghMock.mockEnv,
-      });
+      try {
+        const result = runWt(['prs', '--no-interactive'], {
+          cwd: ctx.repoDir,
+          env: ghMock.mockEnv,
+        });
 
-      expect(result.exitCode).not.toBe(0);
-      expect(result.stderr.toLowerCase()).toMatch(/auth|login|authenticated/i);
-    } finally {
-      ghMock.cleanup();
-      ctx.cleanup();
+        expect(result.exitCode).not.toBe(0);
+        expect(result.stderr.toLowerCase()).toMatch(/auth|login|authenticated/i);
+      } finally {
+        ghMock.cleanup();
+        ctx.cleanup();
+      }
     }
-  });
+  );
 
   it('outputs JSON error when --json flag is used and not authenticated', () => {
     const ghMock = setupGhMock({ authenticated: false });
