@@ -10,7 +10,7 @@ import fs from 'fs';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as colors from '../lib/colors.js';
-import { promptChoiceIndex } from '../lib/prompts.js';
+import { promptChoiceIndex, withSpinner } from '../lib/prompts.js';
 import {
   loadConfig,
   generateBranchNameAsync,
@@ -399,17 +399,36 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
     );
   }
 
-  progress(options, colors.info('Fetching branch from origin...'));
-  git.fetch('origin');
-
-  progress(options, colors.info(`Creating worktree at ${worktreePath}...`));
-  try {
-    git.addWorktree(worktreePath, pr.headBranch, {
-      createBranch: true,
-      startPoint: `origin/${pr.headBranch}`,
+  // Use spinner for fetch (only in non-JSON mode)
+  if (options.json) {
+    git.fetch('origin');
+  } else {
+    await withSpinner('Fetching branch from origin...', async () => {
+      await git.fetchAsync('origin');
     });
-  } catch {
-    git.addWorktree(worktreePath, pr.headBranch);
+  }
+
+  // Use spinner for worktree creation
+  if (options.json) {
+    try {
+      git.addWorktree(worktreePath, pr.headBranch, {
+        createBranch: true,
+        startPoint: `origin/${pr.headBranch}`,
+      });
+    } catch {
+      git.addWorktree(worktreePath, pr.headBranch);
+    }
+  } else {
+    await withSpinner(`Creating worktree at ${worktreePath}...`, async () => {
+      try {
+        await git.addWorktreeAsync(worktreePath, pr.headBranch, {
+          createBranch: true,
+          startPoint: `origin/${pr.headBranch}`,
+        });
+      } catch {
+        await git.addWorktreeAsync(worktreePath, pr.headBranch);
+      }
+    });
   }
 
   progress(options, colors.success(`Created worktree: ${worktreePath}`));
@@ -428,13 +447,25 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfig(repoRoot);
 
-  progress(options, colors.info('Fetching latest from origin...'));
-  git.fetch('origin');
+  // Use spinner for fetch
+  if (options.json) {
+    git.fetch('origin');
+  } else {
+    await withSpinner('Fetching latest from origin...', async () => {
+      await git.fetchAsync('origin');
+    });
+  }
 
   if (!git.remoteBranchExists(branchName)) {
     if (git.branchExists(branchName)) {
-      progress(options, colors.info('Branch exists locally, pushing to origin...'));
-      git.push({ setUpstream: true, remote: 'origin', branch: branchName });
+      // Use spinner for push
+      if (options.json) {
+        git.push({ setUpstream: true, remote: 'origin', branch: branchName });
+      } else {
+        await withSpinner('Branch exists locally, pushing to origin...', async () => {
+          await git.pushAsync({ setUpstream: true, remote: 'origin', branch: branchName });
+        });
+      }
     } else {
       exitWithError(
         `Branch '${branchName}' does not exist locally or on remote`,
@@ -502,14 +533,27 @@ PR created from existing branch: \`${branchName}\`
 
   const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
 
-  progress(options, colors.info(`Creating worktree at ${worktreePath}...`));
-  try {
-    git.addWorktree(worktreePath, branchName, {
-      createBranch: true,
-      startPoint: `origin/${branchName}`,
+  // Use spinner for worktree creation
+  if (options.json) {
+    try {
+      git.addWorktree(worktreePath, branchName, {
+        createBranch: true,
+        startPoint: `origin/${branchName}`,
+      });
+    } catch {
+      git.addWorktree(worktreePath, branchName);
+    }
+  } else {
+    await withSpinner(`Creating worktree at ${worktreePath}...`, async () => {
+      try {
+        await git.addWorktreeAsync(worktreePath, branchName, {
+          createBranch: true,
+          startPoint: `origin/${branchName}`,
+        });
+      } catch {
+        await git.addWorktreeAsync(worktreePath, branchName);
+      }
     });
-  } catch {
-    git.addWorktree(worktreePath, branchName);
   }
 
   progress(options, colors.success(`Created worktree: ${worktreePath}`));
@@ -548,9 +592,15 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     exitWithError('Aborted by pre-analyze hook.', ErrorCode.HOOK_FAILED, options.json);
   }
 
-  progress(options, colors.info('Fetching latest from origin...'));
+  // Use spinner for fetch
   try {
-    git.fetch('origin');
+    if (options.json) {
+      git.fetch('origin');
+    } else {
+      await withSpinner('Fetching latest from origin...', async () => {
+        await git.fetchAsync('origin');
+      });
+    }
   } catch {
     progress(options, colors.warning('Could not fetch from origin (network unavailable?)'));
   }
@@ -767,8 +817,14 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       exitWithError('Aborted by pre-push hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    progress(options, colors.info('Pushing branch to origin...'));
-    git.push({ setUpstream: true, remote: 'origin', branch: branchName });
+    // Use spinner for push
+    if (options.json) {
+      git.push({ setUpstream: true, remote: 'origin', branch: branchName });
+    } else {
+      await withSpinner('Pushing branch to origin...', async () => {
+        await git.pushAsync({ setUpstream: true, remote: 'origin', branch: branchName });
+      });
+    }
 
     // Run post-push hook
     await hookRunner.runHook('post-push');
@@ -840,8 +896,14 @@ ${description}
       exitWithError('Aborted by pre-worktree hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    progress(options, colors.info(`Creating worktree at ${worktreePath}...`));
-    git.addWorktree(worktreePath, branchName);
+    // Use spinner for worktree creation
+    if (options.json) {
+      git.addWorktree(worktreePath, branchName);
+    } else {
+      await withSpinner(`Creating worktree at ${worktreePath}...`, async () => {
+        await git.addWorktreeAsync(worktreePath, branchName);
+      });
+    }
 
     progress(options, colors.success(`Created worktree: ${worktreePath}`));
 

@@ -5,10 +5,12 @@ vi.mock('../lib/git.js', () => ({
   getRepoRoot: vi.fn(),
   getRepoName: vi.fn(),
   fetch: vi.fn(),
+  fetchAsync: vi.fn().mockResolvedValue(undefined),
   getCurrentBranch: vi.fn(),
   checkout: vi.fn(),
   exec: vi.fn(),
   push: vi.fn(),
+  pushAsync: vi.fn().mockResolvedValue(undefined),
   commit: vi.fn(),
   add: vi.fn(),
   stash: vi.fn(),
@@ -16,6 +18,7 @@ vi.mock('../lib/git.js', () => ({
   stashDrop: vi.fn(),
   stashPop: vi.fn(),
   addWorktree: vi.fn(),
+  addWorktreeAsync: vi.fn().mockResolvedValue(undefined),
   getStagedFiles: vi.fn(),
   getUnstagedFiles: vi.fn(),
   getStatusOutput: vi.fn(),
@@ -36,6 +39,9 @@ vi.mock('../lib/github.js', () => ({
 
 vi.mock('../lib/prompts.js', () => ({
   promptChoiceIndex: vi.fn(),
+  withSpinner: vi.fn(async (message, fn) => {
+    return await fn();
+  }),
 }));
 
 vi.mock('../lib/config.js', () => ({
@@ -170,6 +176,16 @@ describe('cli/newpr', () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
+    // Reset async git mocks (resetAllMocks clears implementations)
+    vi.mocked(git.fetchAsync).mockResolvedValue(undefined);
+    vi.mocked(git.pushAsync).mockResolvedValue(undefined);
+    vi.mocked(git.addWorktreeAsync).mockResolvedValue(undefined);
+
+    // Reset withSpinner mock (resetAllMocks clears the implementation)
+    vi.mocked(prompts.withSpinner).mockImplementation(async (message, fn) => {
+      return await fn();
+    });
+
     // Reset the hook runner mock to allow all hooks to pass
     mockHookRunner.runHook.mockResolvedValue(true);
     mockHookRunner.runCleanup.mockResolvedValue(undefined);
@@ -218,7 +234,8 @@ describe('cli/newpr', () => {
   async function runCli(args: string[] = []): Promise<void> {
     process.argv = ['node', 'newpr', ...args];
     await import('./newpr.js');
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    // Allow time for all async operations to complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   describe('help option', () => {
@@ -293,7 +310,8 @@ describe('cli/newpr', () => {
       await runCli(['--pr', '123']);
 
       // Verify wiring: worktree path, branch, and options are correctly passed through
-      expect(git.addWorktree).toHaveBeenCalledWith(
+      // Non-JSON mode uses addWorktreeAsync
+      expect(git.addWorktreeAsync).toHaveBeenCalledWith(
         '/repo.pr123', // path from generateWorktreePath
         'feature-123', // branch from PR info
         expect.objectContaining({
@@ -349,8 +367,8 @@ describe('cli/newpr', () => {
           base: 'main', // from config
         })
       );
-      // Verify wiring: addWorktree receives correct path, branch, and options
-      expect(git.addWorktree).toHaveBeenCalledWith(
+      // Verify wiring: addWorktreeAsync receives correct path, branch, and options (non-JSON mode)
+      expect(git.addWorktreeAsync).toHaveBeenCalledWith(
         '/repo.pr456', // path from generateWorktreePath
         'my-feature', // the branch name
         expect.objectContaining({
@@ -445,8 +463,8 @@ describe('cli/newpr', () => {
           title: 'Add new feature',
         })
       );
-      // Verify wiring: addWorktree receives correct path and branch
-      expect(git.addWorktree).toHaveBeenCalledWith(
+      // Verify wiring: addWorktreeAsync receives correct path and branch (non-JSON mode uses async)
+      expect(git.addWorktreeAsync).toHaveBeenCalledWith(
         '/repo.pr100', // path from generateWorktreePath
         'feature/add-new-feature' // the branch name
       );

@@ -1,6 +1,51 @@
-import { execSync, spawnSync, SpawnSyncOptions } from 'child_process';
+import { execSync, spawnSync, spawn, SpawnSyncOptions } from 'child_process';
 import path from 'path';
 import { DEFAULT_REMOTE, DEFAULT_BASE_BRANCH } from './constants.js';
+
+/**
+ * Execute a git command asynchronously and return output
+ * Uses spawn for cross-platform compatibility (avoids shell escaping issues on Windows)
+ * This allows spinner animations to continue during long-running operations.
+ */
+export function execAsync(
+  args: string[],
+  options: { cwd?: string; silent?: boolean } = {}
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', args, {
+      cwd: options.cwd,
+      stdio: options.silent ? 'pipe' : ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    if (child.stdout) {
+      child.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+    }
+
+    if (child.stderr) {
+      child.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+    }
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Git command failed: git ${args.join(' ')}\n${stderr}`));
+      } else {
+        // Use trimEnd to preserve leading whitespace (significant in git status output)
+        resolve(stdout.trimEnd());
+      }
+    });
+  });
+}
 
 /**
  * Commit relationship to base branch
@@ -697,4 +742,80 @@ export function getChangedFiles(baseRef: string, headRef: string, cwd?: string):
  */
 export function getCommitMessages(baseRef: string, headRef: string, cwd?: string): string[] {
   return getLog(`${baseRef}...${headRef}`, { format: '%s', cwd });
+}
+
+// ============================================================================
+// Async versions of operations for use with spinners
+// These allow the event loop to continue, enabling spinner animation
+// ============================================================================
+
+/**
+ * Fetch from remote (async version)
+ */
+export async function fetchAsync(remote: string = DEFAULT_REMOTE, cwd?: string): Promise<void> {
+  await execAsync(['fetch', remote], { cwd, silent: true });
+}
+
+/**
+ * Add a new worktree (async version)
+ */
+export async function addWorktreeAsync(
+  worktreePath: string,
+  branch: string,
+  options: { createBranch?: boolean; startPoint?: string; cwd?: string } = {}
+): Promise<void> {
+  const args = ['worktree', 'add'];
+
+  if (options.createBranch) {
+    args.push('-b', branch);
+    args.push(worktreePath);
+    if (options.startPoint) {
+      args.push(options.startPoint);
+    }
+  } else {
+    args.push(worktreePath, branch);
+  }
+
+  await execAsync(args, { cwd: options.cwd });
+}
+
+/**
+ * Remove a worktree (async version)
+ */
+export async function removeWorktreeAsync(
+  worktreePath: string,
+  options: { force?: boolean; cwd?: string } = {}
+): Promise<void> {
+  const args = ['worktree', 'remove'];
+  if (options.force) {
+    args.push('--force');
+  }
+  args.push(worktreePath);
+
+  await execAsync(args, { cwd: options.cwd });
+}
+
+/**
+ * Push to remote (async version)
+ */
+export async function pushAsync(options: PushOptions = {}, cwd?: string): Promise<void> {
+  const args = ['push'];
+
+  if (options.setUpstream) {
+    args.push('-u');
+  }
+
+  if (options.force) {
+    args.push('--force');
+  }
+
+  if (options.remote) {
+    args.push(options.remote);
+  }
+
+  if (options.branch) {
+    args.push(options.branch);
+  }
+
+  await execAsync(args, { cwd });
 }

@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as prompts from '../lib/prompts.js';
+import { withSpinner } from '../lib/prompts.js';
 import * as colors from '../lib/colors.js';
 import { loadConfig } from '../lib/config.js';
 import {
@@ -468,14 +469,17 @@ async function main(): Promise<void> {
   // Load configuration
   const config = loadConfig(repoRoot);
 
-  if (!options.json) {
-    console.log('');
-    console.log(colors.info('Scanning worktrees...'));
-  }
-
   // Gather worktree info
   const gatherDeps = createDefaultDeps();
-  const worktrees = await gatherPrWorktreeInfo(repoRoot, config.worktreePattern, gatherDeps);
+  let worktrees: WorktreeInfo[];
+  if (options.json) {
+    worktrees = await gatherPrWorktreeInfo(repoRoot, config.worktreePattern, gatherDeps);
+  } else {
+    console.log('');
+    worktrees = await withSpinner('Scanning worktrees...', async () => {
+      return await gatherPrWorktreeInfo(repoRoot, config.worktreePattern, gatherDeps);
+    });
+  }
 
   if (prNumber !== null) {
     await cleanSpecific(prNumber, worktrees, repoRoot, config, options);

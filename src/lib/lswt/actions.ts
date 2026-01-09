@@ -2,6 +2,7 @@
  * lswt actions - action menu building and shortcut handling
  */
 
+import * as colors from '../colors.js';
 import type { WorktreeDisplay, WorktreeAction, ActionMenuItem, EnvironmentInfo } from './types.js';
 
 /**
@@ -171,31 +172,58 @@ function getEditorDisplayName(env: EnvironmentInfo): string {
 }
 
 /**
+ * Format a single shortcut item, dimmed if disabled
+ */
+function formatShortcutItem(key: string, label: string, disabled?: string): string {
+  if (disabled) {
+    return colors.dim(`[${key}] ${label} (${disabled})`);
+  }
+  return `${colors.cyan(`[${key}]`)} ${label}`;
+}
+
+/**
  * Format shortcut legend for display in prompt
+ * Shows all shortcuts with unavailable ones dimmed
  */
 export function formatShortcutLegend(worktree: WorktreeDisplay): string {
+  const items: string[] = [];
+
   // Remote PRs have a different set of shortcuts
   if (worktree.type === 'remote_pr') {
-    return ['w: worktree', 'p: PR', 'd: details', 'q: quit'].join(', ');
+    items.push(formatShortcutItem('w', 'worktree'));
+    items.push(formatShortcutItem('p', 'PR'));
+    items.push(formatShortcutItem('d', 'details'));
+    items.push(formatShortcutItem('q', 'quit'));
+    return items.join(' · ');
   }
 
-  const shortcuts: string[] = ['e: editor', 't: terminal'];
+  // Standard shortcuts for local worktrees
+  items.push(formatShortcutItem('e', 'editor'));
+  items.push(formatShortcutItem('t', 'terminal'));
 
+  // 'p' varies by type
   if (worktree.type === 'pr') {
-    shortcuts.push('p: PR');
+    items.push(formatShortcutItem('p', 'PR'));
   } else if (worktree.type === 'branch') {
-    shortcuts.push('p: create PR');
+    items.push(formatShortcutItem('p', 'create PR'));
+  } else if (worktree.type === 'main' || worktree.type === 'detached') {
+    items.push(formatShortcutItem('p', 'PR', 'n/a'));
   }
 
-  shortcuts.push('d: details', 'c: copy', 'l: link');
+  items.push(formatShortcutItem('d', 'details'));
+  items.push(formatShortcutItem('c', 'copy'));
+  items.push(formatShortcutItem('l', 'link'));
 
-  if (worktree.type !== 'main') {
-    shortcuts.push('r: remove');
+  // 'r' not available for main
+  if (worktree.type === 'main') {
+    items.push(formatShortcutItem('r', 'remove', 'main'));
+  } else {
+    items.push(formatShortcutItem('r', 'remove'));
   }
 
-  shortcuts.push('q: quit');
+  items.push(formatShortcutItem('q', 'quit'));
 
-  return shortcuts.join(', ');
+  return items.join(' · ');
 }
 
 /**
