@@ -2,7 +2,7 @@
  * Tests for PR action handlers
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   createWorktreeForPr,
   openWorktree,
@@ -335,6 +335,45 @@ describe('actions', () => {
 
       expect(result.success).toBe(true);
       expect(result.shouldExit).toBe(true);
+    });
+
+    it('should handle open_worktree action', async () => {
+      const pr = createMockPr({ hasWorktree: true, worktreePath: '/path/to/worktree' });
+      const deps = createMockDeps();
+
+      const result = await executePrAction('open_worktree', pr, deps);
+
+      expect(result.message).toBeDefined();
+    });
+
+    it('should handle open_editor action', async () => {
+      const pr = createMockPr({ hasWorktree: true, worktreePath: '/path/to/worktree' });
+      const deps = createMockDeps();
+
+      const result = await executePrAction('open_editor', pr, deps);
+
+      expect(result.message).toBeDefined();
+    });
+
+    it('should handle open_terminal action', async () => {
+      const pr = createMockPr({ hasWorktree: true, worktreePath: '/path/to/worktree' });
+      const deps = createMockDeps();
+
+      const result = await executePrAction('open_terminal', pr, deps);
+
+      expect(result.message).toBeDefined();
+    });
+
+    it('should handle unknown action', async () => {
+      const pr = createMockPr();
+      const deps = createMockDeps();
+
+      // Cast to any to test unknown action
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await executePrAction('unknown_action' as any, pr, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Unknown action');
     });
   });
 
