@@ -37,6 +37,7 @@ function runWt(
       ...options.env,
       FORCE_COLOR: '0',
       NO_COLOR: '1',
+      GWT_ALLOW_LOCAL: '1', // Suppress global install warning in tests
     },
   });
 

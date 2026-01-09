@@ -439,6 +439,8 @@ export function setupGhMock(options: GhMockOptions = {}): GhMockSetup {
   const mockEnv: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: `${mockDir}${path.delimiter}${originalPath}`,
+    // Suppress global install warning in tests
+    GWT_ALLOW_LOCAL: '1',
   };
 
   // Helper functions
