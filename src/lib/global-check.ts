@@ -2,8 +2,8 @@
  * Global installation check for git-worktree-tools
  *
  * Checks if the package is installed globally and optionally warns if not.
- * This is recommended because git-worktree-tools is designed as a
- * system-wide CLI tool for managing worktrees across all repositories.
+ * The package can be installed either globally or locally to a repository.
+ * By default, no warning is shown for local installations.
  */
 
 import { execSync } from 'child_process';
@@ -160,6 +160,6 @@ export function warnIfNotGlobal(warnEnabled: boolean = true): void {
  * Call this early in CLI initialization
  */
 export function checkAndWarnGlobalInstall(config?: { global?: { warnNotGlobal?: boolean } }): void {
-  const warnEnabled = config?.global?.warnNotGlobal ?? true;
+  const warnEnabled = config?.global?.warnNotGlobal ?? false;
   warnIfNotGlobal(warnEnabled);
 }

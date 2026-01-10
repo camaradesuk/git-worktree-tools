@@ -97,6 +97,7 @@ describe('lswt/action-executors', () => {
     draftPr: false,
     sharedRepos: [],
     branchPrefix: 'feature',
+    previewLabel: 'preview',
     syncPatterns: [],
     preferredEditor: 'auto',
     ai: { provider: 'none' as const },

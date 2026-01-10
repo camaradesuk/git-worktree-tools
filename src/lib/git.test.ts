@@ -1,16 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { spawnSync, execSync, type SpawnSyncReturns } from 'child_process';
+import {
+  spawnSync,
+  execSync,
+  spawn,
+  type SpawnSyncReturns,
+  type ChildProcess,
+} from 'child_process';
 import * as path from 'path';
+import { EventEmitter, Readable } from 'stream';
 import * as git from './git.js';
 
 // Mock child_process
 vi.mock('child_process', () => ({
   spawnSync: vi.fn(),
   execSync: vi.fn(),
+  spawn: vi.fn(),
 }));
 
 const mockSpawnSync = vi.mocked(spawnSync);
 const mockExecSync = vi.mocked(execSync);
+const mockSpawn = vi.mocked(spawn);
 
 /**
  * Helper to create a successful spawnSync result
@@ -658,6 +667,169 @@ describe('git', () => {
         throw new Error('command not found: git');
       });
       expect(git.checkGitInstalled()).toBe(false);
+    });
+  });
+
+  // ============================================================================
+  // Async function tests
+  // ============================================================================
+
+  /**
+   * Helper to create a mock child process for async spawn
+   */
+  function createMockChildProcess(stdout: string, stderr: string, exitCode: number): ChildProcess {
+    const child = new EventEmitter() as ChildProcess;
+
+    // Create mock readable streams
+    const mockStdout = new EventEmitter() as Readable;
+    const mockStderr = new EventEmitter() as Readable;
+    child.stdout = mockStdout as Readable;
+    child.stderr = mockStderr as Readable;
+
+    // Emit data and close event on next tick
+    process.nextTick(() => {
+      if (stdout) {
+        child.stdout?.emit('data', Buffer.from(stdout));
+      }
+      if (stderr) {
+        child.stderr?.emit('data', Buffer.from(stderr));
+      }
+      child.emit('close', exitCode);
+    });
+
+    return child;
+  }
+
+  describe('execAsync', () => {
+    it('executes git command and returns output', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('output\n', '', 0));
+      const result = await git.execAsync(['status']);
+      expect(result).toBe('output');
+      expect(mockSpawn).toHaveBeenCalledWith('git', ['status'], expect.any(Object));
+    });
+
+    it('rejects on non-zero exit code', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', 'fatal: error', 1));
+      await expect(git.execAsync(['invalid'])).rejects.toThrow('Git command failed');
+    });
+
+    it('rejects on spawn error', async () => {
+      const child = new EventEmitter() as ChildProcess;
+      child.stdout = new EventEmitter() as Readable;
+      child.stderr = new EventEmitter() as Readable;
+      mockSpawn.mockReturnValue(child);
+
+      const promise = git.execAsync(['status']);
+      process.nextTick(() => {
+        child.emit('error', new Error('spawn failed'));
+      });
+
+      await expect(promise).rejects.toThrow('spawn failed');
+    });
+
+    it('passes cwd option correctly', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('output', '', 0));
+      await git.execAsync(['status'], { cwd: '/some/path' });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'git',
+        ['status'],
+        expect.objectContaining({ cwd: '/some/path' })
+      );
+    });
+  });
+
+  describe('fetchAsync', () => {
+    it('fetches from remote', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.fetchAsync('origin');
+      expect(mockSpawn).toHaveBeenCalledWith('git', ['fetch', 'origin'], expect.any(Object));
+    });
+
+    it('uses default remote', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.fetchAsync();
+      expect(mockSpawn).toHaveBeenCalledWith('git', ['fetch', 'origin'], expect.any(Object));
+    });
+  });
+
+  describe('addWorktreeAsync', () => {
+    it('creates worktree with existing branch', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.addWorktreeAsync('/path/to/worktree', 'feature-branch');
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'git',
+        ['worktree', 'add', '/path/to/worktree', 'feature-branch'],
+        expect.any(Object)
+      );
+    });
+
+    it('creates worktree with new branch', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.addWorktreeAsync('/path/to/worktree', 'new-branch', { createBranch: true });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'git',
+        ['worktree', 'add', '-b', 'new-branch', '/path/to/worktree'],
+        expect.any(Object)
+      );
+    });
+
+    it('creates worktree with new branch from start point', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.addWorktreeAsync('/path/to/worktree', 'new-branch', {
+        createBranch: true,
+        startPoint: 'origin/main',
+      });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'git',
+        ['worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'origin/main'],
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('removeWorktreeAsync', () => {
+    it('removes worktree', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.removeWorktreeAsync('/path/to/worktree');
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'git',
+        ['worktree', 'remove', '/path/to/worktree'],
+        expect.any(Object)
+      );
+    });
+
+    it('force removes worktree', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.removeWorktreeAsync('/path/to/worktree', { force: true });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'git',
+        ['worktree', 'remove', '--force', '/path/to/worktree'],
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('pushAsync', () => {
+    it('pushes to remote', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.pushAsync();
+      expect(mockSpawn).toHaveBeenCalledWith('git', ['push'], expect.any(Object));
+    });
+
+    it('pushes with upstream flag', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.pushAsync({ setUpstream: true, remote: 'origin', branch: 'feature' });
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'git',
+        ['push', '-u', 'origin', 'feature'],
+        expect.any(Object)
+      );
+    });
+
+    it('force pushes', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess('', '', 0));
+      await git.pushAsync({ force: true });
+      expect(mockSpawn).toHaveBeenCalledWith('git', ['push', '--force'], expect.any(Object));
     });
   });
 });

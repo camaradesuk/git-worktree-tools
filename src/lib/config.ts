@@ -168,6 +168,28 @@ export interface LoggingConfig {
 }
 
 /**
+ * Configuration for wtlink - worktree config file linking
+ *
+ * Use this for full manifest control with enable/disable state tracking.
+ * For simpler use cases, use the top-level syncPatterns field instead.
+ */
+export interface WtlinkConfig {
+  /**
+   * Git-ignored files to actively link between worktrees
+   * These files will be hard-linked from the main worktree to feature worktrees
+   * e.g., [".vscode/settings.json", ".env.local", "node_modules"]
+   */
+  enabled?: string[];
+
+  /**
+   * Git-ignored files tracked but not currently linked
+   * These can be re-enabled via 'wtlink manage'
+   * Useful for temporarily disabling files without losing track of them
+   */
+  disabled?: string[];
+}
+
+/**
  * Global settings that typically live in the global config
  */
 export interface GlobalSettings {
@@ -230,6 +252,12 @@ export interface WorktreeConfig {
   branchPrefix?: string;
 
   /**
+   * Label name to highlight in PR list
+   * Default: "preview"
+   */
+  previewLabel?: string;
+
+  /**
    * Preferred editor for "Open in editor" action in lswt interactive mode
    * Options: "vscode" | "cursor" | "auto"
    * Default: "vscode"
@@ -286,6 +314,16 @@ export interface WorktreeConfig {
    * These are typically set in the global config file
    */
   global?: GlobalSettings;
+
+  /**
+   * wtlink configuration for syncing config files between worktrees
+   *
+   * Provides full manifest control with enable/disable state tracking.
+   * Takes precedence over syncPatterns when present.
+   * Files in 'enabled' will be actively linked, files in 'disabled' are
+   * tracked but not linked (can be re-enabled via 'wtlink manage').
+   */
+  wtlink?: WtlinkConfig;
 }
 
 /**
@@ -300,6 +338,7 @@ export function getDefaultConfig(): Required<WorktreeConfig> {
     worktreeParent: DEFAULT_WORKTREE_PARENT,
     syncPatterns: [],
     branchPrefix: DEFAULT_BRANCH_PREFIX,
+    previewLabel: 'preview',
     preferredEditor: 'vscode',
     ai: DEFAULT_AI_CONFIG,
     hooks: {},
@@ -316,6 +355,10 @@ export function getDefaultConfig(): Required<WorktreeConfig> {
     },
     global: {
       warnNotGlobal: true,
+    },
+    wtlink: {
+      enabled: [],
+      disabled: [],
     },
   };
 }
@@ -536,6 +579,11 @@ function mergeConfigs(
       logging: override.global?.logging
         ? { ...base.global?.logging, ...override.global.logging }
         : base.global?.logging,
+    },
+    wtlink: {
+      // Arrays replace (don't merge) across hierarchy levels - consistent with tsconfig/ESLint patterns
+      enabled: override.wtlink?.enabled ?? base.wtlink.enabled,
+      disabled: override.wtlink?.disabled ?? base.wtlink.disabled,
     },
   };
 }

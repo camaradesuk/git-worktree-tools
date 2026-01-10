@@ -14,6 +14,7 @@ vi.mock('../lib/github.js', () => ({
 vi.mock('../lib/prompts.js', () => ({
   promptChoice: vi.fn(),
   promptConfirm: vi.fn(),
+  withSpinner: vi.fn(async (message, fn) => fn()),
 }));
 
 vi.mock('../lib/config.js', () => ({
@@ -35,6 +36,7 @@ vi.mock('../lib/cleanpr/index.js', () => ({
 // Import after mocking
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
+import * as prompts from '../lib/prompts.js';
 import { loadConfig } from '../lib/config.js';
 import * as cleanpr from '../lib/cleanpr/index.js';
 
@@ -51,6 +53,7 @@ describe('cli/cleanpr', () => {
     draftPr: false,
     sharedRepos: [],
     branchPrefix: 'feature',
+    previewLabel: 'preview',
     syncPatterns: [],
     preferredEditor: 'auto' as const,
     ai: { provider: 'none' as const },
@@ -61,6 +64,7 @@ describe('cli/cleanpr', () => {
     integrations: {},
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
+    wtlink: { enabled: [], disabled: [] },
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({
@@ -75,6 +79,12 @@ describe('cli/cleanpr', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+
+    // Reset withSpinner mock (resetAllMocks clears the implementation)
+    vi.mocked(prompts.withSpinner).mockImplementation(async (message, fn) => {
+      return await fn();
+    });
+
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     // @ts-expect-error - process.exit mock type is complex
@@ -93,7 +103,8 @@ describe('cli/cleanpr', () => {
   async function runCli(args: string[] = []): Promise<void> {
     process.argv = ['node', 'cleanpr', ...args];
     await import('./cleanpr.js');
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    // Allow time for all async operations to complete
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   describe('help option', () => {

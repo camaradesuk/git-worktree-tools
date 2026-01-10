@@ -57,6 +57,7 @@ export function runCli(tool: CliTool, args: string[] = [], options: CliOptions =
       ...options.env,
       FORCE_COLOR: '0', // Disable colors for consistent output
       NO_COLOR: '1', // Alternative color disable
+      GWT_ALLOW_LOCAL: '1', // Suppress global install warning in tests
     },
   };
 

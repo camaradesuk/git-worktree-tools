@@ -82,6 +82,7 @@ const KNOWN_TOP_LEVEL_KEYS = [
   'worktreeParent',
   'syncPatterns',
   'branchPrefix',
+  'previewLabel',
   'preferredEditor',
   'ai',
   'hooks',
@@ -89,6 +90,9 @@ const KNOWN_TOP_LEVEL_KEYS = [
   'plugins',
   'generators',
   'integrations',
+  'logging',
+  'global',
+  'wtlink',
 ];
 
 /**
@@ -210,6 +214,11 @@ export function validateConfig(config: unknown): ValidationResult {
   // Validate integrations config
   if (obj.integrations !== undefined) {
     validateIntegrationsConfig(obj.integrations, errors);
+  }
+
+  // Validate wtlink config
+  if (obj.wtlink !== undefined) {
+    validateWtlinkConfig(obj.wtlink, errors);
   }
 
   return { valid: errors.length === 0, errors };
@@ -598,6 +607,57 @@ function validateSlackConfig(slack: unknown, errors: ValidationError[]): void {
       errors.push({
         path: `integrations.slack.${key}`,
         message: `integrations.slack.${key} must be a string`,
+      });
+    }
+  }
+}
+
+/**
+ * Validate wtlink config section
+ */
+function validateWtlinkConfig(wtlink: unknown, errors: ValidationError[]): void {
+  if (typeof wtlink !== 'object' || wtlink === null) {
+    errors.push({ path: 'wtlink', message: 'wtlink must be an object' });
+    return;
+  }
+
+  const obj = wtlink as Record<string, unknown>;
+  const allowedKeys = ['enabled', 'disabled'];
+
+  for (const key of Object.keys(obj)) {
+    if (!allowedKeys.includes(key)) {
+      errors.push({ path: `wtlink.${key}`, message: `Unknown wtlink property: ${key}` });
+    }
+  }
+
+  // Validate enabled array
+  if (obj.enabled !== undefined) {
+    if (!Array.isArray(obj.enabled)) {
+      errors.push({ path: 'wtlink.enabled', message: 'wtlink.enabled must be an array' });
+    } else {
+      obj.enabled.forEach((item, i) => {
+        if (typeof item !== 'string') {
+          errors.push({
+            path: `wtlink.enabled[${i}]`,
+            message: 'wtlink.enabled items must be strings',
+          });
+        }
+      });
+    }
+  }
+
+  // Validate disabled array
+  if (obj.disabled !== undefined) {
+    if (!Array.isArray(obj.disabled)) {
+      errors.push({ path: 'wtlink.disabled', message: 'wtlink.disabled must be an array' });
+    } else {
+      obj.disabled.forEach((item, i) => {
+        if (typeof item !== 'string') {
+          errors.push({
+            path: `wtlink.disabled[${i}]`,
+            message: 'wtlink.disabled items must be strings',
+          });
+        }
       });
     }
   }

@@ -18,6 +18,7 @@ import {
   isCommonIgnoreDir,
   COMMON_IGNORE_DIRS,
   groupByTopDirectory,
+  executeVimCommand,
   run,
   type FileNode,
   type FileDecision,
@@ -25,6 +26,7 @@ import {
   type DisplayItem,
   type AppState,
   type ManageArgv,
+  type VimCommandAction,
 } from './manage-manifest.js';
 
 // Mock git module
@@ -527,6 +529,67 @@ describe('wtlink/manage-manifest pure functions', () => {
       expect(entries[1][1]).toBe(2);
       expect(entries[2][0]).toBe('lib');
       expect(entries[2][1]).toBe(1);
+    });
+  });
+
+  describe('executeVimCommand', () => {
+    it('returns "quit" for :q command', () => {
+      expect(executeVimCommand('q')).toBe('quit');
+    });
+
+    it('returns "force-quit" for :q! command', () => {
+      expect(executeVimCommand('q!')).toBe('force-quit');
+    });
+
+    it('returns "save" for :w command', () => {
+      expect(executeVimCommand('w')).toBe('save');
+    });
+
+    it('returns "save-quit" for :wq command', () => {
+      expect(executeVimCommand('wq')).toBe('save-quit');
+    });
+
+    it('returns "save-quit" for :x command', () => {
+      expect(executeVimCommand('x')).toBe('save-quit');
+    });
+
+    it('returns null for unknown commands', () => {
+      expect(executeVimCommand('unknown')).toBeNull();
+      expect(executeVimCommand('help')).toBeNull();
+      expect(executeVimCommand('exit')).toBeNull();
+      expect(executeVimCommand('')).toBeNull();
+    });
+
+    it('handles whitespace in commands', () => {
+      expect(executeVimCommand('  q  ')).toBe('quit');
+      expect(executeVimCommand('\tq\t')).toBe('quit');
+      expect(executeVimCommand('  wq  ')).toBe('save-quit');
+      expect(executeVimCommand(' w ')).toBe('save');
+    });
+
+    it('is case-insensitive', () => {
+      expect(executeVimCommand('Q')).toBe('quit');
+      expect(executeVimCommand('Q!')).toBe('force-quit');
+      expect(executeVimCommand('W')).toBe('save');
+      expect(executeVimCommand('WQ')).toBe('save-quit');
+      expect(executeVimCommand('X')).toBe('save-quit');
+      expect(executeVimCommand('Wq')).toBe('save-quit');
+      expect(executeVimCommand('wQ')).toBe('save-quit');
+    });
+
+    it('returns null for partial matches', () => {
+      expect(executeVimCommand('qa')).toBeNull();
+      expect(executeVimCommand('wqa')).toBeNull();
+      expect(executeVimCommand('q!!')).toBeNull();
+      expect(executeVimCommand('write')).toBeNull();
+      expect(executeVimCommand('quit')).toBeNull();
+    });
+
+    it('handles edge cases', () => {
+      // Just the bang should not be valid
+      expect(executeVimCommand('!')).toBeNull();
+      // Just whitespace
+      expect(executeVimCommand('   ')).toBeNull();
     });
   });
 

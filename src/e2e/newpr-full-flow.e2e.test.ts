@@ -37,6 +37,7 @@ function runCli(
       ...process.env,
       FORCE_COLOR: '0', // Disable colors for consistent output
       NEWPR_MOCK_GITHUB: '1', // Enable GitHub mock mode
+      GWT_ALLOW_LOCAL: '1', // Suppress global install warning in tests
       ...options.env,
     },
   });

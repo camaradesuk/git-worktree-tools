@@ -3,7 +3,8 @@ import path from 'path';
 import inquirer from 'inquirer';
 import * as colors from '../colors.js';
 import * as git from '../git.js';
-import { COMMON_BASE_BRANCHES } from '../constants.js';
+import { COMMON_BASE_BRANCHES, DEFAULT_MANIFEST_FILE } from '../constants.js';
+import { loadManifestData, saveManifestData, type ManifestData } from './config-manifest.js';
 
 // Type definition for the arguments passed to this command
 export interface LinkArgv {
@@ -499,8 +500,10 @@ export async function run(argv: LinkArgv): Promise<void> {
   }
   const gitRoot = git.getRepoRoot(); // Current worktree root
   const mainWorktreeRoot = git.getMainWorktreeRoot(); // Main worktree root (for manifest location)
-  const manifestFile = argv.manifestFile;
-  const manifestPath = path.join(mainWorktreeRoot, manifestFile);
+
+  // Determine if using custom manifest file or config-based approach
+  const usingCustomManifest = argv.manifestFile !== DEFAULT_MANIFEST_FILE;
+  const manifestPath = path.join(mainWorktreeRoot, argv.manifestFile);
 
   const { sourceDir, destDir } = resolveWorktreePaths(argv, gitRoot);
 
@@ -519,15 +522,31 @@ export async function run(argv: LinkArgv): Promise<void> {
     return;
   }
 
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Manifest file not found at ${manifestPath}`);
-  }
+  // Load manifest data: use custom file if specified, otherwise use config-manifest adapter
+  let filesToLink: string[];
+  let manifestData: ManifestData | null = null;
 
-  const filesToLink = fs
-    .readFileSync(manifestPath, 'utf-8')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#'));
+  if (usingCustomManifest) {
+    // Legacy behavior for custom manifest files
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error(`Manifest file not found at ${manifestPath}`);
+    }
+    filesToLink = fs
+      .readFileSync(manifestPath, 'utf-8')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('#'));
+  } else {
+    // Use config-manifest adapter (checks .worktreerc first, falls back to legacy .wtlinkrc)
+    manifestData = loadManifestData(mainWorktreeRoot);
+    filesToLink = manifestData.enabled;
+
+    if (manifestData.source === 'empty') {
+      throw new Error(
+        'No manifest found. Run `wtlink manage` to configure files to sync, or create a .worktreerc with a wtlink section.'
+      );
+    }
+  }
 
   if (filesToLink.length === 0) {
     console.log(colors.yellow('Manifest is empty. Nothing to link.'));
@@ -645,7 +664,19 @@ export async function run(argv: LinkArgv): Promise<void> {
 
   // Update manifest if files were removed
   if (filesToRemoveFromManifest.length > 0) {
-    updateManifest(manifestPath, filesToRemoveFromManifest);
+    if (usingCustomManifest) {
+      // Legacy behavior for custom manifest files
+      updateManifest(manifestPath, filesToRemoveFromManifest);
+    } else if (manifestData) {
+      // Use config-manifest adapter to save updated manifest
+      const updatedEnabled = manifestData.enabled.filter(
+        (f) => !filesToRemoveFromManifest.includes(f)
+      );
+      const updatedDisabled = manifestData.disabled.filter(
+        (f) => !filesToRemoveFromManifest.includes(f)
+      );
+      saveManifestData(mainWorktreeRoot, updatedEnabled, updatedDisabled);
+    }
     console.log(
       colors.red(`Updated manifest: removed ${filesToRemoveFromManifest.length} files\n`)
     );

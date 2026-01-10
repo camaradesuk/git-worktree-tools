@@ -280,7 +280,25 @@ if (command === 'pr' && subcommand === 'view') {
 
 if (command === 'pr' && subcommand === 'list') {
   const fields = getJsonFields();
-  const prs = Array.from(state.prsMap.values());
+  let prs = Array.from(state.prsMap.values());
+
+  // Handle --state filter
+  const stateIdx = args.indexOf('--state');
+  if (stateIdx !== -1 && args[stateIdx + 1]) {
+    const stateFilter = args[stateIdx + 1].toUpperCase();
+    if (stateFilter !== 'ALL') {
+      prs = prs.filter(pr => pr.state === stateFilter);
+    }
+  }
+
+  // Handle --limit filter
+  const limitIdx = args.indexOf('--limit') !== -1 ? args.indexOf('--limit') : args.indexOf('-L');
+  if (limitIdx !== -1 && args[limitIdx + 1]) {
+    const limit = parseInt(args[limitIdx + 1], 10);
+    if (!isNaN(limit)) {
+      prs = prs.slice(0, limit);
+    }
+  }
 
   if (fields) {
     const results = prs.map(pr => {
@@ -288,6 +306,40 @@ if (command === 'pr' && subcommand === 'list') {
       for (const field of fields) {
         if (field in pr) {
           result[field] = pr[field];
+        } else {
+          // Provide mock values for extended fields
+          switch (field) {
+            case 'author':
+              result[field] = { login: pr.author || 'testuser' };
+              break;
+            case 'createdAt':
+              result[field] = new Date(Date.now() - 86400000).toISOString();
+              break;
+            case 'updatedAt':
+              result[field] = new Date().toISOString();
+              break;
+            case 'labels':
+              result[field] = [];
+              break;
+            case 'reviewDecision':
+              result[field] = null;
+              break;
+            case 'additions':
+              result[field] = 10;
+              break;
+            case 'deletions':
+              result[field] = 5;
+              break;
+            case 'changedFiles':
+              result[field] = 2;
+              break;
+            case 'reviews':
+              result[field] = [];
+              break;
+            case 'statusCheckRollup':
+              result[field] = null;
+              break;
+          }
         }
       }
       return result;
@@ -387,6 +439,8 @@ export function setupGhMock(options: GhMockOptions = {}): GhMockSetup {
   const mockEnv: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: `${mockDir}${path.delimiter}${originalPath}`,
+    // Suppress global install warning in tests
+    GWT_ALLOW_LOCAL: '1',
   };
 
   // Helper functions

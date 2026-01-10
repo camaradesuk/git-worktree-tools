@@ -57,7 +57,7 @@ function renderSimpleOptions(options: string[], selectedIndex: number, prompt: s
     }
   });
 
-  console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
+  console.log(dim('\n  ↑↓/jk navigate • esc/← back • enter/→ select • q quit'));
 }
 
 /**
@@ -77,7 +77,7 @@ async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise
         console.log(`    ${dim(opt)}`);
       }
     });
-    console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
+    console.log(dim('\n  ↑↓/jk navigate • esc/← back • enter/→ select • q quit'));
 
     // Enable raw mode for keypress events
     readline.emitKeypressEvents(process.stdin);
@@ -91,14 +91,16 @@ async function promptChoiceArrowKeys(prompt: string, options: string[]): Promise
         return;
       }
 
-      if (key.name === 'up') {
+      // Navigation: up arrow or k
+      if (key.name === 'up' || str === 'k') {
         selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : options.length - 1;
         renderSimpleOptions(options, selectedIndex, prompt);
-      } else if (key.name === 'down') {
+        // Navigation: down arrow or j
+      } else if (key.name === 'down' || str === 'j') {
         selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
         renderSimpleOptions(options, selectedIndex, prompt);
-      } else if (key.name === 'left') {
-        // Left arrow = go back
+        // Back: left arrow or Esc
+      } else if (key.name === 'left' || key.name === 'escape') {
         cleanup();
         reject(new UserNavigatedBack());
       } else if (key.name === 'right' || key.name === 'return') {
@@ -223,7 +225,7 @@ function renderPromptOptions<T>(
     }
   });
 
-  console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
+  console.log(dim('\n  ↑↓/jk navigate • esc/← back • enter/→ select • q quit'));
 }
 
 /**
@@ -252,7 +254,7 @@ async function promptChoiceArrowKeysValue<T>(
         }
       }
     });
-    console.log(dim('\n  ↑/↓ navigate • ←/→ back/select • q quit'));
+    console.log(dim('\n  ↑↓/jk navigate • esc/← back • enter/→ select • q quit'));
 
     // Enable raw mode for keypress events
     readline.emitKeypressEvents(process.stdin);
@@ -266,14 +268,16 @@ async function promptChoiceArrowKeysValue<T>(
         return;
       }
 
-      if (key.name === 'up') {
+      // Navigation: up arrow or k
+      if (key.name === 'up' || str === 'k') {
         selectedIndex = selectedIndex > 0 ? selectedIndex - 1 : options.length - 1;
         renderPromptOptions(options, selectedIndex, prompt);
-      } else if (key.name === 'down') {
+        // Navigation: down arrow or j
+      } else if (key.name === 'down' || str === 'j') {
         selectedIndex = selectedIndex < options.length - 1 ? selectedIndex + 1 : 0;
         renderPromptOptions(options, selectedIndex, prompt);
-      } else if (key.name === 'left') {
-        // Left arrow = go back
+        // Back: left arrow or Esc
+      } else if (key.name === 'left' || key.name === 'escape') {
         cleanup();
         reject(new UserNavigatedBack());
       } else if (key.name === 'right' || key.name === 'return') {

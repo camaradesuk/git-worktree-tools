@@ -4,13 +4,16 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock inquirer before importing
-vi.mock('inquirer', () => ({
-  default: {
-    prompt: vi.fn(),
-    Separator: class Separator {
-      type = 'separator';
-    },
+// Mock prompts module before importing
+vi.mock('../prompts.js', () => ({
+  promptChoice: vi.fn(),
+  promptConfirm: vi.fn(),
+  promptInput: vi.fn(),
+  UserNavigatedBack: class UserNavigatedBack extends Error {
+    constructor() {
+      super('User navigated back');
+      this.name = 'UserNavigatedBack';
+    }
   },
 }));
 
@@ -32,7 +35,7 @@ vi.mock('./validate-manifest.js', () => ({
   run: vi.fn(),
 }));
 
-import inquirer from 'inquirer';
+import { promptChoice, promptConfirm, promptInput } from '../prompts.js';
 import { showMainMenu } from './main-menu.js';
 import * as manage from './manage-manifest.js';
 import * as link from './link-configs.js';
@@ -49,7 +52,7 @@ describe('main-menu', () => {
 
   describe('showMainMenu', () => {
     it('exits when user selects exit', async () => {
-      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('exit');
 
       await showMainMenu();
 
@@ -58,11 +61,9 @@ describe('main-menu', () => {
     });
 
     it('calls manage.run when user selects manage', async () => {
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ action: 'manage' })
-        .mockResolvedValueOnce({ shouldLink: false }) // Don't link after manage
-        .mockResolvedValueOnce({ continue: '' }) // Press Enter
-        .mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('manage').mockResolvedValueOnce('exit');
+      vi.mocked(promptConfirm).mockResolvedValueOnce(false); // Don't link after manage
+      vi.mocked(promptInput).mockResolvedValueOnce(''); // Press Enter
 
       await showMainMenu();
 
@@ -76,11 +77,9 @@ describe('main-menu', () => {
     });
 
     it('calls link.run after manage when user confirms', async () => {
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ action: 'manage' })
-        .mockResolvedValueOnce({ shouldLink: true }) // Link after manage
-        .mockResolvedValueOnce({ continue: '' }) // Press Enter after link
-        .mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('manage').mockResolvedValueOnce('exit');
+      vi.mocked(promptConfirm).mockResolvedValueOnce(true); // Link after manage
+      vi.mocked(promptInput).mockResolvedValueOnce(''); // Press Enter after link
 
       await showMainMenu();
 
@@ -89,10 +88,8 @@ describe('main-menu', () => {
     });
 
     it('calls link.run when user selects link', async () => {
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ action: 'link' })
-        .mockResolvedValueOnce({ continue: '' }) // Press Enter
-        .mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('link').mockResolvedValueOnce('exit');
+      vi.mocked(promptInput).mockResolvedValueOnce(''); // Press Enter
 
       await showMainMenu();
 
@@ -106,10 +103,8 @@ describe('main-menu', () => {
     });
 
     it('calls validate.run when user selects validate', async () => {
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ action: 'validate' })
-        .mockResolvedValueOnce({ continue: '' }) // Press Enter
-        .mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('validate').mockResolvedValueOnce('exit');
+      vi.mocked(promptInput).mockResolvedValueOnce(''); // Press Enter
 
       await showMainMenu();
 
@@ -117,10 +112,8 @@ describe('main-menu', () => {
     });
 
     it('shows help when user selects help', async () => {
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ action: 'help' })
-        .mockResolvedValueOnce({ continue: '' }) // Press Enter
-        .mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('help').mockResolvedValueOnce('exit');
+      vi.mocked(promptInput).mockResolvedValueOnce(''); // Press Enter
 
       await showMainMenu();
 
@@ -131,10 +124,8 @@ describe('main-menu', () => {
     it('handles errors gracefully and continues loop', async () => {
       vi.mocked(manage.run).mockRejectedValueOnce(new Error('Test error'));
 
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ action: 'manage' })
-        .mockResolvedValueOnce({ continue: '' }) // Press Enter after error
-        .mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('manage').mockResolvedValueOnce('exit');
+      vi.mocked(promptInput).mockResolvedValueOnce(''); // Press Enter after error
 
       await showMainMenu();
 
@@ -144,10 +135,8 @@ describe('main-menu', () => {
     it('handles non-Error exceptions', async () => {
       vi.mocked(manage.run).mockRejectedValueOnce('String error');
 
-      vi.mocked(inquirer.prompt)
-        .mockResolvedValueOnce({ action: 'manage' })
-        .mockResolvedValueOnce({ continue: '' }) // Press Enter after error
-        .mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('manage').mockResolvedValueOnce('exit');
+      vi.mocked(promptInput).mockResolvedValueOnce(''); // Press Enter after error
 
       await showMainMenu();
 
@@ -155,13 +144,32 @@ describe('main-menu', () => {
     });
 
     it('displays the menu header', async () => {
-      vi.mocked(inquirer.prompt).mockResolvedValueOnce({ action: 'exit' });
+      vi.mocked(promptChoice).mockResolvedValueOnce('exit');
 
       await showMainMenu();
 
       expect(mockConsoleLog).toHaveBeenCalledWith(
         expect.stringContaining('Worktree Config Link Manager')
       );
+    });
+
+    it('exits on user cancelled error', async () => {
+      vi.mocked(promptChoice).mockRejectedValueOnce(new Error('User cancelled'));
+
+      await showMainMenu();
+
+      // Should exit without error
+      expect(mockConsoleError).not.toHaveBeenCalled();
+    });
+
+    it('exits on UserNavigatedBack error', async () => {
+      const { UserNavigatedBack } = await import('../prompts.js');
+      vi.mocked(promptChoice).mockRejectedValueOnce(new UserNavigatedBack());
+
+      await showMainMenu();
+
+      // Should exit without error
+      expect(mockConsoleError).not.toHaveBeenCalled();
     });
   });
 });

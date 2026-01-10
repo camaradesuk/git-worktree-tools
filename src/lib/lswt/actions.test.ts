@@ -491,19 +491,20 @@ describe('lswt/actions', () => {
       const worktree = makeWorktree({ type: 'main' });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).toContain('e: editor');
-      expect(result).toContain('t: terminal');
-      expect(result).toContain('d: details');
-      expect(result).toContain('c: copy');
-      expect(result).toContain('l: link');
-      expect(result).toContain('q: quit');
+      expect(result).toContain('[e] editor');
+      expect(result).toContain('[t] terminal');
+      expect(result).toContain('[d] details');
+      expect(result).toContain('[c] copy');
+      expect(result).toContain('[l] link');
+      expect(result).toContain('[q] quit');
     });
 
-    it('excludes remove shortcut for main worktree', () => {
+    it('shows remove shortcut dimmed for main worktree', () => {
       const worktree = makeWorktree({ type: 'main' });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).not.toContain('r: remove');
+      // Main worktree shows remove as disabled with reason
+      expect(result).toContain('[r] remove (main)');
     });
 
     it('includes remove shortcut for non-main worktrees', () => {
@@ -514,7 +515,9 @@ describe('lswt/actions', () => {
       });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).toContain('r: remove');
+      expect(result).toContain('[r] remove');
+      // Should not have the disabled reason
+      expect(result).not.toContain('[r] remove (main)');
     });
 
     it('shows PR shortcut for PR worktrees', () => {
@@ -525,7 +528,7 @@ describe('lswt/actions', () => {
       });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).toContain('p: PR');
+      expect(result).toContain('[p] PR');
     });
 
     it('shows create PR shortcut for branch worktrees', () => {
@@ -535,14 +538,15 @@ describe('lswt/actions', () => {
       });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).toContain('p: create PR');
+      expect(result).toContain('[p] create PR');
     });
 
-    it('returns comma-separated list', () => {
+    it('returns dot-separated list with brackets', () => {
       const worktree = makeWorktree({ type: 'main' });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).toMatch(/^\w+: \w+, /);
+      expect(result).toMatch(/\[e\] editor/);
+      expect(result).toContain(' · ');
     });
 
     it('shows limited shortcuts for remote_pr worktrees', () => {
@@ -553,10 +557,10 @@ describe('lswt/actions', () => {
       });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).toContain('w: worktree');
-      expect(result).toContain('p: PR');
-      expect(result).toContain('d: details');
-      expect(result).toContain('q: quit');
+      expect(result).toContain('[w] worktree');
+      expect(result).toContain('[p] PR');
+      expect(result).toContain('[d] details');
+      expect(result).toContain('[q] quit');
     });
 
     it('excludes editor and terminal shortcuts for remote_pr', () => {
@@ -567,11 +571,21 @@ describe('lswt/actions', () => {
       });
       const result = formatShortcutLegend(worktree);
 
-      expect(result).not.toContain('e: editor');
-      expect(result).not.toContain('t: terminal');
-      expect(result).not.toContain('c: copy');
-      expect(result).not.toContain('l: link');
-      expect(result).not.toContain('r: remove');
+      expect(result).not.toContain('[e] editor');
+      expect(result).not.toContain('[t] terminal');
+      expect(result).not.toContain('[c] copy');
+      expect(result).not.toContain('[l] link');
+      expect(result).not.toContain('[r] remove');
+    });
+
+    it('shows disabled shortcuts dimmed for main worktree', () => {
+      const worktree = makeWorktree({ type: 'main' });
+      const result = formatShortcutLegend(worktree);
+
+      // Remove shortcut should show (main) reason
+      expect(result).toContain('[r] remove (main)');
+      // PR shortcut should show (n/a) reason
+      expect(result).toContain('[p] PR (n/a)');
     });
   });
 });

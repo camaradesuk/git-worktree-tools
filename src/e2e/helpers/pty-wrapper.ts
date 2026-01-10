@@ -93,6 +93,11 @@ let ptyModule: typeof import('node-pty') | null = null;
 let ptyLoadError: Error | null = null;
 
 /**
+ * Cache for PTY spawn check result
+ */
+let ptySpawnCheckResult: boolean | null = null;
+
+/**
  * Load node-pty module (lazy loading for optional dependency)
  */
 async function loadPty(): Promise<typeof import('node-pty')> {
@@ -126,6 +131,74 @@ export async function isPtyAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Test if PTY spawning actually works (not just module import)
+ * This catches CI environments where node-pty loads but spawn fails
+ */
+export async function canSpawnPty(): Promise<boolean> {
+  // Return cached result if available
+  if (ptySpawnCheckResult !== null) {
+    return ptySpawnCheckResult;
+  }
+
+  try {
+    const pty = await loadPty();
+    const isWindows = process.platform === 'win32';
+    const shell = isWindows ? 'cmd.exe' : '/bin/sh';
+    const shellArgs = isWindows ? ['/c', 'echo', 'test'] : ['-c', 'echo test'];
+
+    const result = await new Promise<boolean>((resolve) => {
+      try {
+        const proc = pty.spawn(shell, shellArgs, {
+          name: 'xterm-256color',
+          cols: 80,
+          rows: 24,
+          cwd: process.cwd(),
+          env: process.env,
+        });
+
+        const timeout = setTimeout(() => {
+          proc.kill();
+          resolve(false);
+        }, 5000);
+
+        proc.onExit(() => {
+          clearTimeout(timeout);
+          resolve(true);
+        });
+
+        proc.onData(() => {
+          // Consume data to avoid buffer issues
+        });
+      } catch {
+        resolve(false);
+      }
+    });
+
+    ptySpawnCheckResult = result;
+    return result;
+  } catch {
+    ptySpawnCheckResult = false;
+    return false;
+  }
+}
+
+/**
+ * Synchronous check if PTY spawning works (uses cached result from canSpawnPty)
+ * Call canSpawnPty() first to populate the cache.
+ * Returns false if cache is not populated yet.
+ */
+export function canSpawnPtySync(): boolean {
+  return ptySpawnCheckResult === true;
+}
+
+/**
+ * Initialize PTY spawn check - call this at test setup to populate the cache
+ */
+export async function initPtyCheck(): Promise<boolean> {
+  return canSpawnPty();
 }
 
 /**
