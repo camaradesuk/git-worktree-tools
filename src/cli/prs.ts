@@ -54,7 +54,8 @@ export function outputJsonError(code: ErrorCode, message: string): void {
  */
 export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
   const jsonMode = options.json || false;
-  const isTTY = process.stdout.isTTY;
+  // Both stdin and stdout must be TTY for interactive mode to work properly
+  const isTTY = process.stdout.isTTY && process.stdin.isTTY;
   const interactive = isTTY && !options.noInteractive && !jsonMode;
 
   // Check prerequisites
@@ -116,7 +117,7 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
     prs = fetchPrsWithWorktrees(
       {
         state: fetchState,
-        author: options.author === '@me' ? undefined : options.author,
+        author: options.author, // gh CLI natively supports @me
         labels: options.label,
         limit: options.limit,
       },

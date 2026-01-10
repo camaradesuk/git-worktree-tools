@@ -53,6 +53,8 @@ function createMockDeps(overrides: Partial<PrActionDeps> = {}): PrActionDeps {
     openUrl: vi.fn().mockReturnValue(true),
     getRepoRoot: vi.fn().mockReturnValue('/home/user/repo'),
     log: vi.fn(),
+    gitFetch: vi.fn(),
+    gitAddWorktree: vi.fn(),
     ...overrides,
   };
 }
@@ -67,24 +69,23 @@ describe('actions', () => {
 
       expect(result.success).toBe(true);
       expect(result.shouldRefresh).toBe(true);
-      expect(deps.execCommand).toHaveBeenCalledWith(
-        'git fetch origin feat/test',
-        '/home/user/repo'
-      );
-      expect(deps.execCommand).toHaveBeenCalledWith(
-        expect.stringContaining('git worktree add'),
-        '/home/user/repo'
+      expect(deps.gitFetch).toHaveBeenCalledWith('origin', '/home/user/repo');
+      expect(deps.gitAddWorktree).toHaveBeenCalledWith(
+        expect.stringContaining('repo.pr123'),
+        'pr-123',
+        expect.objectContaining({
+          createBranch: true,
+          startPoint: 'origin/feat/test',
+          cwd: '/home/user/repo',
+        })
       );
     });
 
     it('should handle fetch errors gracefully', async () => {
       const pr = createMockPr();
       const deps = createMockDeps({
-        execCommand: vi.fn().mockImplementation((cmd: string) => {
-          if (cmd.includes('fetch')) {
-            throw new Error('Branch not found');
-          }
-          return '';
+        gitFetch: vi.fn().mockImplementation(() => {
+          throw new Error('Branch not found');
         }),
       });
 
@@ -96,17 +97,41 @@ describe('actions', () => {
     it('should return error if worktree creation fails', async () => {
       const pr = createMockPr();
       const deps = createMockDeps({
-        execCommand: vi.fn().mockImplementation((cmd: string) => {
-          if (cmd.includes('worktree add')) {
-            throw new Error('Worktree already exists');
-          }
-          return '';
+        gitAddWorktree: vi.fn().mockImplementation(() => {
+          throw new Error('Worktree already exists');
         }),
       });
 
       const result = await createWorktreeForPr(pr, deps);
       expect(result.success).toBe(false);
       expect(result.message).toContain('Worktree already exists');
+    });
+
+    it('should fall back to existing branch if create fails', async () => {
+      const pr = createMockPr({ number: 42 });
+      let callCount = 0;
+      const deps = createMockDeps({
+        gitAddWorktree: vi.fn().mockImplementation((_path, _branch, options) => {
+          callCount++;
+          if (options?.createBranch) {
+            throw new Error('Branch already exists');
+          }
+          // Second call with createBranch: false succeeds
+        }),
+      });
+
+      const result = await createWorktreeForPr(pr, deps);
+
+      expect(result.success).toBe(true);
+      expect(callCount).toBe(2);
+      expect(deps.gitAddWorktree).toHaveBeenLastCalledWith(
+        expect.any(String),
+        'pr-42',
+        expect.objectContaining({
+          createBranch: false,
+          cwd: '/home/user/repo',
+        })
+      );
     });
   });
 
@@ -387,6 +412,8 @@ describe('actions', () => {
       expect(deps).toHaveProperty('openUrl');
       expect(deps).toHaveProperty('getRepoRoot');
       expect(deps).toHaveProperty('log');
+      expect(deps).toHaveProperty('gitFetch');
+      expect(deps).toHaveProperty('gitAddWorktree');
     });
   });
 });

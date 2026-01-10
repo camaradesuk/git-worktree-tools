@@ -10,6 +10,15 @@ import { loadConfig } from '../config.js';
 import type { PrDisplayItem, PrAction, PrActionResult } from './types.js';
 
 /**
+ * Options for addWorktree
+ */
+export interface AddWorktreeOptions {
+  createBranch?: boolean;
+  startPoint?: string;
+  cwd?: string;
+}
+
+/**
  * Dependencies for PR actions (injectable for testing)
  */
 export interface PrActionDeps {
@@ -25,6 +34,10 @@ export interface PrActionDeps {
   getRepoRoot: () => string;
   /** Console output */
   log: (message: string) => void;
+  /** Fetch from remote (safe, no shell interpolation) */
+  gitFetch: (remote: string, cwd?: string) => void;
+  /** Add worktree (safe, no shell interpolation) */
+  gitAddWorktree: (path: string, branch: string, options?: AddWorktreeOptions) => void;
 }
 
 /**
@@ -47,6 +60,8 @@ export function createDefaultActionDeps(): PrActionDeps {
     openUrl: openUrl,
     getRepoRoot: git.getRepoRoot,
     log: console.log,
+    gitFetch: git.fetch,
+    gitAddWorktree: git.addWorktree,
   };
 }
 
@@ -138,20 +153,43 @@ export async function createWorktreeForPr(
     const parentDir = config.worktreeParent || '..';
     const worktreePath = path.resolve(repoRoot, parentDir, worktreeName);
 
-    // Fetch the branch first
+    // Fetch the branch first using safe git helper (avoids shell escaping issues)
     deps.log(colors.dim(`Fetching branch ${pr.headBranch}...`));
     try {
-      deps.execCommand(`git fetch origin ${pr.headBranch}`, repoRoot);
+      deps.gitFetch('origin', repoRoot);
     } catch {
-      // Branch might already be fetched
+      // Fetch might fail if offline, continue anyway
     }
 
-    // Create the worktree
+    // Create the worktree using safe git helper
+    // First try with a new branch, then fall back to using existing branch
+    const branchName = `pr-${pr.number}`;
+    const startPoint = `origin/${pr.headBranch}`;
+
     deps.log(colors.dim(`Creating worktree at ${worktreePath}...`));
-    deps.execCommand(
-      `git worktree add "${worktreePath}" -b pr-${pr.number} origin/${pr.headBranch}`,
-      repoRoot
-    );
+    try {
+      // Try to create worktree with new branch
+      deps.gitAddWorktree(worktreePath, branchName, {
+        createBranch: true,
+        startPoint,
+        cwd: repoRoot,
+      });
+    } catch {
+      // Branch might already exist from a previous worktree
+      // Try using the existing branch instead
+      try {
+        deps.gitAddWorktree(worktreePath, branchName, {
+          createBranch: false,
+          cwd: repoRoot,
+        });
+      } catch (retryError) {
+        // If that also fails, provide a helpful error message
+        throw new Error(
+          `Failed to create worktree: ${retryError instanceof Error ? retryError.message : 'Unknown error'}. ` +
+            `You may need to delete the existing branch 'pr-${pr.number}' first.`
+        );
+      }
+    }
 
     return {
       success: true,

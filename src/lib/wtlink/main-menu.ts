@@ -121,9 +121,16 @@ async function runManage(): Promise<void> {
     } else {
       await pressAnyKey();
     }
-  } catch {
-    // User cancelled - just return to menu
-    return;
+  } catch (error) {
+    // Only silently return for user cancellation/navigation
+    if (
+      error instanceof UserNavigatedBack ||
+      (error instanceof Error && error.message === 'User cancelled')
+    ) {
+      return;
+    }
+    // Re-throw other errors so they're not silently swallowed
+    throw error;
   }
 }
 
