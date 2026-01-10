@@ -1,26 +1,79 @@
 /**
  * Tests for standalone prs CLI command
  *
- * Note: This file tests the prs CLI entry point. Since the main() function
- * runs asynchronously on module load, we test the exported helper logic
- * and verify JSON output through integration tests.
- *
- * The core prs functionality is extensively tested in:
- * - src/cli/wt/prs.test.ts (same handler logic)
- * - src/lib/prs/data.test.ts
- * - src/lib/prs/formatters.test.ts
- * - src/lib/prs/actions.test.ts
+ * Tests the exported functions from prs.ts including hasJsonFlag, outputJsonError,
+ * and runPrsCommand with proper mocking.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { hasJsonFlag, outputJsonError, runPrsCommand } from './prs.js';
+import { ErrorCode } from '../lib/json-output.js';
+
+// Mock dependencies
+vi.mock('../lib/git.js', () => ({
+  getRepoRoot: vi.fn(),
+}));
+
+vi.mock('../lib/github.js', () => ({
+  isGhInstalled: vi.fn(),
+  isAuthenticated: vi.fn(),
+  getRepoInfo: vi.fn(),
+}));
+
+vi.mock('../lib/config.js', () => ({
+  loadConfig: vi.fn(),
+}));
+
+vi.mock('../lib/prs/data.js', () => ({
+  fetchPrsWithWorktrees: vi.fn(),
+  applyFilters: vi.fn(),
+  clearPrCache: vi.fn(),
+  createDefaultDataDeps: vi.fn(),
+}));
+
+vi.mock('../lib/prs/formatters.js', () => ({
+  formatPrListHeader: vi.fn(),
+  formatPrSummary: vi.fn(),
+  formatPrTable: vi.fn(),
+}));
+
+vi.mock('../lib/prs/interactive.js', () => ({
+  runPrInteractiveMode: vi.fn(),
+  createDefaultPrInteractiveDeps: vi.fn(),
+}));
+
+// Get mocked functions
+import * as git from '../lib/git.js';
+import * as github from '../lib/github.js';
+import * as config from '../lib/config.js';
+import * as prsData from '../lib/prs/data.js';
+import * as formatters from '../lib/prs/formatters.js';
+
+const mockGetRepoRoot = vi.mocked(git.getRepoRoot);
+const mockIsGhInstalled = vi.mocked(github.isGhInstalled);
+const mockIsAuthenticated = vi.mocked(github.isAuthenticated);
+const mockGetRepoInfo = vi.mocked(github.getRepoInfo);
+const mockLoadConfig = vi.mocked(config.loadConfig);
+const mockFetchPrsWithWorktrees = vi.mocked(prsData.fetchPrsWithWorktrees);
+const mockApplyFilters = vi.mocked(prsData.applyFilters);
+const mockCreateDefaultDataDeps = vi.mocked(prsData.createDefaultDataDeps);
+const mockFormatPrListHeader = vi.mocked(formatters.formatPrListHeader);
+const mockFormatPrSummary = vi.mocked(formatters.formatPrSummary);
+const mockFormatPrTable = vi.mocked(formatters.formatPrTable);
 
 describe('prs CLI command', () => {
-  describe('hasJsonFlag helper logic', () => {
-    // Test the hasJsonFlag function logic inline (since function isn't exported)
-    const hasJsonFlag = (args: string[]): boolean => {
-      return args.includes('--json') || args.includes('-j');
-    };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset console mocks
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('hasJsonFlag', () => {
     it('should detect --json flag', () => {
       expect(hasJsonFlag(['--json'])).toBe(true);
       expect(hasJsonFlag(['--state', 'open', '--json'])).toBe(true);
@@ -39,15 +92,358 @@ describe('prs CLI command', () => {
     });
   });
 
-  describe('command module structure', () => {
-    it('should have expected exports pattern', () => {
-      // The module runs main() on load, so we can only verify
-      // that it can be imported without syntax errors
-      // The actual command execution is tested via e2e tests
+  describe('outputJsonError', () => {
+    it('should output error in JSON format', () => {
+      const consoleSpy = vi.spyOn(console, 'log');
+      outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not in a git repository');
 
-      // This verifies the file is syntactically valid TypeScript
-      // and the module structure is correct
-      expect(true).toBe(true);
+      expect(consoleSpy).toHaveBeenCalledTimes(1);
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.command).toBe('prs');
+      expect(parsed.error.code).toBe(ErrorCode.NOT_GIT_REPO);
+      expect(parsed.error.message).toBe('Not in a git repository');
+    });
+
+    it('should include suggestion for known error codes', () => {
+      const consoleSpy = vi.spyOn(console, 'log');
+      outputJsonError(ErrorCode.GH_NOT_INSTALLED, 'GitHub CLI not installed');
+
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+
+      expect(parsed.error.suggestion).toBeDefined();
+    });
+  });
+
+  describe('runPrsCommand', () => {
+    // Store original process.exit
+    const originalExit = process.exit;
+    const originalIsTTY = process.stdout.isTTY;
+
+    // Custom error class to simulate process.exit
+    class ExitError extends Error {
+      exitCode: number;
+      constructor(code: number) {
+        super(`process.exit(${code})`);
+        this.exitCode = code;
+      }
+    }
+
+    // Helper to create complete options with defaults
+    const createOptions = (
+      overrides: Partial<Parameters<typeof runPrsCommand>[0]> = {}
+    ): Parameters<typeof runPrsCommand>[0] => ({
+      state: 'open',
+      limit: 50,
+      ...overrides,
+    });
+
+    // Helper to create mock repo info
+    const createMockRepoInfo = () => ({
+      owner: 'test',
+      name: 'repo',
+      defaultBranch: 'main',
+      url: 'https://github.com/test/repo',
+    });
+
+    // Helper to create mock config (matches Required<WorktreeConfig>)
+    const createMockConfig = () => ({
+      baseBranch: 'main',
+      draftPr: false,
+      worktreePattern: '{repo}.pr{number}',
+      worktreeParent: '..',
+      branchPrefix: 'feat',
+      sharedRepos: [] as string[],
+      syncPatterns: [] as string[],
+      previewLabel: 'preview',
+      preferredEditor: 'vscode' as const,
+      ai: {
+        provider: 'none' as const,
+        branchName: false,
+        prTitle: false,
+        prDescription: false,
+        commitMessage: false,
+        planDocument: false,
+        branchStyle: 'kebab' as const,
+        commitStyle: 'conventional' as const,
+      },
+      hooks: {},
+      hookDefaults: { timeout: 30000, maxTimeout: 60000 },
+      plugins: [] as string[],
+      generators: {},
+      integrations: {},
+      logging: { level: 'info' as const, timestamps: true },
+      global: { warnNotGlobal: true },
+      wtlink: { enabled: [] as string[], disabled: [] as string[] },
+    });
+
+    // Helper to create mock PR item (matches PrDisplayItem)
+    const createMockPr = (number: number, overrides: Record<string, unknown> = {}) => ({
+      number,
+      title: `Test PR ${number}`,
+      state: 'OPEN' as const,
+      url: `https://github.com/test/repo/pull/${number}`,
+      headBranch: `feat/test-${number}`,
+      baseBranch: 'main',
+      isDraft: false,
+      author: 'testuser',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+      labels: [] as string[],
+      reviewDecision: null,
+      approvalCount: 0,
+      reviewCount: 0,
+      checksStatus: null,
+      additions: 10,
+      deletions: 5,
+      changedFiles: 2,
+      hasWorktree: false,
+      worktreePath: null,
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      // Mock process.exit to throw an error that interrupts execution
+      process.exit = vi.fn((code?: number) => {
+        throw new ExitError(code ?? 0);
+      }) as unknown as typeof process.exit;
+      // Force non-TTY mode to avoid interactive mode
+      Object.defineProperty(process.stdout, 'isTTY', { value: false, writable: true });
+    });
+
+    afterEach(() => {
+      process.exit = originalExit;
+      Object.defineProperty(process.stdout, 'isTTY', { value: originalIsTTY, writable: true });
+    });
+
+    it('should exit with error when not in git repository', async () => {
+      mockGetRepoRoot.mockImplementation(() => {
+        throw new Error('Not in a git repository');
+      });
+
+      await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should output JSON error when not in git repo with json mode', async () => {
+      mockGetRepoRoot.mockImplementation(() => {
+        throw new Error('Not in a git repository');
+      });
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await expect(runPrsCommand(createOptions({ json: true }))).rejects.toThrow(ExitError);
+
+      expect(process.exit).toHaveBeenCalledWith(1);
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+      expect(parsed.error.code).toBe(ErrorCode.NOT_GIT_REPO);
+    });
+
+    it('should exit with error when gh is not installed', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(false);
+
+      await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should output JSON error when gh not installed with json mode', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(false);
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await expect(runPrsCommand(createOptions({ json: true }))).rejects.toThrow(ExitError);
+
+      expect(process.exit).toHaveBeenCalledWith(1);
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+      expect(parsed.error.code).toBe(ErrorCode.GH_NOT_INSTALLED);
+    });
+
+    it('should exit with error when not authenticated', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(false);
+
+      await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should output JSON error when not authenticated with json mode', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(false);
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await expect(runPrsCommand(createOptions({ json: true }))).rejects.toThrow(ExitError);
+
+      expect(process.exit).toHaveBeenCalledWith(1);
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+      expect(parsed.error.code).toBe(ErrorCode.GH_NOT_AUTHENTICATED);
+    });
+
+    it('should fetch and display PRs in table format', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockReturnValue([createMockPr(1)]);
+      mockApplyFilters.mockImplementation((prs) => prs);
+      mockFormatPrListHeader.mockReturnValue('PR List Header');
+      mockFormatPrSummary.mockReturnValue('1 PR found');
+      mockFormatPrTable.mockReturnValue('PR Table');
+
+      await runPrsCommand(createOptions({ json: false, noInteractive: true }));
+
+      expect(mockFetchPrsWithWorktrees).toHaveBeenCalled();
+      expect(mockFormatPrListHeader).toHaveBeenCalledWith('repo');
+      expect(mockFormatPrTable).toHaveBeenCalled();
+    });
+
+    it('should output JSON when json mode is enabled', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockReturnValue([]);
+      mockApplyFilters.mockReturnValue([]);
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await runPrsCommand(createOptions({ json: true }));
+
+      expect(consoleSpy).toHaveBeenCalled();
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+      expect(parsed.success).toBe(true);
+      expect(parsed.command).toBe('prs');
+      expect(parsed.data.prs).toEqual([]);
+    });
+
+    it('should handle fetch error gracefully', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockImplementation(() => {
+        throw new Error('API rate limit exceeded');
+      });
+
+      await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
+      expect(process.exit).toHaveBeenCalledWith(1);
+    });
+
+    it('should map state filter correctly', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockReturnValue([]);
+      mockApplyFilters.mockReturnValue([]);
+
+      await runPrsCommand(createOptions({ json: true, state: 'all' }));
+
+      // Verify applyFilters was called with filterState containing all states
+      expect(mockApplyFilters).toHaveBeenCalled();
+      const filterState = mockApplyFilters.mock.calls[0][1];
+      expect(filterState.states.has('OPEN')).toBe(true);
+      expect(filterState.states.has('MERGED')).toBe(true);
+      expect(filterState.states.has('CLOSED')).toBe(true);
+    });
+
+    it('should set draft filter correctly', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockReturnValue([]);
+      mockApplyFilters.mockReturnValue([]);
+
+      await runPrsCommand(createOptions({ json: true, draft: true }));
+
+      expect(mockApplyFilters).toHaveBeenCalled();
+      const filterState = mockApplyFilters.mock.calls[0][1];
+      expect(filterState.showDrafts).toBe('only');
+    });
+
+    it('should clear cache when refresh is true', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockReturnValue([]);
+      mockApplyFilters.mockReturnValue([]);
+
+      const mockClearPrCache = vi.mocked(prsData.clearPrCache);
+
+      await runPrsCommand(createOptions({ json: true, refresh: true }));
+
+      expect(mockClearPrCache).toHaveBeenCalled();
+    });
+
+    it('should use withWorktree filter option', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockReturnValue([]);
+      mockApplyFilters.mockReturnValue([]);
+
+      await runPrsCommand(createOptions({ json: true, withWorktree: true }));
+
+      expect(mockApplyFilters).toHaveBeenCalled();
+      const filterState = mockApplyFilters.mock.calls[0][1];
+      expect(filterState.hasWorktree).toBe(true);
+    });
+
+    it('should use noDraft filter option', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockReturnValue([]);
+      mockApplyFilters.mockReturnValue([]);
+
+      await runPrsCommand(createOptions({ json: true, noDraft: true }));
+
+      expect(mockApplyFilters).toHaveBeenCalled();
+      const filterState = mockApplyFilters.mock.calls[0][1];
+      expect(filterState.showDrafts).toBe(false);
     });
   });
 
@@ -94,73 +490,6 @@ describe('prs CLI command', () => {
       const result = mapStateToFilterSet(undefined);
       expect(result.has('OPEN')).toBe(true);
       expect(result.size).toBe(1);
-    });
-  });
-
-  describe('draft filter mapping', () => {
-    // Helper function that matches the logic in runPrsCommand
-    function mapDraftFilter(draft: boolean, noDraft: boolean): boolean | 'only' {
-      if (draft) return 'only';
-      if (noDraft) return false;
-      return true;
-    }
-
-    it('should set showDrafts to "only" when draft=true', () => {
-      expect(mapDraftFilter(true, false)).toBe('only');
-    });
-
-    it('should set showDrafts to false when noDraft=true', () => {
-      expect(mapDraftFilter(false, true)).toBe(false);
-    });
-
-    it('should set showDrafts to true by default', () => {
-      expect(mapDraftFilter(false, false)).toBe(true);
-    });
-  });
-
-  describe('author filter handling', () => {
-    // Helper function that matches the logic in runPrsCommand
-    function transformAuthor(author: string | undefined): string | undefined {
-      return author === '@me' ? undefined : author;
-    }
-
-    it('should convert @me to undefined for API call', () => {
-      expect(transformAuthor('@me')).toBeUndefined();
-    });
-
-    it('should pass through other author values', () => {
-      expect(transformAuthor('testuser')).toBe('testuser');
-    });
-
-    it('should pass through undefined author', () => {
-      expect(transformAuthor(undefined)).toBeUndefined();
-    });
-  });
-
-  describe('interactive mode determination', () => {
-    // Helper function that matches the logic in runPrsCommand
-    function shouldBeInteractive(
-      isTTY: boolean,
-      noInteractive: boolean,
-      jsonMode: boolean
-    ): boolean {
-      return isTTY && !noInteractive && !jsonMode;
-    }
-
-    it('should be interactive when TTY and not JSON and not noInteractive', () => {
-      expect(shouldBeInteractive(true, false, false)).toBe(true);
-    });
-
-    it('should not be interactive when not TTY', () => {
-      expect(shouldBeInteractive(false, false, false)).toBe(false);
-    });
-
-    it('should not be interactive when JSON mode', () => {
-      expect(shouldBeInteractive(true, false, true)).toBe(false);
-    });
-
-    it('should not be interactive when noInteractive=true', () => {
-      expect(shouldBeInteractive(true, true, false)).toBe(false);
     });
   });
 });

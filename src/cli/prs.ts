@@ -37,14 +37,14 @@ import {
 /**
  * Check if --json flag is present in args (for early error handling)
  */
-function hasJsonFlag(args: string[]): boolean {
+export function hasJsonFlag(args: string[]): boolean {
   return args.includes('--json') || args.includes('-j');
 }
 
 /**
  * Output error in JSON format
  */
-function outputJsonError(code: ErrorCode, message: string): void {
+export function outputJsonError(code: ErrorCode, message: string): void {
   const result = createErrorResult('prs', code, message, undefined, getErrorSuggestion(code));
   console.log(formatJsonResult(result));
 }
@@ -52,7 +52,7 @@ function outputJsonError(code: ErrorCode, message: string): void {
 /**
  * Run the prs command
  */
-async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
+export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
   const jsonMode = options.json || false;
   const isTTY = process.stdout.isTTY;
   const interactive = isTTY && !options.noInteractive && !jsonMode;
@@ -299,14 +299,19 @@ async function main(): Promise<void> {
   await runPrsCommand(options);
 }
 
-main().catch((err) => {
-  const message = err instanceof Error ? err.message : String(err);
-  const jsonMode = hasJsonFlag(process.argv.slice(2));
+// Only run main() when this file is executed directly (not when imported)
+// Check if running as main module (ESM)
+const isMain = import.meta.url.endsWith(process.argv[1]?.replace(/\\/g, '/') || '');
+if (isMain || process.argv[1]?.endsWith('prs.js')) {
+  main().catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    const jsonMode = hasJsonFlag(process.argv.slice(2));
 
-  if (jsonMode) {
-    outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
-  } else {
-    console.error(colors.error(`Error: ${message}`));
-  }
-  process.exit(1);
-});
+    if (jsonMode) {
+      outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
+    } else {
+      console.error(colors.error(`Error: ${message}`));
+    }
+    process.exit(1);
+  });
+}

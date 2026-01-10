@@ -162,6 +162,24 @@ export function isItemVisible(item: DisplayItem, activeFilters: ReadonlySet<Item
 }
 
 /**
+ * Vim command action types
+ */
+export type VimCommandAction = 'save' | 'quit' | 'save-quit' | 'force-quit' | null;
+
+/**
+ * Execute vim command and return action
+ * Parses vim-style commands like :w, :q, :wq, :x, :q!
+ */
+export function executeVimCommand(cmd: string): VimCommandAction {
+  const trimmed = cmd.trim().toLowerCase();
+  if (trimmed === 'q') return 'quit';
+  if (trimmed === 'q!') return 'force-quit';
+  if (trimmed === 'w') return 'save';
+  if (trimmed === 'wq' || trimmed === 'x') return 'save-quit';
+  return null; // Unknown command
+}
+
+/**
  * Build file tree from flat list of file paths
  */
 export function buildFileTree(filePaths: string[]): FileNode {
@@ -1257,18 +1275,6 @@ async function interactiveManage(
       console.log('\n' + colors.dim('─'.repeat(110)));
       console.log('');
       console.log(colors.bold('  :') + commandBuffer$.value + colors.bold('█'));
-    };
-
-    // Execute vim command and return action
-    const executeVimCommand = (
-      cmd: string
-    ): 'save' | 'quit' | 'save-quit' | 'force-quit' | null => {
-      const trimmed = cmd.trim().toLowerCase();
-      if (trimmed === 'q') return 'quit';
-      if (trimmed === 'q!') return 'force-quit';
-      if (trimmed === 'w') return 'save';
-      if (trimmed === 'wq' || trimmed === 'x') return 'save-quit';
-      return null; // Unknown command
     };
 
     // Handle save operation
