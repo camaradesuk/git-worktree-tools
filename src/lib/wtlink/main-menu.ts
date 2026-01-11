@@ -87,11 +87,9 @@ export async function showMainMenu(): Promise<void> {
     } catch (error: unknown) {
       // User cancelled (Ctrl+C or 'q') or navigated back (left arrow)
       if (error instanceof Error && error.message === 'User cancelled') {
-        running = false;
         return;
       }
       if (error instanceof UserNavigatedBack) {
-        running = false;
         return;
       }
       const errorMessage = error instanceof Error ? error.message : String(error);

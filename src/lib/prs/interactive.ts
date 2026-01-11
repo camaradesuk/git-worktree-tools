@@ -18,7 +18,6 @@ import {
   formatPrListHeader,
   formatPrSummary,
   formatFilterIndicator,
-  formatShortcutLegend,
   computeMaxPrBadgeWidth,
   formatPrColumnHeader,
   formatPrColumnSeparator,

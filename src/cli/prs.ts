@@ -197,7 +197,7 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
       return fetchPrsWithWorktrees(
         {
           state: 'all',
-          author: options.author === '@me' ? undefined : options.author,
+          author: options.author, // gh CLI natively supports @me
           labels: options.label,
           limit: options.limit,
         },
@@ -221,9 +221,6 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const rawArgs = process.argv.slice(2);
-  const jsonMode = hasJsonFlag(rawArgs);
-
   const argv = await yargs(hideBin(process.argv))
     .scriptName('prs')
     .usage('$0 [options]\n\nBrowse repository pull requests')

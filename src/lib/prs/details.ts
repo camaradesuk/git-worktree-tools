@@ -4,14 +4,7 @@
 
 import * as colors from '../colors.js';
 import type { PrDisplayItem, PrAction } from './types.js';
-import {
-  formatRelativeTime,
-  formatStateBadge,
-  formatDraftBadge,
-  formatWorktreeIndicator,
-  formatReviewStatus,
-  formatCIStatus,
-} from './formatters.js';
+import { formatRelativeTime, formatStateBadge, formatDraftBadge } from './formatters.js';
 
 /**
  * Format the PR detail header box

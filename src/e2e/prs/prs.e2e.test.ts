@@ -4,17 +4,12 @@
  * Tests the PR listing, filtering, and output modes.
  */
 
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { execSync, spawnSync } from 'child_process';
-import {
-  createTestContext,
-  setupGhMock,
-  GH_AVAILABLE,
-  type TestContext,
-} from '../helpers/index.js';
+import { createTestContext, setupGhMock, type TestContext } from '../helpers/index.js';
 
 // Path to the compiled CLI scripts
 const CLI_DIR = path.resolve(__dirname, '../../../dist/cli');
