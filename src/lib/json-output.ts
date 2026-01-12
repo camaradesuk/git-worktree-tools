@@ -22,6 +22,7 @@ export enum ErrorCode {
   // GitHub errors
   GH_NOT_INSTALLED = 'GH_NOT_INSTALLED',
   GH_NOT_AUTHENTICATED = 'GH_NOT_AUTHENTICATED',
+  GH_API_ERROR = 'GH_API_ERROR',
   PR_NOT_FOUND = 'PR_NOT_FOUND',
   PR_ALREADY_EXISTS = 'PR_ALREADY_EXISTS',
   PR_CREATE_FAILED = 'PR_CREATE_FAILED',
@@ -261,6 +262,7 @@ export function getErrorSuggestion(code: ErrorCode): string | undefined {
     [ErrorCode.PR_NOT_FOUND]: 'Run "lswt" to see available worktrees.',
     [ErrorCode.GH_NOT_INSTALLED]: 'Install GitHub CLI: https://cli.github.com',
     [ErrorCode.GH_NOT_AUTHENTICATED]: 'Run "gh auth login" to authenticate.',
+    [ErrorCode.GH_API_ERROR]: 'Check your network connection and GitHub API status.',
     [ErrorCode.BRANCH_EXISTS]: 'Use a different branch name or delete the existing branch.',
     [ErrorCode.WORKTREE_EXISTS]: 'Use "cleanpr" to remove the existing worktree.',
     [ErrorCode.INVALID_ARGUMENT]: 'Run with --help to see valid options.',

@@ -43,6 +43,7 @@ vi.mock('../../lib/config.js', () => ({
     worktreeParent: '..',
     syncPatterns: [],
     branchPrefix: 'feat',
+    previewLabel: 'preview',
     preferredEditor: 'vscode',
     ai: {
       provider: 'auto',
@@ -60,6 +61,7 @@ vi.mock('../../lib/config.js', () => ({
     integrations: {},
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
+    wtlink: { enabled: [], disabled: [] },
   })),
 }));
 
@@ -98,6 +100,18 @@ describe('Interactive Menu Flows', () => {
       }
 
       expect(runSubcommand).toHaveBeenCalledWith('lswt', []);
+    });
+  });
+
+  describe('handleBrowsePRs', () => {
+    it('calls prs subcommand with no args', async () => {
+      try {
+        await flows.handleBrowsePRs();
+      } catch {
+        // Expected - runSubcommand throws
+      }
+
+      expect(runSubcommand).toHaveBeenCalledWith('prs', []);
     });
   });
 
@@ -746,6 +760,18 @@ describe('Interactive Menu Flows', () => {
       expect(runSubcommand).toHaveBeenCalledWith('lswt', []);
     });
 
+    it('handles browse PRs selection', async () => {
+      vi.mocked(promptChoice).mockResolvedValueOnce('browse-prs');
+
+      try {
+        await showMainMenu();
+      } catch {
+        // Expected - runSubcommand throws
+      }
+
+      expect(runSubcommand).toHaveBeenCalledWith('prs', []);
+    });
+
     it('handles show state selection', async () => {
       vi.mocked(promptChoice).mockResolvedValueOnce('state');
 
@@ -800,6 +826,7 @@ describe('Config loading in flows', () => {
       worktreeParent: '..',
       syncPatterns: [],
       branchPrefix: 'feat',
+      previewLabel: 'preview',
       preferredEditor: 'vscode',
       ai: {
         provider: 'auto',
@@ -817,6 +844,7 @@ describe('Config loading in flows', () => {
       integrations: {},
       logging: { level: 'info' as const, timestamps: true },
       global: { warnNotGlobal: true },
+      wtlink: { enabled: [], disabled: [] },
     });
 
     vi.mocked(promptChoice).mockResolvedValueOnce('from-description').mockResolvedValueOnce(true);

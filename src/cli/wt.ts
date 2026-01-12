@@ -9,6 +9,7 @@
  *   wt                       Interactive main menu
  *   wt new <description>     Create a new PR with worktree (newpr)
  *   wt list                  List worktrees with status (lswt)
+ *   wt prs                   Browse repository pull requests
  *   wt clean [pr-number]     Clean up merged/closed worktrees (cleanpr)
  *   wt link [subcommand]     Manage config file linking (wtlink)
  *   wt state                 Query git worktree state (wtstate)
@@ -34,6 +35,7 @@ import { stateCommand } from './wt/state.js';
 import { configCommand } from './wt/config.js';
 import { initCommand } from './wt/init.js';
 import { completionCommand } from './wt/completion.js';
+import { prsCommand } from './wt/prs.js';
 import { showMainMenu } from './wt/interactive-menu.js';
 import { initializeLogger, parseLogLevel, LogLevel } from '../lib/logger.js';
 import { loadConfig } from '../lib/config.js';
@@ -150,6 +152,7 @@ yargs(hideBin(process.argv))
   .command(configCommand)
   .command(initCommand)
   .command(completionCommand)
+  .command(prsCommand)
   .completion('get-yargs-completions', false) // Enable yargs completion for bash script
   .alias('h', 'help')
   .help()
@@ -160,6 +163,8 @@ yargs(hideBin(process.argv))
   .example('wt n "Fix bug"', 'Short alias for wt new')
   .example('wt list', 'List all worktrees with PR status')
   .example('wt ls --json', 'List worktrees in JSON format')
+  .example('wt prs', 'Browse repository pull requests')
+  .example('wt prs --author=@me', 'List your pull requests')
   .example('wt clean', 'Interactive cleanup of merged PRs')
   .example('wt clean --all', 'Clean all merged/closed PR worktrees')
   .example('wt link', 'Interactive config file linking')

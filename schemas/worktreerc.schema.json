@@ -45,6 +45,11 @@
       "default": "feat",
       "description": "Branch name prefix for auto-generated branches"
     },
+    "previewLabel": {
+      "type": "string",
+      "default": "preview",
+      "description": "Label name to highlight in PR list"
+    },
     "preferredEditor": {
       "type": "string",
       "enum": ["vscode", "cursor", "auto"],
@@ -76,6 +81,9 @@
     },
     "global": {
       "$ref": "#/definitions/GlobalSettings"
+    },
+    "wtlink": {
+      "$ref": "#/definitions/WtlinkConfig"
     }
   },
   "definitions": {
@@ -403,12 +411,29 @@
       "properties": {
         "warnNotGlobal": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "Show a warning if the package is not installed globally"
         },
         "logging": {
           "$ref": "#/definitions/LoggingConfig",
           "description": "Default logging configuration (can be overridden by repo/local configs)"
+        }
+      }
+    },
+    "WtlinkConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Configuration for wtlink - worktree config file linking. Use this for full manifest control with enable/disable state tracking. For simpler use cases, see syncPatterns.",
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Git-ignored files to actively link between worktrees. These files will be hard-linked from the main worktree to feature worktrees. (e.g., ['.vscode/settings.json', '.env.local', 'node_modules'])"
+        },
+        "disabled": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Git-ignored files tracked in manifest but not currently linked. These can be re-enabled via 'wtlink manage'. Useful for temporarily disabling files without losing track of them."
         }
       }
     }

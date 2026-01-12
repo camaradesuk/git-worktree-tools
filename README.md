@@ -41,6 +41,9 @@ wt new "Add user authentication feature"
 # List worktrees with interactive selection
 wt list
 
+# Browse all repository PRs
+wt prs
+
 # Clean up merged/closed PRs
 wt clean
 
@@ -66,6 +69,7 @@ The menu provides guided workflows for:
 
 - Creating new PRs (from description, existing PR, or current branch)
 - Listing and navigating worktrees
+- Browsing all repository PRs and creating worktrees
 - Cleaning up merged/closed PR worktrees
 - Managing config file linking
 - Viewing git state
@@ -78,6 +82,7 @@ The menu provides guided workflows for:
 | `wt`                 | -        | Interactive main menu               |
 | `wt new <desc>`      | `wt n`   | Create a new PR with worktree       |
 | `wt list`            | `wt ls`  | List worktrees with PR status       |
+| `wt prs`             | -        | Browse all repository PRs           |
 | `wt clean [pr]`      | `wt c`   | Clean up merged/closed PR worktrees |
 | `wt link [cmd]`      | `wt l`   | Manage gitignored files via links   |
 | `wt state`           | `wt s`   | Query git worktree state            |
@@ -144,6 +149,51 @@ wt ls --verbose           # Show more details
 | `/` | Fuzzy search worktrees                     |
 | `q` | Quit                                       |
 
+### wt prs
+
+Browse all repository pull requests with an interactive interface.
+
+```bash
+wt prs                    # Interactive mode (default)
+wt prs --state=all        # Show all PRs (open, merged, closed)
+wt prs --state=merged     # Show only merged PRs
+wt prs --author=@me       # Filter by current user
+wt prs --label=preview    # Filter by label
+wt prs --draft            # Show only drafts
+wt prs --no-draft         # Exclude drafts
+wt prs --with-worktree    # Only PRs that have local worktrees
+wt prs --limit=100        # Fetch more PRs (default: 50)
+wt prs --json             # JSON output for scripting
+wt prs --no-interactive   # Plain table output
+```
+
+**Interactive Mode Shortcuts**:
+
+| Key     | Action                                |
+| ------- | ------------------------------------- |
+| `Enter` | Show PR details                       |
+| `w`     | Create worktree for PR                |
+| `e`     | Open worktree in editor (if exists)   |
+| `t`     | Open terminal at worktree (if exists) |
+| `b`     | Open PR in browser                    |
+| `c`     | Copy PR URL to clipboard              |
+| `n`     | Copy PR number to clipboard           |
+| `d`     | Show PR details                       |
+| `/`     | Fuzzy search PRs                      |
+| `o`     | Toggle open PRs filter                |
+| `m`     | Toggle merged PRs filter              |
+| `x`     | Toggle closed PRs filter              |
+| `r`     | Refresh PR list                       |
+| `q`     | Quit                                  |
+
+**PR List Display**:
+
+- Shows PR number, state, draft indicator, title, author, age
+- Indicates which PRs have local worktrees
+- Shows review status (approved, changes requested, pending)
+- Shows CI/checks status (passing, failing, pending)
+- Highlights configurable label (default: "preview")
+
 ### wt clean / cleanpr
 
 Clean up worktrees for merged or closed PRs.
@@ -165,19 +215,24 @@ wt link manage                # Interactive file browser
 wt link link                  # Create hard links based on manifest
 wt link link ../my-app.pr42   # Link to specific worktree
 wt link validate              # Verify manifest integrity
+wt link migrate               # Migrate legacy .wtlinkrc to .worktreerc
 ```
 
-**Manifest format (`.wtlink`):**
+**Configuration format (`.worktreerc`):**
 
-```text
-.vscode/settings.json
-.editorconfig
-.env.local
-# .vscode/launch.json
+```json
+{
+  "wtlink": {
+    "enabled": [".vscode/settings.json", ".editorconfig", ".env.local"],
+    "disabled": [".vscode/launch.json"]
+  }
+}
 ```
 
-- Active entries (no `#`) are hard-linked between worktrees
-- Commented entries (`#`) are tracked but not linked
+- `enabled` — Files that are hard-linked between worktrees
+- `disabled` — Files tracked but not currently linked (toggle on/off via manage)
+
+**Legacy format (`.wtlinkrc`):** Still supported for backwards compatibility. Run `wtlink migrate` to convert to the new JSON format.
 
 **Best practices:**
 
@@ -291,6 +346,7 @@ wt init --local    # Personal repo overrides
 | `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for  |
 | `preferredEditor` | string   | `"vscode"`            | Editor: `"vscode"`, `"cursor"`, or `"auto"` |
 | `syncPatterns`    | string[] | `[]`                  | Patterns to sync between worktrees          |
+| `previewLabel`    | string   | `"preview"`           | Label to highlight in PR browser            |
 | `ai`              | object   | `{}`                  | AI content generation settings              |
 | `hooks`           | object   | `{}`                  | Lifecycle hook commands                     |
 | `logging`         | object   | `{}`                  | Logging configuration                       |
@@ -480,6 +536,11 @@ wtlink link --yes               # Skip confirmation prompts
 
 # validate - Check manifest integrity
 wtlink validate                 # Validate against current worktree
+
+# migrate - Convert legacy .wtlinkrc to .worktreerc
+wtlink migrate                  # Migrate to new JSON format
+wtlink migrate --delete-legacy  # Also delete old .wtlinkrc file
+wtlink migrate --dry-run        # Preview migration
 ```
 
 ---

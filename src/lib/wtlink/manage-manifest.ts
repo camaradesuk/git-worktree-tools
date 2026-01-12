@@ -7,6 +7,8 @@ import * as colors from '../colors.js';
 import * as git from '../git.js';
 import * as readline from 'readline';
 import { signal, computed } from '@preact/signals-core';
+import { DEFAULT_MANIFEST_FILE } from '../constants.js';
+import { loadManifestData, saveManifestData } from './config-manifest.js';
 
 // ============================================================================
 // TYPES - Clear type definitions for the domain
@@ -157,6 +159,24 @@ export function isItemVisible(item: DisplayItem, activeFilters: ReadonlySet<Item
   }
 
   return false;
+}
+
+/**
+ * Vim command action types
+ */
+export type VimCommandAction = 'save' | 'quit' | 'save-quit' | 'force-quit' | null;
+
+/**
+ * Execute vim command and return action
+ * Parses vim-style commands like :w, :q, :wq, :x, :q!
+ */
+export function executeVimCommand(cmd: string): VimCommandAction {
+  const trimmed = cmd.trim().toLowerCase();
+  if (trimmed === 'q') return 'quit';
+  if (trimmed === 'q!') return 'force-quit';
+  if (trimmed === 'w') return 'save';
+  if (trimmed === 'wq' || trimmed === 'x') return 'save-quit';
+  return null; // Unknown command
 }
 
 /**
@@ -750,6 +770,33 @@ function renderHelp(): void {
   console.log(
     colors.cyan('║') +
       ' ' +
+      colors.bold('Navigation:') +
+      '                                                              ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   ↑/↓ or j/k = Navigate up/down                                            ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   ←/Esc      = Go back (or exit at root)                                   ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   →/Enter    = Drill into folder                                           ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '                                                                             ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      ' ' +
       colors.bold('View Toggles:') +
       '                                                           ' +
       colors.cyan('║')
@@ -793,12 +840,49 @@ function renderHelp(): void {
   );
   console.log(
     colors.cyan('║') +
-      '   Q = Save changes and quit                                                ' +
+      '   Q       = Quit (confirms if unsaved changes)                             ' +
       colors.cyan('║')
   );
   console.log(
     colors.cyan('║') +
-      '   X = Cancel without saving (Ctrl+C also works)                            ' +
+      '   Ctrl+C  = Force quit without saving                                      ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '                                                                             ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      ' ' +
+      colors.bold('Vim Commands:') +
+      '                                                            ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   :       = Enter command mode                                             ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   :w      = Save changes (stage for exit)                                  ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   :q      = Quit (confirms if unsaved)                                     ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   :wq/:x  = Save and quit                                                  ' +
+      colors.cyan('║')
+  );
+  console.log(
+    colors.cyan('║') +
+      '   :q!     = Force quit without saving                                      ' +
       colors.cyan('║')
   );
   console.log(
@@ -953,10 +1037,12 @@ function renderFooter(state: AppState): void {
 
   // Navigation - spread out with better formatting
   const navParts: string[] = [];
-  navParts.push(colors.dim('↑↓') + ' Select');
+  navParts.push(colors.dim('↑↓/jk') + ' Navigate');
   if (state.viewMode === 'hierarchical') {
-    navParts.push(colors.dim('←') + ' Back');
+    navParts.push(colors.dim('←/esc') + ' Back');
     navParts.push(colors.dim('→') + ' Drill In');
+  } else {
+    navParts.push(colors.dim('esc') + ' Exit');
   }
   const navigation = colors.bold('Navigation: ') + navParts.join(colors.dim(' │ '));
 
@@ -996,17 +1082,17 @@ function renderFooter(state: AppState): void {
 
   const filters = colors.bold('View: ') + filterParts.join(colors.dim(' │ '));
 
-  // Controls - help and exit
+  // Controls - help, exit, and vim
   const controls =
     colors.bold('Controls: ') +
     colors.bold('?') +
     ' Help' +
     colors.dim(' │ ') +
-    colors.bold(colors.red('Q')) +
-    ' Save & Quit' +
+    colors.bold(':') +
+    ' Vim' +
     colors.dim(' │ ') +
-    colors.bold(colors.red('X')) +
-    ' Cancel';
+    colors.bold(colors.red('Q')) +
+    ' Quit';
 
   console.log('  ' + filters + colors.dim('    ') + controls);
 }
@@ -1061,6 +1147,10 @@ async function interactiveManage(
   const navigationStack$ = signal<string[]>([]);
   const cursorIndex$ = signal(0);
   const scrollOffset$ = signal(0);
+
+  // Vim command mode state
+  const commandMode$ = signal(false);
+  const commandBuffer$ = signal('');
 
   // Computed signal for visible items (cached, only recomputes when dependencies change)
   // IMPORTANT: Only read signals that getVisibleItems() actually uses!
@@ -1168,17 +1258,206 @@ async function interactiveManage(
       process.stdin.removeListener('keypress', onKeypress);
     };
 
+    // Render command line at the bottom of the screen (vim command mode)
+    const renderCommandLine = () => {
+      // Clear the screen and re-render everything including the command line
+      const displayItems = displayItems$.value;
+      const state = buildState();
+
+      console.clear();
+      renderStatusHeader(state, allFiles, gitRoot);
+
+      const selectedItem = displayItems[cursorIndex$.value];
+      renderActionHint(selectedItem, state);
+      renderItems(state, displayItems);
+
+      // Custom footer showing command mode
+      console.log('\n' + colors.dim('─'.repeat(110)));
+      console.log('');
+      console.log(colors.bold('  :') + commandBuffer$.value + colors.bold('█'));
+    };
+
+    // Handle save operation
+    const handleSave = (): boolean => {
+      // For now, just show a message - the actual save happens on exit
+      console.clear();
+      console.log(colors.green('✓ Changes staged (will be saved on exit)'));
+      setTimeout(() => {
+        renderCurrent();
+      }, 800);
+      return true;
+    };
+
+    // Track initial state for detecting unsaved changes
+    const initialDecisions = new Map(decisions$.value);
+
+    // Handle quit with confirmation dialog
+    const handleQuitWithConfirmation = () => {
+      const hasChanges =
+        decisions$.value.size !== initialDecisions.size ||
+        Array.from(decisions$.value.entries()).some(([k, v]) => initialDecisions.get(k) !== v);
+
+      if (!hasChanges) {
+        console.clear();
+        console.log(colors.dim('Exited - no changes made'));
+        cleanup();
+        resolve(decisions$.value);
+        return;
+      }
+
+      // Count changes
+      let changeCount = 0;
+      for (const [key, value] of decisions$.value.entries()) {
+        if (initialDecisions.get(key) !== value) {
+          changeCount++;
+        }
+      }
+      for (const key of initialDecisions.keys()) {
+        if (!decisions$.value.has(key)) {
+          changeCount++;
+        }
+      }
+
+      // Show confirmation dialog
+      console.clear();
+      console.log('');
+      console.log(
+        colors.bold(colors.cyan('  ╔═══════════════════════════════════════════════════════╗'))
+      );
+      console.log(
+        colors.cyan('  ║') +
+          colors.bold(
+            `  Save ${changeCount} change${changeCount === 1 ? '' : 's'} before exiting?`
+          ) +
+          '                          '.slice(0, 24 - changeCount.toString().length) +
+          colors.cyan('║')
+      );
+      console.log(
+        colors.cyan('  ║') +
+          '                                                         ' +
+          colors.cyan('║')
+      );
+      console.log(
+        colors.cyan('  ║') +
+          '  ' +
+          colors.bold(colors.green('[Y]')) +
+          ' Save & exit   ' +
+          colors.bold(colors.red('[N]')) +
+          ' Discard   ' +
+          colors.bold('[Esc]') +
+          ' Cancel       ' +
+          colors.cyan('║')
+      );
+      console.log(
+        colors.bold(colors.cyan('  ╚═══════════════════════════════════════════════════════╝'))
+      );
+      console.log('');
+
+      // Temporarily remove main keypress handler
+      process.stdin.removeListener('keypress', onKeypress);
+
+      // Handle confirmation dialog keys
+      const onConfirmKeypress = (
+        confirmStr: string,
+        confirmKey: { name?: string; ctrl?: boolean }
+      ) => {
+        if (confirmStr === 'y' || confirmStr === 'Y') {
+          process.stdin.removeListener('keypress', onConfirmKeypress);
+          console.clear();
+          console.log(colors.green('✓ Saving decisions...'));
+          cleanup();
+          resolve(decisions$.value);
+        } else if (confirmStr === 'n' || confirmStr === 'N') {
+          process.stdin.removeListener('keypress', onConfirmKeypress);
+          console.clear();
+          console.log(colors.yellow('✗ Discarded changes'));
+          cleanup();
+          resolve(initialDecisions);
+        } else if (confirmKey.name === 'escape') {
+          // Cancel - restore main handler
+          process.stdin.removeListener('keypress', onConfirmKeypress);
+          process.stdin.on('keypress', onKeypress);
+          renderCurrent();
+        } else if (confirmKey.ctrl && confirmKey.name === 'c') {
+          process.stdin.removeListener('keypress', onConfirmKeypress);
+          console.clear();
+          console.log(colors.yellow('✗ Cancelled'));
+          cleanup();
+          resolve(initialDecisions);
+        }
+      };
+
+      process.stdin.on('keypress', onConfirmKeypress);
+    };
+
     const onKeypress = (str: string, key: { name?: string; ctrl?: boolean }) => {
       const displayItems = displayItems$.value; // Cached!
 
-      if (key.name === 'up') {
+      // Handle vim command mode
+      if (commandMode$.value) {
+        if (key.name === 'escape') {
+          // Exit command mode without executing
+          commandMode$.value = false;
+          commandBuffer$.value = '';
+          renderCurrent();
+        } else if (key.name === 'return') {
+          // Execute the command
+          const action = executeVimCommand(commandBuffer$.value);
+          commandMode$.value = false;
+          commandBuffer$.value = '';
+
+          if (action === 'save') {
+            handleSave();
+          } else if (action === 'quit') {
+            handleQuitWithConfirmation();
+          } else if (action === 'force-quit') {
+            console.clear();
+            console.log(colors.yellow('✗ Force quit - discarded changes'));
+            cleanup();
+            resolve(initialDecisions);
+          } else if (action === 'save-quit') {
+            console.clear();
+            console.log(colors.green('✓ Saving decisions...'));
+            cleanup();
+            resolve(decisions$.value);
+          } else {
+            // Unknown command - show error briefly
+            console.clear();
+            console.log(colors.red(`Unknown command: :${commandBuffer$.value}`));
+            setTimeout(() => {
+              renderCurrent();
+            }, 800);
+          }
+        } else if (key.name === 'backspace') {
+          commandBuffer$.value = commandBuffer$.value.slice(0, -1);
+          renderCommandLine();
+        } else if (str && str.length === 1 && !key.ctrl) {
+          // Add character to command buffer
+          commandBuffer$.value += str;
+          renderCommandLine();
+        }
+        return;
+      }
+
+      // Enter vim command mode
+      if (str === ':') {
+        commandMode$.value = true;
+        commandBuffer$.value = '';
+        renderCommandLine();
+        return;
+      }
+
+      // Navigation: up arrow or k
+      if (key.name === 'up' || str === 'k') {
         const newIndex = Math.max(0, cursorIndex$.value - 1);
         cursorIndex$.value = newIndex;
         renderCurrent();
-      } else if (key.name === 'down') {
+        // Navigation: down arrow or j
+      } else if (key.name === 'down' || str === 'j') {
         const newIndex = Math.min(displayItems.length - 1, cursorIndex$.value + 1);
         cursorIndex$.value = newIndex;
         renderCurrent();
+        // Navigate into (right arrow)
       } else if (key.name === 'right') {
         if (viewMode$.value === 'flat') return;
 
@@ -1197,8 +1476,49 @@ async function interactiveManage(
           scrollOffset$.value = 0;
         }
         renderCurrent();
-      } else if (key.name === 'left') {
-        if (viewMode$.value === 'flat' || navigationStack$.value.length === 0) return;
+        // Navigate back (left arrow or Esc)
+      } else if (key.name === 'left' || key.name === 'escape') {
+        // In flat view, Esc exits
+        if (viewMode$.value === 'flat') {
+          if (key.name === 'escape') {
+            // Esc in flat view - check for unsaved changes
+            const hasChanges =
+              decisions$.value.size !== initialDecisions.size ||
+              Array.from(decisions$.value.entries()).some(
+                ([k, v]) => initialDecisions.get(k) !== v
+              );
+            if (hasChanges) {
+              handleQuitWithConfirmation();
+            } else {
+              console.clear();
+              console.log(colors.dim('Exited - no changes made'));
+              cleanup();
+              resolve(decisions$.value);
+            }
+          }
+          return;
+        }
+
+        // In hierarchical view, go back or exit at root
+        if (navigationStack$.value.length === 0) {
+          if (key.name === 'escape') {
+            // Esc at root - check for unsaved changes
+            const hasChanges =
+              decisions$.value.size !== initialDecisions.size ||
+              Array.from(decisions$.value.entries()).some(
+                ([k, v]) => initialDecisions.get(k) !== v
+              );
+            if (hasChanges) {
+              handleQuitWithConfirmation();
+            } else {
+              console.clear();
+              console.log(colors.dim('Exited - no changes made'));
+              cleanup();
+              resolve(decisions$.value);
+            }
+          }
+          return;
+        }
 
         const stack = navigationStack$.value;
         navigationStack$.value = stack.slice(0, -1);
@@ -1256,16 +1576,25 @@ async function interactiveManage(
           decisions$.value = newDecisions;
           renderCurrent();
         }
+        // Quit: q key - show confirmation if there are changes
       } else if (str === 'q' || str === 'Q') {
+        handleQuitWithConfirmation();
+        // Cancel: x key (deprecated) or Ctrl+C
+      } else if (str === 'x' || str === 'X') {
+        // Deprecated: show notice and handle as Esc
         console.clear();
-        console.log(colors.green('✓ Saving decisions...'));
-        cleanup();
-        resolve(decisions$.value);
-      } else if (str === 'x' || str === 'X' || (key.ctrl && key.name === 'c')) {
+        console.log(colors.yellow('Note: x key is deprecated. Use Esc to go back.'));
+        setTimeout(() => {
+          process.stdin.on('keypress', onKeypress);
+          renderCurrent();
+        }, 1500);
+        process.stdin.removeListener('keypress', onKeypress);
+      } else if (key.ctrl && key.name === 'c') {
+        // Force quit without confirmation
         console.clear();
-        console.log(colors.yellow('✗ Cancelled - no changes saved'));
+        console.log(colors.yellow('✗ Cancelled'));
         cleanup();
-        resolve(new Map());
+        resolve(initialDecisions);
       } else if (str === '?') {
         showHelp$.value = !showHelp$.value;
         renderCurrent();
@@ -1368,6 +1697,13 @@ function getIgnoredFiles(gitRoot: string, manifestFile: string): string[] {
 }
 
 function getManifestEntries(gitRoot: string, manifestFile: string): string[] {
+  // Use config-manifest adapter for default manifest file
+  if (manifestFile === DEFAULT_MANIFEST_FILE) {
+    const data = loadManifestData(gitRoot);
+    return data.enabled;
+  }
+
+  // Legacy behavior for custom manifest files
   const manifestPath = path.join(gitRoot, manifestFile);
   if (!fs.existsSync(manifestPath)) return [];
   return fs
@@ -1377,9 +1713,22 @@ function getManifestEntries(gitRoot: string, manifestFile: string): string[] {
 }
 
 function getManifestDecisions(gitRoot: string, manifestFile: string): Map<string, FileDecision> {
-  const manifestPath = path.join(gitRoot, manifestFile);
   const decisions = new Map<string, FileDecision>();
 
+  // Use config-manifest adapter for default manifest file
+  if (manifestFile === DEFAULT_MANIFEST_FILE) {
+    const data = loadManifestData(gitRoot);
+    for (const file of data.enabled) {
+      decisions.set(file, 'add');
+    }
+    for (const file of data.disabled) {
+      decisions.set(file, 'comment');
+    }
+    return decisions;
+  }
+
+  // Legacy behavior for custom manifest files
+  const manifestPath = path.join(gitRoot, manifestFile);
   if (!fs.existsSync(manifestPath)) return decisions;
 
   const lines = fs.readFileSync(manifestPath, 'utf-8').split('\n');
@@ -1655,11 +2004,39 @@ export async function run(argv: ManageArgv): Promise<void> {
       console.log(colors.dim(finalEntries.join('\n') + '\n'));
     }
   } else {
-    if (argv.backup && fs.existsSync(manifestPath)) {
-      fs.copyFileSync(manifestPath, manifestBackupFile);
-      console.log(`Backed up existing manifest to ${manifestBackupFile}`);
+    // Determine if using default manifest file (config-based) or custom file (legacy)
+    const usingConfigManifest = manifestFile === DEFAULT_MANIFEST_FILE;
+
+    if (usingConfigManifest) {
+      // Convert finalEntries to enabled/disabled arrays for config-based storage
+      const enabled: string[] = [];
+      const disabled: string[] = [];
+
+      for (const entry of finalEntries) {
+        if (entry.startsWith('#')) {
+          // Extract file path from commented entry (handles various prefixes)
+          const commentContent = entry.substring(1).trim();
+          let filePath = commentContent;
+          const prefixMatch = commentContent.match(/^(TRACKED|DELETED|STALE):\s*(.+)/);
+          if (prefixMatch) {
+            filePath = prefixMatch[2];
+          }
+          disabled.push(filePath);
+        } else {
+          enabled.push(entry);
+        }
+      }
+
+      saveManifestData(mainWorktreeRoot, enabled, disabled);
+      console.log(colors.green(`Successfully updated wtlink config in .worktreerc.`));
+    } else {
+      // Legacy behavior for custom manifest files
+      if (argv.backup && fs.existsSync(manifestPath)) {
+        fs.copyFileSync(manifestPath, manifestBackupFile);
+        console.log(`Backed up existing manifest to ${manifestBackupFile}`);
+      }
+      fs.writeFileSync(manifestPath, finalEntries.join('\n') + '\n');
+      console.log(colors.green(`Successfully updated ${manifestFile}.`));
     }
-    fs.writeFileSync(manifestPath, finalEntries.join('\n') + '\n');
-    console.log(colors.green(`Successfully updated ${manifestFile}.`));
   }
 }

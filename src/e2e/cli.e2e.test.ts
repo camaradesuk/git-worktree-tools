@@ -24,7 +24,11 @@ function runCli(
     cwd: options.cwd || process.cwd(),
     encoding: 'utf-8',
     input: options.input,
-    env: { ...process.env, FORCE_COLOR: '0' }, // Disable colors for consistent output
+    env: {
+      ...process.env,
+      FORCE_COLOR: '0', // Disable colors for consistent output
+      GWT_ALLOW_LOCAL: '1', // Suppress global install warning in tests
+    },
   });
 
   return {
@@ -99,7 +103,7 @@ describe('CLI e2e tests', () => {
         const result = runCli('wtlink', ['validate'], { cwd: repoDir });
 
         expect(result.exitCode).toBe(1);
-        expect(result.stderr).toContain('Manifest file not found');
+        expect(result.stderr).toContain('No manifest found');
       });
 
       it('succeeds with empty manifest', () => {

@@ -56,13 +56,26 @@ function getEditorDisplayName(preferredEditor?: 'vscode' | 'cursor' | 'auto'): s
 // Main Menu
 // ============================================================================
 
-type MainMenuAction = 'list' | 'new-pr' | 'clean' | 'link' | 'state' | 'config' | 'exit';
+type MainMenuAction =
+  | 'list'
+  | 'browse-prs'
+  | 'new-pr'
+  | 'clean'
+  | 'link'
+  | 'state'
+  | 'config'
+  | 'exit';
 
 const mainMenuOptions: PromptOption<MainMenuAction>[] = [
   {
     label: 'List worktrees',
     description: 'View all worktrees with PR status',
     value: 'list',
+  },
+  {
+    label: 'Browse PRs',
+    description: 'Browse all repository PRs and create worktrees',
+    value: 'browse-prs',
   },
   {
     label: 'Create new PR',
@@ -120,6 +133,10 @@ export async function showMainMenu(): Promise<void> {
           result = await handleListWorktrees();
           break;
 
+        case 'browse-prs':
+          result = await handleBrowsePRs();
+          break;
+
         case 'new-pr':
           result = await handleNewPR();
           break;
@@ -171,6 +188,16 @@ async function handleListWorktrees(): Promise<FlowResult> {
   console.log();
   runSubcommand('lswt', []);
   return COMPLETED_EXIT; // lswt exits the process
+}
+
+// ============================================================================
+// Browse PRs Flow
+// ============================================================================
+
+async function handleBrowsePRs(): Promise<FlowResult> {
+  console.log();
+  runSubcommand('prs', []);
+  return COMPLETED_EXIT; // prs runs in interactive mode
 }
 
 // ============================================================================
@@ -756,6 +783,7 @@ async function handleConfigure(): Promise<FlowResult> {
 
 export const flows = {
   handleListWorktrees,
+  handleBrowsePRs,
   handleNewPR,
   handleNewPRFromDescription,
   handleNewPRFromExisting,

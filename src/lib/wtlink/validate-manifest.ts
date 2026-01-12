@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import * as colors from '../colors.js';
 import * as git from '../git.js';
+import { DEFAULT_MANIFEST_FILE } from '../constants.js';
+import { loadManifestData } from './config-manifest.js';
 
 export interface ValidateArgv {
   manifestFile: string;
@@ -150,11 +152,6 @@ export function validateManifestContent(
 export function run(argv: ValidateArgv): void {
   const gitRoot = git.getRepoRoot(); // Current worktree root
   const mainWorktreeRoot = git.getMainWorktreeRoot(); // Main worktree root (for manifest location)
-  const manifestPath = path.join(mainWorktreeRoot, argv.manifestFile);
-
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error(`Manifest file not found at ${manifestPath}`);
-  }
 
   const sourceDir = argv.source ? path.resolve(argv.source) : gitRoot;
 
@@ -162,7 +159,37 @@ export function run(argv: ValidateArgv): void {
     throw new Error(`Source directory does not exist or is not a directory: ${sourceDir}`);
   }
 
-  const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+  let manifestContent: string;
+  let manifestLabel: string;
+
+  // Determine if using default manifest file (config-based) or custom file (legacy)
+  if (argv.manifestFile === DEFAULT_MANIFEST_FILE) {
+    // Use config-manifest adapter
+    const manifestData = loadManifestData(mainWorktreeRoot);
+
+    if (manifestData.source === 'empty') {
+      throw new Error(
+        'No manifest found. Run `wtlink manage` to configure files to sync, or create a .worktreerc with a wtlink section.'
+      );
+    }
+
+    // Convert to manifest content format for validation
+    // Only validate enabled files (disabled are intentionally not linked)
+    manifestContent = manifestData.enabled.join('\n');
+    manifestLabel =
+      manifestData.source === 'config' ? 'wtlink config in .worktreerc' : argv.manifestFile;
+  } else {
+    // Legacy behavior for custom manifest files
+    const manifestPath = path.join(mainWorktreeRoot, argv.manifestFile);
+
+    if (!fs.existsSync(manifestPath)) {
+      throw new Error(`Manifest file not found at ${manifestPath}`);
+    }
+
+    manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+    manifestLabel = argv.manifestFile;
+  }
+
   const result = validateManifestContent(manifestContent, sourceDir);
 
   if (result.problems.length > 0) {
@@ -174,6 +201,6 @@ export function run(argv: ValidateArgv): void {
   }
 
   console.log(
-    colors.green(`Manifest ${argv.manifestFile} is valid. Checked ${result.checkedCount} entries.`)
+    colors.green(`Manifest ${manifestLabel} is valid. Checked ${result.checkedCount} entries.`)
   );
 }

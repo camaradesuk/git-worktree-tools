@@ -126,16 +126,13 @@ describe('global-check', () => {
   });
 
   describe('checkAndWarnGlobalInstall', () => {
-    it('warns by default when config not provided', () => {
+    it('does not warn by default when config not provided', () => {
       delete process.env.GWT_ALLOW_LOCAL;
 
       checkAndWarnGlobalInstall();
 
-      const result = checkGlobalInstall();
-      // Will warn if not global (which is expected in test environment)
-      if (!result.isGlobal) {
-        expect(consoleWarnSpy).toHaveBeenCalled();
-      }
+      // Default is now false - no warning
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
 
     it('respects config.global.warnNotGlobal = false', () => {

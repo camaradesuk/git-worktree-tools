@@ -430,11 +430,11 @@ async function selectWorktreeWithShortcuts(
             ? ''
             : ` (${filteredWorktrees.length}/${worktrees.length})`;
         process.stdout.write(
-          `\x1b[2K${colors.dim(`Type to search${matchCount} • esc cancel • enter select`)}\n`
+          `\x1b[2K${colors.dim(`Type to search${matchCount} • ↑↓/jk navigate • esc cancel • enter select`)}\n`
         );
       } else {
         process.stdout.write(
-          `\x1b[2K${colors.dim('↑/↓ navigate • enter select • / search • shortcuts: e,t,c,d,p,l,r,q')}\n`
+          `\x1b[2K${colors.dim('↑↓/jk navigate • esc/q quit • / search • enter select')}\n`
         );
       }
 
@@ -513,14 +513,14 @@ async function selectWorktreeWithShortcuts(
           return;
         }
 
-        // Arrow keys for navigation
-        if (key.name === 'up') {
+        // Arrow keys or j/k for navigation
+        if (key.name === 'up' || str === 'k') {
           selectedIndex = Math.max(0, selectedIndex - 1);
           render();
           return;
         }
 
-        if (key.name === 'down') {
+        if (key.name === 'down' || str === 'j') {
           selectedIndex = Math.min(exitIndex(), selectedIndex + 1);
           render();
           return;
@@ -549,14 +549,14 @@ async function selectWorktreeWithShortcuts(
 
       // Normal mode handling
 
-      // Handle arrow keys
-      if (key.name === 'up') {
+      // Handle arrow keys or j/k navigation
+      if (key.name === 'up' || str === 'k') {
         selectedIndex = Math.max(0, selectedIndex - 1);
         render();
         return;
       }
 
-      if (key.name === 'down') {
+      if (key.name === 'down' || str === 'j') {
         selectedIndex = Math.min(exitIndex(), selectedIndex + 1);
         render();
         return;
