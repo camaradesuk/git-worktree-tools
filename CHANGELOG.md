@@ -1,3 +1,24 @@
+# [1.8.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.7.0...v1.8.0) (2026-01-12)
+
+
+### Bug Fixes
+
+* address PR review comments for security and correctness ([b07586b](https://github.com/camaradesuk/git-worktree-tools/commit/b07586b1fe4c12a1561440ab1e8d049e92571d5a))
+* address PR review comments for unused imports and variables ([a87af6d](https://github.com/camaradesuk/git-worktree-tools/commit/a87af6dd6c5cad68447a3dfda596c5cd5808c23e))
+* default to not warning for local installations ([84fe92a](https://github.com/camaradesuk/git-worktree-tools/commit/84fe92a972d20045cd576dd3bd3040457afc1b94))
+* improve CI reliability with timeouts and Node 18 exclusions ([5c34d4e](https://github.com/camaradesuk/git-worktree-tools/commit/5c34d4e37a7ebd0214900324e97893ab53216b5a))
+* relax dry-run test assertion for Windows compatibility ([a0fed5a](https://github.com/camaradesuk/git-worktree-tools/commit/a0fed5a820b253f6de2449bca7db0bd85bc93d58))
+* skip gh authentication tests on Windows CI ([16f2bfe](https://github.com/camaradesuk/git-worktree-tools/commit/16f2bfec1a3d792d5df98a826ba2d02831c83432))
+* skip PTY tests on macOS and Windows CI ([99ec6bd](https://github.com/camaradesuk/git-worktree-tools/commit/99ec6bdc104a903a4ca57291dcff4b22ed2c1c17))
+* suppress global install warning in e2e tests ([88e6f6c](https://github.com/camaradesuk/git-worktree-tools/commit/88e6f6c0c799dcf11aab983b9f587a0d25eb1f2f))
+
+
+### Features
+
+* comprehensive TUI UX improvements ([0a61ade](https://github.com/camaradesuk/git-worktree-tools/commit/0a61ade7ebe686feba724955f8baf8a79eef5277))
+* Improve the UX further ([436406b](https://github.com/camaradesuk/git-worktree-tools/commit/436406b7f9de0bd1dfbbc563d003d18b8705534c))
+* **wtlink:** merge .wtlinkrc manifest into .worktreerc config ([9073624](https://github.com/camaradesuk/git-worktree-tools/commit/907362415492bda0cf023347082aa340af5c501f))
+
 # [1.7.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.6.0...v1.7.0) (2026-01-05)
 
 
