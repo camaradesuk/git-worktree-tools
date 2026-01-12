@@ -5,6 +5,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Prevent individual tests from hanging indefinitely
+    testTimeout: 30000,
+    hookTimeout: 30000,
     // JUnit XML reporter for Codecov Test Analytics
     reporters: ['default', 'junit'],
     outputFile: {
