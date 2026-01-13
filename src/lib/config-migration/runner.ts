@@ -150,7 +150,13 @@ async function atomicWriteConfig(
     await fd.sync();
     await fd.close();
 
-    // 3. Atomic rename (POSIX guarantees atomicity)
+    // 3. On Windows, file handles may not be released immediately after close()
+    // Small delay to allow the OS to release the handle
+    if (process.platform === 'win32') {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    // 4. Atomic rename (POSIX guarantees atomicity)
     await fs.promises.rename(tempPath, configPath);
 
     logger.debug(`Atomically wrote config to: ${configPath}`);

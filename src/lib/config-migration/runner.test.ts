@@ -22,8 +22,20 @@ describe('Config Migration Runner', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-migration-runner-test-'));
   });
 
-  afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+  afterEach(async () => {
+    // On Windows, file handles may not be released immediately after close()
+    // Use maxRetries to handle transient EPERM/EBUSY errors
+    const maxRetries = process.platform === 'win32' ? 5 : 0;
+    for (let i = 0; i <= maxRetries; i++) {
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        break;
+      } catch (err) {
+        if (i === maxRetries) throw err;
+        // Small delay before retry on Windows
+        await new Promise((resolve) => setTimeout(resolve, 100 * (i + 1)));
+      }
+    }
   });
 
   describe('mergeWtlinkConfigs', () => {
