@@ -1,6 +1,6 @@
 {
   "name": "@camaradesuk/git-worktree-tools",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Git worktree workflow tools: create PRs, manage worktrees, sync configs. Cross-platform CLI for Windows, macOS, and Linux.",
   "type": "module",
   "main": "./dist/index.js",

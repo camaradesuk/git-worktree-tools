@@ -1,3 +1,19 @@
+# [1.9.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.8.0...v1.9.0) (2026-01-13)
+
+
+### Bug Fixes
+
+* **prs:** use actual PR branch name when creating worktree from TUI ([04c05dd](https://github.com/camaradesuk/git-worktree-tools/commit/04c05dd4163d6885808efd1a1bcc084cd3f12572))
+* **test:** wait for menu items instead of header in PTY test ([d4acd04](https://github.com/camaradesuk/git-worktree-tools/commit/d4acd04032704d6596d26b599be2789c61d1cc7c))
+* **windows:** handle file locking in config migration ([9b4fb68](https://github.com/camaradesuk/git-worktree-tools/commit/9b4fb6854b4ea572025019eacd93d366436390d9))
+* **windows:** use copy+delete instead of rename for atomic writes ([ffa9599](https://github.com/camaradesuk/git-worktree-tools/commit/ffa9599c763d7cefe51d9432a9bfd85de14bddec))
+
+
+### Features
+
+* **config:** add config migration system with version tracking ([ff3cb85](https://github.com/camaradesuk/git-worktree-tools/commit/ff3cb85a66db3d22ca3bf6dbccccc6414d1c3f54))
+* **newpr:** add hook confirmation wizard and AI plan document generation ([8f7ce63](https://github.com/camaradesuk/git-worktree-tools/commit/8f7ce6398817d5f3053d23001bfb590c5c74a72f))
+
 # [1.8.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.7.0...v1.8.0) (2026-01-12)
 
 
