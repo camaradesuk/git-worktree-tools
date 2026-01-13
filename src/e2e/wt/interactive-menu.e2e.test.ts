@@ -115,8 +115,8 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
       });
 
       try {
-        // Wait for menu to appear
-        await session.waitFor(/worktree|main menu|select/i, 5000);
+        // Wait for menu options to fully render (not just the header)
+        await session.waitFor(/list worktree/i, 5000);
 
         const output = stripAnsi(session.getOutput());
 
