@@ -210,6 +210,13 @@ export interface GlobalSettings {
  */
 export interface WorktreeConfig {
   /**
+   * Configuration schema version for migration support
+   * Increment only for breaking schema changes
+   * Current version: 1
+   */
+  configVersion?: number;
+
+  /**
    * Sibling repos to also create worktrees for
    * e.g., ["cluster-gitops", "infrastructure"]
    */
@@ -324,13 +331,34 @@ export interface WorktreeConfig {
    * tracked but not linked (can be re-enabled via 'wtlink manage').
    */
   wtlink?: WtlinkConfig;
+
+  /**
+   * Auto-link config files when creating worktrees
+   *
+   * Controls whether tracked config files (via wtlink manifest) are automatically
+   * linked from the main worktree to new feature worktrees during newpr.
+   *
+   * - undefined (not set): Prompt the user interactively
+   * - true: Auto-link without prompting
+   * - false: Skip linking without prompting
+   */
+  linkConfigFiles?: boolean | undefined;
 }
+
+/**
+ * Resolved configuration with all defaults applied.
+ * Note: linkConfigFiles can be undefined to indicate "prompt user"
+ */
+export type ResolvedConfig = Omit<Required<WorktreeConfig>, 'linkConfigFiles'> & {
+  linkConfigFiles: boolean | undefined;
+};
 
 /**
  * Get default configuration values
  */
-export function getDefaultConfig(): Required<WorktreeConfig> {
+export function getDefaultConfig(): ResolvedConfig {
   return {
+    configVersion: 1,
     sharedRepos: [],
     baseBranch: DEFAULT_BASE_BRANCH,
     draftPr: false,
@@ -360,6 +388,7 @@ export function getDefaultConfig(): Required<WorktreeConfig> {
       enabled: [],
       disabled: [],
     },
+    linkConfigFiles: undefined,
   };
 }
 
@@ -389,7 +418,7 @@ export interface LoadedConfigSource {
  * Result of loading and validating config
  */
 export interface LoadConfigResult {
-  config: Required<WorktreeConfig>;
+  config: ResolvedConfig;
   /** Primary config path (for backward compatibility - now refers to highest priority loaded config) */
   configPath: string | null;
   /** Validation result for the merged config */
@@ -402,10 +431,7 @@ export interface LoadConfigResult {
  * Load configuration from repository (or global config only if no repoRoot)
  * Implements three-tier hierarchy: defaults ← global ← repo ← local
  */
-export function loadConfig(
-  repoRoot?: string,
-  options: LoadConfigOptions = {}
-): Required<WorktreeConfig> {
+export function loadConfig(repoRoot?: string, options: LoadConfigOptions = {}): ResolvedConfig {
   const result = loadConfigWithValidation(repoRoot, options);
   return result.config;
 }
@@ -506,7 +532,7 @@ export function loadConfigWithValidation(
   }
 
   // Merge configs in order: defaults ← global ← repo ← local
-  let merged: Required<WorktreeConfig> = defaults;
+  let merged: ResolvedConfig = defaults;
 
   for (const source of sources) {
     merged = mergeConfigs(merged, source.config);
@@ -530,10 +556,7 @@ export function loadConfigWithValidation(
 /**
  * Merge two configs with deep merging for nested objects
  */
-function mergeConfigs(
-  base: Required<WorktreeConfig>,
-  override: WorktreeConfig
-): Required<WorktreeConfig> {
+function mergeConfigs(base: ResolvedConfig, override: WorktreeConfig): ResolvedConfig {
   return {
     ...base,
     ...override,
@@ -702,7 +725,7 @@ export { getSchemaUrl } from './global-config.js';
  * Generate worktree path based on config pattern
  */
 export function generateWorktreePath(
-  config: Required<WorktreeConfig>,
+  config: ResolvedConfig,
   repoRoot: string,
   repoName: string,
   prNumber: number,
@@ -731,7 +754,7 @@ export function generateWorktreePath(
 /**
  * Generate branch name from description (synchronous, rule-based)
  */
-export function generateBranchName(config: Required<WorktreeConfig>, description: string): string {
+export function generateBranchName(config: ResolvedConfig, description: string): string {
   // Convert to lowercase, replace spaces and special chars with hyphens
   const slug = description
     .toLowerCase()
@@ -756,7 +779,7 @@ export function generateBranchName(config: Required<WorktreeConfig>, description
  * @param repoRoot - Repository root path for documentation gathering (optional)
  */
 export async function generateBranchNameAsync(
-  config: Required<WorktreeConfig>,
+  config: ResolvedConfig,
   description: string,
   repoName = 'repo',
   repoRoot?: string
@@ -828,7 +851,7 @@ export interface PRGenerationResult {
  * Uses AI if enabled in config, otherwise falls back to simple defaults.
  */
 export async function generatePRContentAsync(
-  config: Required<WorktreeConfig>,
+  config: ResolvedConfig,
   context: PRGenerationContext
 ): Promise<PRGenerationResult> {
   const defaultResult: PRGenerationResult = {

@@ -10,13 +10,15 @@ import fs from 'fs';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as colors from '../lib/colors.js';
-import { promptChoiceIndex, withSpinner } from '../lib/prompts.js';
+import { promptChoiceIndex, promptConfirm, withSpinner } from '../lib/prompts.js';
+import { getEnabledFiles } from '../lib/wtlink/config-manifest.js';
+import { run as runWtlink } from '../lib/wtlink/link-configs.js';
 import {
   loadConfig,
   generateBranchNameAsync,
   generateWorktreePath,
   generatePRContentAsync,
-  type WorktreeConfig,
+  type ResolvedConfig,
 } from '../lib/config.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
 import {
@@ -42,6 +44,14 @@ import {
   getErrorSuggestion,
   type NewprResultData,
 } from '../lib/json-output.js';
+import {
+  shouldGeneratePlan,
+  resolvePlanPath,
+  buildPathTemplateVars,
+  generatePlanDocument,
+  type PlanGeneratorResult,
+} from '../lib/newpr/plan-generator.js';
+import type { HookRunner } from '../lib/newpr/hook-runner.js';
 
 /**
  * Debug logging - enabled with DEBUG=newpr or DEBUG=*
@@ -291,13 +301,18 @@ async function handleScenario(
 
 /**
  * Setup worktree (symlinks, wtlink, deps)
+ *
+ * @param worktreePath - Path to the newly created worktree
+ * @param config - Resolved configuration
+ * @param options - CLI options
+ * @param repoRoot - Repository root (required to avoid CWD issues when running from subdirectories)
  */
 async function setupWorktree(
   worktreePath: string,
-  config: Required<WorktreeConfig>,
-  options: Options
+  config: ResolvedConfig,
+  options: Options,
+  repoRoot: string
 ): Promise<void> {
-  const repoRoot = git.getRepoRoot();
   const parentDir = path.dirname(repoRoot);
 
   // Create symlinks for shared repos
@@ -320,6 +335,63 @@ async function setupWorktree(
         }
       } else {
         progress(options, colors.warning(`${repo} not found at ${target}`));
+      }
+    }
+  }
+
+  // Auto-link config files from main worktree
+  let mainWorktreeRoot: string;
+  try {
+    mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+  } catch {
+    // If we can't determine main worktree, skip linking
+    debug('Could not determine main worktree root, skipping config file linking');
+    return;
+  }
+
+  const enabledFiles = getEnabledFiles(mainWorktreeRoot);
+
+  if (enabledFiles.length > 0) {
+    let shouldLink = false;
+
+    if (config.linkConfigFiles === false) {
+      // Explicitly disabled - skip
+      debug('linkConfigFiles is false, skipping auto-link');
+    } else if (config.linkConfigFiles === true) {
+      // Explicitly enabled - auto-link
+      shouldLink = true;
+      debug('linkConfigFiles is true, auto-linking');
+    } else if (!options.nonInteractive && !options.json) {
+      // Not configured - prompt user
+      progress(options, '');
+      progress(options, colors.info(`Found ${enabledFiles.length} config file(s) to link:`));
+      for (const file of enabledFiles.slice(0, 5)) {
+        progress(options, colors.dim(`  - ${file}`));
+      }
+      if (enabledFiles.length > 5) {
+        progress(options, colors.dim(`  ... and ${enabledFiles.length - 5} more`));
+      }
+      shouldLink = await promptConfirm('Link these config files from the main worktree?', true);
+    } else {
+      // Non-interactive/JSON mode - default to linking
+      shouldLink = true;
+      debug('Non-interactive mode, defaulting to auto-link');
+    }
+
+    if (shouldLink) {
+      try {
+        await runWtlink({
+          source: mainWorktreeRoot,
+          destination: worktreePath,
+          dryRun: false,
+          manifestFile: '.wtlinkrc',
+          type: 'hard',
+          yes: true,
+        });
+        progress(options, colors.success(`Linked ${enabledFiles.length} config file(s)`));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        progress(options, colors.warning(`Failed to link config files: ${errorMessage}`));
       }
     }
   }
@@ -369,6 +441,117 @@ function printSummary(
 }
 
 /**
+ * Handle plan generation based on options and config
+ */
+async function handlePlanGeneration(
+  options: Options,
+  config: ResolvedConfig,
+  context: {
+    prNumber: number;
+    branchName: string;
+    description: string;
+    worktreePath: string;
+  }
+): Promise<PlanGeneratorResult | undefined> {
+  const aiConfig = config.ai ?? {};
+
+  // Check if AI provider is configured (simple check without initialization)
+  const aiAvailable =
+    aiConfig.provider !== undefined &&
+    aiConfig.provider !== 'none' &&
+    aiConfig.planDocument === true;
+
+  // Determine if we should generate a plan
+  const decision = shouldGeneratePlan({
+    cliFlag: options.generatePlan,
+    noFlag: options.noPlan,
+    configEnabled: aiConfig.planDocument,
+    aiAvailable,
+    nonInteractive: options.nonInteractive ?? false,
+  });
+
+  // If prompting is needed and we're interactive, ask the user
+  let shouldGenerate = decision.generate;
+  if (decision.prompt && !options.json) {
+    shouldGenerate = await promptConfirm('Generate AI implementation plan document?', false);
+  }
+
+  if (!shouldGenerate) {
+    debug('Plan generation skipped', { reason: decision.reason });
+    return undefined;
+  }
+
+  progress(options, colors.info('Generating AI implementation plan...'));
+
+  // Build path template variables
+  const vars = buildPathTemplateVars({
+    prNumber: context.prNumber,
+    description: context.description,
+    branchName: context.branchName,
+  });
+
+  // Resolve plan path
+  const planPath = resolvePlanPath(context.worktreePath, aiConfig, vars);
+
+  // Generate the plan
+  const result = await generatePlanDocument(
+    {
+      description: context.description,
+      branchName: context.branchName,
+    },
+    planPath,
+    aiConfig,
+    {
+      prNumber: context.prNumber,
+      baseBranch: options.baseBranch,
+    }
+  );
+
+  if (result.generated) {
+    progress(options, colors.success(`Created plan: ${result.path}`));
+  } else if (result.error) {
+    progress(options, colors.warning(`Plan generation failed: ${result.error}`));
+  }
+
+  return result;
+}
+
+/**
+ * Execute the unified post-worktree sequence:
+ * 1. Plan generation (if enabled)
+ * 2. Post-worktree hook
+ *
+ * This ensures consistent behavior across all three newpr modes.
+ */
+async function executePostWorktreeSequence(
+  worktreePath: string,
+  config: ResolvedConfig,
+  options: Options,
+  context: {
+    prNumber: number;
+    branchName: string;
+    description: string;
+  },
+  hookRunner: HookRunner | null
+): Promise<{ planResult?: PlanGeneratorResult }> {
+  const result: { planResult?: PlanGeneratorResult } = {};
+
+  // Generate plan (if enabled) - happens BEFORE post-worktree hook
+  result.planResult = await handlePlanGeneration(options, config, {
+    ...context,
+    worktreePath,
+  });
+
+  // Run post-worktree hook
+  if (hookRunner) {
+    hookRunner.updateContext({ worktreePath });
+    await hookRunner.runHook('post-worktree');
+  }
+
+  return result;
+}
+
+/**
  * Mode: Setup worktree for existing PR
  */
 async function modeExistingPr(prNumber: number, options: Options): Promise<void> {
@@ -377,6 +560,22 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfig(repoRoot);
+
+  // Initialize hook runner for post-worktree hook
+  const hookRunner = createHookRunner(
+    options.noHooks ? {} : (config.hooks ?? {}),
+    {
+      repoRoot,
+      baseBranch: options.baseBranch,
+    },
+    {
+      verbose: DEBUG_ENABLED,
+      showOutput: true,
+      defaultTimeout: config.hookDefaults?.timeout,
+      maxTimeout: config.hookDefaults?.maxTimeout,
+      confirmHooks: options.confirmHooks,
+    }
+  );
 
   const pr = github.getPr(prNumber);
   if (!pr) {
@@ -398,6 +597,14 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
       options.json
     );
   }
+
+  // Update hook context
+  hookRunner.updateContext({
+    branchName: pr.headBranch,
+    prNumber,
+    prUrl: pr.url,
+    worktreePath,
+  });
 
   // Use spinner for fetch (only in non-JSON mode)
   if (options.json) {
@@ -433,7 +640,27 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   progress(options, colors.success(`Created worktree: ${worktreePath}`));
 
-  await setupWorktree(worktreePath, config, options);
+  await setupWorktree(worktreePath, config, options, repoRoot);
+
+  // Generate description from branch name for plan context
+  const descriptionFromBranch = pr.headBranch
+    .replace(/^(feat|fix|chore)\//, '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // Execute unified post-worktree sequence (plan generation + hook)
+  await executePostWorktreeSequence(
+    worktreePath,
+    config,
+    options,
+    {
+      prNumber,
+      branchName: pr.headBranch,
+      description: descriptionFromBranch,
+    },
+    hookRunner
+  );
+
   printSummary(prNumber, pr.headBranch, worktreePath, pr.url, options, { draft: pr.isDraft });
 }
 
@@ -446,6 +673,22 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfig(repoRoot);
+
+  // Initialize hook runner for post-worktree hook
+  const hookRunner = createHookRunner(
+    options.noHooks ? {} : (config.hooks ?? {}),
+    {
+      repoRoot,
+      baseBranch: options.baseBranch,
+    },
+    {
+      verbose: DEBUG_ENABLED,
+      showOutput: true,
+      defaultTimeout: config.hookDefaults?.timeout,
+      maxTimeout: config.hookDefaults?.maxTimeout,
+      confirmHooks: options.confirmHooks,
+    }
+  );
 
   // Use spinner for fetch
   if (options.json) {
@@ -531,6 +774,13 @@ PR created from existing branch: \`${branchName}\`
 
   progress(options, colors.success(`Created PR #${pr.number}: ${pr.url}`));
 
+  // Update hook context
+  hookRunner.updateContext({
+    branchName,
+    prNumber: pr.number,
+    prUrl: pr.url,
+  });
+
   const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
 
   // Use spinner for worktree creation
@@ -558,7 +808,21 @@ PR created from existing branch: \`${branchName}\`
 
   progress(options, colors.success(`Created worktree: ${worktreePath}`));
 
-  await setupWorktree(worktreePath, config, options);
+  await setupWorktree(worktreePath, config, options, repoRoot);
+
+  // Execute unified post-worktree sequence (plan generation + hook)
+  await executePostWorktreeSequence(
+    worktreePath,
+    config,
+    options,
+    {
+      prNumber: pr.number,
+      branchName,
+      description: descriptionFromBranch,
+    },
+    hookRunner
+  );
+
   printSummary(pr.number, branchName, worktreePath, pr.url, options);
 }
 
@@ -584,6 +848,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       showOutput: true,
       defaultTimeout: config.hookDefaults?.timeout,
       maxTimeout: config.hookDefaults?.maxTimeout,
+      confirmHooks: options.confirmHooks,
     }
   );
 
@@ -748,7 +1013,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     });
 
     try {
-      git.exec(['checkout', '-b', branchName, branchFrom]);
+      git.exec(['checkout', '-b', branchName, branchFrom], { cwd: repoRoot });
     } catch (checkoutError) {
       // When checkout fails (e.g., due to conflicting changes), git preserves
       // the staged files in the index - no data is lost. Provide a helpful message.
@@ -819,17 +1084,17 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     // Use spinner for push
     if (options.json) {
-      git.push({ setUpstream: true, remote: 'origin', branch: branchName });
+      git.push({ setUpstream: true, remote: 'origin', branch: branchName }, repoRoot);
     } else {
       await withSpinner('Pushing branch to origin...', async () => {
-        await git.pushAsync({ setUpstream: true, remote: 'origin', branch: branchName });
+        await git.pushAsync({ setUpstream: true, remote: 'origin', branch: branchName }, repoRoot);
       });
     }
 
     // Run post-push hook
     await hookRunner.runHook('post-push');
 
-    git.checkout(originalBranch);
+    git.checkout(originalBranch, repoRoot);
 
     // Run pre-pr hook
     if (!(await hookRunner.runHook('pre-pr'))) {
@@ -898,10 +1163,10 @@ ${description}
 
     // Use spinner for worktree creation
     if (options.json) {
-      git.addWorktree(worktreePath, branchName);
+      git.addWorktree(worktreePath, branchName, { cwd: repoRoot });
     } else {
       await withSpinner(`Creating worktree at ${worktreePath}...`, async () => {
-        await git.addWorktreeAsync(worktreePath, branchName);
+        await git.addWorktreeAsync(worktreePath, branchName, { cwd: repoRoot });
       });
     }
 
@@ -919,10 +1184,20 @@ ${description}
       }
     }
 
-    await setupWorktree(worktreePath, config, options);
+    await setupWorktree(worktreePath, config, options, repoRoot);
 
-    // Run post-worktree hook
-    await hookRunner.runHook('post-worktree');
+    // Execute unified post-worktree sequence (plan generation + hook)
+    await executePostWorktreeSequence(
+      worktreePath,
+      config,
+      options,
+      {
+        prNumber: pr.number,
+        branchName,
+        description,
+      },
+      hookRunner
+    );
 
     printSummary(pr.number, branchName, worktreePath, pr.url, options, {
       scenario,

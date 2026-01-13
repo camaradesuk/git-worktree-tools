@@ -47,6 +47,7 @@ describe('cli/cleanpr', () => {
   let originalArgv: string[];
 
   const defaultConfig = {
+    configVersion: 1,
     baseBranch: 'main',
     worktreePattern: '{repo}.pr{number}',
     worktreeParent: '..',
@@ -65,6 +66,7 @@ describe('cli/cleanpr', () => {
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
     wtlink: { enabled: [], disabled: [] },
+    linkConfigFiles: false,
   };
 
   const makeWorktreeInfo = (overrides = {}) => ({

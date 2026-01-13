@@ -34,6 +34,16 @@ export interface Options {
   action?: StateActionKey;
   /** Disable lifecycle hooks (for security-conscious environments) */
   noHooks: boolean;
+
+  // Plan generation options
+  /** Generate AI plan document (--plan flag) */
+  generatePlan?: boolean;
+  /** Disable plan generation (--no-plan flag) */
+  noPlan?: boolean;
+
+  // Hook confirmation options
+  /** Force hook confirmation prompts (--confirm-hooks flag) */
+  confirmHooks?: boolean;
 }
 
 /**

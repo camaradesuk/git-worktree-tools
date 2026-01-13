@@ -38,6 +38,10 @@ export interface PrActionDeps {
   gitFetch: (remote: string, cwd?: string) => void;
   /** Add worktree (safe, no shell interpolation) */
   gitAddWorktree: (path: string, branch: string, options?: AddWorktreeOptions) => void;
+  /** Open a path in editor (injectable to prevent real editor launch in tests) */
+  openPathInEditor: (targetPath: string, preferredEditor: string) => boolean;
+  /** Open a path in terminal (injectable to prevent real terminal launch in tests) */
+  openPathInTerminal: (targetPath: string) => boolean;
 }
 
 /**
@@ -62,6 +66,8 @@ export function createDefaultActionDeps(): PrActionDeps {
     log: console.log,
     gitFetch: git.fetch,
     gitAddWorktree: git.addWorktree,
+    openPathInEditor: openPathInEditorImpl,
+    openPathInTerminal: openPathInTerminalImpl,
   };
 }
 
@@ -163,7 +169,7 @@ export async function createWorktreeForPr(
 
     // Create the worktree using safe git helper
     // First try with a new branch, then fall back to using existing branch
-    const branchName = `pr-${pr.number}`;
+    const branchName = pr.headBranch;
     const startPoint = `origin/${pr.headBranch}`;
 
     deps.log(colors.dim(`Creating worktree at ${worktreePath}...`));
@@ -186,7 +192,7 @@ export async function createWorktreeForPr(
         // If that also fails, provide a helpful error message
         throw new Error(
           `Failed to create worktree: ${retryError instanceof Error ? retryError.message : 'Unknown error'}. ` +
-            `You may need to delete the existing branch 'pr-${pr.number}' first.`
+            `You may need to delete the existing branch '${pr.headBranch}' first.`
         );
       }
     }
@@ -219,9 +225,9 @@ function commandExists(cmd: string): boolean {
 }
 
 /**
- * Open a path in editor
+ * Open a path in editor (implementation)
  */
-function openPathInEditor(targetPath: string, preferredEditor: string): boolean {
+function openPathInEditorImpl(targetPath: string, preferredEditor: string): boolean {
   let editorCmd: string | null = null;
 
   const hasVscode = commandExists('code');
@@ -253,9 +259,9 @@ function openPathInEditor(targetPath: string, preferredEditor: string): boolean 
 }
 
 /**
- * Open a path in terminal
+ * Open a path in terminal (implementation)
  */
-function openPathInTerminal(targetPath: string): boolean {
+function openPathInTerminalImpl(targetPath: string): boolean {
   const platform = process.platform;
 
   try {
@@ -321,7 +327,7 @@ export async function openWorktree(
     const config = loadConfig(repoRoot);
 
     // Open in preferred editor
-    const success = openPathInEditor(pr.worktreePath, config.preferredEditor || 'vscode');
+    const success = deps.openPathInEditor(pr.worktreePath, config.preferredEditor || 'vscode');
 
     if (success) {
       return {
@@ -381,7 +387,7 @@ export async function openWorktreeInEditor(
   try {
     const repoRoot = deps.getRepoRoot();
     const config = loadConfig(repoRoot);
-    const success = openPathInEditor(pr.worktreePath, config.preferredEditor || 'vscode');
+    const success = deps.openPathInEditor(pr.worktreePath, config.preferredEditor || 'vscode');
 
     if (success) {
       return {
@@ -407,7 +413,7 @@ export async function openWorktreeInEditor(
  */
 export async function openWorktreeInTerminal(
   pr: PrDisplayItem,
-  _deps: PrActionDeps = createDefaultActionDeps()
+  deps: PrActionDeps = createDefaultActionDeps()
 ): Promise<PrActionResult> {
   if (!pr.worktreePath) {
     return {
@@ -417,7 +423,7 @@ export async function openWorktreeInTerminal(
   }
 
   try {
-    const success = openPathInTerminal(pr.worktreePath);
+    const success = deps.openPathInTerminal(pr.worktreePath);
 
     if (success) {
       return {

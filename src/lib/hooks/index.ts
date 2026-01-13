@@ -34,10 +34,28 @@ export type {
   ScriptHookFunction,
 } from './types.js';
 
-export { HOOK_NAMES, contextToEnv, isSimpleHook, isMultipleHook, isComplexHook } from './types.js';
+export {
+  HOOK_NAMES,
+  WORKTREE_CWD_HOOKS,
+  contextToEnv,
+  isSimpleHook,
+  isMultipleHook,
+  isComplexHook,
+  shouldUseWorktreeCwd,
+} from './types.js';
 
 // Executor
-export { HookExecutor, createHookExecutor } from './executor.js';
+export { HookExecutor, createHookExecutor, resolveHookCwd } from './executor.js';
+
+// Confirmation
+export type { HookConfirmAction, HookConfirmResult } from './confirmation.js';
+export {
+  getHookCommands,
+  isHookEditable,
+  isInteractiveEnvironment,
+  promptHookConfirmation,
+  createEditedHookDefinition,
+} from './confirmation.js';
 
 // Templates
 export {

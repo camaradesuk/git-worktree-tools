@@ -9,9 +9,17 @@ import {
   detectEnvironment,
   isWSL,
   WORKTREE_MOVE_MIN_VERSION,
+  createDefaultLswtEnvironmentDeps,
+  resetLswtEnvironmentDeps,
+  type LswtEnvironmentDeps,
 } from './environment.js';
 
 describe('lswt/environment', () => {
+  // Reset deps between tests to prevent state leakage
+  beforeEach(() => {
+    resetLswtEnvironmentDeps();
+  });
+
   describe('parseGitVersion', () => {
     it('parses standard git version string', () => {
       const result = parseGitVersion('git version 2.39.0');
@@ -543,6 +551,92 @@ describe('lswt/environment', () => {
       expect(Number.isInteger(version.major)).toBe(true);
       expect(Number.isInteger(version.minor)).toBe(true);
       expect(Number.isInteger(version.patch)).toBe(true);
+    });
+  });
+
+  describe('createDefaultLswtEnvironmentDeps', () => {
+    it('returns deps object with required functions', () => {
+      const deps = createDefaultLswtEnvironmentDeps();
+
+      expect(deps).toHaveProperty('isCommandAvailable');
+      expect(deps).toHaveProperty('runCommand');
+      expect(deps).toHaveProperty('readFile');
+      expect(typeof deps.isCommandAvailable).toBe('function');
+      expect(typeof deps.runCommand).toBe('function');
+      expect(typeof deps.readFile).toBe('function');
+    });
+  });
+
+  describe('dependency injection', () => {
+    it('accepts mock deps for detectEnvironment', () => {
+      const mockDeps: LswtEnvironmentDeps = {
+        isCommandAvailable: vi.fn().mockImplementation((cmd: string) => {
+          return cmd === 'code';
+        }),
+        runCommand: vi.fn().mockImplementation((command: string) => {
+          if (command === 'git --version') {
+            return 'git version 2.45.0';
+          }
+          return null;
+        }),
+        readFile: vi.fn().mockReturnValue(null),
+      };
+
+      const result = detectEnvironment(mockDeps);
+
+      expect(result.hasVscode).toBe(true);
+      expect(result.hasCursor).toBe(false);
+      expect(result.defaultEditor).toBe('vscode');
+      expect(result.gitVersion.major).toBe(2);
+      expect(result.gitVersion.minor).toBe(45);
+      expect(mockDeps.isCommandAvailable).toHaveBeenCalledWith('code');
+      expect(mockDeps.isCommandAvailable).toHaveBeenCalledWith('cursor');
+    });
+
+    it('uses mock deps for getGitVersion after detectEnvironment sets them', () => {
+      const mockDeps: LswtEnvironmentDeps = {
+        isCommandAvailable: vi.fn().mockReturnValue(false),
+        runCommand: vi.fn().mockImplementation((command: string) => {
+          if (command === 'git --version') {
+            return 'git version 3.0.0';
+          }
+          return null;
+        }),
+        readFile: vi.fn().mockReturnValue(null),
+      };
+
+      // Set deps via detectEnvironment
+      detectEnvironment(mockDeps);
+
+      // Now getGitVersion should use the mock deps
+      const version = getGitVersion();
+      expect(version.major).toBe(3);
+      expect(version.minor).toBe(0);
+    });
+
+    it('uses mock deps for isWSL', () => {
+      // Only test on Linux where isWSL actually checks /proc/version
+      if (process.platform !== 'linux') return;
+
+      // Clear env var to force file check
+      const originalWslDistro = process.env.WSL_DISTRO_NAME;
+      delete process.env.WSL_DISTRO_NAME;
+
+      const mockDeps: LswtEnvironmentDeps = {
+        isCommandAvailable: vi.fn().mockReturnValue(false),
+        runCommand: vi.fn().mockReturnValue(null),
+        readFile: vi.fn().mockReturnValue('Linux version 5.10.0-microsoft-WSL2'),
+      };
+
+      detectEnvironment(mockDeps);
+      const result = isWSL();
+      expect(result).toBe(true);
+      expect(mockDeps.readFile).toHaveBeenCalledWith('/proc/version');
+
+      // Restore
+      if (originalWslDistro !== undefined) {
+        process.env.WSL_DISTRO_NAME = originalWslDistro;
+      }
     });
   });
 });

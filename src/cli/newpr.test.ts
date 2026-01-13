@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../lib/git.js', () => ({
   getRepoRoot: vi.fn(),
   getRepoName: vi.fn(),
+  getMainWorktreeRoot: vi.fn(),
   fetch: vi.fn(),
   fetchAsync: vi.fn().mockResolvedValue(undefined),
   getCurrentBranch: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('../lib/github.js', () => ({
 
 vi.mock('../lib/prompts.js', () => ({
   promptChoiceIndex: vi.fn(),
+  promptConfirm: vi.fn(),
   withSpinner: vi.fn(async (message, fn) => {
     return await fn();
   }),
@@ -95,6 +97,14 @@ vi.mock('fs', () => ({
   symlinkSync: vi.fn(),
 }));
 
+vi.mock('../lib/wtlink/config-manifest.js', () => ({
+  getEnabledFiles: vi.fn(),
+}));
+
+vi.mock('../lib/wtlink/link-configs.js', () => ({
+  run: vi.fn(),
+}));
+
 // Import after mocking
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
@@ -109,6 +119,8 @@ import { analyzeGitState, detectScenario } from '../lib/state-detection.js';
 import * as newpr from '../lib/newpr/index.js';
 import type { StateActionKey } from '../lib/json-output.js';
 import fs from 'fs';
+import { getEnabledFiles } from '../lib/wtlink/config-manifest.js';
+import { run as runWtlink } from '../lib/wtlink/link-configs.js';
 
 describe('cli/newpr', () => {
   let mockConsoleLog: ReturnType<typeof vi.spyOn>;
@@ -117,6 +129,7 @@ describe('cli/newpr', () => {
   let originalArgv: string[];
 
   const defaultConfig = {
+    configVersion: 1,
     baseBranch: 'main',
     worktreePattern: '{repo}.pr{number}',
     worktreeParent: '..',
@@ -135,6 +148,7 @@ describe('cli/newpr', () => {
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
     wtlink: { enabled: [], disabled: [] },
+    linkConfigFiles: undefined,
   };
 
   const defaultOptions = {
@@ -215,6 +229,13 @@ describe('cli/newpr', () => {
     });
     vi.mocked(git.getChangedFiles).mockReturnValue([]);
     vi.mocked(git.getCommitMessages).mockReturnValue([]);
+
+    // Default mocks for auto-link feature (throw by default to skip auto-link)
+    vi.mocked(git.getMainWorktreeRoot).mockImplementation(() => {
+      throw new Error('Mock: getMainWorktreeRoot not configured');
+    });
+    vi.mocked(getEnabledFiles).mockReturnValue([]);
+    vi.mocked(runWtlink).mockResolvedValue(undefined);
 
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -448,13 +469,16 @@ describe('cli/newpr', () => {
 
       await runCli(['Add new feature']);
 
-      // Verify wiring: checkout uses generated branch name and branch point
-      expect(git.exec).toHaveBeenCalledWith([
-        'checkout',
-        '-b',
-        'feature/add-new-feature', // from generateBranchNameAsync
-        'origin/main', // from getBranchPoint
-      ]);
+      // Verify wiring: checkout uses generated branch name and branch point with repoRoot
+      expect(git.exec).toHaveBeenCalledWith(
+        [
+          'checkout',
+          '-b',
+          'feature/add-new-feature', // from generateBranchNameAsync
+          'origin/main', // from getBranchPoint
+        ],
+        { cwd: '/repo' } // repoRoot from getRepoRoot()
+      );
       // Verify wiring: createPr receives correct branch and title (from generatePRContentAsync)
       expect(github.createPr).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -463,10 +487,11 @@ describe('cli/newpr', () => {
           title: 'Add new feature',
         })
       );
-      // Verify wiring: addWorktreeAsync receives correct path and branch (non-JSON mode uses async)
+      // Verify wiring: addWorktreeAsync receives correct path, branch, and cwd option
       expect(git.addWorktreeAsync).toHaveBeenCalledWith(
         '/repo.pr100', // path from generateWorktreePath
-        'feature/add-new-feature' // the branch name
+        'feature/add-new-feature', // the branch name
+        { cwd: '/repo' } // repoRoot from getRepoRoot()
       );
     });
 
@@ -1036,6 +1061,349 @@ describe('cli/newpr', () => {
         expect.any(Object),
         repoRoot // This ensures git operations run from repo root
       );
+    });
+  });
+
+  describe('Bug fix: git operations must use repoRoot (empty commit worktree bug)', () => {
+    // These tests verify the fix for the bug where creating a PR worktree
+    // with an empty commit failed because git.checkout() didn't switch back
+    // to main (missing repoRoot parameter), causing git.addWorktree() to fail
+    // with "branch already checked out" error.
+
+    it('git.checkout after push must use repoRoot parameter', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // CRITICAL: git.checkout must be called with repoRoot to switch back to main
+      // Without this, the branch remains checked out and worktree creation fails
+      expect(git.checkout).toHaveBeenCalledWith('main', repoRoot);
+    });
+
+    it('git.addWorktreeAsync must use { cwd: repoRoot } option', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // CRITICAL: git.addWorktreeAsync must be called with { cwd: repoRoot }
+      // to ensure worktree is created from the correct directory
+      expect(git.addWorktreeAsync).toHaveBeenCalledWith('/repo.pr100', 'feat/test-feature', {
+        cwd: repoRoot,
+      });
+    });
+
+    it('git.pushAsync must use repoRoot parameter', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // git.pushAsync must be called with repoRoot to push from correct directory
+      expect(git.pushAsync).toHaveBeenCalledWith(
+        { setUpstream: true, remote: 'origin', branch: 'feat/test-feature' },
+        repoRoot
+      );
+    });
+
+    it('git.exec for branch checkout must use { cwd: repoRoot } option', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // git.exec for branch creation must use cwd option to ensure
+      // branch is created in the correct worktree
+      expect(git.exec).toHaveBeenCalledWith(
+        ['checkout', '-b', 'feat/test-feature', 'origin/main'],
+        { cwd: repoRoot }
+      );
+    });
+  });
+
+  describe('auto-link config files (linkConfigFiles feature)', () => {
+    // Helper to set up all the mocks for a successful PR creation
+    const setupPrCreationMocks = (configOverrides = {}) => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/main-repo');
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, ...configOverrides });
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    };
+
+    it('auto-links config files when linkConfigFiles is true', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local', '.vscode/settings.json']);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).toHaveBeenCalledWith('/main-repo');
+      expect(runWtlink).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: '/main-repo',
+          destination: '/repo.pr123',
+          dryRun: false,
+          yes: true,
+        })
+      );
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+    });
+
+    it('skips linking when linkConfigFiles is false', async () => {
+      setupPrCreationMocks({ linkConfigFiles: false });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local', '.vscode/settings.json']);
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).toHaveBeenCalledWith('/main-repo');
+      expect(runWtlink).not.toHaveBeenCalled();
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+    });
+
+    it('prompts user when linkConfigFiles is undefined in interactive mode', async () => {
+      setupPrCreationMocks({ linkConfigFiles: undefined });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(prompts.promptConfirm).mockResolvedValue(true);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).toHaveBeenCalledWith('/main-repo');
+      expect(prompts.promptConfirm).toHaveBeenCalledWith(
+        expect.stringContaining('Link these config files'),
+        true
+      );
+      expect(runWtlink).toHaveBeenCalled();
+    });
+
+    it('skips linking when user declines the prompt', async () => {
+      setupPrCreationMocks({ linkConfigFiles: undefined });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(prompts.promptConfirm).mockResolvedValue(false);
+
+      await runCli(['--pr', '123']);
+
+      expect(prompts.promptConfirm).toHaveBeenCalled();
+      expect(runWtlink).not.toHaveBeenCalled();
+    });
+
+    it('defaults to linking in non-interactive mode when linkConfigFiles is undefined', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions, nonInteractive: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/main-repo');
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, linkConfigFiles: undefined });
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123', '--non-interactive']);
+
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+      expect(runWtlink).toHaveBeenCalled();
+    });
+
+    it('defaults to linking in JSON mode when linkConfigFiles is undefined', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions, json: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/main-repo');
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, linkConfigFiles: undefined });
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123', '--json']);
+
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+      expect(runWtlink).toHaveBeenCalled();
+    });
+
+    it('does not link when there are no enabled files', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(getEnabledFiles).mockReturnValue([]);
+
+      await runCli(['--pr', '123']);
+
+      expect(runWtlink).not.toHaveBeenCalled();
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+    });
+
+    it('handles linking errors gracefully', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(runWtlink).mockRejectedValue(new Error('Permission denied'));
+
+      await runCli(['--pr', '123']);
+
+      // Should not crash, just warn about the failure
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to link config files')
+      );
+    });
+
+    it('skips config linking when main worktree cannot be determined', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(git.getMainWorktreeRoot).mockImplementation(() => {
+        throw new Error('Not in a git worktree');
+      });
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).not.toHaveBeenCalled();
+      expect(runWtlink).not.toHaveBeenCalled();
     });
   });
 });

@@ -374,6 +374,36 @@ describe('validateConfig', () => {
     });
   });
 
+  describe('linkConfigFiles property', () => {
+    it('should accept linkConfigFiles: true', () => {
+      const result = validateConfig({ linkConfigFiles: true });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept linkConfigFiles: false', () => {
+      const result = validateConfig({ linkConfigFiles: false });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should accept config without linkConfigFiles', () => {
+      const result = validateConfig({ baseBranch: 'main' });
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject linkConfigFiles: "true" (string)', () => {
+      const result = validateConfig({ linkConfigFiles: 'true' });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.path === 'linkConfigFiles')).toBe(true);
+      expect(result.errors.some((e) => e.message.includes('must be a boolean'))).toBe(true);
+    });
+
+    it('should reject linkConfigFiles: 1 (number)', () => {
+      const result = validateConfig({ linkConfigFiles: 1 });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.path === 'linkConfigFiles')).toBe(true);
+    });
+  });
+
   describe('full config validation', () => {
     it('should accept comprehensive valid config', () => {
       const result = validateConfig({

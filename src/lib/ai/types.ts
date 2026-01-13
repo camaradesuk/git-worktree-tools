@@ -168,6 +168,19 @@ export interface AIConfig {
   /** Path to plan document template */
   planTemplate?: string;
 
+  /**
+   * Path template for plan documents.
+   * Variables: {prNumber}, {slug}, {branch}, {date}, {timestamp}
+   * Default: 'PLAN-{prNumber}-{slug}.md'
+   */
+  planPath?: string;
+  /**
+   * Plan path resolution mode:
+   * - 'fixed': Use exact template (default)
+   * - 'prompt': May prompt user for custom path
+   */
+  planPathMode?: 'fixed' | 'prompt';
+
   /** Claude-specific settings */
   claude?: {
     model?: string;

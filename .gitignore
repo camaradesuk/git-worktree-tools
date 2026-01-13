@@ -30,3 +30,6 @@ test-results/
 
 # Claude Code local settings
 .claude/
+
+# Config migration backups
+.worktree-backups/

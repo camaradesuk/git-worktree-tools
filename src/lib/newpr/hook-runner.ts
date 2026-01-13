@@ -4,8 +4,20 @@
  * Manages hook execution throughout the newpr lifecycle with proper context management.
  */
 
-import { createHookExecutor, type HookExecutor } from '../hooks/executor.js';
-import type { HookContext, HookName, HookResult, HooksConfig } from '../hooks/types.js';
+import { createHookExecutor, resolveHookCwd, type HookExecutor } from '../hooks/executor.js';
+import type {
+  HookContext,
+  HookName,
+  HookResult,
+  HooksConfig,
+  HookDefinition,
+} from '../hooks/types.js';
+import { shouldUseWorktreeCwd } from '../hooks/types.js';
+import {
+  isInteractiveEnvironment,
+  promptHookConfirmation,
+  createEditedHookDefinition,
+} from '../hooks/confirmation.js';
 import * as colors from '../colors.js';
 
 /**
@@ -35,6 +47,13 @@ export interface HookRunnerOptions {
    * Configurable via hookDefaults.maxTimeout in .worktreerc
    */
   maxTimeout?: number;
+
+  /**
+   * Whether to prompt for confirmation before running hooks.
+   * Only applies to WORKTREE_CWD_HOOKS (post-worktree, post-pr, post-push)
+   * and only in interactive environments.
+   */
+  confirmHooks?: boolean;
 }
 
 /**
@@ -66,6 +85,7 @@ const CRITICAL_HOOKS: HookName[] = [
  */
 export class HookRunner {
   private executor: HookExecutor;
+  private hooksConfig: HooksConfig;
   private context: Partial<HookContext>;
   private options: HookRunnerOptions;
   private hasHooks: boolean;
@@ -75,6 +95,7 @@ export class HookRunner {
     initialContext: Partial<HookContext>,
     options: HookRunnerOptions = {}
   ) {
+    this.hooksConfig = hooksConfig;
     this.executor = createHookExecutor(hooksConfig, {
       verbose: options.verbose,
       dryRun: options.dryRun,
@@ -137,12 +158,74 @@ export class HookRunner {
       ...this.context,
     };
 
+    // Get the hook definition for confirmation
+    const definition = this.hooksConfig[hookName];
+    if (!definition) {
+      return true;
+    }
+
+    // Check if we should prompt for confirmation
+    // Only for WORKTREE_CWD_HOOKS in interactive environments with confirmHooks enabled
+    if (this.options.confirmHooks && shouldUseWorktreeCwd(hookName) && isInteractiveEnvironment()) {
+      const cwd = resolveHookCwd(hookName, definition, fullContext, {
+        cwd: this.context.repoRoot,
+        defaultTimeout: this.options.defaultTimeout,
+        maxTimeout: this.options.maxTimeout,
+      });
+
+      const confirmResult = await promptHookConfirmation(hookName, definition, cwd);
+
+      if (confirmResult.action === 'skip') {
+        if (this.options.verbose) {
+          console.log(colors.dim(`  Skipped: User chose to skip`));
+        }
+        return true;
+      }
+
+      // If user edited the command, execute the edited version
+      if (confirmResult.editedCommand) {
+        const editedDefinition = createEditedHookDefinition(
+          definition,
+          confirmResult.editedCommand
+        );
+        return this.executeEditedHook(hookName, editedDefinition, fullContext);
+      }
+    }
+
     if (this.options.verbose) {
       console.log(colors.dim(`Running hook: ${hookName}`));
     }
 
     const result = await this.executor.executeHook(hookName, fullContext);
 
+    return this.handleResult(hookName, result);
+  }
+
+  /**
+   * Execute an edited hook definition
+   */
+  private async executeEditedHook(
+    hookName: HookName,
+    definition: HookDefinition,
+    context: HookContext
+  ): Promise<boolean> {
+    if (this.options.verbose) {
+      console.log(colors.dim(`Running edited hook: ${hookName}`));
+    }
+
+    // Create a temporary executor with the edited definition
+    const tempExecutor = createHookExecutor(
+      { [hookName]: definition },
+      {
+        verbose: this.options.verbose,
+        dryRun: this.options.dryRun,
+        cwd: context.repoRoot,
+        defaultTimeout: this.options.defaultTimeout,
+        maxTimeout: this.options.maxTimeout,
+      }
+    );
+
+    const result = await tempExecutor.executeHook(hookName, context);
     return this.handleResult(hookName, result);
   }
 

@@ -50,6 +50,7 @@ describe('config-manifest', () => {
   describe('loadManifestData', () => {
     it('should load from .worktreerc config when wtlink section has entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: {
           enabled: ['.env.local', '.vscode/settings.json'],
           disabled: ['.env.production'],
@@ -72,6 +73,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = loadManifestData(tempDir);
@@ -85,6 +87,7 @@ describe('config-manifest', () => {
 
     it('should fall back to legacy .wtlinkrc file when config has no wtlink entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: [], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -103,6 +106,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       // Create legacy manifest file
@@ -126,6 +130,7 @@ describe('config-manifest', () => {
 
     it('should return empty manifest when neither config nor legacy file exists', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: [], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -144,6 +149,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = loadManifestData(tempDir);
@@ -157,6 +163,7 @@ describe('config-manifest', () => {
 
     it('should prefer config over legacy file when both exist', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: {
           enabled: ['from-config.json'],
           disabled: [],
@@ -178,6 +185,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       // Create legacy manifest file (should be ignored)
@@ -246,6 +254,7 @@ describe('config-manifest', () => {
   describe('hasConfigManifest', () => {
     it('should return true when config has enabled entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: ['.env'], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -264,6 +273,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(hasConfigManifest(tempDir)).toBe(true);
@@ -271,6 +281,7 @@ describe('config-manifest', () => {
 
     it('should return true when config has disabled entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: [], disabled: ['.env'] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -289,6 +300,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(hasConfigManifest(tempDir)).toBe(true);
@@ -296,6 +308,7 @@ describe('config-manifest', () => {
 
     it('should return false when config has no entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: [], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -314,6 +327,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(hasConfigManifest(tempDir)).toBe(false);
@@ -324,6 +338,7 @@ describe('config-manifest', () => {
     beforeEach(() => {
       // Reset hasConfigManifest check
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: [], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -342,6 +357,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
     });
 
@@ -359,6 +375,7 @@ describe('config-manifest', () => {
 
       // Mock that config already has entries
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: ['existing.json'], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -377,6 +394,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = migrateLegacyManifest(tempDir);
@@ -438,6 +456,7 @@ describe('config-manifest', () => {
   describe('getEnabledFiles', () => {
     it('should return only enabled files from manifest', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: {
           enabled: ['file1.json', 'file2.json'],
           disabled: ['disabled.json'],
@@ -459,6 +478,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = getEnabledFiles(tempDir);
@@ -470,6 +490,7 @@ describe('config-manifest', () => {
   describe('isManifestEmpty', () => {
     it('should return true when manifest has no entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: [], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -488,6 +509,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(isManifestEmpty(tempDir)).toBe(true);
@@ -495,6 +517,7 @@ describe('config-manifest', () => {
 
     it('should return false when manifest has enabled entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: ['.env'], disabled: [] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -513,6 +536,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(isManifestEmpty(tempDir)).toBe(false);
@@ -520,6 +544,7 @@ describe('config-manifest', () => {
 
     it('should return false when manifest has disabled entries', () => {
       mockedLoadConfig.mockReturnValue({
+        configVersion: 1,
         wtlink: { enabled: [], disabled: ['.env'] },
         sharedRepos: [],
         baseBranch: 'main',
@@ -538,6 +563,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(isManifestEmpty(tempDir)).toBe(false);

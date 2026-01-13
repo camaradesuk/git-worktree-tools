@@ -21,6 +21,8 @@ export interface ExecutorDeps {
   spawnDetached: (cmd: string, args: string[], options?: { cwd?: string }) => void;
   copyToClipboard: (text: string) => void;
   openUrl: (url: string) => void;
+  /** Convert WSL path to Windows path (for WSL interop) */
+  wslPathToWindows: (linuxPath: string) => string;
 }
 
 /**
@@ -67,6 +69,8 @@ export function createDefaultExecutorDeps(): ExecutorDeps {
         execSync(`xdg-open "${url}"`);
       }
     },
+
+    wslPathToWindows: wslPathToWindowsImpl,
   };
 }
 
@@ -164,9 +168,9 @@ async function openInEditor(
 }
 
 /**
- * Convert a Linux path to Windows path for WSL interop
+ * Convert a Linux path to Windows path for WSL interop (implementation)
  */
-function wslPathToWindows(linuxPath: string): string {
+function wslPathToWindowsImpl(linuxPath: string): string {
   // Use spawnSync with array args to avoid shell escaping issues
   const result = spawnSync('wslpath', ['-w', linuxPath], {
     encoding: 'utf8',
@@ -210,7 +214,7 @@ async function openTerminal(
     } else if (env.isWSL) {
       // WSL - open Windows Terminal with WSL
       try {
-        const windowsPath = wslPathToWindows(worktree.path);
+        const windowsPath = deps.wslPathToWindows(worktree.path);
         // Use cmd.exe to launch Windows Terminal
         // wt.exe -d <path> opens a new tab at the specified directory
         deps.execCommand(`cmd.exe /c start wt.exe -d "${windowsPath}"`);

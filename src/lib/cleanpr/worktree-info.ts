@@ -3,7 +3,6 @@
  */
 
 import * as path from 'path';
-import { execSync } from 'child_process';
 import * as git from '../git.js';
 import * as github from '../github.js';
 import type { Worktree } from '../git.js';
@@ -97,11 +96,7 @@ export function createDefaultDeps(): GatherDeps {
 
     hasUncommittedChanges: (worktreePath: string): boolean => {
       try {
-        const status = execSync('git status --porcelain', {
-          cwd: worktreePath,
-          encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe'],
-        }).trim();
+        const status = git.getStatusOutput(worktreePath).trim();
         return status.length > 0;
       } catch {
         return false;
