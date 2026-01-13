@@ -74,7 +74,7 @@ describe('actions', () => {
       expect(deps.gitFetch).toHaveBeenCalledWith('origin', '/home/user/repo');
       expect(deps.gitAddWorktree).toHaveBeenCalledWith(
         expect.stringContaining('repo.pr123'),
-        'pr-123',
+        'feat/test',
         expect.objectContaining({
           createBranch: true,
           startPoint: 'origin/feat/test',
@@ -110,7 +110,7 @@ describe('actions', () => {
     });
 
     it('should fall back to existing branch if create fails', async () => {
-      const pr = createMockPr({ number: 42 });
+      const pr = createMockPr({ number: 42, headBranch: 'fix/fallback-test' });
       let callCount = 0;
       const deps = createMockDeps({
         gitAddWorktree: vi.fn().mockImplementation((_path, _branch, options) => {
@@ -128,10 +128,29 @@ describe('actions', () => {
       expect(callCount).toBe(2);
       expect(deps.gitAddWorktree).toHaveBeenLastCalledWith(
         expect.any(String),
-        'pr-42',
+        'fix/fallback-test',
         expect.objectContaining({
           createBranch: false,
           cwd: '/home/user/repo',
+        })
+      );
+    });
+
+    it('should use PR headBranch as the local branch name, not pr-<number>', async () => {
+      const pr = createMockPr({
+        number: 99,
+        headBranch: 'feature/important-change',
+      });
+      const deps = createMockDeps();
+
+      await createWorktreeForPr(pr, deps);
+
+      // Verify branch name comes from headBranch, NOT pr-<number>
+      expect(deps.gitAddWorktree).toHaveBeenCalledWith(
+        expect.any(String),
+        'feature/important-change', // Must match headBranch exactly
+        expect.objectContaining({
+          startPoint: 'origin/feature/important-change',
         })
       );
     });

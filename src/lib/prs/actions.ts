@@ -169,7 +169,7 @@ export async function createWorktreeForPr(
 
     // Create the worktree using safe git helper
     // First try with a new branch, then fall back to using existing branch
-    const branchName = `pr-${pr.number}`;
+    const branchName = pr.headBranch;
     const startPoint = `origin/${pr.headBranch}`;
 
     deps.log(colors.dim(`Creating worktree at ${worktreePath}...`));
@@ -192,7 +192,7 @@ export async function createWorktreeForPr(
         // If that also fails, provide a helpful error message
         throw new Error(
           `Failed to create worktree: ${retryError instanceof Error ? retryError.message : 'Unknown error'}. ` +
-            `You may need to delete the existing branch 'pr-${pr.number}' first.`
+            `You may need to delete the existing branch '${pr.headBranch}' first.`
         );
       }
     }
