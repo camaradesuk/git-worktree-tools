@@ -10,6 +10,7 @@
  *   wtconfig get <key>      - Get a configuration value
  *   wtconfig edit           - Open config in editor
  *   wtconfig validate       - Validate configuration
+ *   wtconfig migrate        - Migrate legacy config to latest version
  */
 
 import { execSync } from 'child_process';
@@ -17,6 +18,12 @@ import inquirer from 'inquirer';
 import * as colors from '../lib/colors.js';
 import * as git from '../lib/git.js';
 import { getDefaultConfig } from '../lib/config.js';
+import {
+  detectMigrationIssues,
+  runMigration,
+  formatMigrationReport,
+  formatMigrationReportJSON,
+} from '../lib/config-migration/index.js';
 
 /**
  * Safely get repository root, returning null if not in a git repo
@@ -87,6 +94,10 @@ async function main(): Promise<void> {
       await validateCurrentConfig();
       break;
 
+    case 'migrate':
+      await runMigrateCommand();
+      break;
+
     case 'help':
     case '--help':
     case '-h':
@@ -111,7 +122,14 @@ ${colors.cyan('Usage:')}
   wtconfig get <key>        Get a configuration value (e.g., "ai.provider")
   wtconfig edit             Open config in default editor
   wtconfig validate         Validate current configuration
+  wtconfig migrate          Migrate legacy config to latest version
   wtconfig help             Show this help message
+
+${colors.cyan('Migration Options:')}
+  --yes              Skip confirmation prompts
+  --dry-run          Preview changes without modifying files
+  --delete-legacy    Delete legacy .wtlinkrc file after migration
+  --json             Output results as JSON
 
 ${colors.cyan('Configuration Locations:')}
   Global:     ~/.worktreerc (applies to all repos)
@@ -124,6 +142,9 @@ ${colors.cyan('Examples:')}
   wtconfig set hooks.post-worktree "npm install"
   wtconfig get ai.provider               # Get AI provider setting
   wtconfig validate                      # Check for configuration errors
+  wtconfig migrate                       # Interactive migration
+  wtconfig migrate --dry-run             # Preview migration changes
+  wtconfig migrate --yes --delete-legacy # Auto-approve and cleanup
 `);
 }
 
@@ -430,6 +451,130 @@ async function validateCurrentConfig(): Promise<void> {
   }
 
   if (!result.valid) {
+    process.exit(1);
+  }
+}
+
+async function runMigrateCommand(): Promise<void> {
+  // Parse migration-specific flags
+  const dryRun = args.includes('--dry-run');
+  const autoConfirm = args.includes('--yes') || args.includes('-y');
+  const deleteLegacy = args.includes('--delete-legacy');
+  const jsonOutput = args.includes('--json');
+
+  const repoRoot = findRepoRoot();
+
+  if (!repoRoot) {
+    if (jsonOutput) {
+      console.log(JSON.stringify({ success: false, error: 'Not in a git repository' }));
+    } else {
+      console.error(colors.error('Error: Not in a git repository'));
+      console.error(colors.dim('Run this command from within a git repository.'));
+    }
+    process.exit(1);
+  }
+
+  // Detect migration issues
+  const detection = detectMigrationIssues(repoRoot);
+
+  // JSON output mode
+  if (jsonOutput) {
+    if (detection.issues.length === 0) {
+      console.log(
+        JSON.stringify({ success: true, message: 'Config is up to date, no migration needed' })
+      );
+      return;
+    }
+
+    if (dryRun) {
+      console.log(JSON.stringify(formatMigrationReportJSON(detection)));
+      return;
+    }
+
+    if (!autoConfirm) {
+      console.log(
+        JSON.stringify({
+          success: false,
+          error:
+            'Confirmation required. Use --yes to auto-confirm or run without --json for interactive mode.',
+        })
+      );
+      process.exit(1);
+    }
+
+    const result = await runMigration(repoRoot, detection, { deleteLegacyFiles: deleteLegacy });
+    console.log(
+      JSON.stringify({
+        success: result.success,
+        backupPath: result.backupPath,
+        configPath: result.newConfigPath,
+        actionsApplied: result.actionsExecuted.length,
+        errors: result.errors,
+      })
+    );
+
+    if (!result.success) {
+      process.exit(1);
+    }
+    return;
+  }
+
+  // Interactive console mode
+  if (detection.issues.length === 0) {
+    console.log(colors.success('Config is up to date, no migration needed.'));
+    return;
+  }
+
+  // Show detection report
+  console.log(formatMigrationReport(detection, { verbose: true }));
+  console.log();
+
+  // Dry run mode - just show what would happen
+  if (dryRun) {
+    console.log(colors.info('[DRY RUN] No changes were made.'));
+    console.log(colors.dim('Remove --dry-run flag to apply the migration.'));
+    return;
+  }
+
+  // Confirm migration
+  if (!autoConfirm) {
+    const { confirm } = await inquirer.prompt<{ confirm: boolean }>([
+      {
+        type: 'confirm',
+        name: 'confirm',
+        message: 'Apply migration?',
+        default: true,
+      },
+    ]);
+
+    if (!confirm) {
+      console.log(colors.dim('Migration cancelled.'));
+      return;
+    }
+  }
+
+  // Run migration
+  const result = await runMigration(repoRoot, detection, { deleteLegacyFiles: deleteLegacy });
+
+  if (result.success) {
+    console.log();
+    console.log(colors.success('Migration completed successfully!'));
+
+    if (result.backupPath) {
+      console.log(colors.dim(`Backup created: ${result.backupPath}`));
+    }
+
+    console.log(colors.dim(`Config updated: ${result.newConfigPath}`));
+
+    if (result.actionsExecuted.length > 0) {
+      console.log(colors.dim(`${result.actionsExecuted.length} change(s) applied.`));
+    }
+  } else {
+    console.log();
+    console.error(colors.error('Migration failed:'));
+    for (const error of result.errors) {
+      console.error(colors.error(`  ${error}`));
+    }
     process.exit(1);
   }
 }

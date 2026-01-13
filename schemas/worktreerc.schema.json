@@ -10,6 +10,11 @@
       "type": "string",
       "description": "JSON Schema reference for editor support. Recommended: https://unpkg.com/@camaradesuk/git-worktree-tools@latest/schemas/worktreerc.schema.json"
     },
+    "configVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Configuration schema version for migration support. Current version: 1. Only increment for breaking schema changes."
+    },
     "sharedRepos": {
       "type": "array",
       "items": { "type": "string" },

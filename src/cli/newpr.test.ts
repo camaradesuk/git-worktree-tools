@@ -117,6 +117,7 @@ describe('cli/newpr', () => {
   let originalArgv: string[];
 
   const defaultConfig = {
+    configVersion: 1,
     baseBranch: 'main',
     worktreePattern: '{repo}.pr{number}',
     worktreeParent: '..',

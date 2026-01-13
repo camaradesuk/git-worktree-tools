@@ -26,6 +26,7 @@ describe('cli/wtconfig', () => {
   let originalArgv: string[];
 
   const mockConfig: WorktreeConfig = {
+    configVersion: 1,
     baseBranch: 'main',
     draftPr: false,
     branchPrefix: 'feat',
@@ -35,6 +36,7 @@ describe('cli/wtconfig', () => {
   };
 
   const mockDefaultConfig = {
+    configVersion: 1,
     baseBranch: 'main',
     draftPr: false,
     branchPrefix: 'feat',

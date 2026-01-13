@@ -151,6 +151,7 @@ describe('prs CLI command', () => {
 
     // Helper to create mock config (matches Required<WorktreeConfig>)
     const createMockConfig = () => ({
+      configVersion: 1,
       baseBranch: 'main',
       draftPr: false,
       worktreePattern: '{repo}.pr{number}',

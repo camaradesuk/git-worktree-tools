@@ -75,6 +75,7 @@ const VALID_HOOK_NAMES = [
  */
 const KNOWN_TOP_LEVEL_KEYS = [
   '$schema',
+  'configVersion',
   'sharedRepos',
   'baseBranch',
   'draftPr',

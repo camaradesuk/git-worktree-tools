@@ -210,6 +210,13 @@ export interface GlobalSettings {
  */
 export interface WorktreeConfig {
   /**
+   * Configuration schema version for migration support
+   * Increment only for breaking schema changes
+   * Current version: 1
+   */
+  configVersion?: number;
+
+  /**
    * Sibling repos to also create worktrees for
    * e.g., ["cluster-gitops", "infrastructure"]
    */
@@ -331,6 +338,7 @@ export interface WorktreeConfig {
  */
 export function getDefaultConfig(): Required<WorktreeConfig> {
   return {
+    configVersion: 1,
     sharedRepos: [],
     baseBranch: DEFAULT_BASE_BRANCH,
     draftPr: false,

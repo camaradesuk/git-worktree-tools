@@ -36,6 +36,7 @@ vi.mock('./run-command.js', () => ({
 
 vi.mock('../../lib/config.js', () => ({
   loadConfig: vi.fn(() => ({
+    configVersion: 1,
     sharedRepos: [],
     baseBranch: 'main',
     draftPr: true,
@@ -819,6 +820,7 @@ describe('Config loading in flows', () => {
   it('uses config default for base branch', async () => {
     // Set up config mock to return custom baseBranch
     vi.mocked(loadConfig).mockReturnValueOnce({
+      configVersion: 1,
       sharedRepos: [],
       baseBranch: 'develop',
       draftPr: true,

@@ -19,9 +19,14 @@ import * as colors from '../lib/colors.js';
 import * as manage from '../lib/wtlink/manage-manifest.js';
 import * as link from '../lib/wtlink/link-configs.js';
 import * as validate from '../lib/wtlink/validate-manifest.js';
-import { migrateLegacyManifest, hasLegacyManifest } from '../lib/wtlink/config-manifest.js';
+import { hasLegacyManifest } from '../lib/wtlink/config-manifest.js';
 import * as git from '../lib/git.js';
 import { DEFAULT_MANIFEST_FILE } from '../lib/constants.js';
+import {
+  detectMigrationIssues,
+  runMigration,
+  formatMigrationReport,
+} from '../lib/config-migration/index.js';
 
 // Define interfaces for command arguments for type safety
 interface GlobalOptions {
@@ -161,7 +166,7 @@ yargs(hideBin(process.argv))
   )
   .command<MigrateArgv>(
     'migrate',
-    'Migrate legacy .wtlinkrc manifest to .worktreerc config',
+    '[Deprecated] Migrate config - use "wtconfig migrate" instead',
     (yargs) => {
       return yargs
         .option('delete-legacy', {
@@ -177,9 +182,20 @@ yargs(hideBin(process.argv))
         });
     },
     async (argv) => {
+      // Show deprecation notice
+      console.log(colors.yellow('Note: "wtlink migrate" is deprecated.'));
+      console.log(colors.dim('Please use "wtconfig migrate" for all migration tasks.'));
+      console.log();
+
       const mainWorktreeRoot = git.getMainWorktreeRoot();
 
-      if (!hasLegacyManifest(mainWorktreeRoot)) {
+      // Use new migration system for detection
+      const detection = detectMigrationIssues(mainWorktreeRoot);
+
+      // Filter to only legacy .wtlinkrc issues for backward compatibility
+      const legacyIssues = detection.issues.filter((i) => i.type === 'legacy_wtlinkrc');
+
+      if (legacyIssues.length === 0 && !hasLegacyManifest(mainWorktreeRoot)) {
         console.log(colors.yellow(`No legacy ${DEFAULT_MANIFEST_FILE} file found.`));
         console.log(
           colors.dim('Your config is already using .worktreerc or no manifest exists yet.')
@@ -188,17 +204,29 @@ yargs(hideBin(process.argv))
         return;
       }
 
-      const result = migrateLegacyManifest(mainWorktreeRoot, {
-        deleteLegacy: argv.deleteLegacy,
-        dryRun: argv.dryRun,
+      // Dry run mode - show report
+      if (argv.dryRun) {
+        console.log(formatMigrationReport(detection, { verbose: true }));
+        console.log();
+        console.log(colors.cyan('[DRY RUN] No changes were made.'));
+        return;
+      }
+
+      // Run migration using new system
+      const result = await runMigration(mainWorktreeRoot, detection, {
+        deleteLegacyFiles: argv.deleteLegacy,
       });
 
-      if (result.migrated) {
-        console.log(colors.green(result.message));
-      } else if (argv.dryRun) {
-        console.log(colors.cyan(result.message));
+      if (result.success) {
+        console.log(colors.green('Migration completed successfully!'));
+        if (result.backupPath) {
+          console.log(colors.dim(`Backup created: ${result.backupPath}`));
+        }
       } else {
-        console.log(colors.yellow(result.message));
+        console.log(colors.yellow('Migration completed with issues:'));
+        for (const error of result.errors) {
+          console.log(colors.red(`  ${error}`));
+        }
       }
     }
   )
