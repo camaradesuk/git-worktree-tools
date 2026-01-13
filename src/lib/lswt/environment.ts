@@ -7,9 +7,21 @@ import * as fs from 'fs';
 import type { EnvironmentInfo, GitVersion } from './types.js';
 
 /**
- * Check if a command is available on the system
+ * Dependencies for environment detection (injectable for testing)
  */
-export function isCommandAvailable(cmd: string): boolean {
+export interface LswtEnvironmentDeps {
+  /** Check if a command exists in PATH */
+  isCommandAvailable: (cmd: string) => boolean;
+  /** Run a command and return output, or null on error */
+  runCommand: (command: string) => string | null;
+  /** Read file synchronously */
+  readFile: (path: string) => string | null;
+}
+
+/**
+ * Check if a command is available on the system (implementation)
+ */
+function isCommandAvailableImpl(cmd: string): boolean {
   try {
     const checkCmd =
       process.platform === 'win32' ? `where ${cmd} 2>nul` : `command -v ${cmd} 2>/dev/null`;
@@ -19,6 +31,56 @@ export function isCommandAvailable(cmd: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Run a command and return output (implementation)
+ */
+function runCommandImpl(command: string): string | null {
+  try {
+    return execSync(command, { encoding: 'utf8', stdio: 'pipe' }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read file synchronously (implementation)
+ */
+function readFileImpl(filePath: string): string | null {
+  try {
+    return fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create default environment dependencies
+ */
+export function createDefaultLswtEnvironmentDeps(): LswtEnvironmentDeps {
+  return {
+    isCommandAvailable: isCommandAvailableImpl,
+    runCommand: runCommandImpl,
+    readFile: readFileImpl,
+  };
+}
+
+// Module-level deps instance
+let currentDeps: LswtEnvironmentDeps = createDefaultLswtEnvironmentDeps();
+
+/**
+ * Reset environment deps to defaults (for testing)
+ */
+export function resetLswtEnvironmentDeps(): void {
+  currentDeps = createDefaultLswtEnvironmentDeps();
+}
+
+/**
+ * Check if a command is available on the system (uses deps)
+ */
+export function isCommandAvailable(cmd: string): boolean {
+  return currentDeps.isCommandAvailable(cmd);
 }
 
 /**
@@ -53,17 +115,16 @@ export function parseGitVersion(versionString: string): GitVersion {
  * Get the installed git version
  */
 export function getGitVersion(): GitVersion {
-  try {
-    const output = execSync('git --version', { encoding: 'utf8', stdio: 'pipe' });
+  const output = currentDeps.runCommand('git --version');
+  if (output) {
     return parseGitVersion(output);
-  } catch {
-    return {
-      major: 0,
-      minor: 0,
-      patch: 0,
-      raw: 'unknown',
-    };
   }
+  return {
+    major: 0,
+    minor: 0,
+    patch: 0,
+    raw: 'unknown',
+  };
 }
 
 /**
@@ -91,17 +152,12 @@ export function getDefaultTerminal(): string {
 
   if (platform === 'darwin') {
     // Check for iTerm2 first
-    if (isCommandAvailable('osascript')) {
-      try {
-        const result = execSync(
-          'osascript -e \'tell application "System Events" to (name of processes) contains "iTerm2"\'',
-          { encoding: 'utf8', stdio: 'pipe' }
-        ).trim();
-        if (result === 'true') {
-          return 'iTerm2';
-        }
-      } catch {
-        // Fall through
+    if (currentDeps.isCommandAvailable('osascript')) {
+      const result = currentDeps.runCommand(
+        'osascript -e \'tell application "System Events" to (name of processes) contains "iTerm2"\''
+      );
+      if (result === 'true') {
+        return 'iTerm2';
       }
     }
     return 'Terminal';
@@ -109,7 +165,7 @@ export function getDefaultTerminal(): string {
 
   if (platform === 'win32') {
     // Check for Windows Terminal
-    if (isCommandAvailable('wt')) {
+    if (currentDeps.isCommandAvailable('wt')) {
       return 'wt';
     }
     return 'cmd';
@@ -118,7 +174,7 @@ export function getDefaultTerminal(): string {
   // Linux - check common terminals
   const terminals = ['gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm'];
   for (const terminal of terminals) {
-    if (isCommandAvailable(terminal)) {
+    if (currentDeps.isCommandAvailable(terminal)) {
       return terminal;
     }
   }
@@ -151,20 +207,23 @@ export function isWSL(): boolean {
   }
 
   // Check /proc/version for Microsoft/WSL indicators
-  try {
-    const procVersion = fs.readFileSync('/proc/version', 'utf8').toLowerCase();
-    return procVersion.includes('microsoft') || procVersion.includes('wsl');
-  } catch {
-    return false;
+  const procVersion = currentDeps.readFile('/proc/version');
+  if (procVersion) {
+    const lower = procVersion.toLowerCase();
+    return lower.includes('microsoft') || lower.includes('wsl');
   }
+  return false;
 }
 
 /**
  * Detect full environment information
  */
-export function detectEnvironment(): EnvironmentInfo {
-  const hasVscode = isCommandAvailable('code');
-  const hasCursor = isCommandAvailable('cursor');
+export function detectEnvironment(deps?: LswtEnvironmentDeps): EnvironmentInfo {
+  if (deps) {
+    currentDeps = deps;
+  }
+  const hasVscode = currentDeps.isCommandAvailable('code');
+  const hasCursor = currentDeps.isCommandAvailable('cursor');
 
   let defaultEditor: 'vscode' | 'cursor' | null = null;
   if (hasVscode) {

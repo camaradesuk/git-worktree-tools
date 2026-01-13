@@ -116,6 +116,7 @@ describe('lswt/action-executors', () => {
     spawnDetached: vi.fn(),
     copyToClipboard: vi.fn(),
     openUrl: vi.fn(),
+    wslPathToWindows: vi.fn().mockReturnValue('\\\\wsl.localhost\\Ubuntu\\home\\user\\repo'),
     ...overrides,
   });
 
@@ -127,10 +128,12 @@ describe('lswt/action-executors', () => {
       expect(deps).toHaveProperty('spawnDetached');
       expect(deps).toHaveProperty('copyToClipboard');
       expect(deps).toHaveProperty('openUrl');
+      expect(deps).toHaveProperty('wslPathToWindows');
       expect(typeof deps.execCommand).toBe('function');
       expect(typeof deps.spawnDetached).toBe('function');
       expect(typeof deps.copyToClipboard).toBe('function');
       expect(typeof deps.openUrl).toBe('function');
+      expect(typeof deps.wslPathToWindows).toBe('function');
     });
   });
 
@@ -305,11 +308,13 @@ describe('lswt/action-executors', () => {
       expect(deps).toHaveProperty('spawnDetached');
       expect(deps).toHaveProperty('copyToClipboard');
       expect(deps).toHaveProperty('openUrl');
+      expect(deps).toHaveProperty('wslPathToWindows');
 
       expect(typeof deps.execCommand).toBe('function');
       expect(typeof deps.spawnDetached).toBe('function');
       expect(typeof deps.copyToClipboard).toBe('function');
       expect(typeof deps.openUrl).toBe('function');
+      expect(typeof deps.wslPathToWindows).toBe('function');
     });
   });
 
@@ -334,6 +339,8 @@ describe('lswt/action-executors', () => {
 
       const result = await executeAction('open_terminal', worktree, env, makeConfig(), deps);
 
+      // Should call deps.wslPathToWindows to convert path
+      expect(deps.wslPathToWindows).toHaveBeenCalledWith('/home/user/repo');
       // Should try to use cmd.exe to launch Windows Terminal
       expect(deps.execCommand).toHaveBeenCalledWith(expect.stringContaining('cmd.exe'));
       expect(result.success).toBe(true);

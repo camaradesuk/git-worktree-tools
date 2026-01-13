@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { execSync } from 'child_process';
 import {
   extractPrNumber,
   gatherPrWorktreeInfo,
@@ -7,10 +6,12 @@ import {
   GatherDeps,
 } from './worktree-info.js';
 import type { Worktree } from '../git.js';
+import * as git from '../git.js';
 import * as github from '../github.js';
 
-vi.mock('child_process', () => ({
-  execSync: vi.fn(),
+vi.mock('../git.js', () => ({
+  listWorktrees: vi.fn(),
+  getStatusOutput: vi.fn(),
 }));
 
 vi.mock('../github.js', () => ({
@@ -209,33 +210,29 @@ describe('cleanpr/worktree-info', () => {
 
     describe('hasUncommittedChanges', () => {
       it('returns true when git status has output', () => {
-        vi.mocked(execSync).mockReturnValue(' M file.txt\n');
+        vi.mocked(git.getStatusOutput).mockReturnValue(' M file.txt\n');
         const deps = createDefaultDeps();
 
         expect(deps.hasUncommittedChanges('/path/to/worktree')).toBe(true);
-        expect(execSync).toHaveBeenCalledWith('git status --porcelain', {
-          cwd: '/path/to/worktree',
-          encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
+        expect(git.getStatusOutput).toHaveBeenCalledWith('/path/to/worktree');
       });
 
       it('returns false when git status is empty', () => {
-        vi.mocked(execSync).mockReturnValue('');
+        vi.mocked(git.getStatusOutput).mockReturnValue('');
         const deps = createDefaultDeps();
 
         expect(deps.hasUncommittedChanges('/path/to/worktree')).toBe(false);
       });
 
       it('returns false when git status is only whitespace', () => {
-        vi.mocked(execSync).mockReturnValue('  \n\t  ');
+        vi.mocked(git.getStatusOutput).mockReturnValue('  \n\t  ');
         const deps = createDefaultDeps();
 
         expect(deps.hasUncommittedChanges('/path/to/worktree')).toBe(false);
       });
 
-      it('returns false when execSync throws an error', () => {
-        vi.mocked(execSync).mockImplementation(() => {
+      it('returns false when git.getStatusOutput throws an error', () => {
+        vi.mocked(git.getStatusOutput).mockImplementation(() => {
           throw new Error('git command failed');
         });
         const deps = createDefaultDeps();

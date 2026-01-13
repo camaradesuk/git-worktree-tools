@@ -3,18 +3,10 @@ import { gatherWorktreeInfo, createDefaultDeps, GatherDeps } from './worktree-in
 import type { Worktree } from '../git.js';
 import type { ListOptions } from './types.js';
 
-// Mock child_process for hasUncommittedChanges tests
-vi.mock('child_process', async () => {
-  const actual = await vi.importActual('child_process');
-  return {
-    ...actual,
-    execSync: vi.fn(),
-  };
-});
-
 // Mock git
 vi.mock('../git.js', () => ({
   listWorktrees: vi.fn(),
+  getStatusOutput: vi.fn(),
 }));
 
 // Mock github
@@ -22,7 +14,6 @@ vi.mock('../github.js', () => ({
   getPr: vi.fn(),
 }));
 
-import { execSync } from 'child_process';
 import * as git from '../git.js';
 import * as github from '../github.js';
 
@@ -511,21 +502,17 @@ describe('lswt/worktree-info', () => {
 
     describe('hasUncommittedChanges', () => {
       it('returns true when git status has output', () => {
-        vi.mocked(execSync).mockReturnValue(' M file.txt\n');
+        vi.mocked(git.getStatusOutput).mockReturnValue(' M file.txt\n');
 
         const deps = createDefaultDeps();
         const result = deps.hasUncommittedChanges('/some/path');
 
         expect(result).toBe(true);
-        expect(execSync).toHaveBeenCalledWith('git status --porcelain', {
-          cwd: '/some/path',
-          encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe'],
-        });
+        expect(git.getStatusOutput).toHaveBeenCalledWith('/some/path');
       });
 
       it('returns false when git status has no output', () => {
-        vi.mocked(execSync).mockReturnValue('');
+        vi.mocked(git.getStatusOutput).mockReturnValue('');
 
         const deps = createDefaultDeps();
         const result = deps.hasUncommittedChanges('/some/path');
@@ -534,7 +521,7 @@ describe('lswt/worktree-info', () => {
       });
 
       it('returns false when git status throws error', () => {
-        vi.mocked(execSync).mockImplementation(() => {
+        vi.mocked(git.getStatusOutput).mockImplementation(() => {
           throw new Error('git error');
         });
 

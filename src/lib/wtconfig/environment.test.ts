@@ -10,6 +10,9 @@ import {
   detectDefaultBranch,
   getInstallCommand,
   getEditorCommand,
+  createDefaultEnvironmentDeps,
+  resetEnvironmentDeps,
+  type EnvironmentDeps,
 } from './environment.js';
 import type { EnvironmentInfo } from './types.js';
 
@@ -23,6 +26,8 @@ describe('environment', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
+    // Reset module-level deps to defaults (uses mocked spawnSync)
+    resetEnvironmentDeps();
     // Mock spawnSync to return not found by default
     vi.mocked(spawnSync).mockReturnValue({
       status: 1,
@@ -203,6 +208,42 @@ describe('environment', () => {
       expect(result.ide.vscode).toBe(true);
       expect(result.ide.cursor).toBe(true);
     });
+
+    it('accepts mock deps for dependency injection', () => {
+      const mockDeps: EnvironmentDeps = {
+        commandExists: vi.fn().mockImplementation((cmd: string) => {
+          return cmd === 'code' || cmd === 'gh';
+        }),
+        runCommand: vi.fn().mockImplementation((cmd: string, args: string[]) => {
+          if (cmd === 'git' && args[0] === '--version') {
+            return 'git version 2.45.0';
+          }
+          if (cmd === 'git' && args[0] === 'config' && args[2] === 'user.name') {
+            return 'Mock User';
+          }
+          if (cmd === 'git' && args[0] === 'config' && args[2] === 'user.email') {
+            return 'mock@example.com';
+          }
+          if (cmd === 'gh' && args[0] === 'auth') {
+            return 'Logged in';
+          }
+          if (cmd === 'gh' && args[0] === 'api') {
+            return 'mockuser';
+          }
+          return null;
+        }),
+      };
+
+      const result = detectEnvironment(undefined, mockDeps);
+
+      expect(result.git.version).toBe('2.45.0');
+      expect(result.git.user).toBe('Mock User');
+      expect(result.git.email).toBe('mock@example.com');
+      expect(result.github.installed).toBe(true);
+      expect(result.ide.vscode).toBe(true);
+      expect(mockDeps.commandExists).toHaveBeenCalled();
+      expect(mockDeps.runCommand).toHaveBeenCalled();
+    });
   });
 
   describe('detectDefaultBranch', () => {
@@ -243,6 +284,17 @@ describe('environment', () => {
 
     it('returns npm install for null', () => {
       expect(getInstallCommand(null)).toBe('npm install');
+    });
+  });
+
+  describe('createDefaultEnvironmentDeps', () => {
+    it('returns deps object with required functions', () => {
+      const deps = createDefaultEnvironmentDeps();
+
+      expect(deps).toHaveProperty('commandExists');
+      expect(deps).toHaveProperty('runCommand');
+      expect(typeof deps.commandExists).toBe('function');
+      expect(typeof deps.runCommand).toBe('function');
     });
   });
 

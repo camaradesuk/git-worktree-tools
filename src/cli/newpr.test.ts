@@ -448,13 +448,16 @@ describe('cli/newpr', () => {
 
       await runCli(['Add new feature']);
 
-      // Verify wiring: checkout uses generated branch name and branch point
-      expect(git.exec).toHaveBeenCalledWith([
-        'checkout',
-        '-b',
-        'feature/add-new-feature', // from generateBranchNameAsync
-        'origin/main', // from getBranchPoint
-      ]);
+      // Verify wiring: checkout uses generated branch name and branch point with repoRoot
+      expect(git.exec).toHaveBeenCalledWith(
+        [
+          'checkout',
+          '-b',
+          'feature/add-new-feature', // from generateBranchNameAsync
+          'origin/main', // from getBranchPoint
+        ],
+        { cwd: '/repo' } // repoRoot from getRepoRoot()
+      );
       // Verify wiring: createPr receives correct branch and title (from generatePRContentAsync)
       expect(github.createPr).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -463,10 +466,11 @@ describe('cli/newpr', () => {
           title: 'Add new feature',
         })
       );
-      // Verify wiring: addWorktreeAsync receives correct path and branch (non-JSON mode uses async)
+      // Verify wiring: addWorktreeAsync receives correct path, branch, and cwd option
       expect(git.addWorktreeAsync).toHaveBeenCalledWith(
         '/repo.pr100', // path from generateWorktreePath
-        'feature/add-new-feature' // the branch name
+        'feature/add-new-feature', // the branch name
+        { cwd: '/repo' } // repoRoot from getRepoRoot()
       );
     });
 
@@ -1035,6 +1039,192 @@ describe('cli/newpr', () => {
         'feature/add-new-feature',
         expect.any(Object),
         repoRoot // This ensures git operations run from repo root
+      );
+    });
+  });
+
+  describe('Bug fix: git operations must use repoRoot (empty commit worktree bug)', () => {
+    // These tests verify the fix for the bug where creating a PR worktree
+    // with an empty commit failed because git.checkout() didn't switch back
+    // to main (missing repoRoot parameter), causing git.addWorktree() to fail
+    // with "branch already checked out" error.
+
+    it('git.checkout after push must use repoRoot parameter', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // CRITICAL: git.checkout must be called with repoRoot to switch back to main
+      // Without this, the branch remains checked out and worktree creation fails
+      expect(git.checkout).toHaveBeenCalledWith('main', repoRoot);
+    });
+
+    it('git.addWorktreeAsync must use { cwd: repoRoot } option', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // CRITICAL: git.addWorktreeAsync must be called with { cwd: repoRoot }
+      // to ensure worktree is created from the correct directory
+      expect(git.addWorktreeAsync).toHaveBeenCalledWith('/repo.pr100', 'feat/test-feature', {
+        cwd: repoRoot,
+      });
+    });
+
+    it('git.pushAsync must use repoRoot parameter', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // git.pushAsync must be called with repoRoot to push from correct directory
+      expect(git.pushAsync).toHaveBeenCalledWith(
+        { setUpstream: true, remote: 'origin', branch: 'feat/test-feature' },
+        repoRoot
+      );
+    });
+
+    it('git.exec for branch checkout must use { cwd: repoRoot } option', async () => {
+      const repoRoot = '/repo';
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Test feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue(repoRoot);
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/test-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Continue with empty initial commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Test feature']);
+
+      // git.exec for branch creation must use cwd option to ensure
+      // branch is created in the correct worktree
+      expect(git.exec).toHaveBeenCalledWith(
+        ['checkout', '-b', 'feat/test-feature', 'origin/main'],
+        { cwd: repoRoot }
       );
     });
   });

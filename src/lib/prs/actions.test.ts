@@ -55,6 +55,8 @@ function createMockDeps(overrides: Partial<PrActionDeps> = {}): PrActionDeps {
     log: vi.fn(),
     gitFetch: vi.fn(),
     gitAddWorktree: vi.fn(),
+    openPathInEditor: vi.fn().mockReturnValue(true),
+    openPathInTerminal: vi.fn().mockReturnValue(true),
     ...overrides,
   };
 }
@@ -207,7 +209,24 @@ describe('actions', () => {
 
       const result = await openWorktreeInEditor(pr, deps);
 
-      expect(result.message).toBeDefined();
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('/path/to/worktree');
+      expect(deps.openPathInEditor).toHaveBeenCalledWith('/path/to/worktree', 'vscode');
+    });
+
+    it('should return error if editor fails to open', async () => {
+      const pr = createMockPr({
+        hasWorktree: true,
+        worktreePath: '/path/to/worktree',
+      });
+      const deps = createMockDeps({
+        openPathInEditor: vi.fn().mockReturnValue(false),
+      });
+
+      const result = await openWorktreeInEditor(pr, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('No suitable editor');
     });
   });
 
@@ -231,7 +250,24 @@ describe('actions', () => {
 
       const result = await openWorktreeInTerminal(pr, deps);
 
-      expect(result.message).toBeDefined();
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('/path/to/worktree');
+      expect(deps.openPathInTerminal).toHaveBeenCalledWith('/path/to/worktree');
+    });
+
+    it('should return error if terminal fails to open', async () => {
+      const pr = createMockPr({
+        hasWorktree: true,
+        worktreePath: '/path/to/worktree',
+      });
+      const deps = createMockDeps({
+        openPathInTerminal: vi.fn().mockReturnValue(false),
+      });
+
+      const result = await openWorktreeInTerminal(pr, deps);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('No suitable terminal');
     });
   });
 

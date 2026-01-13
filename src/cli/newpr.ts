@@ -748,7 +748,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     });
 
     try {
-      git.exec(['checkout', '-b', branchName, branchFrom]);
+      git.exec(['checkout', '-b', branchName, branchFrom], { cwd: repoRoot });
     } catch (checkoutError) {
       // When checkout fails (e.g., due to conflicting changes), git preserves
       // the staged files in the index - no data is lost. Provide a helpful message.
@@ -819,17 +819,17 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     // Use spinner for push
     if (options.json) {
-      git.push({ setUpstream: true, remote: 'origin', branch: branchName });
+      git.push({ setUpstream: true, remote: 'origin', branch: branchName }, repoRoot);
     } else {
       await withSpinner('Pushing branch to origin...', async () => {
-        await git.pushAsync({ setUpstream: true, remote: 'origin', branch: branchName });
+        await git.pushAsync({ setUpstream: true, remote: 'origin', branch: branchName }, repoRoot);
       });
     }
 
     // Run post-push hook
     await hookRunner.runHook('post-push');
 
-    git.checkout(originalBranch);
+    git.checkout(originalBranch, repoRoot);
 
     // Run pre-pr hook
     if (!(await hookRunner.runHook('pre-pr'))) {
@@ -898,10 +898,10 @@ ${description}
 
     // Use spinner for worktree creation
     if (options.json) {
-      git.addWorktree(worktreePath, branchName);
+      git.addWorktree(worktreePath, branchName, { cwd: repoRoot });
     } else {
       await withSpinner(`Creating worktree at ${worktreePath}...`, async () => {
-        await git.addWorktreeAsync(worktreePath, branchName);
+        await git.addWorktreeAsync(worktreePath, branchName, { cwd: repoRoot });
       });
     }
 

@@ -10,9 +10,19 @@ import path from 'path';
 import type { EnvironmentInfo } from './types.js';
 
 /**
- * Check if a command exists in PATH
+ * Dependencies for environment detection (injectable for testing)
  */
-function commandExists(command: string): boolean {
+export interface EnvironmentDeps {
+  /** Check if a command exists in PATH */
+  commandExists: (command: string) => boolean;
+  /** Run a command and return output, or null on error */
+  runCommand: (command: string, args: string[]) => string | null;
+}
+
+/**
+ * Check if a command exists in PATH (implementation)
+ */
+function commandExistsImpl(command: string): boolean {
   try {
     const isWindows = process.platform === 'win32';
     if (isWindows) {
@@ -34,9 +44,9 @@ function commandExists(command: string): boolean {
 }
 
 /**
- * Run a command and return output, or null on error
+ * Run a command and return output, or null on error (implementation)
  */
-function runCommand(command: string, args: string[]): string | null {
+function runCommandImpl(command: string, args: string[]): string | null {
   try {
     const result = spawnSync(command, args, {
       encoding: 'utf8',
@@ -50,6 +60,26 @@ function runCommand(command: string, args: string[]): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Create default environment dependencies
+ */
+export function createDefaultEnvironmentDeps(): EnvironmentDeps {
+  return {
+    commandExists: commandExistsImpl,
+    runCommand: runCommandImpl,
+  };
+}
+
+// Module-level deps instance (set by detectEnvironment)
+let currentDeps: EnvironmentDeps = createDefaultEnvironmentDeps();
+
+/**
+ * Reset environment deps to defaults (for testing)
+ */
+export function resetEnvironmentDeps(): void {
+  currentDeps = createDefaultEnvironmentDeps();
 }
 
 /**
@@ -74,7 +104,7 @@ function detectOS(): 'windows' | 'macos' | 'linux' {
  * Detect git installation and configuration
  */
 function detectGit(): EnvironmentInfo['git'] {
-  const version = runCommand('git', ['--version']);
+  const version = currentDeps.runCommand('git', ['--version']);
   if (!version) {
     return {
       version: null,
@@ -88,8 +118,8 @@ function detectGit(): EnvironmentInfo['git'] {
   const versionMatch = version.match(/git version (\d+\.\d+\.\d+)/);
   const versionNumber = versionMatch ? versionMatch[1] : version;
 
-  const user = runCommand('git', ['config', '--global', 'user.name']);
-  const email = runCommand('git', ['config', '--global', 'user.email']);
+  const user = currentDeps.runCommand('git', ['config', '--global', 'user.name']);
+  const email = currentDeps.runCommand('git', ['config', '--global', 'user.email']);
 
   return {
     version: versionNumber,
@@ -103,7 +133,7 @@ function detectGit(): EnvironmentInfo['git'] {
  * Detect GitHub CLI installation and authentication
  */
 function detectGitHub(): EnvironmentInfo['github'] {
-  const installed = commandExists('gh');
+  const installed = currentDeps.commandExists('gh');
   if (!installed) {
     return {
       installed: false,
@@ -113,14 +143,14 @@ function detectGitHub(): EnvironmentInfo['github'] {
   }
 
   // Check authentication status
-  const authStatus = runCommand('gh', ['auth', 'status']);
+  const authStatus = currentDeps.runCommand('gh', ['auth', 'status']);
   const authenticated = authStatus !== null;
 
   // Get authenticated user
   let user: string | null = null;
   if (authenticated) {
     try {
-      const userJson = runCommand('gh', ['api', 'user', '-q', '.login']);
+      const userJson = currentDeps.runCommand('gh', ['api', 'user', '-q', '.login']);
       user = userJson;
     } catch {
       // Ignore
@@ -140,10 +170,10 @@ function detectGitHub(): EnvironmentInfo['github'] {
  */
 function detectAI(): EnvironmentInfo['ai'] {
   return {
-    claudeCode: commandExists('claude'),
-    geminiCLI: commandExists('gemini'),
-    ollama: commandExists('ollama'),
-    codexCLI: commandExists('codex'),
+    claudeCode: currentDeps.commandExists('claude'),
+    geminiCLI: currentDeps.commandExists('gemini'),
+    ollama: currentDeps.commandExists('ollama'),
+    codexCLI: currentDeps.commandExists('codex'),
   };
 }
 
@@ -168,10 +198,10 @@ function detectPackageManager(cwd?: string): 'npm' | 'pnpm' | 'yarn' | 'bun' | n
   }
 
   // Check for installed package managers
-  if (commandExists('pnpm')) return 'pnpm';
-  if (commandExists('yarn')) return 'yarn';
-  if (commandExists('bun')) return 'bun';
-  if (commandExists('npm')) return 'npm';
+  if (currentDeps.commandExists('pnpm')) return 'pnpm';
+  if (currentDeps.commandExists('yarn')) return 'yarn';
+  if (currentDeps.commandExists('bun')) return 'bun';
+  if (currentDeps.commandExists('npm')) return 'npm';
 
   return null;
 }
@@ -181,8 +211,8 @@ function detectPackageManager(cwd?: string): 'npm' | 'pnpm' | 'yarn' | 'bun' | n
  */
 function detectIDE(): EnvironmentInfo['ide'] {
   return {
-    vscode: commandExists('code'),
-    cursor: commandExists('cursor'),
+    vscode: currentDeps.commandExists('code'),
+    cursor: currentDeps.commandExists('cursor'),
   };
 }
 
@@ -191,17 +221,33 @@ function detectIDE(): EnvironmentInfo['ide'] {
  */
 export function detectDefaultBranch(repoRoot?: string): string {
   // Try to get from git config
-  const initDefaultBranch = runCommand('git', ['config', '--global', 'init.defaultBranch']);
+  const initDefaultBranch = currentDeps.runCommand('git', [
+    'config',
+    '--global',
+    'init.defaultBranch',
+  ]);
   if (initDefaultBranch) {
     return initDefaultBranch;
   }
 
   // If in a repo, check what exists
   if (repoRoot) {
-    const mainExists = runCommand('git', ['-C', repoRoot, 'rev-parse', '--verify', 'main']);
+    const mainExists = currentDeps.runCommand('git', [
+      '-C',
+      repoRoot,
+      'rev-parse',
+      '--verify',
+      'main',
+    ]);
     if (mainExists !== null) return 'main';
 
-    const masterExists = runCommand('git', ['-C', repoRoot, 'rev-parse', '--verify', 'master']);
+    const masterExists = currentDeps.runCommand('git', [
+      '-C',
+      repoRoot,
+      'rev-parse',
+      '--verify',
+      'master',
+    ]);
     if (masterExists !== null) return 'master';
   }
 
@@ -212,7 +258,10 @@ export function detectDefaultBranch(repoRoot?: string): string {
 /**
  * Detect full environment information
  */
-export function detectEnvironment(cwd?: string): EnvironmentInfo {
+export function detectEnvironment(cwd?: string, deps?: EnvironmentDeps): EnvironmentInfo {
+  if (deps) {
+    currentDeps = deps;
+  }
   return {
     os: detectOS(),
     git: detectGit(),
