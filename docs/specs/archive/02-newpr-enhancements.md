@@ -1,8 +1,9 @@
 # newpr Enhancements - Consolidated Implementation Specification
 
-**Status**: 📝 Draft
+**Status**: ✅ Implemented
 **Author**: Claude (Senior Systems Architect)
 **Date**: 2026-01-13
+**Completed**: 2026-01-13
 **Target Environment**: WSL Ubuntu / macOS / Windows
 **PR**: #18
 **Consolidates**: hooks-improvements + ai-plan-documents

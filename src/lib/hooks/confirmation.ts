@@ -11,6 +11,24 @@ import type { HookName, HookDefinition, ComplexHookDef } from './types.js';
 import { isSimpleHook, isMultipleHook, isComplexHook } from './types.js';
 
 /**
+ * Environment variables that indicate a CI/CD environment.
+ * When any of these are set, interactive prompts are skipped.
+ */
+const CI_ENVIRONMENT_VARIABLES = [
+  'CI',
+  'GITHUB_ACTIONS',
+  'GITLAB_CI',
+  'JENKINS_URL',
+  'CIRCLECI',
+  'TRAVIS',
+  'BUILDKITE',
+  'TEAMCITY_VERSION',
+  'TF_BUILD', // Azure DevOps
+  'CODEBUILD_BUILD_ID', // AWS CodeBuild
+  'BITBUCKET_BUILD_NUMBER', // Bitbucket Pipelines
+] as const;
+
+/**
  * Action to take for a hook
  */
 export type HookConfirmAction = 'run' | 'skip' | 'edit';
@@ -67,20 +85,8 @@ export function isInteractiveEnvironment(): boolean {
     return false;
   }
 
-  // Check for common CI environment variables
-  const ciEnvVars = [
-    'CI',
-    'GITHUB_ACTIONS',
-    'GITLAB_CI',
-    'JENKINS_URL',
-    'CIRCLECI',
-    'TRAVIS',
-    'BUILDKITE',
-    'TEAMCITY_VERSION',
-    'TF_BUILD', // Azure DevOps
-  ];
-
-  for (const envVar of ciEnvVars) {
+  // Check for CI environment variables
+  for (const envVar of CI_ENVIRONMENT_VARIABLES) {
     if (process.env[envVar]) {
       return false;
     }

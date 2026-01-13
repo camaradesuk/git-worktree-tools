@@ -26,13 +26,32 @@ import {
 
 /**
  * Default timeout for hook execution (30 seconds)
- * Can be overridden via hookDefaults.timeout in .worktreerc
+ *
+ * For hooks that may take longer (e.g., `npm install`, build scripts),
+ * configure custom timeouts in .worktreerc:
+ *
+ * @example
+ * ```json
+ * {
+ *   "hookDefaults": {
+ *     "timeout": 120000,    // 2 minutes default
+ *     "maxTimeout": 300000  // 5 minutes max
+ *   },
+ *   "hooks": {
+ *     "post-worktree": {
+ *       "command": "npm install",
+ *       "timeout": 180000   // 3 minutes for this specific hook
+ *     }
+ *   }
+ * }
+ * ```
  */
 const DEFAULT_TIMEOUT = 30000;
 
 /**
  * Maximum overall timeout (60 seconds)
  * Can be overridden via hookDefaults.maxTimeout in .worktreerc
+ * Individual hook timeouts are clamped to this value.
  */
 const DEFAULT_MAX_TIMEOUT = 60000;
 

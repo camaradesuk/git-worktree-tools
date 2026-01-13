@@ -162,16 +162,22 @@ async function atomicWriteConfig(
       // First remove target if it exists
       try {
         await fs.promises.unlink(configPath);
-      } catch {
-        // Target may not exist, that's fine
+      } catch (err) {
+        // ENOENT is expected if target doesn't exist yet
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw err;
+        }
       }
       // Copy temp to target
       await fs.promises.copyFile(tempPath, configPath);
       // Remove temp file
       try {
         await fs.promises.unlink(tempPath);
-      } catch {
-        // Ignore cleanup errors on Windows
+      } catch (err) {
+        // Best-effort cleanup: log non-ENOENT errors but don't fail
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          logger.debug(`Failed to clean up temp file ${tempPath}: ${(err as Error).message}`);
+        }
       }
     }
 
@@ -180,8 +186,11 @@ async function atomicWriteConfig(
     // Clean up temp file on any failure
     try {
       await fs.promises.unlink(tempPath);
-    } catch {
-      // Ignore cleanup errors
+    } catch (cleanupErr) {
+      // Best-effort cleanup: don't mask the original error
+      if ((cleanupErr as NodeJS.ErrnoException).code !== 'ENOENT') {
+        logger.debug(`Failed to clean up temp file ${tempPath}: ${(cleanupErr as Error).message}`);
+      }
     }
     throw error;
   }
