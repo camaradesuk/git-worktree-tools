@@ -145,19 +145,35 @@ async function atomicWriteConfig(
     // 1. Write to temporary file
     await fs.promises.writeFile(tempPath, content, { encoding: 'utf-8', mode: 0o644 });
 
-    // 2. Sync to ensure data is on disk
-    const fd = await fs.promises.open(tempPath, 'r');
-    await fd.sync();
-    await fd.close();
-
-    // 3. On Windows, file handles may not be released immediately after close()
-    // Small delay to allow the OS to release the handle
-    if (process.platform === 'win32') {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+    // 2. On POSIX, sync and use atomic rename
+    // On Windows, skip sync (causes file locking issues) and use copy+delete
+    if (process.platform !== 'win32') {
+      // Sync to ensure data is on disk (POSIX only)
+      const fd = await fs.promises.open(tempPath, 'r');
+      try {
+        await fd.sync();
+      } finally {
+        await fd.close();
+      }
+      // Atomic rename (POSIX guarantees atomicity)
+      await fs.promises.rename(tempPath, configPath);
+    } else {
+      // Windows: use copy + delete approach to avoid file locking issues
+      // First remove target if it exists
+      try {
+        await fs.promises.unlink(configPath);
+      } catch {
+        // Target may not exist, that's fine
+      }
+      // Copy temp to target
+      await fs.promises.copyFile(tempPath, configPath);
+      // Remove temp file
+      try {
+        await fs.promises.unlink(tempPath);
+      } catch {
+        // Ignore cleanup errors on Windows
+      }
     }
-
-    // 4. Atomic rename (POSIX guarantees atomicity)
-    await fs.promises.rename(tempPath, configPath);
 
     logger.debug(`Atomically wrote config to: ${configPath}`);
   } catch (error) {
