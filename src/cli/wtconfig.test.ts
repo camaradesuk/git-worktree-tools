@@ -60,6 +60,7 @@ describe('cli/wtconfig', () => {
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
     wtlink: { enabled: [], disabled: [] },
+    linkConfigFiles: undefined,
   };
 
   beforeEach(() => {

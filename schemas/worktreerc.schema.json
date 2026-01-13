@@ -89,6 +89,10 @@
     },
     "wtlink": {
       "$ref": "#/definitions/WtlinkConfig"
+    },
+    "linkConfigFiles": {
+      "type": "boolean",
+      "description": "Auto-link config files when creating worktrees. Controls whether tracked config files (via wtlink manifest) are automatically linked from the main worktree to new feature worktrees during newpr. If undefined/not set: prompt interactively. If true: auto-link without prompting. If false: skip linking without prompting."
     }
   },
   "definitions": {
@@ -152,6 +156,16 @@
         "planTemplate": {
           "type": "string",
           "description": "Path to plan document template"
+        },
+        "planPath": {
+          "type": "string",
+          "description": "Path template for plan documents. Variables: {prNumber}, {slug}, {branch}, {date}, {timestamp}. Default: 'PLAN-{prNumber}-{slug}.md'"
+        },
+        "planPathMode": {
+          "type": "string",
+          "enum": ["fixed", "prompt"],
+          "default": "fixed",
+          "description": "Plan path resolution mode: 'fixed' uses exact template, 'prompt' may prompt user for custom path"
         },
         "claude": {
           "type": "object",
@@ -254,6 +268,10 @@
             "script": {
               "type": "string",
               "description": "Path to script file"
+            },
+            "cwd": {
+              "type": "string",
+              "description": "Working directory for hook execution. Supports {{WORKTREE_PATH}}, {{REPO_ROOT}} placeholders. For post-worktree, post-pr, post-push hooks, defaults to worktree path when available."
             },
             "timeout": {
               "type": "number",

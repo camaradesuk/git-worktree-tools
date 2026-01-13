@@ -42,6 +42,20 @@ export const HOOK_NAMES: HookName[] = [
 ];
 
 /**
+ * Hooks that should default to worktree CWD when available.
+ * These hooks run after worktree creation and typically need to
+ * execute in the worktree directory (e.g., npm install).
+ */
+export const WORKTREE_CWD_HOOKS: HookName[] = ['post-worktree', 'post-pr', 'post-push'];
+
+/**
+ * Check if a hook should default to worktree CWD
+ */
+export function shouldUseWorktreeCwd(hookName: HookName): boolean {
+  return WORKTREE_CWD_HOOKS.includes(hookName);
+}
+
+/**
  * Context passed to hooks via environment variables
  */
 export interface HookContext {
@@ -101,6 +115,13 @@ export interface ComplexHookDef {
 
   /** Path to script file */
   script?: string;
+
+  /**
+   * Working directory for hook execution.
+   * Supports template variables: {{WORKTREE_PATH}}, {{REPO_ROOT}}
+   * For post-worktree, post-pr, post-push hooks, defaults to worktree path when available.
+   */
+  cwd?: string;
 
   /** Timeout in milliseconds (default: 30000) */
   timeout?: number;

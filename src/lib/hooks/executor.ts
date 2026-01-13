@@ -16,7 +16,13 @@ import type {
   HooksConfig,
   ComplexHookDef,
 } from './types.js';
-import { contextToEnv, isSimpleHook, isMultipleHook, isComplexHook } from './types.js';
+import {
+  contextToEnv,
+  isSimpleHook,
+  isMultipleHook,
+  isComplexHook,
+  shouldUseWorktreeCwd,
+} from './types.js';
 
 /**
  * Default timeout for hook execution (30 seconds)
@@ -152,6 +158,44 @@ function expandTemplateVariables(template: string, context: HookContext): string
 }
 
 /**
+ * Resolve the working directory for a hook
+ *
+ * Priority:
+ * 1. Explicit cwd in complex hook definition (with template expansion)
+ * 2. Smart default for WORKTREE_CWD_HOOKS when worktreePath is available
+ * 3. Fallback to executor options cwd or context repoRoot
+ *
+ * @param hookName - The hook being executed
+ * @param definition - The hook definition
+ * @param context - The hook execution context
+ * @param options - The executor options
+ * @returns The resolved working directory path
+ */
+export function resolveHookCwd(
+  hookName: HookName,
+  definition: HookDefinition,
+  context: HookContext,
+  options: HookExecutorOptions
+): string {
+  // 1. Explicit cwd in complex hook definition (with template expansion)
+  if (isComplexHook(definition) && definition.cwd) {
+    return expandTemplateVariables(definition.cwd, context);
+  }
+
+  // 2. Smart defaults for post-* hooks when worktree path exists and is a valid directory
+  if (
+    shouldUseWorktreeCwd(hookName) &&
+    context.worktreePath &&
+    fs.existsSync(context.worktreePath)
+  ) {
+    return context.worktreePath;
+  }
+
+  // 3. Fallback to options cwd or repoRoot
+  return options.cwd ?? context.repoRoot;
+}
+
+/**
  * Evaluate a condition string
  */
 function evaluateCondition(condition: string, context: HookContext, cwd: string): boolean {
@@ -204,7 +248,8 @@ async function executeSingleHook(
   options: HookExecutorOptions
 ): Promise<HookResult> {
   const startTime = Date.now();
-  const cwd = options.cwd ?? context.repoRoot;
+  // Use smart CWD resolution for proper worktree support
+  const cwd = resolveHookCwd(hookName, definition, context, options);
 
   // Handle simple string command
   if (isSimpleHook(definition)) {
@@ -297,7 +342,8 @@ async function executeComplexHook(
   options: HookExecutorOptions,
   startTime: number
 ): Promise<HookResult> {
-  const cwd = options.cwd ?? context.repoRoot;
+  // Use smart CWD resolution for proper worktree support
+  const cwd = resolveHookCwd(hookName, definition, context, options);
 
   // Check condition if specified
   if (definition.if) {

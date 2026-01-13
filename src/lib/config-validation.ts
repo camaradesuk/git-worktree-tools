@@ -94,6 +94,7 @@ const KNOWN_TOP_LEVEL_KEYS = [
   'logging',
   'global',
   'wtlink',
+  'linkConfigFiles',
 ];
 
 /**
@@ -220,6 +221,11 @@ export function validateConfig(config: unknown): ValidationResult {
   // Validate wtlink config
   if (obj.wtlink !== undefined) {
     validateWtlinkConfig(obj.wtlink, errors);
+  }
+
+  // Validate linkConfigFiles
+  if (obj.linkConfigFiles !== undefined && typeof obj.linkConfigFiles !== 'boolean') {
+    errors.push({ path: 'linkConfigFiles', message: 'linkConfigFiles must be a boolean' });
   }
 
   return { valid: errors.length === 0, errors };

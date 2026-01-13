@@ -73,6 +73,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = loadManifestData(tempDir);
@@ -105,6 +106,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       // Create legacy manifest file
@@ -147,6 +149,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = loadManifestData(tempDir);
@@ -182,6 +185,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       // Create legacy manifest file (should be ignored)
@@ -269,6 +273,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(hasConfigManifest(tempDir)).toBe(true);
@@ -295,6 +300,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(hasConfigManifest(tempDir)).toBe(true);
@@ -321,6 +327,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(hasConfigManifest(tempDir)).toBe(false);
@@ -350,6 +357,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
     });
 
@@ -386,6 +394,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = migrateLegacyManifest(tempDir);
@@ -469,6 +478,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       const result = getEnabledFiles(tempDir);
@@ -499,6 +509,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(isManifestEmpty(tempDir)).toBe(true);
@@ -525,6 +536,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(isManifestEmpty(tempDir)).toBe(false);
@@ -551,6 +563,7 @@ describe('config-manifest', () => {
         integrations: {},
         logging: { level: 'info', timestamps: true },
         global: { warnNotGlobal: true },
+        linkConfigFiles: undefined,
       } as ReturnType<typeof loadConfig>);
 
       expect(isManifestEmpty(tempDir)).toBe(false);

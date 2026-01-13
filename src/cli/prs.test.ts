@@ -179,6 +179,7 @@ describe('prs CLI command', () => {
       logging: { level: 'info' as const, timestamps: true },
       global: { warnNotGlobal: true },
       wtlink: { enabled: [] as string[], disabled: [] as string[] },
+      linkConfigFiles: undefined,
     });
 
     // Helper to create mock PR item (matches PrDisplayItem)

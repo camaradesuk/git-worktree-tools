@@ -847,6 +847,7 @@ describe('Config loading in flows', () => {
       logging: { level: 'info' as const, timestamps: true },
       global: { warnNotGlobal: true },
       wtlink: { enabled: [], disabled: [] },
+      linkConfigFiles: undefined,
     });
 
     vi.mocked(promptChoice).mockResolvedValueOnce('from-description').mockResolvedValueOnce(true);

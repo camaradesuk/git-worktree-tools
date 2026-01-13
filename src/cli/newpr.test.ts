@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('../lib/git.js', () => ({
   getRepoRoot: vi.fn(),
   getRepoName: vi.fn(),
+  getMainWorktreeRoot: vi.fn(),
   fetch: vi.fn(),
   fetchAsync: vi.fn().mockResolvedValue(undefined),
   getCurrentBranch: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('../lib/github.js', () => ({
 
 vi.mock('../lib/prompts.js', () => ({
   promptChoiceIndex: vi.fn(),
+  promptConfirm: vi.fn(),
   withSpinner: vi.fn(async (message, fn) => {
     return await fn();
   }),
@@ -95,6 +97,14 @@ vi.mock('fs', () => ({
   symlinkSync: vi.fn(),
 }));
 
+vi.mock('../lib/wtlink/config-manifest.js', () => ({
+  getEnabledFiles: vi.fn(),
+}));
+
+vi.mock('../lib/wtlink/link-configs.js', () => ({
+  run: vi.fn(),
+}));
+
 // Import after mocking
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
@@ -109,6 +119,8 @@ import { analyzeGitState, detectScenario } from '../lib/state-detection.js';
 import * as newpr from '../lib/newpr/index.js';
 import type { StateActionKey } from '../lib/json-output.js';
 import fs from 'fs';
+import { getEnabledFiles } from '../lib/wtlink/config-manifest.js';
+import { run as runWtlink } from '../lib/wtlink/link-configs.js';
 
 describe('cli/newpr', () => {
   let mockConsoleLog: ReturnType<typeof vi.spyOn>;
@@ -136,6 +148,7 @@ describe('cli/newpr', () => {
     logging: { level: 'info' as const, timestamps: true },
     global: { warnNotGlobal: true },
     wtlink: { enabled: [], disabled: [] },
+    linkConfigFiles: undefined,
   };
 
   const defaultOptions = {
@@ -216,6 +229,13 @@ describe('cli/newpr', () => {
     });
     vi.mocked(git.getChangedFiles).mockReturnValue([]);
     vi.mocked(git.getCommitMessages).mockReturnValue([]);
+
+    // Default mocks for auto-link feature (throw by default to skip auto-link)
+    vi.mocked(git.getMainWorktreeRoot).mockImplementation(() => {
+      throw new Error('Mock: getMainWorktreeRoot not configured');
+    });
+    vi.mocked(getEnabledFiles).mockReturnValue([]);
+    vi.mocked(runWtlink).mockResolvedValue(undefined);
 
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -1227,6 +1247,163 @@ describe('cli/newpr', () => {
         ['checkout', '-b', 'feat/test-feature', 'origin/main'],
         { cwd: repoRoot }
       );
+    });
+  });
+
+  describe('auto-link config files (linkConfigFiles feature)', () => {
+    // Helper to set up all the mocks for a successful PR creation
+    const setupPrCreationMocks = (configOverrides = {}) => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/main-repo');
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, ...configOverrides });
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+    };
+
+    it('auto-links config files when linkConfigFiles is true', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local', '.vscode/settings.json']);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).toHaveBeenCalledWith('/main-repo');
+      expect(runWtlink).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: '/main-repo',
+          destination: '/repo.pr123',
+          dryRun: false,
+          yes: true,
+        })
+      );
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+    });
+
+    it('skips linking when linkConfigFiles is false', async () => {
+      setupPrCreationMocks({ linkConfigFiles: false });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local', '.vscode/settings.json']);
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).toHaveBeenCalledWith('/main-repo');
+      expect(runWtlink).not.toHaveBeenCalled();
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+    });
+
+    it('prompts user when linkConfigFiles is undefined in interactive mode', async () => {
+      setupPrCreationMocks({ linkConfigFiles: undefined });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(prompts.promptConfirm).mockResolvedValue(true);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).toHaveBeenCalledWith('/main-repo');
+      expect(prompts.promptConfirm).toHaveBeenCalledWith(
+        expect.stringContaining('Link these config files'),
+        true
+      );
+      expect(runWtlink).toHaveBeenCalled();
+    });
+
+    it('skips linking when user declines the prompt', async () => {
+      setupPrCreationMocks({ linkConfigFiles: undefined });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(prompts.promptConfirm).mockResolvedValue(false);
+
+      await runCli(['--pr', '123']);
+
+      expect(prompts.promptConfirm).toHaveBeenCalled();
+      expect(runWtlink).not.toHaveBeenCalled();
+    });
+
+    it('defaults to linking in non-interactive mode when linkConfigFiles is undefined', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions, nonInteractive: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/main-repo');
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, linkConfigFiles: undefined });
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123', '--non-interactive']);
+
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+      expect(runWtlink).toHaveBeenCalled();
+    });
+
+    it('defaults to linking in JSON mode when linkConfigFiles is undefined', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions, json: true },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/main-repo');
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, linkConfigFiles: undefined });
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(runWtlink).mockResolvedValue(undefined);
+
+      await runCli(['--pr', '123', '--json']);
+
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+      expect(runWtlink).toHaveBeenCalled();
+    });
+
+    it('does not link when there are no enabled files', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(getEnabledFiles).mockReturnValue([]);
+
+      await runCli(['--pr', '123']);
+
+      expect(runWtlink).not.toHaveBeenCalled();
+      expect(prompts.promptConfirm).not.toHaveBeenCalled();
+    });
+
+    it('handles linking errors gracefully', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(getEnabledFiles).mockReturnValue(['.env.local']);
+      vi.mocked(runWtlink).mockRejectedValue(new Error('Permission denied'));
+
+      await runCli(['--pr', '123']);
+
+      // Should not crash, just warn about the failure
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to link config files')
+      );
+    });
+
+    it('skips config linking when main worktree cannot be determined', async () => {
+      setupPrCreationMocks({ linkConfigFiles: true });
+      vi.mocked(git.getMainWorktreeRoot).mockImplementation(() => {
+        throw new Error('Not in a git worktree');
+      });
+
+      await runCli(['--pr', '123']);
+
+      expect(getEnabledFiles).not.toHaveBeenCalled();
+      expect(runWtlink).not.toHaveBeenCalled();
     });
   });
 });

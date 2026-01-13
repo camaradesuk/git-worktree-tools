@@ -103,6 +103,18 @@ export function parseArgs(args: string[]): ParseResult {
         options.noHooks = true;
         break;
 
+      case '--plan':
+        options.generatePlan = true;
+        break;
+
+      case '--no-plan':
+        options.noPlan = true;
+        break;
+
+      case '--confirm-hooks':
+        options.confirmHooks = true;
+        break;
+
       case '--json':
         options.json = true;
         break;
@@ -172,9 +184,14 @@ Options:
   -c, --code            Open editor to the new worktree
   --no-wtlink           Skip wtlink config sync
   --no-hooks            Disable lifecycle hooks (for security)
+  --confirm-hooks       Prompt before running post-* hooks
   -h, --help            Show this help message
 
-AI/Automation Options:
+AI/Plan Options:
+  --plan                Generate AI plan document for the PR
+  --no-plan             Skip plan generation even if configured
+
+Automation Options:
   --json                Output result as JSON for programmatic parsing
   -y, --yes, --non-interactive
                         Skip all interactive prompts, use defaults

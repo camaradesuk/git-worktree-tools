@@ -17,6 +17,7 @@ import {
   saveConfig,
   getDefaultConfig,
   type WorktreeConfig,
+  type ResolvedConfig,
 } from './config.js';
 import { validateConfig } from './config-validation.js';
 import type { AIConfig } from './ai/types.js';
@@ -597,9 +598,9 @@ export async function runConfigEditor(repoRoot: string): Promise<ConfigEditorRes
  */
 async function editCategory(
   category: ConfigCategory,
-  currentConfig: Required<WorktreeConfig>,
+  currentConfig: ResolvedConfig,
   modifiedConfig: WorktreeConfig,
-  defaults: Required<WorktreeConfig>
+  defaults: ResolvedConfig
 ): Promise<boolean> {
   let hasChanges = false;
 

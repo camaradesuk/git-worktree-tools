@@ -1,8 +1,9 @@
 # Auto-Link Config Files on Worktree Creation - Implementation Specification
 
-**Status**: Draft - Pending Review
+**Status**: ✅ Implemented
 **Author**: Claude (Senior Systems Architect)
 **Date**: 2026-01-13
+**Implemented**: 2026-01-13
 
 ---
 
@@ -22,7 +23,7 @@ The behaviour is controlled by a new three-state configuration option `linkConfi
 
 ### 1.1 Integration Point
 
-```
+```text
 newpr CLI
     └── setupWorktree()           ← Integration point
             ├── Create shared repos symlinks (existing)
@@ -148,18 +149,23 @@ if (enabledFiles.length > 0) {
 
 **config-validation.test.ts:**
 
-- [ ] Accept `linkConfigFiles: true`
-- [ ] Accept `linkConfigFiles: false`
-- [ ] Accept config without `linkConfigFiles`
-- [ ] Reject `linkConfigFiles: "true"` (string)
-- [ ] Reject `linkConfigFiles: 1` (number)
+- [x] Accept `linkConfigFiles: true`
+- [x] Accept `linkConfigFiles: false`
+- [x] Accept config without `linkConfigFiles`
+- [x] Reject `linkConfigFiles: "true"` (string)
+- [x] Reject `linkConfigFiles: 1` (number)
 
 **newpr.test.ts (setupWorktree):**
 
-- [ ] Links files when `linkConfigFiles: true` and files exist
-- [ ] Skips linking when `linkConfigFiles: false`
-- [ ] Skips linking when no files in manifest
-- [ ] Handles link failures gracefully (warning only)
+- [x] Links files when `linkConfigFiles: true` and files exist
+- [x] Skips linking when `linkConfigFiles: false`
+- [x] Skips linking when no files in manifest
+- [x] Handles link failures gracefully (warning only)
+- [x] Prompts user when `linkConfigFiles: undefined` in interactive mode
+- [x] Skips when user declines prompt
+- [x] Defaults to linking in non-interactive mode
+- [x] Defaults to linking in JSON mode
+- [x] Skips when main worktree cannot be determined
 
 ### 5.2 Manual Verification
 
@@ -184,23 +190,27 @@ newpr "test feature"
 
 ## 6. Implementation Checklist
 
-- [ ] Add `linkConfigFiles?: boolean` to `WorktreeConfig` in `src/lib/config.ts`
-- [ ] Add `'linkConfigFiles'` to `KNOWN_TOP_LEVEL_KEYS` in `src/lib/config-validation.ts`
-- [ ] Add boolean validation in `validateConfig()` in `src/lib/config-validation.ts`
-- [ ] Add property to `schemas/worktreerc.schema.json`
-- [ ] Add imports in `src/cli/newpr.ts` (getEnabledFiles, runWtlink, promptConfirm)
-- [ ] Implement auto-link logic in `setupWorktree()`
-- [ ] Add config validation tests
-- [ ] Add setupWorktree tests
+- [x] Add `linkConfigFiles?: boolean` to `WorktreeConfig` in `src/lib/config.ts`
+- [x] Add `'linkConfigFiles'` to `KNOWN_TOP_LEVEL_KEYS` in `src/lib/config-validation.ts`
+- [x] Add boolean validation in `validateConfig()` in `src/lib/config-validation.ts`
+- [x] Add property to `schemas/worktreerc.schema.json`
+- [x] Add imports in `src/cli/newpr.ts` (getEnabledFiles, runWtlink, promptConfirm)
+- [x] Implement auto-link logic in `setupWorktree()`
+- [x] Add config validation tests
+- [x] Add setupWorktree tests
 - [ ] Manual testing
 
 ---
 
-## 7. Open Questions
+## 7. Open Questions (Resolved)
 
 1. **Default for non-interactive mode**: Should default to linking (current proposal) or skipping?
 
+   **Resolution**: Defaults to linking in non-interactive and JSON modes. This ensures CI/automation workflows get consistent behavior without breaking existing setups.
+
 2. **Summary output**: Should `printSummary()` hide the "wtlink link" hint when files were auto-linked?
+
+   **Resolution**: Deferred - current implementation shows success message when files are linked but doesn't modify printSummary. Can be addressed in a follow-up if needed.
 
 ---
 
@@ -208,9 +218,11 @@ newpr "test feature"
 
 - [config-manifest.ts:258](src/lib/wtlink/config-manifest.ts#L258) - `getEnabledFiles()`
 - [link-configs.ts:10](src/lib/wtlink/link-configs.ts#L10) - `LinkArgv` interface
-- [newpr.ts:295](src/cli/newpr.ts#L295) - `setupWorktree()` integration point
-- [config.ts:211](src/lib/config.ts#L211) - `WorktreeConfig` interface
+- [newpr.ts:327-382](src/cli/newpr.ts#L327-L382) - Auto-link implementation in `setupWorktree()`
+- [config.ts:335-345](src/lib/config.ts#L335-L345) - `linkConfigFiles` property in `WorktreeConfig`
+- [config-validation.ts:97](src/lib/config-validation.ts#L97) - `linkConfigFiles` in `KNOWN_TOP_LEVEL_KEYS`
+- [config-validation.ts:225-228](src/lib/config-validation.ts#L225-L228) - Boolean validation for `linkConfigFiles`
 
 ---
 
-_This document must be reviewed and approved before implementation begins._
+_Implementation complete. Manual testing recommended before release._

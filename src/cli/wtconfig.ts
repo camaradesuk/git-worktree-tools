@@ -17,7 +17,7 @@ import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import * as colors from '../lib/colors.js';
 import * as git from '../lib/git.js';
-import { getDefaultConfig } from '../lib/config.js';
+import { getDefaultConfig, type ResolvedConfig } from '../lib/config.js';
 import {
   detectMigrationIssues,
   runMigration,
@@ -173,7 +173,7 @@ async function showConfig(): Promise<void> {
 
 function formatConfigWithDefaults(
   config: WorktreeConfig,
-  defaults: Required<WorktreeConfig>,
+  defaults: ResolvedConfig,
   hasUserConfig: boolean
 ): string {
   const lines: string[] = [];
