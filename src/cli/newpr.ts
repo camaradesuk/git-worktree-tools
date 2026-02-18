@@ -872,7 +872,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       );
       process.exit(1);
     }
-    console.log(colors.error('Aborted by user.'));
+    printStatus('error', 'Aborted by user.');
     process.exit(1);
   }
 
