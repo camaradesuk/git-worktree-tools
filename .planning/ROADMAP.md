@@ -13,7 +13,7 @@ This milestone refactors four independently-evolved CLI entry points (`newpr`, `
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Logger Wiring** - Wire the shared logger singleton into all 4 legacy CLI entry points and remove the `newpr`-specific debug mechanism
+- [x] **Phase 1: Logger Wiring** - Wire the shared logger singleton into all 4 legacy CLI entry points and remove the `newpr`-specific debug mechanism
 - [ ] **Phase 2: Shared UI Primitives** - Extract a `src/lib/ui/` module with consistent output formatting functions used by all commands
 - [ ] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
 - [ ] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
@@ -37,9 +37,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 
-- [ ] 01-01-PLAN.md — Replace logger.ts with consola wrapper, add getGlobalDataDir(), make colors.ts mutable, update 7 library consumers
-- [ ] 01-02-PLAN.md — Wire --verbose/--quiet/--no-color into all 4 legacy arg parsers and CLI entry points, migrate newpr debug(), forward flags from wt wrappers
-- [ ] 01-03-PLAN.md — Rewrite logger.test.ts for consola API (level resolution, audit reporter, rotation, stderr reporter, DEBUG=newpr deprecation)
+- [x] 01-01-PLAN.md — Replace logger.ts with consola wrapper, add getGlobalDataDir(), make colors.ts mutable, update 7 library consumers
+- [x] 01-02-PLAN.md — Wire --verbose/--quiet/--no-color into all 4 legacy arg parsers and CLI entry points, migrate newpr debug(), forward flags from wt wrappers
+- [x] 01-03-PLAN.md — Rewrite logger.test.ts for consola API (level resolution, audit reporter, rotation, stderr reporter, DEBUG=newpr deprecation)
 
 ### Phase 2: Shared UI Primitives
 
@@ -125,10 +125,10 @@ Plans:
 **Execution Order:**
 Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 
-| Phase                             | Plans Complete | Status      | Completed |
-| --------------------------------- | -------------- | ----------- | --------- |
-| 1. Logger Wiring                  | 0/3            | Not started | -         |
-| 2. Shared UI Primitives           | 0/3            | Not started | -         |
-| 3. Interactive Menu Reliability   | 0/4            | Not started | -         |
-| 4. JSON Output and LLM Ergonomics | 0/4            | Not started | -         |
-| 5. In-Process Delegation          | 0/3            | Not started | -         |
+| Phase                             | Plans Complete | Status      | Completed  |
+| --------------------------------- | -------------- | ----------- | ---------- |
+| 1. Logger Wiring                  | 3/3            | ✓ Complete  | 2026-02-18 |
+| 2. Shared UI Primitives           | 0/3            | Not started | -          |
+| 3. Interactive Menu Reliability   | 0/4            | Not started | -          |
+| 4. JSON Output and LLM Ergonomics | 0/4            | Not started | -          |
+| 5. In-Process Delegation          | 0/3            | Not started | -          |
