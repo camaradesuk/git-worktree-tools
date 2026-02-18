@@ -9,20 +9,20 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 
 ## Current Position
 
-Phase: 3 of 5 (Interactive Menu Reliability)
-Plan: 2 of 3 in current phase
-Status: Plan 03-02 complete
-Last activity: 2026-02-18 — Plan 03-02 executed (deduplicate wt prs command)
+Phase: 3 of 5 (Interactive Menu Reliability) -- COMPLETE
+Plan: 3 of 3 in current phase
+Status: Phase 03 complete
+Last activity: 2026-02-18 — Plan 03-03 executed (Ctrl+C terminal cleanup)
 
-Progress: [█████░░░░░] 53%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 10min
-- Total execution time: 80min
+- Total execution time: 89min
 
 **By Phase:**
 
@@ -30,11 +30,11 @@ Progress: [█████░░░░░] 53%
 | ------------------------------- | ----- | ----- | -------- |
 | 01-logger-wiring                | 3/3   | 28min | 9min     |
 | 02-shared-ui-primitives         | 3/3   | 37min | 12min    |
-| 03-interactive-menu-reliability | 2/3   | 15min | 8min     |
+| 03-interactive-menu-reliability | 3/3   | 24min | 8min     |
 
 **Recent Trend:**
 
-- Last 5 plans: 02-01 (9min), 02-02 (20min), 02-03 (8min), 03-01 (7min), 03-02 (8min)
+- Last 5 plans: 02-02 (20min), 02-03 (8min), 03-01 (7min), 03-02 (8min), 03-03 (9min)
 - Trend: Stable-fast
 
 _Updated after each plan completion_
@@ -72,6 +72,8 @@ Recent decisions affecting current work:
 - 03-01: wtlink view/add/remove use loadManifestData/saveManifestData directly instead of spawning subprocesses
 - 03-02: Re-export runPrsCommand and outputJsonError from cli/prs.ts for downstream consumers
 - 03-02: cli/wt/prs.ts imports only runPrsCommand (outputJsonError not needed by yargs handler)
+- 03-03: Global exit handler guards cursor-show with process.stdout.isTTY to avoid corrupting JSON/piped output
+- 03-03: SIGINT handleSignal calls cleanup+process.exit(0) as last resort; Ctrl+C keypress resolves promise gracefully
 
 ### Pending Todos
 
@@ -87,5 +89,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 03-02-PLAN.md
+Stopped at: Completed 03-03-PLAN.md (Phase 03 complete)
 Resume file: None
