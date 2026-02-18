@@ -43,6 +43,7 @@ import {
   formatJsonResult,
   ErrorCode,
   getErrorCodeFromError,
+  getErrorSuggestion,
   type NewprResultData,
 } from '../lib/json-output.js';
 import {
@@ -1195,7 +1196,8 @@ function exitWithError(message: string, code: ErrorCode, useJson: boolean): neve
   if (useJson) {
     console.log(formatJsonResult(createErrorResult('newpr', code, message)));
   } else {
-    printError({ title: message });
+    const hint = getErrorSuggestion(code);
+    printError({ title: message, hint });
   }
   process.exit(1);
 }
