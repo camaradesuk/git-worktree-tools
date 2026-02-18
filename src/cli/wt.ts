@@ -38,6 +38,7 @@ import { completionCommand } from './wt/completion.js';
 import { prsCommand } from './wt/prs.js';
 import { showMainMenu } from './wt/interactive-menu.js';
 import { initializeLogger } from '../lib/logger.js';
+import { printError } from '../lib/ui/index.js';
 import { loadConfig } from '../lib/config.js';
 import { checkAndWarnGlobalInstall } from '../lib/global-check.js';
 import * as git from '../lib/git.js';
@@ -148,14 +149,15 @@ yargs(hideBin(process.argv))
   .strict()
   .fail((msg, err) => {
     if (err) {
-      console.error(err.message);
+      printError({ title: err.message });
     } else {
-      console.error(msg);
+      printError({ title: msg });
     }
     process.exit(1);
   })
   .parseAsync()
   .catch((err) => {
-    console.error(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    printError({ title: message });
     process.exit(1);
   });
