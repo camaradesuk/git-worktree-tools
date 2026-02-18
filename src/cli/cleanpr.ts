@@ -388,6 +388,7 @@ async function cleanSpecific(
       printError({
         title: `No worktree found for PR #${prNumber}`,
         detail: `Expected at: ${expectedPath}`,
+        hint: 'Run "lswt" to see available worktrees.',
       });
     }
     process.exit(1);
@@ -487,7 +488,10 @@ async function main(): Promise<void> {
     if (options.json) {
       outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not in a git repository');
     } else {
-      printError({ title: 'Not in a git repository.' });
+      printError({
+        title: 'Not in a git repository.',
+        hint: 'Run this command from within a git repository.',
+      });
     }
     process.exit(1);
   }
