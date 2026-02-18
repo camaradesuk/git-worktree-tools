@@ -21,6 +21,9 @@ interface NewArgs {
   'non-interactive'?: boolean;
   action?: string;
   'stash-untracked'?: boolean;
+  verbose?: number | boolean;
+  quiet?: boolean;
+  noColor?: boolean;
 }
 
 export const newCommand: CommandModule<object, NewArgs> = {
@@ -157,6 +160,29 @@ export const newCommand: CommandModule<object, NewArgs> = {
       args.push('--stash-untracked');
     }
 
-    runSubcommand('newpr', args);
+    // Forward global logging flags to child process
+    if (argv.verbose) {
+      args.push('--verbose');
+    }
+    if (argv.quiet) {
+      args.push('--quiet');
+    }
+    if (argv.noColor) {
+      args.push('--no-color');
+    }
+
+    // Belt-and-suspenders: also set env vars for child process
+    const envOverrides: Record<string, string> = {};
+    if (argv.verbose) {
+      envOverrides.GWT_LOG_LEVEL = 'debug';
+    }
+    if (argv.quiet) {
+      envOverrides.GWT_LOG_LEVEL = 'error';
+    }
+    if (argv.noColor) {
+      envOverrides.NO_COLOR = '1';
+    }
+
+    runSubcommand('newpr', args, envOverrides);
   },
 };

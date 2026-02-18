@@ -14,6 +14,9 @@ interface CleanArgs {
   force?: boolean;
   remote?: boolean;
   json?: boolean;
+  verbose?: number | boolean;
+  quiet?: boolean;
+  noColor?: boolean;
 }
 
 export const cleanCommand: CommandModule<object, CleanArgs> = {
@@ -87,6 +90,29 @@ export const cleanCommand: CommandModule<object, CleanArgs> = {
       args.push('--json');
     }
 
-    runSubcommand('cleanpr', args);
+    // Forward global logging flags to child process
+    if (argv.verbose) {
+      args.push('--verbose');
+    }
+    if (argv.quiet) {
+      args.push('--quiet');
+    }
+    if (argv.noColor) {
+      args.push('--no-color');
+    }
+
+    // Belt-and-suspenders: also set env vars for child process
+    const envOverrides: Record<string, string> = {};
+    if (argv.verbose) {
+      envOverrides.GWT_LOG_LEVEL = 'debug';
+    }
+    if (argv.quiet) {
+      envOverrides.GWT_LOG_LEVEL = 'error';
+    }
+    if (argv.noColor) {
+      envOverrides.NO_COLOR = '1';
+    }
+
+    runSubcommand('cleanpr', args, envOverrides);
   },
 };

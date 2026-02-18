@@ -16,13 +16,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  *
  * @param cliName - Name of the CLI to run (e.g., 'newpr', 'lswt')
  * @param args - Arguments to pass to the CLI
+ * @param envOverrides - Optional environment variable overrides for the child process
  * @returns Never returns - calls process.exit
  */
-export function runSubcommand(cliName: string, args: string[]): never {
+export function runSubcommand(
+  cliName: string,
+  args: string[],
+  envOverrides?: Record<string, string>
+): never {
   const cliPath = path.resolve(__dirname, `../${cliName}.js`);
   const result = spawnSync(process.execPath, [cliPath, ...args], {
     stdio: 'inherit',
-    env: process.env,
+    env: { ...process.env, ...envOverrides },
   });
 
   process.exit(result.status ?? 1);
@@ -33,13 +38,18 @@ export function runSubcommand(cliName: string, args: string[]): never {
  *
  * @param cliName - Name of the CLI to run (e.g., 'newpr', 'lswt')
  * @param args - Arguments to pass to the CLI
+ * @param envOverrides - Optional environment variable overrides for the child process
  * @returns SpawnSync result object
  */
-export function runSubcommandForResult(cliName: string, args: string[]): SpawnSyncReturns<Buffer> {
+export function runSubcommandForResult(
+  cliName: string,
+  args: string[],
+  envOverrides?: Record<string, string>
+): SpawnSyncReturns<Buffer> {
   const cliPath = path.resolve(__dirname, `../${cliName}.js`);
   return spawnSync(process.execPath, [cliPath, ...args], {
     stdio: 'inherit',
-    env: process.env,
+    env: { ...process.env, ...envOverrides },
   });
 }
 

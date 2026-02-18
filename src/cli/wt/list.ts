@@ -13,6 +13,8 @@ interface ListArgs {
   status?: boolean;
   interactive?: boolean;
   'no-interactive'?: boolean;
+  quiet?: boolean;
+  noColor?: boolean;
 }
 
 export const listCommand: CommandModule<object, ListArgs> = {
@@ -76,6 +78,27 @@ export const listCommand: CommandModule<object, ListArgs> = {
       args.push('--no-interactive');
     }
 
-    runSubcommand('lswt', args);
+    // Forward global logging flags to child process
+    // Note: --verbose is already forwarded above (shared display + logger meaning)
+    if (argv.quiet) {
+      args.push('--quiet');
+    }
+    if (argv.noColor) {
+      args.push('--no-color');
+    }
+
+    // Belt-and-suspenders: also set env vars for child process
+    const envOverrides: Record<string, string> = {};
+    if (argv.verbose) {
+      envOverrides.GWT_LOG_LEVEL = 'debug';
+    }
+    if (argv.quiet) {
+      envOverrides.GWT_LOG_LEVEL = 'error';
+    }
+    if (argv.noColor) {
+      envOverrides.NO_COLOR = '1';
+    }
+
+    runSubcommand('lswt', args, envOverrides);
   },
 };
