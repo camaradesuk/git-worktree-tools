@@ -107,4 +107,61 @@ describe('ui/error', () => {
       expect(result.title).toBe('null');
     });
   });
+
+  describe('error rendering integration', () => {
+    it('renders multi-line hint correctly', () => {
+      printError({
+        title: 'No worktree found',
+        hint: 'Try one of:\n  1. Run lswt to check\n  2. Create with newpr',
+      });
+      // Title line + hint line
+      expect(errorSpy).toHaveBeenCalledTimes(2);
+      const hintLine = errorSpy.mock.calls[1][0] as string;
+      expect(hintLine).toContain('Hint:');
+      expect(hintLine).toContain('Try one of:');
+    });
+
+    it('renders title + detail + hint all together', () => {
+      printError({
+        title: 'Git checkout failed',
+        detail: 'Conflicting changes in 3 files',
+        hint: 'Stash or commit your changes first',
+      });
+      expect(errorSpy).toHaveBeenCalledTimes(3);
+
+      const allOutput = errorSpy.mock.calls.map((c) => c[0] as string).join('\n');
+      expect(allOutput).toContain('Git checkout failed');
+      expect(allOutput).toContain('Conflicting changes');
+      expect(allOutput).toContain('Stash or commit');
+    });
+
+    it('errorToDisplay extracts hint from error code', () => {
+      const err = new Error('not a git repository');
+      err.name = 'GitCommandError';
+      const display = errorToDisplay(err);
+      expect(display.title).toBe('not a git repository');
+      expect(display.hint).toBeDefined();
+    });
+
+    it('suppresses all output in JSON mode', () => {
+      setJsonMode(true);
+      printError({ title: 'fail', detail: 'detail', hint: 'hint' });
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('renders detail with multi-line content (e.g., manifest issues)', () => {
+      printError({
+        title: 'Manifest validation failed',
+        detail: '  - Missing file: .env\n  - Not ignored: config.json',
+        hint: 'Run "wtlink manage" to fix manifest issues.',
+      });
+      expect(errorSpy).toHaveBeenCalledTimes(3);
+
+      const detailLine = errorSpy.mock.calls[1][0] as string;
+      expect(detailLine).toContain('Missing file');
+
+      const hintLine = errorSpy.mock.calls[2][0] as string;
+      expect(hintLine).toContain('wtlink manage');
+    });
+  });
 });
