@@ -50,6 +50,9 @@ Recent decisions affecting current work:
 - 01-01: LogLevel enum values changed to consola-compatible (SILENT=-999, ERROR=0, WARN=1, INFO=3, DEBUG=4, TRACE=5)
 - 01-01: Removed --debug and --log-file CLI options; --verbose replaces --debug, audit log is automatic
 - 01-01: Config-based logger re-initialization removed; new logger handles GWT_LOG_LEVEL env var internally
+- 01-02: lswt --verbose serves dual purpose (display + logger verbose); no separate logging flag needed
+- 01-02: wtlink manage --verbose promoted to global yargs option
+- 01-02: Belt-and-suspenders flag forwarding from wt wrappers: CLI args + GWT_LOG_LEVEL/NO_COLOR env vars
 - 01-03: Used dynamic import + vi.spyOn for ESM module mocking of getGlobalDataDir
 - 01-03: Used process.emit('exit', 0) for exit handler testing without process termination
 
@@ -67,5 +70,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 01-03-PLAN.md (Logger Test Suite); Phase 1 complete, ready for Phase 2
+Stopped at: Re-executed 01-02-PLAN.md (CLI Flag Wiring); Phase 1 complete, ready for Phase 2
 Resume file: None
