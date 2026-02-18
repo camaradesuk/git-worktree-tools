@@ -19,6 +19,7 @@ import * as colors from '../lib/colors.js';
 import { setColorEnabled } from '../lib/colors.js';
 import { initializeLogger } from '../lib/logger.js';
 import { printError, setJsonMode } from '../lib/ui/index.js';
+import { ManifestError } from '../lib/errors.js';
 import * as manage from '../lib/wtlink/manage-manifest.js';
 import * as link from '../lib/wtlink/link-configs.js';
 import * as validate from '../lib/wtlink/validate-manifest.js';
@@ -270,7 +271,11 @@ yargs(hideBin(process.argv))
   .strict()
   .fail((msg, err) => {
     if (err) {
-      printError({ title: err.message, hint: getWtlinkHint(err.message) });
+      const detail =
+        err instanceof ManifestError && err.issues
+          ? err.issues.map((p) => `  - ${p}`).join('\n')
+          : undefined;
+      printError({ title: err.message, detail, hint: getWtlinkHint(err.message) });
     } else {
       printError({ title: msg });
     }
@@ -286,7 +291,11 @@ yargs(hideBin(process.argv))
   })
   .catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
-    printError({ title: message, hint: getWtlinkHint(message) });
+    const detail =
+      err instanceof ManifestError && err.issues
+        ? err.issues.map((p) => `  - ${p}`).join('\n')
+        : undefined;
+    printError({ title: message, detail, hint: getWtlinkHint(message) });
     process.exit(1);
   });
 
@@ -311,6 +320,9 @@ function getWtlinkHint(message: string): string | undefined {
   }
   if (message.includes('Manifest file not found')) {
     return 'Create a manifest first:\n  wtlink manage';
+  }
+  if (message.includes('Manifest validation failed')) {
+    return 'Run "wtlink manage" to fix manifest issues.';
   }
   return undefined;
 }

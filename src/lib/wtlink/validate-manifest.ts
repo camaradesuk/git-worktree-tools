@@ -3,6 +3,7 @@ import path from 'path';
 import * as colors from '../colors.js';
 import * as git from '../git.js';
 import { DEFAULT_MANIFEST_FILE } from '../constants.js';
+import { ManifestError } from '../errors.js';
 import { loadManifestData } from './config-manifest.js';
 
 export interface ValidateArgv {
@@ -193,11 +194,13 @@ export function run(argv: ValidateArgv): void {
   const result = validateManifestContent(manifestContent, sourceDir);
 
   if (result.problems.length > 0) {
-    console.error(colors.red(colors.bold('Manifest validation failed:')));
-    for (const issue of result.problems) {
-      console.error(colors.red(`  - ${issue}`));
-    }
-    throw new Error(`${result.problems.length} validation issue(s) detected.`);
+    // Do NOT print here — let the caller (.fail() handler) display via printError()
+    throw new ManifestError(
+      `Manifest validation failed: ${result.problems.length} issue(s) detected.`,
+      {
+        issues: result.problems,
+      }
+    );
   }
 
   console.log(
