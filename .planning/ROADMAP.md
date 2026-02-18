@@ -72,14 +72,13 @@ Plans:
 3. All link management actions in the `wt` menu invoke functions that exist (no "command not found" or silent failures for list/sync/add/remove)
 4. Pressing Ctrl+C or Escape in any interactive menu restores the terminal cursor and raw mode — no corrupted terminal state after interruption
 5. Every multi-level menu has an explicit Back or Done option; no menu silently exits without user intent
-   **Plans**: TBD
+   **Plans**: 3 plans
 
 Plans:
 
-- [ ] 03-01: Audit all `runSubcommand()` calls in `interactive-menu.ts`; enumerate which subcommands exist vs. are missing; write non-PTY smoke tests for each flow
-- [ ] 03-02: Fix `wt prs` — remove broken duplicate code path, verify working path returns correct PR data
-- [ ] 03-03: Fix `wtlink` subcommand references in interactive menu; ensure all menu actions invoke real library functions
-- [ ] 03-04: Fix Ctrl+C / Escape terminal cleanup; add explicit Back/Done to all multi-level menus
+- [ ] 03-01-PLAN.md — Replace runSubcommand with runSubcommandForResult in interactive-menu.ts; rewire broken wtlink actions to direct library calls
+- [ ] 03-02-PLAN.md — Extract shared runPrsCommand to lib/prs/command.ts; eliminate duplicate code path in wt prs
+- [ ] 03-03-PLAN.md — Add global terminal state safety net in wt.ts; fix prs Ctrl+C handling to follow lswt gold standard
 
 ### Phase 4: JSON Output and LLM Ergonomics
 
