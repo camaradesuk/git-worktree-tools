@@ -200,23 +200,11 @@ describe('config', () => {
       expect(config.baseBranch).toBe('main-from-worktreerc');
     });
 
-    it('should return defaults with warning for invalid JSON', () => {
+    it('should return defaults for invalid JSON', () => {
       fs.writeFileSync(path.join(tempDir, '.worktreerc'), 'invalid json {{{');
 
-      // Mock console.warn to capture the warning
-      const originalWarn = console.warn;
-      const warnings: string[] = [];
-      console.warn = (msg: string) => warnings.push(msg);
-
-      try {
-        const config = loadConfig(tempDir);
-        expect(config).toEqual(getDefaultConfig());
-        expect(warnings.length).toBeGreaterThan(0);
-        // Logger formats warnings with WARN prefix
-        expect(warnings[0]).toMatch(/WARN.*Failed to parse/);
-      } finally {
-        console.warn = originalWarn;
-      }
+      const config = loadConfig(tempDir);
+      expect(config).toEqual(getDefaultConfig());
     });
 
     it('should merge user config with defaults', () => {

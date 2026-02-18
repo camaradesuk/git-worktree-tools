@@ -19,11 +19,10 @@ vi.mock('../lib/config.js', () => ({
 
 vi.mock('../lib/logger.js', () => ({
   initializeLogger: vi.fn(),
-  parseLogLevel: vi.fn(),
   LogLevel: {
-    SILENT: 0,
-    ERROR: 1,
-    WARN: 2,
+    SILENT: -999,
+    ERROR: 0,
+    WARN: 1,
     INFO: 3,
     DEBUG: 4,
     TRACE: 5,
@@ -115,22 +114,6 @@ describe('wt CLI entry point', () => {
       expect(config.loadConfig).toHaveBeenCalledWith();
     });
 
-    it('initializes logger with config log level', async () => {
-      (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
-      (config.loadConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-        logging: { level: 'warn', logFile: '/tmp/test.log' },
-      });
-
-      await import('./wt.js');
-
-      expect(logger.initializeLogger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          configLogLevel: 'warn',
-          configLogFile: '/tmp/test.log',
-        })
-      );
-    });
-
     it('checks global installation', async () => {
       (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
       const mockConfig = { logging: { level: 'info' } };
@@ -151,34 +134,6 @@ describe('wt CLI entry point', () => {
       expect(logger.initializeLogger).toHaveBeenCalledWith(
         expect.objectContaining({
           verbose: true,
-        })
-      );
-    });
-
-    it('parses double verbose flag (-vv) from argv', async () => {
-      process.argv = ['node', 'wt', '-v', '-v'];
-      (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
-      (config.loadConfig as ReturnType<typeof vi.fn>).mockReturnValue({});
-
-      await import('./wt.js');
-
-      expect(logger.initializeLogger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          verbose: 2,
-        })
-      );
-    });
-
-    it('parses --debug flag from argv', async () => {
-      process.argv = ['node', 'wt', '--debug'];
-      (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
-      (config.loadConfig as ReturnType<typeof vi.fn>).mockReturnValue({});
-
-      await import('./wt.js');
-
-      expect(logger.initializeLogger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          debug: true,
         })
       );
     });
@@ -211,20 +166,6 @@ describe('wt CLI entry point', () => {
       );
     });
 
-    it('parses --log-file flag from argv', async () => {
-      process.argv = ['node', 'wt', '--log-file', '/custom/log.txt'];
-      (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
-      (config.loadConfig as ReturnType<typeof vi.fn>).mockReturnValue({});
-
-      await import('./wt.js');
-
-      expect(logger.initializeLogger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          logFile: '/custom/log.txt',
-        })
-      );
-    });
-
     it('parses --verbose flag from argv', async () => {
       process.argv = ['node', 'wt', '--verbose'];
       (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
@@ -235,6 +176,33 @@ describe('wt CLI entry point', () => {
       expect(logger.initializeLogger).toHaveBeenCalledWith(
         expect.objectContaining({
           verbose: true,
+        })
+      );
+    });
+
+    it('parses --no-color flag from argv', async () => {
+      process.argv = ['node', 'wt', '--no-color'];
+      (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
+      (config.loadConfig as ReturnType<typeof vi.fn>).mockReturnValue({});
+
+      await import('./wt.js');
+
+      expect(logger.initializeLogger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          noColor: true,
+        })
+      );
+    });
+
+    it('passes commandName to initializeLogger', async () => {
+      (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
+      (config.loadConfig as ReturnType<typeof vi.fn>).mockReturnValue({});
+
+      await import('./wt.js');
+
+      expect(logger.initializeLogger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          commandName: 'wt',
         })
       );
     });

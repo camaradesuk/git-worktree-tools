@@ -37,7 +37,7 @@ import { initCommand } from './wt/init.js';
 import { completionCommand } from './wt/completion.js';
 import { prsCommand } from './wt/prs.js';
 import { showMainMenu } from './wt/interactive-menu.js';
-import { initializeLogger, parseLogLevel, LogLevel } from '../lib/logger.js';
+import { initializeLogger } from '../lib/logger.js';
 import { loadConfig } from '../lib/config.js';
 import { checkAndWarnGlobalInstall } from '../lib/global-check.js';
 import * as git from '../lib/git.js';
@@ -47,18 +47,14 @@ import * as git from '../lib/git.js';
 function initializeLoggerFromCliFlags(): void {
   const args = process.argv.slice(2);
   const verbose = args.includes('-v') || args.includes('--verbose');
-  const veryVerbose = args.filter((a) => a === '-v').length >= 2;
-  const debug = args.includes('--debug');
   const quiet = args.includes('-q') || args.includes('--quiet');
-  const logFileIdx = args.findIndex((a) => a === '--log-file');
-  const logFile = logFileIdx >= 0 ? args[logFileIdx + 1] : undefined;
+  const noColor = args.includes('--no-color');
 
-  // Initialize logger with CLI flags first
   initializeLogger({
-    verbose: veryVerbose ? 2 : verbose,
-    debug,
+    verbose,
     quiet,
-    logFile,
+    noColor,
+    commandName: 'wt',
   });
 }
 
@@ -73,24 +69,6 @@ export function initializeCliEnvironment(): void {
   } catch {
     // Not in a git repo, load global config only
     config = loadConfig();
-  }
-
-  // Re-initialize logger with config values (if not already set by CLI flags)
-  const args = process.argv.slice(2);
-  const hasCliLogLevel =
-    args.includes('-v') ||
-    args.includes('--verbose') ||
-    args.includes('--debug') ||
-    args.includes('-q') ||
-    args.includes('--quiet');
-  const hasCliLogFile = args.includes('--log-file');
-
-  // Apply config-based logging if CLI flags weren't provided
-  if (!hasCliLogLevel || !hasCliLogFile) {
-    initializeLogger({
-      configLogLevel: hasCliLogLevel ? undefined : config.logging?.level,
-      configLogFile: hasCliLogFile ? undefined : config.logging?.logFile,
-    });
   }
 
   // Check global installation (non-critical warning)
@@ -116,13 +94,8 @@ yargs(hideBin(process.argv))
   })
   .option('verbose', {
     alias: 'v',
-    type: 'count',
-    description: 'Increase verbosity (-v for debug, -vv for trace)',
-    global: true,
-  })
-  .option('debug', {
     type: 'boolean',
-    description: 'Enable debug output',
+    description: 'Enable verbose (debug) output',
     global: true,
   })
   .option('quiet', {
@@ -131,9 +104,9 @@ yargs(hideBin(process.argv))
     description: 'Suppress non-essential output',
     global: true,
   })
-  .option('log-file', {
-    type: 'string',
-    description: 'Write logs to file',
+  .option('no-color', {
+    type: 'boolean',
+    description: 'Disable colored output',
     global: true,
   })
   .command(
