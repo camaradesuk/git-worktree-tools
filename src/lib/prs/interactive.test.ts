@@ -434,4 +434,193 @@ describe('interactive', () => {
       expect(typeof deps.pressEnterToContinue).toBe('function');
     });
   });
+
+  describe('selectPrWithShortcuts terminal cleanup (via createDefaultPrInteractiveDeps)', () => {
+    let originalIsTTY: boolean | undefined;
+    let mockStdinOn: ReturnType<typeof vi.fn>;
+    let mockStdinRemoveListener: ReturnType<typeof vi.fn>;
+    let mockStdinSetRawMode: ReturnType<typeof vi.fn>;
+    let mockStdinResume: ReturnType<typeof vi.fn>;
+    let mockStdinPause: ReturnType<typeof vi.fn>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let mockStdoutWrite: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let processOnSpy: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let processRemoveListenerSpy: any;
+
+    beforeEach(() => {
+      originalIsTTY = process.stdin.isTTY;
+
+      // Set up TTY mode
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+
+      // Mock stdin methods
+      mockStdinOn = vi.fn().mockReturnValue(process.stdin);
+      mockStdinRemoveListener = vi.fn().mockReturnValue(process.stdin);
+      mockStdinSetRawMode = vi.fn();
+      mockStdinResume = vi.fn();
+      mockStdinPause = vi.fn();
+
+      // Apply mocks to process.stdin
+      vi.spyOn(process.stdin, 'on').mockImplementation(mockStdinOn);
+      vi.spyOn(process.stdin, 'removeListener').mockImplementation(mockStdinRemoveListener);
+
+      Object.defineProperty(process.stdin, 'setRawMode', {
+        value: mockStdinSetRawMode,
+        writable: true,
+        configurable: true,
+      });
+      vi.spyOn(process.stdin, 'resume').mockImplementation(mockStdinResume);
+      vi.spyOn(process.stdin, 'pause').mockImplementation(mockStdinPause);
+
+      // Mock stdout.write to prevent rendering output during tests
+      mockStdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      // Spy on process.on and process.removeListener for signal handler tracking
+      processOnSpy = vi.spyOn(process, 'on');
+      processRemoveListenerSpy = vi.spyOn(process, 'removeListener');
+
+      // Suppress console output during render
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.spyOn(console, 'clear').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: originalIsTTY,
+        writable: true,
+        configurable: true,
+      });
+      vi.restoreAllMocks();
+    });
+
+    it('should resolve with null result on Ctrl+C instead of calling process.exit', async () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+      // Capture the data handler and simulate Ctrl+C
+      mockStdinOn.mockImplementation((event: string, handler: (key: Buffer) => void) => {
+        if (event === 'data') {
+          // Simulate Ctrl+C keypress after setup
+          setImmediate(() => {
+            handler(Buffer.from('\x03'));
+          });
+        }
+        return process.stdin;
+      });
+
+      const deps = createDefaultPrInteractiveDeps();
+      const prs = [createMockPr({ number: 1, title: 'Test PR' })];
+      const filterState = createDefaultFilterState();
+
+      const result = await deps.selectPr(prs, filterState);
+
+      // Should resolve with null pr and null action (graceful exit)
+      expect(result.pr).toBeNull();
+      expect(result.action).toBeNull();
+
+      // process.exit should NOT have been called
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it('should restore raw mode on Ctrl+C cleanup', async () => {
+      vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+      mockStdinOn.mockImplementation((event: string, handler: (key: Buffer) => void) => {
+        if (event === 'data') {
+          setImmediate(() => {
+            handler(Buffer.from('\x03'));
+          });
+        }
+        return process.stdin;
+      });
+
+      const deps = createDefaultPrInteractiveDeps();
+      const prs = [createMockPr()];
+      const filterState = createDefaultFilterState();
+
+      await deps.selectPr(prs, filterState);
+
+      // setRawMode should have been called with true (setup) then false (cleanup)
+      expect(mockStdinSetRawMode).toHaveBeenCalledWith(true);
+      expect(mockStdinSetRawMode).toHaveBeenCalledWith(false);
+      // The last call should be false (cleanup)
+      const calls = mockStdinSetRawMode.mock.calls;
+      expect(calls[calls.length - 1][0]).toBe(false);
+    });
+
+    it('should register SIGINT handler when raw mode starts', async () => {
+      vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+      mockStdinOn.mockImplementation((event: string, handler: (key: Buffer) => void) => {
+        if (event === 'data') {
+          // Simulate 'q' to exit cleanly
+          setImmediate(() => {
+            handler(Buffer.from('q'));
+          });
+        }
+        return process.stdin;
+      });
+
+      const deps = createDefaultPrInteractiveDeps();
+      const prs = [createMockPr()];
+      const filterState = createDefaultFilterState();
+
+      await deps.selectPr(prs, filterState);
+
+      // process.on should have been called with 'SIGINT'
+      expect(processOnSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+      expect(processOnSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+    });
+
+    it('should remove SIGINT handler during cleanup', async () => {
+      vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+      mockStdinOn.mockImplementation((event: string, handler: (key: Buffer) => void) => {
+        if (event === 'data') {
+          // Simulate 'q' to exit cleanly
+          setImmediate(() => {
+            handler(Buffer.from('q'));
+          });
+        }
+        return process.stdin;
+      });
+
+      const deps = createDefaultPrInteractiveDeps();
+      const prs = [createMockPr()];
+      const filterState = createDefaultFilterState();
+
+      await deps.selectPr(prs, filterState);
+
+      // process.removeListener should have been called for SIGINT and SIGTERM
+      expect(processRemoveListenerSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+      expect(processRemoveListenerSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+    });
+
+    it('should restore cursor visibility in cleanup', async () => {
+      vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+      mockStdinOn.mockImplementation((event: string, handler: (key: Buffer) => void) => {
+        if (event === 'data') {
+          setImmediate(() => {
+            handler(Buffer.from('\x03'));
+          });
+        }
+        return process.stdin;
+      });
+
+      const deps = createDefaultPrInteractiveDeps();
+      const prs = [createMockPr()];
+      const filterState = createDefaultFilterState();
+
+      await deps.selectPr(prs, filterState);
+
+      // Cursor show escape sequence should have been written during cleanup
+      expect(mockStdoutWrite).toHaveBeenCalledWith('\x1b[?25h');
+    });
+  });
 });
