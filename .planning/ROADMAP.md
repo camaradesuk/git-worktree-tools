@@ -52,13 +52,13 @@ Plans:
 2. All async operations (network calls, git operations) show the same spinner style and animation
 3. Error messages across all commands display as title + detail + hint — no raw stack traces or bare `Error:` strings appear
 4. `src/lib/ui/` module exists with `printTable`, `printHeader`, `printStatus`, `printError` functions; no command contains inline `console.log` calls for structured output
-   **Plans**: TBD
+   **Plans**: 3 plans
 
 Plans:
 
-- [ ] 02-01: Create `src/lib/ui/` module with `theme.ts`, `table.ts`, `status-line.ts` — extract from `lswt`'s inline `printTable`
-- [ ] 02-02: Refactor `newpr.ts` and `cleanpr.ts` to use shared UI primitives; standardize spinner to `ora@^8.1.1`
-- [ ] 02-03: Standardize error rendering to title + detail + hint format across all commands
+- [ ] 02-01-PLAN.md — Create src/lib/ui/ module with theme.ts, output.ts, status.ts, table.ts, error.ts, spinner.ts + barrel export and tests
+- [ ] 02-02-PLAN.md — Refactor all 5 CLI entry points to use shared UI primitives; wire JSON mode gate; fix icon inconsistencies in link-configs.ts
+- [ ] 02-03-PLAN.md — Standardize error rendering to title + detail + hint format across all commands; integration tests for error pipeline
 
 ### Phase 3: Interactive Menu Reliability
 
