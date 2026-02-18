@@ -43,7 +43,6 @@ import {
   formatJsonResult,
   ErrorCode,
   getErrorCodeFromError,
-  getErrorSuggestion,
   type NewprResultData,
 } from '../lib/json-output.js';
 import {
@@ -78,40 +77,22 @@ class NonInteractiveError extends Error {
 }
 
 /**
- * Progress logging - suppressed in JSON mode for clean output
- */
-function progress(options: Options, ...args: unknown[]): void {
-  if (!options.json) {
-    console.log(...args);
-  }
-}
-
-/**
- * Progress error logging - suppressed in JSON mode
- */
-function progressError(options: Options, ...args: unknown[]): void {
-  if (!options.json) {
-    console.error(...args);
-  }
-}
-
-/**
  * Check prerequisites
  */
 function checkPrerequisites(): void {
-  console.log(colors.info('Checking prerequisites...'));
+  printStatus('info', 'Checking prerequisites...');
 
   if (!github.isGhInstalled()) {
-    console.error(colors.error('GitHub CLI (gh) is required. See: https://cli.github.com'));
+    printError({ title: 'GitHub CLI (gh) is required. See: https://cli.github.com' });
     process.exit(1);
   }
 
   if (!github.isAuthenticated()) {
-    console.error(colors.error('GitHub CLI not authenticated. Run: gh auth login'));
+    printError({ title: 'GitHub CLI not authenticated. Run: gh auth login' });
     process.exit(1);
   }
 
-  console.log(colors.success('Prerequisites OK'));
+  printStatus('success', 'Prerequisites OK');
 }
 
 /**
@@ -189,7 +170,7 @@ async function handleScenario(
       );
     }
 
-    console.log(colors.warning('You are in a PR worktree, not the main worktree.'));
+    printStatus('warning', 'You are in a PR worktree, not the main worktree.');
     console.log();
     console.log('Creating a new PR is best done from the main worktree.');
 
@@ -244,9 +225,9 @@ async function handleScenario(
   // Interactive mode: display info and prompt
   const level = getScenarioMessageLevel(scenario);
   if (level === 'warning') {
-    console.log(colors.warning(context.message));
+    printStatus('warning', context.message);
   } else {
-    console.log(colors.info(context.message));
+    printStatus('info', context.message);
   }
 
   if (context.subMessage) {
@@ -311,7 +292,7 @@ async function setupWorktree(
 
   // Create symlinks for shared repos
   if (config.sharedRepos.length > 0) {
-    progress(options, colors.info('Creating symlinks for shared repositories...'));
+    printStatus('info', 'Creating symlinks for shared repositories...');
     for (const repo of config.sharedRepos) {
       const target = path.join(parentDir, repo);
       const link = path.join(worktreePath, repo);
@@ -320,15 +301,15 @@ async function setupWorktree(
         if (!fs.existsSync(link)) {
           try {
             fs.symlinkSync(target, link, 'dir');
-            progress(options, colors.success(`Linked ${repo}`));
+            printStatus('success', `Linked ${repo}`);
           } catch (error) {
-            progress(options, colors.warning(`Failed to link ${repo}: ${error}`));
+            printStatus('warning', `Failed to link ${repo}: ${error}`);
           }
         } else {
-          progress(options, colors.warning(`${repo} already exists in worktree`));
+          printStatus('warning', `${repo} already exists in worktree`);
         }
       } else {
-        progress(options, colors.warning(`${repo} not found at ${target}`));
+        printStatus('warning', `${repo} not found at ${target}`);
       }
     }
   }
@@ -357,13 +338,12 @@ async function setupWorktree(
       logger.debug('linkConfigFiles is true, auto-linking');
     } else if (!options.nonInteractive && !options.json) {
       // Not configured - prompt user
-      progress(options, '');
-      progress(options, colors.info(`Found ${enabledFiles.length} config file(s) to link:`));
+      printStatus('info', `Found ${enabledFiles.length} config file(s) to link:`);
       for (const file of enabledFiles.slice(0, 5)) {
-        progress(options, colors.dim(`  - ${file}`));
+        printDim(`  - ${file}`);
       }
       if (enabledFiles.length > 5) {
-        progress(options, colors.dim(`  ... and ${enabledFiles.length - 5} more`));
+        printDim(`  ... and ${enabledFiles.length - 5} more`);
       }
       shouldLink = await promptConfirm('Link these config files from the main worktree?', true);
     } else {
@@ -382,10 +362,10 @@ async function setupWorktree(
           type: 'hard',
           yes: true,
         });
-        progress(options, colors.success(`Linked ${enabledFiles.length} config file(s)`));
+        printStatus('success', `Linked ${enabledFiles.length} config file(s)`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        progress(options, colors.warning(`Failed to link config files: ${errorMessage}`));
+        printStatus('warning', `Failed to link config files: ${errorMessage}`);
       }
     }
   }
@@ -416,22 +396,16 @@ function printSummary(
     return;
   }
 
-  console.log();
-  console.log(colors.green('════════════════════════════════════════════════════════════'));
-  console.log(colors.green(`  PR #${prNumber} worktree ready!`));
-  console.log(colors.green('════════════════════════════════════════════════════════════'));
-  console.log();
-  console.log(`  Branch:    ${branchName}`);
-  console.log(`  Worktree:  ${worktreePath}`);
-  console.log(`  PR URL:    ${prUrl}`);
-  console.log();
-  console.log(colors.dim('  Next steps:'));
-  console.log(colors.dim(`    cd ${worktreePath}`));
-  console.log(colors.dim(`    gh pr view ${prNumber} --web     # Open PR in browser`));
-  console.log(
-    colors.dim(`    wtlink link                     # Link config files from main worktree`)
-  );
-  console.log();
+  printSummaryBox(`PR #${prNumber} worktree ready!`, [
+    { label: 'Branch', value: branchName },
+    { label: 'Worktree', value: worktreePath },
+    { label: 'PR URL', value: prUrl },
+  ]);
+  printNextSteps([
+    { command: `cd ${worktreePath}` },
+    { command: `gh pr view ${prNumber} --web`, description: 'Open PR in browser' },
+    { command: 'wtlink link', description: 'Link config files from main worktree' },
+  ]);
 }
 
 /**
@@ -475,7 +449,7 @@ async function handlePlanGeneration(
     return undefined;
   }
 
-  progress(options, colors.info('Generating AI implementation plan...'));
+  printStatus('info', 'Generating AI implementation plan...');
 
   // Build path template variables
   const vars = buildPathTemplateVars({
@@ -502,9 +476,9 @@ async function handlePlanGeneration(
   );
 
   if (result.generated) {
-    progress(options, colors.success(`Created plan: ${result.path}`));
+    printStatus('success', `Created plan: ${result.path}`);
   } else if (result.error) {
-    progress(options, colors.warning(`Plan generation failed: ${result.error}`));
+    printStatus('warning', `Plan generation failed: ${result.error}`);
   }
 
   return result;
@@ -549,7 +523,7 @@ async function executePostWorktreeSequence(
  * Mode: Setup worktree for existing PR
  */
 async function modeExistingPr(prNumber: number, options: Options): Promise<void> {
-  progress(options, colors.info(`Setting up worktree for existing PR #${prNumber}...`));
+  printStatus('info', `Setting up worktree for existing PR #${prNumber}...`);
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
@@ -577,10 +551,10 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
   }
 
   if (pr.state !== 'OPEN') {
-    progress(options, colors.warning(`PR #${prNumber} is ${pr.state}`));
+    printStatus('warning', `PR #${prNumber} is ${pr.state}`);
   }
 
-  progress(options, colors.info(`PR branch: ${pr.headBranch}`));
+  printStatus('info', `PR branch: ${pr.headBranch}`);
 
   const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber);
 
@@ -632,7 +606,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
     });
   }
 
-  progress(options, colors.success(`Created worktree: ${worktreePath}`));
+  printStatus('success', `Created worktree: ${worktreePath}`);
 
   await setupWorktree(worktreePath, config, options, repoRoot);
 
@@ -663,7 +637,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
  * Mode: Create PR for existing branch
  */
 async function modeExistingBranch(branchName: string, options: Options): Promise<void> {
-  progress(options, colors.info(`Creating PR for existing branch: ${branchName}...`));
+  printStatus('info', `Creating PR for existing branch: ${branchName}...`);
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
@@ -715,15 +689,12 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
 
   const existingPr = github.getPrByBranch(branchName);
   if (existingPr) {
-    progress(
-      options,
-      colors.info(`PR #${existingPr.number} already exists for branch ${branchName}`)
-    );
+    printStatus('info', `PR #${existingPr.number} already exists for branch ${branchName}`);
     await modeExistingPr(existingPr.number, options);
     return;
   }
 
-  progress(options, colors.info('Creating pull request...'));
+  printStatus('info', 'Creating pull request...');
 
   // Generate description from branch name for AI context
   const descriptionFromBranch = branchName
@@ -741,7 +712,7 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
   });
 
   if (prContent.aiGenerated) {
-    progress(options, colors.info('✨ AI-generated PR content'));
+    printStatus('info', '✨ AI-generated PR content');
   }
 
   const defaultBody = `## Summary
@@ -767,7 +738,7 @@ PR created from existing branch: \`${branchName}\`
     draft: options.draft,
   });
 
-  progress(options, colors.success(`Created PR #${pr.number}: ${pr.url}`));
+  printStatus('success', `Created PR #${pr.number}: ${pr.url}`);
 
   // Update hook context
   hookRunner.updateContext({
@@ -801,7 +772,7 @@ PR created from existing branch: \`${branchName}\`
     });
   }
 
-  progress(options, colors.success(`Created worktree: ${worktreePath}`));
+  printStatus('success', `Created worktree: ${worktreePath}`);
 
   await setupWorktree(worktreePath, config, options, repoRoot);
 
@@ -863,7 +834,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       });
     }
   } catch {
-    progress(options, colors.warning('Could not fetch from origin (network unavailable?)'));
+    printStatus('warning', 'Could not fetch from origin (network unavailable?)');
   }
 
   const state = analyzeGitState(options.baseBranch);
@@ -928,7 +899,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     executeStateAction(action, description, currentBranch, deps, repoRoot);
 
     if (!git.remoteBranchExists(currentBranch)) {
-      progress(options, colors.info('Pushing branch to origin...'));
+      printStatus('info', 'Pushing branch to origin...');
       git.push({ setUpstream: true, remote: 'origin', branch: currentBranch });
     }
 
@@ -936,19 +907,16 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     return;
   }
 
-  progress(options, colors.info(`Creating feature branch: ${branchName}`));
+  printStatus('info', `Creating feature branch: ${branchName}`);
 
   if (git.remoteBranchExists(branchName)) {
-    progress(options, colors.warning(`Branch ${branchName} already exists on remote`));
+    printStatus('warning', `Branch ${branchName} already exists on remote`);
     const existingPr = github.getPrByBranch(branchName);
     if (existingPr) {
-      progress(
-        options,
-        colors.info(`PR #${existingPr.number} already exists, setting up worktree...`)
-      );
+      printStatus('info', `PR #${existingPr.number} already exists, setting up worktree...`);
       await modeExistingPr(existingPr.number, options);
     } else {
-      progress(options, colors.info('No PR exists, creating one...'));
+      printStatus('info', 'No PR exists, creating one...');
       await modeExistingBranch(branchName, options);
     }
     return;
@@ -984,7 +952,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   // Stash unstaged changes if needed
   let unstagedStashRef: string | null = null;
   if (action.stashUnstaged) {
-    progress(options, colors.info('Stashing unstaged changes (will move to worktree)...'));
+    printStatus('info', 'Stashing unstaged changes (will move to worktree)...');
     unstagedStashRef = git.stash({
       keepIndex: true,
       message: 'newpr: unstaged changes for worktree',
@@ -999,7 +967,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       exitWithError('Aborted by pre-branch hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    progress(options, colors.info(`Creating branch from ${branchFrom}...`));
+    printStatus('info', `Creating branch from ${branchFrom}...`);
 
     logger.debug('Before checkout', {
       branchFrom,
@@ -1016,17 +984,14 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       const errorMessage =
         checkoutError instanceof Error ? checkoutError.message : String(checkoutError);
       if (errorMessage.includes('overwritten') || errorMessage.includes('conflict')) {
-        progressError(options, colors.error('Checkout failed due to conflicting changes.'));
-        progressError(
-          options,
-          colors.info('Your staged changes are preserved. To resolve this, either:')
-        );
-        progressError(options, colors.info('  1. Commit your changes first, then run newpr again'));
-        progressError(options, colors.info('  2. Stash your changes: git stash push'));
-        progressError(
-          options,
-          colors.info('  3. Use a different branch point (e.g., HEAD instead of origin/main)')
-        );
+        printError({
+          title: 'Checkout failed due to conflicting changes.',
+          detail:
+            'Your staged changes are preserved. To resolve this, either:\n' +
+            '  1. Commit your changes first, then run newpr again\n' +
+            '  2. Stash your changes: git stash push\n' +
+            '  3. Use a different branch point (e.g., HEAD instead of origin/main)',
+        });
       }
       throw checkoutError;
     }
@@ -1050,7 +1015,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
         exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
       }
 
-      progress(options, colors.info('Committing staged changes...'));
+      printStatus('info', 'Committing staged changes...');
       git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` });
       logger.debug('Committed staged changes');
 
@@ -1062,7 +1027,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
         exitWithError('Aborted by pre-commit hook.', ErrorCode.HOOK_FAILED, options.json);
       }
 
-      progress(options, colors.info('Creating initial commit (required for PR creation)...'));
+      printStatus('info', 'Creating initial commit (required for PR creation)...');
       git.commit({
         message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
         allowEmpty: true,
@@ -1097,7 +1062,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       exitWithError('Aborted by pre-pr hook.', ErrorCode.HOOK_FAILED, options.json);
     }
 
-    progress(options, colors.info('Creating pull request...'));
+    printStatus('info', 'Creating pull request...');
 
     // Generate AI-enhanced PR content if enabled
     // Use origin/baseBranch to compare against remote, not potentially stale local branch
@@ -1110,7 +1075,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     });
 
     if (prContent.aiGenerated) {
-      progress(options, colors.info('✨ AI-generated PR content'));
+      printStatus('info', '✨ AI-generated PR content');
     }
 
     const defaultBody = `## Summary
@@ -1136,7 +1101,7 @@ ${description}
       draft: options.draft,
     });
 
-    progress(options, colors.success(`Created PR #${pr.number}: ${pr.url}`));
+    printStatus('success', `Created PR #${pr.number}: ${pr.url}`);
 
     // Update context with PR info
     hookRunner.updateContext({
@@ -1166,17 +1131,17 @@ ${description}
       });
     }
 
-    progress(options, colors.success(`Created worktree: ${worktreePath}`));
+    printStatus('success', `Created worktree: ${worktreePath}`);
 
     if (unstagedStashRef) {
-      progress(options, colors.info('Moving unstaged changes to worktree...'));
+      printStatus('info', 'Moving unstaged changes to worktree...');
       try {
         git.stashApply(unstagedStashRef, worktreePath);
-        progress(options, colors.success('Unstaged changes applied to worktree'));
+        printStatus('success', 'Unstaged changes applied to worktree');
         git.stashDrop(unstagedStashRef);
       } catch {
-        progress(options, colors.warning('Failed to apply unstaged changes to worktree.'));
-        progress(options, colors.warning("Run 'git stash pop' in main worktree to recover them."));
+        printStatus('warning', 'Failed to apply unstaged changes to worktree.');
+        printStatus('warning', "Run 'git stash pop' in main worktree to recover them.");
       }
     }
 
@@ -1205,11 +1170,11 @@ ${description}
     await hookRunner.runCleanup(error instanceof Error ? error : undefined);
 
     if (actionResult.stashRef) {
-      progress(options, colors.info('Restoring stashed changes...'));
+      printStatus('info', 'Restoring stashed changes...');
       try {
         git.stashPop(actionResult.stashRef);
       } catch {
-        progress(options, colors.warning("Failed to restore stash. Run 'git stash pop' manually."));
+        printStatus('warning', "Failed to restore stash. Run 'git stash pop' manually.");
       }
     }
     throw error;
@@ -1230,7 +1195,7 @@ function exitWithError(message: string, code: ErrorCode, useJson: boolean): neve
   if (useJson) {
     console.log(formatJsonResult(createErrorResult('newpr', code, message)));
   } else {
-    console.error(colors.error(message));
+    printError({ title: message });
   }
   process.exit(1);
 }
@@ -1318,19 +1283,13 @@ main().catch((error) => {
     exitWithError(error.message, error.code, useJson);
   }
 
-  const message = error instanceof Error ? error.message : String(error);
-  const code = getErrorCodeFromError(error);
-  const suggestion = getErrorSuggestion(code);
-
   if (useJson) {
+    const message = error instanceof Error ? error.message : String(error);
+    const code = getErrorCodeFromError(error);
     exitWithError(message, code, useJson);
   } else {
-    // Show friendly error with suggestion for non-JSON mode
-    console.error(colors.error(`Error: ${message}`));
-    if (suggestion) {
-      console.error('');
-      console.error(colors.dim(suggestion));
-    }
+    const display = errorToDisplay(error);
+    printError(display);
     process.exit(1);
   }
 });
