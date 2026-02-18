@@ -57,13 +57,21 @@ function shouldUseColors(): boolean {
   return process.stdout.isTTY ?? false;
 }
 
-const useColors = shouldUseColors();
+let colorEnabled = shouldUseColors();
+
+/**
+ * Enable or disable color output at runtime
+ * Used by --no-color flag and NO_COLOR env var handling
+ */
+export function setColorEnabled(enabled: boolean): void {
+  colorEnabled = enabled;
+}
 
 /**
  * Wrap text with ANSI color codes
  */
 function colorize(text: string, code: string): string {
-  if (!useColors) {
+  if (!colorEnabled) {
     return text;
   }
   return `${code}${text}${codes.reset}`;
@@ -142,22 +150,22 @@ export function underline(text: string): string {
 
 // Semantic output functions with icons
 export function success(text: string): string {
-  const icon = useColors ? '✓' : '[OK]';
+  const icon = colorEnabled ? '✓' : '[OK]';
   return `${green(icon)} ${text}`;
 }
 
 export function warning(text: string): string {
-  const icon = useColors ? '⚠' : '[WARN]';
+  const icon = colorEnabled ? '⚠' : '[WARN]';
   return `${yellow(icon)} ${yellow(text)}`;
 }
 
 export function error(text: string): string {
-  const icon = useColors ? '✗' : '[ERROR]';
+  const icon = colorEnabled ? '✗' : '[ERROR]';
   return `${red(icon)} ${red(text)}`;
 }
 
 export function info(text: string): string {
-  const icon = useColors ? 'ℹ' : '[INFO]';
+  const icon = colorEnabled ? 'ℹ' : '[INFO]';
   return `${blue(icon)} ${text}`;
 }
 

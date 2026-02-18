@@ -76,6 +76,25 @@ export function getGlobalLogDir(): string {
 }
 
 /**
+ * Get the global data directory path (for audit logs)
+ * - Linux: $XDG_DATA_HOME/git-worktree-tools or ~/.local/share/git-worktree-tools
+ * - macOS: ~/Library/Application Support/git-worktree-tools
+ * - Windows: %APPDATA%/git-worktree-tools
+ */
+export function getGlobalDataDir(): string {
+  if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    return path.join(appData, PACKAGE_NAME);
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support', PACKAGE_NAME);
+  }
+  // Linux and others: XDG_DATA_HOME
+  const xdgData = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+  return path.join(xdgData, PACKAGE_NAME);
+}
+
+/**
  * Default worktree naming pattern
  * Placeholders: {repo}, {number}, {branch}
  */
@@ -93,11 +112,12 @@ export const DEFAULT_BRANCH_PREFIX = 'feat';
 
 /**
  * Log levels for the logging system
+ * Values are aligned with consola numeric levels
  */
 export enum LogLevel {
-  SILENT = 0,
-  ERROR = 1,
-  WARN = 2,
+  SILENT = -999,
+  ERROR = 0,
+  WARN = 1,
   INFO = 3,
   DEBUG = 4,
   TRACE = 5,
@@ -109,9 +129,9 @@ export enum LogLevel {
 export const DEFAULT_LOG_LEVEL = LogLevel.INFO;
 
 /**
- * Maximum log file size before rotation (5MB)
+ * Maximum log file size before rotation (10MB)
  */
-export const MAX_LOG_FILE_SIZE = 5 * 1024 * 1024;
+export const MAX_LOG_FILE_SIZE = 10 * 1024 * 1024;
 
 /**
  * Number of log files to keep during rotation

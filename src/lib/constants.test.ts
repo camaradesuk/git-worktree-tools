@@ -16,6 +16,7 @@ import {
   GLOBAL_CONFIG_FILE_NAME,
   getGlobalConfigDir,
   getGlobalLogDir,
+  getGlobalDataDir,
   DEFAULT_WORKTREE_PATTERN,
   DEFAULT_WORKTREE_PARENT,
   DEFAULT_BRANCH_PREFIX,
@@ -73,10 +74,10 @@ describe('constants', () => {
   });
 
   describe('LogLevel enum', () => {
-    it('has correct values', () => {
-      expect(LogLevel.SILENT).toBe(0);
-      expect(LogLevel.ERROR).toBe(1);
-      expect(LogLevel.WARN).toBe(2);
+    it('has correct consola-compatible values', () => {
+      expect(LogLevel.SILENT).toBe(-999);
+      expect(LogLevel.ERROR).toBe(0);
+      expect(LogLevel.WARN).toBe(1);
       expect(LogLevel.INFO).toBe(3);
       expect(LogLevel.DEBUG).toBe(4);
       expect(LogLevel.TRACE).toBe(5);
@@ -88,8 +89,8 @@ describe('constants', () => {
   });
 
   describe('log file constants', () => {
-    it('has MAX_LOG_FILE_SIZE at 5MB', () => {
-      expect(MAX_LOG_FILE_SIZE).toBe(5 * 1024 * 1024);
+    it('has MAX_LOG_FILE_SIZE at 10MB', () => {
+      expect(MAX_LOG_FILE_SIZE).toBe(10 * 1024 * 1024);
     });
 
     it('has MAX_LOG_FILES at 3', () => {
@@ -161,6 +162,35 @@ describe('constants', () => {
       const result = getGlobalLogDir();
       expect(result).toContain(PACKAGE_NAME);
       expect(result).toContain('logs');
+    });
+  });
+
+  describe('getGlobalDataDir', () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...originalEnv };
+    });
+
+    it('returns XDG data path on Linux when XDG_DATA_HOME is set', () => {
+      if (process.platform !== 'win32' && process.platform !== 'darwin') {
+        process.env.XDG_DATA_HOME = '/custom/data';
+        const result = getGlobalDataDir();
+        expect(result).toBe('/custom/data/git-worktree-tools');
+      }
+    });
+
+    it('returns default .local/share path on Linux when XDG_DATA_HOME is not set', () => {
+      if (process.platform !== 'win32' && process.platform !== 'darwin') {
+        delete process.env.XDG_DATA_HOME;
+        const result = getGlobalDataDir();
+        expect(result).toBe(path.join(os.homedir(), '.local', 'share', 'git-worktree-tools'));
+      }
+    });
+
+    it('returns path containing package name', () => {
+      const result = getGlobalDataDir();
+      expect(result).toContain(PACKAGE_NAME);
     });
   });
 });
