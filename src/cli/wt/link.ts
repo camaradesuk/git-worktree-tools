@@ -29,7 +29,8 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
   builder: (yargs) => {
     return yargs
       .positional('subcommand', {
-        describe: 'Subcommand: manage, link, validate (or omit for menu)',
+        describe:
+          'Subcommand: manage, link, validate, migrate (deprecated: use "wt config migrate")',
         type: 'string',
       })
       .positional('args', {
@@ -91,7 +92,8 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
       .example('$0 l manage', 'Manage manifest entries')
       .example('$0 link manage --clean', 'Remove stale entries')
       .example('$0 link link . ../repo.pr42', 'Link configs to worktree')
-      .example('$0 link validate', 'Validate manifest entries');
+      .example('$0 link validate', 'Validate manifest entries')
+      .example('$0 link migrate', '[Deprecated] Use "wt config migrate" instead');
   },
   handler: (argv) => {
     const args: string[] = [];

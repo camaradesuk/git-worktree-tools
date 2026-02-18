@@ -64,7 +64,7 @@ describe('wt subcommand handlers', () => {
         description: 'Add dark mode',
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
       } as never);
 
       expect(spawnSync).toHaveBeenCalledWith(
@@ -80,7 +80,7 @@ describe('wt subcommand handlers', () => {
         pr: 42,
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
       } as never);
 
       expect(spawnSync).toHaveBeenCalledWith(
@@ -95,7 +95,7 @@ describe('wt subcommand handlers', () => {
         ready: true,
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
         install: false,
         code: false,
         'no-wtlink': false,
@@ -114,7 +114,7 @@ describe('wt subcommand handlers', () => {
         base: 'develop',
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
         install: false,
         code: false,
         ready: false,
@@ -134,7 +134,7 @@ describe('wt subcommand handlers', () => {
         branch: 'feat/my-feature',
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
         install: false,
         code: false,
         ready: false,
@@ -154,7 +154,7 @@ describe('wt subcommand handlers', () => {
         install: true,
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
         code: false,
         ready: false,
         'no-wtlink': false,
@@ -173,7 +173,7 @@ describe('wt subcommand handlers', () => {
         code: true,
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
         install: false,
         ready: false,
         'no-wtlink': false,
@@ -192,7 +192,7 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': true,
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
         install: false,
         code: false,
         ready: false,
@@ -211,7 +211,7 @@ describe('wt subcommand handlers', () => {
         'no-hooks': true,
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
         install: false,
         code: false,
         ready: false,
@@ -229,7 +229,7 @@ describe('wt subcommand handlers', () => {
       newCommand.handler({
         json: true,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
       } as never);
 
       expect(spawnSync).toHaveBeenCalledWith(
@@ -243,7 +243,7 @@ describe('wt subcommand handlers', () => {
       newCommand.handler({
         json: false,
         'non-interactive': true,
-        'stash-untracked': false,
+        draft: false,
       } as never);
 
       expect(spawnSync).toHaveBeenCalledWith(
@@ -258,7 +258,7 @@ describe('wt subcommand handlers', () => {
         action: 'commit_all',
         json: false,
         'non-interactive': false,
-        'stash-untracked': false,
+        draft: false,
       } as never);
 
       expect(spawnSync).toHaveBeenCalledWith(
@@ -268,16 +268,46 @@ describe('wt subcommand handlers', () => {
       );
     });
 
-    it('passes --stash-untracked flag to newpr', () => {
+    it('passes --draft flag to newpr', () => {
       newCommand.handler({
         json: false,
         'non-interactive': false,
-        'stash-untracked': true,
+        draft: true,
       } as never);
 
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
-        expect.arrayContaining(['--stash-untracked']),
+        expect.arrayContaining(['--draft']),
+        expect.any(Object)
+      );
+    });
+
+    it('passes --plan flag to newpr', () => {
+      newCommand.handler({
+        json: false,
+        'non-interactive': false,
+        draft: false,
+        plan: true,
+      } as never);
+
+      expect(spawnSync).toHaveBeenCalledWith(
+        process.execPath,
+        expect.arrayContaining(['--plan']),
+        expect.any(Object)
+      );
+    });
+
+    it('passes --confirm-hooks flag to newpr', () => {
+      newCommand.handler({
+        json: false,
+        'non-interactive': false,
+        draft: false,
+        'confirm-hooks': true,
+      } as never);
+
+      expect(spawnSync).toHaveBeenCalledWith(
+        process.execPath,
+        expect.arrayContaining(['--confirm-hooks']),
         expect.any(Object)
       );
     });

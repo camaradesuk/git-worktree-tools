@@ -15,12 +15,15 @@ interface NewArgs {
   install?: boolean;
   code?: boolean;
   ready?: boolean;
+  draft?: boolean;
   'no-wtlink'?: boolean;
   'no-hooks'?: boolean;
+  'confirm-hooks'?: boolean;
+  plan?: boolean;
+  'no-plan'?: boolean;
   json?: boolean;
   'non-interactive'?: boolean;
   action?: string;
-  'stash-untracked'?: boolean;
   verbose?: number | boolean;
   quiet?: boolean;
   noColor?: boolean;
@@ -68,6 +71,11 @@ export const newCommand: CommandModule<object, NewArgs> = {
         description: 'Create PR as ready for review (default: draft)',
         default: false,
       })
+      .option('draft', {
+        alias: 'd',
+        type: 'boolean',
+        description: 'Create PR as draft',
+      })
       .option('no-wtlink', {
         type: 'boolean',
         description: 'Skip wtlink config sync',
@@ -75,8 +83,21 @@ export const newCommand: CommandModule<object, NewArgs> = {
       })
       .option('no-hooks', {
         type: 'boolean',
-        description: 'Disable lifecycle hooks',
+        description: 'Disable lifecycle hooks (for security)',
         default: false,
+      })
+      .option('confirm-hooks', {
+        type: 'boolean',
+        description: 'Prompt before running post-* hooks',
+        default: false,
+      })
+      .option('plan', {
+        type: 'boolean',
+        description: 'Generate AI plan document for the PR',
+      })
+      .option('no-plan', {
+        type: 'boolean',
+        description: 'Skip plan generation even if configured',
       })
       .option('json', {
         type: 'boolean',
@@ -84,7 +105,7 @@ export const newCommand: CommandModule<object, NewArgs> = {
         default: false,
       })
       .option('non-interactive', {
-        alias: 'n',
+        alias: ['n', 'y', 'yes'],
         type: 'boolean',
         description: 'Run without prompts (requires explicit options)',
         default: false,
@@ -93,17 +114,29 @@ export const newCommand: CommandModule<object, NewArgs> = {
         alias: 'a',
         type: 'string',
         description: 'Action to take (for non-interactive mode)',
-      })
-      .option('stash-untracked', {
-        type: 'boolean',
-        description: 'Also stash untracked files when stashing',
-        default: false,
+        choices: [
+          'empty_commit',
+          'commit_staged',
+          'commit_all',
+          'stash_and_empty',
+          'use_commits',
+          'push_then_branch',
+          'use_commits_and_commit_all',
+          'use_commits_and_stash',
+          'create_pr_for_branch',
+          'pr_for_branch_commit_all',
+          'pr_for_branch_stash',
+          'branch_from_detached',
+        ],
       })
       .example('$0 new "Add dark mode"', 'Create a new PR')
       .example('$0 n "Fix bug #123"', 'Short alias')
       .example('$0 new --pr 42', 'Create worktree for existing PR #42')
       .example('$0 new --branch feat/my-feature', 'Create PR for existing branch')
-      .example('$0 new "Feature" --ready', 'Create as ready (not draft) PR');
+      .example('$0 new "Feature" --ready', 'Create as ready (not draft) PR')
+      .example('$0 new "Feature" --draft', 'Create as draft PR')
+      .example('$0 new "Fix" --non-interactive --json', 'Automation mode')
+      .example('$0 new "Fix" -y --action=commit_staged', 'Non-interactive with explicit action');
   },
   handler: (argv) => {
     const args: string[] = [];
@@ -136,12 +169,28 @@ export const newCommand: CommandModule<object, NewArgs> = {
       args.push('--ready');
     }
 
+    if (argv.draft) {
+      args.push('--draft');
+    }
+
     if (argv['no-wtlink']) {
       args.push('--no-wtlink');
     }
 
     if (argv['no-hooks']) {
       args.push('--no-hooks');
+    }
+
+    if (argv['confirm-hooks']) {
+      args.push('--confirm-hooks');
+    }
+
+    if (argv.plan) {
+      args.push('--plan');
+    }
+
+    if (argv['no-plan']) {
+      args.push('--no-plan');
     }
 
     if (argv.json) {
@@ -154,10 +203,6 @@ export const newCommand: CommandModule<object, NewArgs> = {
 
     if (argv.action) {
       args.push('--action', argv.action);
-    }
-
-    if (argv['stash-untracked']) {
-      args.push('--stash-untracked');
     }
 
     // Forward global logging flags to child process

@@ -86,8 +86,16 @@ _wt() {
             '--draft[Create as draft PR]' \\
             '--json[Output result as JSON]' \\
             '--non-interactive[Run without prompts]' \\
-            '--action[Action to take]:action:(commit_all commit_staged stash)' \\
-            '--stash-untracked[Also stash untracked files]'
+            '--action[Action to take]:action:(empty_commit commit_staged commit_all stash_and_empty use_commits push_then_branch use_commits_and_commit_all use_commits_and_stash create_pr_for_branch pr_for_branch_commit_all pr_for_branch_stash branch_from_detached)' \\
+            '--no-wtlink[Skip wtlink config sync]' \\
+            '--no-hooks[Disable lifecycle hooks]' \\
+            '--confirm-hooks[Prompt before running hooks]' \\
+            '--plan[Generate AI plan document]' \\
+            '--no-plan[Skip plan generation]' \\
+            '--ready[Create PR as ready for review]' \\
+            '--install[Install dependencies after setup]' \\
+            '--code[Open editor to the new worktree]' \\
+            '--base[Base branch for PR]:branch:'
           ;;
         list|ls)
           _arguments \\
@@ -103,6 +111,7 @@ _wt() {
             '--all[Clean all merged/closed worktrees]' \\
             '--dry-run[Show what would be cleaned]' \\
             '--force[Force cleanup even with uncommitted changes]' \\
+            '--delete-remote[Delete remote branches after cleaning]' \\
             '--json[Output result as JSON]'
           ;;
         link|l)
@@ -113,11 +122,13 @@ _wt() {
         state|s)
           _arguments \\
             '--json[Output as JSON]' \\
-            '--quiet[Only output state name]'
+            '--verbose[Show detailed state information]' \\
+            '--base-branch[Base branch to compare against]:branch:'
           ;;
         config|cfg)
           _arguments \\
-            '1:command:(show init edit)' \\
+            '1:command:(interactive init show set get edit validate migrate schema)' \\
+            '--json[Output as JSON]' \\
             '--help[Show help]'
           ;;
         completion)
@@ -158,11 +169,21 @@ complete -c wt -n '__fish_use_subcommand' -a 'completion' -d 'Generate shell com
 
 # new/n options
 complete -c wt -n '__fish_seen_subcommand_from new n' -l pr -s p -d 'Existing PR number' -r
+complete -c wt -n '__fish_seen_subcommand_from new n' -l branch -s B -d 'Create PR for existing branch' -r
+complete -c wt -n '__fish_seen_subcommand_from new n' -l base -s b -d 'Base branch for PR' -r
 complete -c wt -n '__fish_seen_subcommand_from new n' -l draft -s d -d 'Create as draft PR'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l ready -s r -d 'Create PR as ready for review'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l install -s i -d 'Install dependencies after setup'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l code -s c -d 'Open editor to the new worktree'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l no-wtlink -d 'Skip wtlink config sync'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l no-hooks -d 'Disable lifecycle hooks'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l confirm-hooks -d 'Prompt before running hooks'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l plan -d 'Generate AI plan document'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l no-plan -d 'Skip plan generation'
 complete -c wt -n '__fish_seen_subcommand_from new n' -l json -d 'Output result as JSON'
 complete -c wt -n '__fish_seen_subcommand_from new n' -l non-interactive -s n -d 'Run without prompts'
-complete -c wt -n '__fish_seen_subcommand_from new n' -l action -s a -d 'Action to take' -ra 'commit_all commit_staged stash'
-complete -c wt -n '__fish_seen_subcommand_from new n' -l stash-untracked -d 'Also stash untracked files'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l yes -s y -d 'Run without prompts'
+complete -c wt -n '__fish_seen_subcommand_from new n' -l action -s a -d 'Action to take' -ra 'empty_commit commit_staged commit_all stash_and_empty use_commits push_then_branch use_commits_and_commit_all use_commits_and_stash create_pr_for_branch pr_for_branch_commit_all pr_for_branch_stash branch_from_detached'
 
 # list/ls options
 complete -c wt -n '__fish_seen_subcommand_from list ls' -l verbose -s v -d 'Show full paths'
@@ -175,6 +196,7 @@ complete -c wt -n '__fish_seen_subcommand_from list ls' -l filter -s f -d 'Filte
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l all -s a -d 'Clean all merged/closed'
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l dry-run -s d -d 'Preview only'
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l force -s f -d 'Force cleanup'
+complete -c wt -n '__fish_seen_subcommand_from clean c' -l delete-remote -s r -d 'Delete remote branches'
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l json -d 'Output as JSON'
 
 # link/l subcommands
@@ -184,6 +206,8 @@ complete -c wt -n '__fish_seen_subcommand_from link l' -a 'validate' -d 'Validat
 
 # state/s options
 complete -c wt -n '__fish_seen_subcommand_from state s' -l json -d 'Output as JSON'
+complete -c wt -n '__fish_seen_subcommand_from state s' -l verbose -s v -d 'Show detailed state'
+complete -c wt -n '__fish_seen_subcommand_from state s' -l base-branch -s b -d 'Base branch to compare against' -r
 complete -c wt -n '__fish_seen_subcommand_from state s' -l quiet -s q -d 'Only output state name'
 
 # config/cfg subcommands
