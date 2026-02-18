@@ -16,6 +16,14 @@ export interface CleanOptions {
   json: boolean;
   /** Preview what would be cleaned without making changes */
   dryRun: boolean;
+
+  // Logging options
+  /** Enable verbose debug output (--verbose flag) */
+  verbose?: boolean;
+  /** Suppress all output except errors (--quiet flag) */
+  quiet?: boolean;
+  /** Disable colored output (--no-color flag) */
+  noColor?: boolean;
 }
 
 /**

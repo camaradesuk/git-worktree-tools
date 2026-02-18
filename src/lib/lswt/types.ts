@@ -11,6 +11,10 @@ export interface ListOptions {
   verbose: boolean;
   /** Enable interactive mode (undefined = auto-detect based on TTY) */
   interactive?: boolean;
+  /** Suppress all output except errors (--quiet flag) */
+  quiet?: boolean;
+  /** Disable colored output (--no-color flag) */
+  noColor?: boolean;
 }
 
 /**

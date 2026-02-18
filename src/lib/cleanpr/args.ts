@@ -44,6 +44,15 @@ export function parseArgs(argv: string[]): ParseResult {
       case '--dry-run':
         options.dryRun = true;
         break;
+      case '--verbose':
+        options.verbose = true;
+        break;
+      case '--quiet':
+        options.quiet = true;
+        break;
+      case '--no-color':
+        options.noColor = true;
+        break;
       default:
         if (arg.startsWith('-')) {
           return { kind: 'error', message: `Unknown option: ${arg}` };
@@ -58,6 +67,11 @@ export function parseArgs(argv: string[]): ParseResult {
           options.interactive = false;
         }
     }
+  }
+
+  // Validate mutual exclusivity of --verbose and --quiet
+  if (options.verbose && options.quiet) {
+    return { kind: 'error', message: '--verbose and --quiet cannot be used together' };
   }
 
   return { kind: 'success', prNumber, options };
@@ -80,6 +94,11 @@ OPTIONS
   -f, --force     Force removal even if worktree has uncommitted changes
   -a, --all       Clean all merged/closed PR worktrees (non-interactive)
   -h, --help      Show this help message
+
+LOGGING OPTIONS
+  --verbose       Enable verbose debug output
+  --quiet         Suppress all output except errors
+  --no-color      Disable colored output
 
 AI/AUTOMATION OPTIONS
   --json          Output result as JSON for programmatic parsing

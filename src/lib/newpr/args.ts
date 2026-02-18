@@ -119,6 +119,19 @@ export function parseArgs(args: string[]): ParseResult {
         options.json = true;
         break;
 
+      case '-v':
+      case '--verbose':
+        options.verbose = true;
+        break;
+
+      case '--quiet':
+        options.quiet = true;
+        break;
+
+      case '--no-color':
+        options.noColor = true;
+        break;
+
       case '-y':
       case '--yes':
       case '--non-interactive':
@@ -151,6 +164,11 @@ export function parseArgs(args: string[]): ParseResult {
         }
     }
     i++;
+  }
+
+  // Validate mutual exclusivity of --verbose and --quiet
+  if (options.verbose && options.quiet) {
+    return { kind: 'error', message: '--verbose and --quiet cannot be used together' };
   }
 
   // Validate
@@ -186,6 +204,11 @@ Options:
   --no-hooks            Disable lifecycle hooks (for security)
   --confirm-hooks       Prompt before running post-* hooks
   -h, --help            Show this help message
+
+Logging Options:
+  -v, --verbose         Enable verbose debug output
+  --quiet               Suppress all output except errors
+  --no-color            Disable colored output
 
 AI/Plan Options:
   --plan                Generate AI plan document for the PR

@@ -44,6 +44,14 @@ export interface Options {
   // Hook confirmation options
   /** Force hook confirmation prompts (--confirm-hooks flag) */
   confirmHooks?: boolean;
+
+  // Logging options
+  /** Enable verbose debug output (--verbose flag) */
+  verbose?: boolean;
+  /** Suppress all output except errors (--quiet flag) */
+  quiet?: boolean;
+  /** Disable colored output (--no-color flag) */
+  noColor?: boolean;
 }
 
 /**

@@ -40,11 +40,22 @@ export function parseArgs(argv: string[]): ParseResult {
       case '--no-interactive':
         options.interactive = false;
         break;
+      case '--quiet':
+        options.quiet = true;
+        break;
+      case '--no-color':
+        options.noColor = true;
+        break;
       default:
         if (arg.startsWith('-')) {
           return { kind: 'error', message: `Unknown option: ${arg}` };
         }
     }
+  }
+
+  // Validate mutual exclusivity of --verbose and --quiet
+  if (options.verbose && options.quiet) {
+    return { kind: 'error', message: '--verbose and --quiet cannot be used together' };
   }
 
   // Validate: --json and --interactive cannot be used together
@@ -70,9 +81,11 @@ USAGE
 OPTIONS
   -s, --status       Include PR status from GitHub (open/merged/closed)
   -j, --json         Output as JSON
-  -v, --verbose      Show more details (commit hashes, full paths)
+  -v, --verbose      Show more details (commit hashes, full paths, debug output)
   -i, --interactive  Enable interactive mode (default in TTY)
   --no-interactive   Disable interactive mode
+  --quiet            Suppress all output except errors
+  --no-color         Disable colored output
   -h, --help         Show this help message
 
 EXAMPLES

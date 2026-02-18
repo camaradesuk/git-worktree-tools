@@ -33,6 +33,12 @@ interface GlobalOptions {
   manifestFile: string;
   /** Output result as JSON for programmatic parsing */
   json: boolean;
+  /** Enable verbose debug output */
+  verbose: boolean;
+  /** Suppress all output except errors */
+  quiet: boolean;
+  /** Disable colored output */
+  noColor: boolean;
 }
 
 interface ManageArgv extends GlobalOptions {
@@ -40,7 +46,6 @@ interface ManageArgv extends GlobalOptions {
   clean: boolean;
   dryRun: boolean;
   backup: boolean;
-  verbose: boolean;
 }
 
 interface LinkArgv extends GlobalOptions {
@@ -75,6 +80,25 @@ yargs(hideBin(process.argv))
     type: 'boolean',
     default: false,
   })
+  .option('verbose', {
+    alias: 'v',
+    type: 'boolean',
+    description: 'Enable verbose debug output',
+    default: false,
+    global: true,
+  })
+  .option('quiet', {
+    type: 'boolean',
+    description: 'Suppress all output except errors',
+    default: false,
+    global: true,
+  })
+  .option('no-color', {
+    type: 'boolean',
+    description: 'Disable colored output',
+    default: false,
+    global: true,
+  })
   .command<ManageArgv>(
     'manage',
     'Discover and manage the worktree config manifest',
@@ -102,12 +126,6 @@ yargs(hideBin(process.argv))
           alias: 'b',
           type: 'boolean',
           description: 'Create a backup of the manifest before updating',
-          default: false,
-        })
-        .option('verbose', {
-          alias: 'v',
-          type: 'boolean',
-          description: 'Show full file list in non-interactive/dry-run mode (default: summary)',
           default: false,
         });
     },
