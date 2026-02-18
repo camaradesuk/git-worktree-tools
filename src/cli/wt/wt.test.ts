@@ -459,9 +459,9 @@ describe('wt subcommand handlers', () => {
       );
     });
 
-    it('passes --remote flag to cleanpr', () => {
+    it('passes --delete-remote flag to cleanpr as --remote', () => {
       cleanCommand.handler({
-        remote: true,
+        'delete-remote': true,
         json: false,
         all: false,
         'dry-run': false,

@@ -10,6 +10,7 @@ import { runSubcommand } from './run-command.js';
 interface StateArgs {
   verbose?: boolean;
   json?: boolean;
+  'base-branch'?: string;
 }
 
 export const stateCommand: CommandModule<object, StateArgs> = {
@@ -28,9 +29,15 @@ export const stateCommand: CommandModule<object, StateArgs> = {
         description: 'Output as JSON (for AI/automation)',
         default: false,
       })
+      .option('base-branch', {
+        alias: 'b',
+        type: 'string',
+        description: 'Base branch to compare against (default: from .worktreerc or main)',
+      })
       .example('$0 state', 'Show current worktree state')
       .example('$0 s -v', 'Verbose state output')
-      .example('$0 state --json', 'JSON output for AI agents');
+      .example('$0 state --json', 'JSON output for AI agents')
+      .example('$0 state --base-branch develop', 'Compare against develop branch');
   },
   handler: (argv) => {
     const args: string[] = [];
@@ -41,6 +48,10 @@ export const stateCommand: CommandModule<object, StateArgs> = {
 
     if (argv.json) {
       args.push('--json');
+    }
+
+    if (argv['base-branch']) {
+      args.push('--base', argv['base-branch']);
     }
 
     runSubcommand('wtstate', args);

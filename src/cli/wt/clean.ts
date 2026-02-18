@@ -12,7 +12,7 @@ interface CleanArgs {
   all?: boolean;
   'dry-run'?: boolean;
   force?: boolean;
-  remote?: boolean;
+  'delete-remote'?: boolean;
   json?: boolean;
   verbose?: number | boolean;
   quiet?: boolean;
@@ -46,10 +46,10 @@ export const cleanCommand: CommandModule<object, CleanArgs> = {
         description: 'Force cleanup even with uncommitted changes',
         default: false,
       })
-      .option('remote', {
+      .option('delete-remote', {
         alias: 'r',
         type: 'boolean',
-        description: 'Also delete the remote branch',
+        description: 'Delete remote branches after cleaning worktree',
         default: false,
       })
       .option('json', {
@@ -60,7 +60,7 @@ export const cleanCommand: CommandModule<object, CleanArgs> = {
       .example('$0 clean', 'Interactive cleanup')
       .example('$0 c --all', 'Clean all merged/closed PRs')
       .example('$0 clean 42', 'Clean worktree for PR #42')
-      .example('$0 clean 42 --remote', 'Also delete remote branch')
+      .example('$0 clean 42 --delete-remote', 'Also delete remote branch')
       .example('$0 clean --dry-run', 'Preview what would be cleaned');
   },
   handler: (argv) => {
@@ -82,7 +82,7 @@ export const cleanCommand: CommandModule<object, CleanArgs> = {
       args.push('--force');
     }
 
-    if (argv.remote) {
+    if (argv['delete-remote']) {
       args.push('--remote');
     }
 

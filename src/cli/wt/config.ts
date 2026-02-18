@@ -16,6 +16,7 @@ import * as colors from '../../lib/colors.js';
 interface ConfigArgs {
   subcommand?: string;
   args?: string[];
+  json?: boolean;
 }
 
 /**
@@ -35,7 +36,7 @@ export const configCommand: CommandModule<object, ConfigArgs> = {
   builder: (yargs) => {
     return yargs
       .positional('subcommand', {
-        describe: 'Subcommand: interactive, init, show, set, get, edit, validate, schema',
+        describe: 'Subcommand: interactive, init, show, set, get, edit, validate, migrate, schema',
         type: 'string',
         default: 'interactive',
       })
@@ -43,6 +44,11 @@ export const configCommand: CommandModule<object, ConfigArgs> = {
         describe: 'Additional arguments (e.g., key value for set)',
         type: 'string',
         array: true,
+      })
+      .option('json', {
+        type: 'boolean',
+        description: 'Output as JSON (for migrate subcommand)',
+        default: false,
       })
       .example('$0 config', 'Open interactive config editor')
       .example('$0 cfg i', 'Open interactive config editor')
@@ -52,6 +58,8 @@ export const configCommand: CommandModule<object, ConfigArgs> = {
       .example('$0 config get ai.provider', 'Get a config value')
       .example('$0 cfg edit', 'Open config in text editor')
       .example('$0 config validate', 'Validate configuration')
+      .example('$0 config migrate', 'Migrate legacy config to latest version')
+      .example('$0 config migrate --json', 'Migrate with JSON output')
       .example('$0 config schema', 'Show JSON schema URL');
   },
   handler: async (argv) => {
@@ -87,6 +95,9 @@ export const configCommand: CommandModule<object, ConfigArgs> = {
     const wtconfigArgs: string[] = [subcommand];
     if (args.length > 0) {
       wtconfigArgs.push(...args);
+    }
+    if (argv.json) {
+      wtconfigArgs.push('--json');
     }
     runSubcommand('wtconfig', wtconfigArgs);
   },

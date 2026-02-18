@@ -106,6 +106,7 @@ describe('wt config command', () => {
     it('builder configures positional arguments', () => {
       const mockYargs = {
         positional: vi.fn().mockReturnThis(),
+        option: vi.fn().mockReturnThis(),
         example: vi.fn().mockReturnThis(),
       };
 
