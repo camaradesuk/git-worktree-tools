@@ -31,6 +31,7 @@ import type { WorktreeDisplay, ListOptions } from '../lib/lswt/index.js';
 import {
   printTable as sharedPrintTable,
   printStatus,
+  printDim,
   printError,
   errorToDisplay,
   setJsonMode,
@@ -139,6 +140,7 @@ async function main(): Promise<void> {
   if (options.showStatus && !github.isGhInstalled()) {
     if (!options.json) {
       printStatus('warning', 'GitHub CLI (gh) not installed. PR status will not be shown.');
+      printDim('Install: https://cli.github.com/');
     }
     options.showStatus = false;
   }
