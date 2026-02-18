@@ -84,12 +84,18 @@ function checkPrerequisites(): void {
   printStatus('info', 'Checking prerequisites...');
 
   if (!github.isGhInstalled()) {
-    printError({ title: 'GitHub CLI (gh) is required. See: https://cli.github.com' });
+    printError({
+      title: 'GitHub CLI (gh) is required.',
+      hint: 'Install: https://cli.github.com',
+    });
     process.exit(1);
   }
 
   if (!github.isAuthenticated()) {
-    printError({ title: 'GitHub CLI not authenticated. Run: gh auth login' });
+    printError({
+      title: 'GitHub CLI not authenticated.',
+      hint: 'Run: gh auth login',
+    });
     process.exit(1);
   }
 
