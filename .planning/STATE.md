@@ -5,34 +5,35 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 1 complete — ready for Phase 2
+**Current focus:** Phase 2 in progress — Shared UI Primitives
 
 ## Current Position
 
-Phase: 1 of 5 (Logger Wiring) — VERIFIED ✓
-Plan: 3 of 3 in current phase
-Status: Phase Complete — Verified (5/5 must-haves passed)
-Last activity: 2026-02-18 — Phase 1 verified and marked complete in ROADMAP.md
+Phase: 2 of 5 (Shared UI Primitives) — IN PROGRESS
+Plan: 1 of 3 in current phase (02-01 complete)
+Status: Executing Phase 2
+Last activity: 2026-02-18 — Completed 02-01-PLAN.md (UI primitives module)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [███░░░░░░░] 27%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 3
-- Average duration: 14min
-- Total execution time: 28min
+- Total plans completed: 4
+- Average duration: 12min
+- Total execution time: 37min
 
 **By Phase:**
 
-| Phase            | Plans | Total | Avg/Plan |
-| ---------------- | ----- | ----- | -------- |
-| 01-logger-wiring | 3/3   | 28min | 9min     |
+| Phase                   | Plans | Total | Avg/Plan |
+| ----------------------- | ----- | ----- | -------- |
+| 01-logger-wiring        | 3/3   | 28min | 9min     |
+| 02-shared-ui-primitives | 1/3   | 9min  | 9min     |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (12min), 01-03 (16min)
+- Last 5 plans: 01-01 (12min), 01-03 (16min), 02-01 (9min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -55,6 +56,9 @@ Recent decisions affecting current work:
 - 01-02: Belt-and-suspenders flag forwarding from wt wrappers: CLI args + GWT_LOG_LEVEL/NO_COLOR env vars
 - 01-03: Used dynamic import + vi.spyOn for ESM module mocking of getGlobalDataDir
 - 01-03: Used process.emit('exit', 0) for exit handler testing without process termination
+- 02-01: All ui/ print functions route through print()/printErr() as single JSON-mode gate
+- 02-01: Box border width fixed at 58 chars matching existing newpr output
+- 02-01: changeIndicator standardizes on compact `*` form (cleanpr migrates in 02-02)
 
 ### Pending Todos
 
@@ -70,5 +74,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Phase 1 verified (5/5 must-haves); ROADMAP.md updated; ready for Phase 2 planning
+Stopped at: Completed 02-01-PLAN.md — UI primitives module created, ready for 02-02 (CLI refactoring)
 Resume file: None
