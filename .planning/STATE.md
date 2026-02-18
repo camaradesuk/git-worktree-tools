@@ -5,36 +5,37 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 2 complete — ready for Phase 3
+**Current focus:** Phase 3 in progress — interactive menu reliability
 
 ## Current Position
 
-Phase: 2 of 5 (Shared UI Primitives) — VERIFIED ✓
-Plan: 3 of 3 in current phase
-Status: Phase Complete — Verified (4/4 must-haves passed)
-Last activity: 2026-02-18 — Phase 2 verified and marked complete in ROADMAP.md
+Phase: 3 of 5 (Interactive Menu Reliability)
+Plan: 2 of 3 in current phase
+Status: Plan 03-02 complete
+Last activity: 2026-02-18 — Plan 03-02 executed (deduplicate wt prs command)
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 53%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6
-- Average duration: 11min
-- Total execution time: 65min
+- Total plans completed: 8
+- Average duration: 10min
+- Total execution time: 80min
 
 **By Phase:**
 
-| Phase                   | Plans | Total | Avg/Plan |
-| ----------------------- | ----- | ----- | -------- |
-| 01-logger-wiring        | 3/3   | 28min | 9min     |
-| 02-shared-ui-primitives | 3/3   | 37min | 12min    |
+| Phase                           | Plans | Total | Avg/Plan |
+| ------------------------------- | ----- | ----- | -------- |
+| 01-logger-wiring                | 3/3   | 28min | 9min     |
+| 02-shared-ui-primitives         | 3/3   | 37min | 12min    |
+| 03-interactive-menu-reliability | 2/3   | 15min | 8min     |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-03 (16min), 02-01 (9min), 02-02 (20min), 02-03 (8min)
-- Trend: Stable
+- Last 5 plans: 02-01 (9min), 02-02 (20min), 02-03 (8min), 03-01 (7min)
+- Trend: Stable-fast
 
 _Updated after each plan completion_
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - 02-03: exitWithError() uses getErrorSuggestion(code) to auto-populate hints from error code mapping
 - 02-03: validate-manifest.ts does NOT print errors; throws ManifestError for caller to display (avoids double-display)
 - 02-03: Checkout failure in newpr splits resolution steps into hint (dim) instead of detail (plain)
+- 03-01: COMPLETED_EXIT replaced with COMPLETED_RETURN (returnToMenu: true) -- all menu flows loop back
+- 03-01: wtlink sync maps to 'wtlink link' subcommand (actual CLI command for hard link creation)
+- 03-01: wtlink view/add/remove use loadManifestData/saveManifestData directly instead of spawning subprocesses
 
 ### Pending Todos
 
@@ -81,5 +85,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Phase 2 verified (4/4 must-haves); ROADMAP.md updated; ready for Phase 3 planning
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
