@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Logger Wiring** - Wire the shared logger singleton into all 4 legacy CLI entry points and remove the `newpr`-specific debug mechanism
 - [x] **Phase 2: Shared UI Primitives** - Extract a `src/lib/ui/` module with consistent output formatting functions used by all commands
 - [x] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
-- [ ] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
+- [x] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
 - [ ] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
 
 ## Phase Details
@@ -95,10 +95,10 @@ Plans:
 
 Plans:
 
-- [ ] 04-01-PLAN.md — Patch JSON gaps in wtstate, wtlink, wt, wtconfig error paths; add --json to wtconfig show/get/validate; migrate prs to CommandResult<T>
-- [ ] 04-02-PLAN.md — Audit and fix --help text for all 9 wt subcommands; add missing flags (--base-branch, --delete-remote, --refresh, config subcommands)
-- [ ] 04-03-PLAN.md — Add ToolAnnotations, outputSchema, and enriched descriptions to all 5 MCP tools in server.ts
-- [ ] 04-04-PLAN.md — Update zsh and fish completion scripts with missing subcommands (prs, init) and flags; add completion tests
+- [x] 04-01-PLAN.md — Patch JSON gaps in wtstate, wtlink, wt, wtconfig error paths; add --json to wtconfig show/get/validate; migrate prs to CommandResult<T>
+- [x] 04-02-PLAN.md — Audit and fix --help text for all 9 wt subcommands; add missing flags (--base-branch, --delete-remote, --refresh, config subcommands)
+- [x] 04-03-PLAN.md — Add ToolAnnotations, outputSchema, and enriched descriptions to all 5 MCP tools in server.ts
+- [x] 04-04-PLAN.md — Update zsh and fish completion scripts with missing subcommands (prs, init) and flags; add completion tests
 
 ### Phase 5: In-Process Delegation
 
@@ -129,5 +129,5 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | 1. Logger Wiring                  | 3/3            | ✓ Complete  | 2026-02-18 |
 | 2. Shared UI Primitives           | 3/3            | ✓ Complete  | 2026-02-18 |
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete  | 2026-02-18 |
-| 4. JSON Output and LLM Ergonomics | 0/4            | Planned     | -          |
+| 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete  | 2026-02-18 |
 | 5. In-Process Delegation          | 0/3            | Not started | -          |
