@@ -5,37 +5,38 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 3 complete — ready for Phase 4
+**Current focus:** Phase 4 in progress — JSON Output and LLM Ergonomics
 
 ## Current Position
 
-Phase: 3 of 5 (Interactive Menu Reliability) — VERIFIED ✓
-Plan: 3 of 3 in current phase
-Status: Phase Complete — Verified (8/8 must-haves passed)
-Last activity: 2026-02-18 — Phase 3 verified and marked complete in ROADMAP.md
+Phase: 4 of 5 (JSON Output and LLM Ergonomics)
+Plan: 3 of 4 in current phase
+Status: Plan 04-03 complete
+Last activity: 2026-02-18 — Completed 04-03 MCP tool annotations
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
-- Average duration: 10min
-- Total execution time: 89min
+- Total plans completed: 11
+- Average duration: 11min
+- Total execution time: 122min
 
 **By Phase:**
 
-| Phase                           | Plans | Total | Avg/Plan |
-| ------------------------------- | ----- | ----- | -------- |
-| 01-logger-wiring                | 3/3   | 28min | 9min     |
-| 02-shared-ui-primitives         | 3/3   | 37min | 12min    |
-| 03-interactive-menu-reliability | 3/3   | 24min | 8min     |
+| Phase                             | Plans | Total | Avg/Plan |
+| --------------------------------- | ----- | ----- | -------- |
+| 01-logger-wiring                  | 3/3   | 28min | 9min     |
+| 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
+| 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
+| 04-json-output-and-llm-ergonomics | 1/4   | 19min | 19min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 02-02 (20min), 02-03 (8min), 03-01 (7min), 03-02 (8min), 03-03 (9min)
-- Trend: Stable-fast
+- Last 5 plans: 02-03 (8min), 03-01 (7min), 03-02 (8min), 03-03 (9min), 04-02 (19min)
+- Trend: Stable
 
 _Updated after each plan completion_
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - 03-02: cli/wt/prs.ts imports only runPrsCommand (outputJsonError not needed by yargs handler)
 - 03-03: Global exit handler guards cursor-show with process.stdout.isTTY to avoid corrupting JSON/piped output
 - 03-03: SIGINT handleSignal calls cleanup+process.exit(0) as last resort; Ctrl+C keypress resolves promise gracefully
+- 04-02: wt wrapper flag naming uses descriptive names (--delete-remote) even when underlying CLI uses short names (--remote)
+- 04-02: Only expose flags in wt wrappers that the underlying CLI actually accepts (removed --stash-untracked bug)
+- 04-02: --filter and --refresh cannot be added to wt list until upstream lswt parseArgs supports them
 
 ### Pending Todos
 
@@ -89,5 +93,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Phase 3 verified (8/8 must-haves); ROADMAP.md updated; ready for Phase 4 planning
+Stopped at: Completed 04-02-PLAN.md (help text audit)
 Resume file: None
