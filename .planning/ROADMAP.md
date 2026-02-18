@@ -33,13 +33,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 3. All 4 commands write structured entries to `~/.local/share/git-worktree-tools/audit.log` after any operation
 4. The `DEBUG=newpr` environment variable is no longer recognized; `GWT_LOG_LEVEL` is the single control point
 5. Running any `wt` subcommand with `--verbose` produces DEBUG-level output; with `--quiet` produces ERROR-only output
-   **Plans**: TBD
+   **Plans:** 3 plans
 
 Plans:
 
-- [ ] 01-01: Wire `initializeLogger()` into `newpr.ts`, `cleanpr.ts`, `lswt.ts`, `wtlink.ts` entry points
-- [ ] 01-02: Replace local `debug()` function and `DEBUG=newpr` env var in `newpr.ts` with `logger.debug()` calls
-- [ ] 01-03: Add persistent audit log with rotation to `logger.ts`; verify `--verbose`/`--quiet` flags propagate correctly
+- [ ] 01-01-PLAN.md — Replace logger.ts with consola wrapper, add getGlobalDataDir(), make colors.ts mutable, update 7 library consumers
+- [ ] 01-02-PLAN.md — Wire --verbose/--quiet/--no-color into all 4 legacy arg parsers and CLI entry points, migrate newpr debug(), forward flags from wt wrappers
+- [ ] 01-03-PLAN.md — Rewrite logger.test.ts for consola API (level resolution, audit reporter, rotation, stderr reporter, DEBUG=newpr deprecation)
 
 ### Phase 2: Shared UI Primitives
 
