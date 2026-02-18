@@ -1,0 +1,134 @@
+# Roadmap: git-worktree-tools CLI Consistency Milestone
+
+## Overview
+
+This milestone refactors four independently-evolved CLI entry points (`newpr`, `cleanpr`, `lswt`, `wtlink`) into a consistent, trustworthy tool surface. The work flows from lowest to highest risk: wire the shared logger singleton into all entry points first (additive, no behavioral change), then extract shared UI output primitives, then fix interactive menu bugs, then audit JSON/LLM output coverage, and finally replace the `spawnSync` delegation bridge with direct library calls. Each phase unblocks the next; none can be safely reordered.
+
+## Phases
+
+**Phase Numbering:**
+
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 1: Logger Wiring** - Wire the shared logger singleton into all 4 legacy CLI entry points and remove the `newpr`-specific debug mechanism
+- [ ] **Phase 2: Shared UI Primitives** - Extract a `src/lib/ui/` module with consistent output formatting functions used by all commands
+- [ ] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
+- [ ] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
+- [ ] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
+
+## Phase Details
+
+### Phase 1: Logger Wiring
+
+**Goal**: Every `wt` subcommand writes debug output through the shared `logger` singleton, controlled by a single `GWT_LOG_LEVEL` environment variable and a persistent audit log
+**Depends on**: Nothing (first phase)
+**Requirements**: LOG-01, LOG-02, LOG-03, LOG-04
+**Success Criteria** (what must be TRUE):
+
+1. Running `GWT_LOG_LEVEL=debug newpr` produces debug output through the shared logger (not the local `debug()` function)
+2. Running `GWT_LOG_LEVEL=debug cleanpr` and `GWT_LOG_LEVEL=debug lswt` produce debug output where previously there was none
+3. All 4 commands write structured entries to `~/.local/share/git-worktree-tools/audit.log` after any operation
+4. The `DEBUG=newpr` environment variable is no longer recognized; `GWT_LOG_LEVEL` is the single control point
+5. Running any `wt` subcommand with `--verbose` produces DEBUG-level output; with `--quiet` produces ERROR-only output
+   **Plans**: TBD
+
+Plans:
+
+- [ ] 01-01: Wire `initializeLogger()` into `newpr.ts`, `cleanpr.ts`, `lswt.ts`, `wtlink.ts` entry points
+- [ ] 01-02: Replace local `debug()` function and `DEBUG=newpr` env var in `newpr.ts` with `logger.debug()` calls
+- [ ] 01-03: Add persistent audit log with rotation to `logger.ts`; verify `--verbose`/`--quiet` flags propagate correctly
+
+### Phase 2: Shared UI Primitives
+
+**Goal**: All commands render output through a shared `src/lib/ui/` module — consistent colors, icons, table formatting, spinner style, and error presentation across all 4 CLIs
+**Depends on**: Phase 1
+**Requirements**: UI-01, UI-02, UI-03, UI-04
+**Success Criteria** (what must be TRUE):
+
+1. Running `newpr`, `cleanpr`, `lswt`, and `wtlink` shows green checkmarks for success, yellow warnings for warnings, and red errors for errors — with no command deviating from that palette
+2. All async operations (network calls, git operations) show the same spinner style and animation
+3. Error messages across all commands display as title + detail + hint — no raw stack traces or bare `Error:` strings appear
+4. `src/lib/ui/` module exists with `printTable`, `printHeader`, `printStatus`, `printError` functions; no command contains inline `console.log` calls for structured output
+   **Plans**: TBD
+
+Plans:
+
+- [ ] 02-01: Create `src/lib/ui/` module with `theme.ts`, `table.ts`, `status-line.ts` — extract from `lswt`'s inline `printTable`
+- [ ] 02-02: Refactor `newpr.ts` and `cleanpr.ts` to use shared UI primitives; standardize spinner to `ora@^8.1.1`
+- [ ] 02-03: Standardize error rendering to title + detail + hint format across all commands
+
+### Phase 3: Interactive Menu Reliability
+
+**Goal**: The `wt` interactive menu completes every action and returns to the main menu; `wt prs` lists PRs correctly; Ctrl+C always restores terminal state
+**Depends on**: Phase 2
+**Requirements**: MENU-01, MENU-02, MENU-03, MENU-04
+**Success Criteria** (what must be TRUE):
+
+1. Selecting any action in the `wt` interactive menu completes the action and returns to the main menu — the terminal does not exit
+2. `wt prs` lists the user's open PRs with correct data; a second code path that returned empty results no longer exists
+3. All link management actions in the `wt` menu invoke functions that exist (no "command not found" or silent failures for list/sync/add/remove)
+4. Pressing Ctrl+C or Escape in any interactive menu restores the terminal cursor and raw mode — no corrupted terminal state after interruption
+5. Every multi-level menu has an explicit Back or Done option; no menu silently exits without user intent
+   **Plans**: TBD
+
+Plans:
+
+- [ ] 03-01: Audit all `runSubcommand()` calls in `interactive-menu.ts`; enumerate which subcommands exist vs. are missing; write non-PTY smoke tests for each flow
+- [ ] 03-02: Fix `wt prs` — remove broken duplicate code path, verify working path returns correct PR data
+- [ ] 03-03: Fix `wtlink` subcommand references in interactive menu; ensure all menu actions invoke real library functions
+- [ ] 03-04: Fix Ctrl+C / Escape terminal cleanup; add explicit Back/Done to all multi-level menus
+
+### Phase 4: JSON Output and LLM Ergonomics
+
+**Goal**: Every `wt` subcommand emits valid, documented `CommandResult<T>` JSON when `--json` is passed; help text and MCP annotations accurately describe the current tool surface
+**Depends on**: Phase 3
+**Requirements**: LLM-01, LLM-02, LLM-03, LLM-04
+**Success Criteria** (what must be TRUE):
+
+1. Running any `wt` subcommand with `--json` produces valid JSON on stdout in every code path — including error paths and early exits
+2. `wt --help` and all subcommand `--help` outputs list accurate flags with no stale or missing entries
+3. MCP tool descriptions in `src/mcp/server.ts` include input schema, output schema, and an example JSON response for each tool
+4. `wt completion` generates working shell completion scripts for bash, zsh, and fish that enumerate all current subcommands and flags
+   **Plans**: TBD
+
+Plans:
+
+- [ ] 04-01: Audit all code paths in all 4 CLIs for `--json` flag handling; patch any path that exits without JSON output
+- [ ] 04-02: Audit and rewrite `--help` text for all subcommands; add `--json` schema documentation to help output
+- [ ] 04-03: Audit `src/mcp/server.ts`; annotate all tool descriptions with input/output schemas and example JSON
+- [ ] 04-04: Implement `wt completion` subcommand for bash/zsh/fish
+
+### Phase 5: In-Process Delegation
+
+**Goal**: `wt new`, `wt list`, `wt clean`, and `wt link` call library functions directly rather than spawning child processes — flags propagate end-to-end and the audit log captures all activity in one process
+**Depends on**: Phase 4
+**Requirements**: UNI-01, UNI-02, UNI-03, UNI-04
+**Success Criteria** (what must be TRUE):
+
+1. Running `wt --verbose list` produces verbose output without spawning a separate `lswt` process; the `--verbose` flag takes effect inside the list handler
+2. Running `newpr`, `cleanpr`, `lswt`, or `wtlink` prints a deprecation notice directing users to the `wt` equivalent before completing normally
+3. `--verbose`, `--quiet`, `--json`, and `--no-color` flags work identically whether invoked through `wt <subcommand>` or through a legacy alias
+4. README and all `--help` output present `wt` as the canonical entry point with legacy commands listed as deprecated aliases
+   **Plans**: TBD
+
+Plans:
+
+- [ ] 05-01: Replace `runSubcommand('lswt', args)` in `wt/list.ts` with direct `gatherWorktreeInfo()` + `printWorktreeTable()` calls; add TTY-aware behavior tests
+- [ ] 05-02: Replace `runSubcommand` calls in `wt/clean.ts` and `wt/state.ts` with direct library function imports
+- [ ] 05-03: Add deprecation notice to `newpr`, `cleanpr`, `lswt`, `wtlink` bin entry points; update README to present `wt` as canonical
+
+## Progress
+
+**Execution Order:**
+Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
+
+| Phase                             | Plans Complete | Status      | Completed |
+| --------------------------------- | -------------- | ----------- | --------- |
+| 1. Logger Wiring                  | 0/3            | Not started | -         |
+| 2. Shared UI Primitives           | 0/3            | Not started | -         |
+| 3. Interactive Menu Reliability   | 0/4            | Not started | -         |
+| 4. JSON Output and LLM Ergonomics | 0/4            | Not started | -         |
+| 5. In-Process Delegation          | 0/3            | Not started | -         |
