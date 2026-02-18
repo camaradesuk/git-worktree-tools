@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 4 in progress — JSON Output and LLM Ergonomics
+**Current focus:** Phase 4 complete — JSON Output and LLM Ergonomics. Ready for Phase 5.
 
 ## Current Position
 
-Phase: 4 of 5 (JSON Output and LLM Ergonomics)
-Plan: 4 of 4 in current phase (04-01 done last, out of order)
-Status: Plan 04-01 complete (plans 01, 02, 03 done; 04 remaining)
-Last activity: 2026-02-18 — Completed 04-01 JSON error gap patches
+Phase: 4 of 5 (JSON Output and LLM Ergonomics) -- COMPLETE
+Plan: 4 of 4 in current phase (all done)
+Status: Phase 04 complete
+Last activity: 2026-02-18 — Completed 04-04 Shell Completion Audit
 
-Progress: [████████░░] 75%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 12
-- Average duration: 13min
-- Total execution time: 154min
+- Total plans completed: 13
+- Average duration: 12min
+- Total execution time: 159min
 
 **By Phase:**
 
@@ -31,12 +31,12 @@ Progress: [████████░░] 75%
 | 01-logger-wiring                  | 3/3   | 28min | 9min     |
 | 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
 | 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
-| 04-json-output-and-llm-ergonomics | 3/4   | 65min | 22min    |
+| 04-json-output-and-llm-ergonomics | 4/4   | 70min | 18min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-02 (8min), 03-03 (9min), 04-02 (19min), 04-03 (14min), 04-01 (32min)
-- Trend: Increasing (04-01 required re-implementation due to empty commit from prior session)
+- Last 5 plans: 03-03 (9min), 04-02 (19min), 04-03 (14min), 04-01 (32min), 04-04 (5min)
+- Trend: Variable (04-04 was quick -- incremental completion script updates)
 
 _Updated after each plan completion_
 
@@ -84,6 +84,9 @@ Recent decisions affecting current work:
 - 04-01: hasJsonFlag() for CLIs without yargs middleware (wtstate, wt); isJsonMode() for CLIs with middleware (wtlink)
 - 04-01: wtconfig show/get/validate get --json; set/edit/init remain interactive-only
 - 04-01: PrsJsonOutput kept deprecated; PrsResultData replaces it in production via createSuccessResult
+- 04-04: Exported BASH_COMPLETION, ZSH_COMPLETION, FISH_COMPLETION constants for direct test import
+- 04-04: Init completion flags (--local, --global, --force) match actual wt init CLI, not plan's --help-only suggestion
+- 04-04: --refresh added to list completions (intended surface) even though wt list wrapper doesn't forward it yet
 
 ### Pending Todos
 
@@ -99,5 +102,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 04-01-PLAN.md (JSON error gap patches)
+Stopped at: Completed 04-04-PLAN.md (Shell Completion Audit) -- Phase 04 complete
 Resume file: None
