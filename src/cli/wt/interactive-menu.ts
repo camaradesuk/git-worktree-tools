@@ -13,9 +13,10 @@ import {
   type PromptOption,
 } from '../../lib/prompts.js';
 import { bold, dim, cyan, red } from '../../lib/colors.js';
-import { runSubcommand } from './run-command.js';
+import { runSubcommandForResult } from './run-command.js';
 import { loadConfig } from '../../lib/config.js';
 import * as git from '../../lib/git.js';
+import { loadManifestData, saveManifestData } from '../../lib/wtlink/config-manifest.js';
 
 /**
  * Result from an interactive flow
@@ -33,9 +34,9 @@ export interface FlowResult {
 const CANCELLED: FlowResult = { completed: false, returnToMenu: true };
 
 /**
- * Completed flow result (exit to shell)
+ * Completed flow result (return to menu)
  */
-const COMPLETED_EXIT: FlowResult = { completed: true, returnToMenu: false };
+const COMPLETED_RETURN: FlowResult = { completed: true, returnToMenu: true };
 
 /**
  * Get the display name for the preferred editor
@@ -186,8 +187,11 @@ export async function showMainMenu(): Promise<void> {
 
 async function handleListWorktrees(): Promise<FlowResult> {
   console.log();
-  runSubcommand('lswt', []);
-  return COMPLETED_EXIT; // lswt exits the process
+  const result = runSubcommandForResult('lswt', []);
+  if (result.status !== 0) {
+    console.log(red(`Command exited with code ${result.status}`));
+  }
+  return COMPLETED_RETURN;
 }
 
 // ============================================================================
@@ -196,8 +200,11 @@ async function handleListWorktrees(): Promise<FlowResult> {
 
 async function handleBrowsePRs(): Promise<FlowResult> {
   console.log();
-  runSubcommand('prs', []);
-  return COMPLETED_EXIT; // prs runs in interactive mode
+  const result = runSubcommandForResult('prs', []);
+  if (result.status !== 0) {
+    console.log(red(`Command exited with code ${result.status}`));
+  }
+  return COMPLETED_RETURN;
 }
 
 // ============================================================================
@@ -322,8 +329,11 @@ async function handleNewPRFromDescription(): Promise<FlowResult> {
 
     console.log();
     console.log(dim('Creating PR...'));
-    runSubcommand('newpr', args);
-    return COMPLETED_EXIT;
+    const result = runSubcommandForResult('newpr', args);
+    if (result.status !== 0) {
+      console.log(red(`Command exited with code ${result.status}`));
+    }
+    return COMPLETED_RETURN;
   } catch (error) {
     if (error instanceof Error && error.message === 'User cancelled') {
       return CANCELLED;
@@ -379,8 +389,11 @@ async function handleNewPRFromExisting(): Promise<FlowResult> {
 
     console.log();
     console.log(dim(`Creating worktree for PR #${prNumber}...`));
-    runSubcommand('newpr', args);
-    return COMPLETED_EXIT;
+    const result = runSubcommandForResult('newpr', args);
+    if (result.status !== 0) {
+      console.log(red(`Command exited with code ${result.status}`));
+    }
+    return COMPLETED_RETURN;
   } catch (error) {
     if (error instanceof Error && error.message === 'User cancelled') {
       return CANCELLED;
@@ -462,8 +475,11 @@ async function handleNewPRFromBranch(): Promise<FlowResult> {
 
     console.log();
     console.log(dim(`Creating PR for branch ${branchName}...`));
-    runSubcommand('newpr', args);
-    return COMPLETED_EXIT;
+    const result = runSubcommandForResult('newpr', args);
+    if (result.status !== 0) {
+      console.log(red(`Command exited with code ${result.status}`));
+    }
+    return COMPLETED_RETURN;
   } catch (error) {
     if (error instanceof Error && error.message === 'User cancelled') {
       return CANCELLED;
@@ -525,8 +541,11 @@ async function handleCleanPRs(): Promise<FlowResult> {
           return CANCELLED;
         }
         console.log();
-        runSubcommand('cleanpr', ['--all']);
-        return COMPLETED_EXIT;
+        const cleanAllResult = runSubcommandForResult('cleanpr', ['--all']);
+        if (cleanAllResult.status !== 0) {
+          console.log(red(`Command exited with code ${cleanAllResult.status}`));
+        }
+        return COMPLETED_RETURN;
       }
 
       case 'clean-specific': {
@@ -541,14 +560,21 @@ async function handleCleanPRs(): Promise<FlowResult> {
           return CANCELLED;
         }
         console.log();
-        runSubcommand('cleanpr', [String(prNumber)]);
-        return COMPLETED_EXIT;
+        const cleanSpecificResult = runSubcommandForResult('cleanpr', [String(prNumber)]);
+        if (cleanSpecificResult.status !== 0) {
+          console.log(red(`Command exited with code ${cleanSpecificResult.status}`));
+        }
+        return COMPLETED_RETURN;
       }
 
-      case 'dry-run':
+      case 'dry-run': {
         console.log();
-        runSubcommand('cleanpr', ['--dry-run']);
-        return COMPLETED_EXIT;
+        const dryRunResult = runSubcommandForResult('cleanpr', ['--dry-run']);
+        if (dryRunResult.status !== 0) {
+          console.log(red(`Command exited with code ${dryRunResult.status}`));
+        }
+        return COMPLETED_RETURN;
+      }
 
       default:
         return CANCELLED;
@@ -615,15 +641,45 @@ async function handleLinkConfig(): Promise<FlowResult> {
       case 'back':
         return CANCELLED;
 
-      case 'view':
+      case 'view': {
         console.log();
-        runSubcommand('wtlink', ['list']);
-        return COMPLETED_EXIT;
+        try {
+          const repoRoot = git.getRepoRoot();
+          const manifest = loadManifestData(repoRoot);
+          if (manifest.enabled.length === 0 && manifest.disabled.length === 0) {
+            console.log(dim('No files in link manifest.'));
+            console.log(dim('Use "Add file to manifest" to start linking files.'));
+          } else {
+            if (manifest.enabled.length > 0) {
+              console.log(bold('Enabled (actively linked):'));
+              for (const f of manifest.enabled) {
+                console.log(`  ${f}`);
+              }
+            }
+            if (manifest.disabled.length > 0) {
+              if (manifest.enabled.length > 0) console.log();
+              console.log(bold('Disabled (tracked but not linked):'));
+              for (const f of manifest.disabled) {
+                console.log(`  ${dim(f)}`);
+              }
+            }
+            console.log();
+            console.log(dim(`Source: ${manifest.source}`));
+          }
+        } catch {
+          console.log(red('Not in a git repository'));
+        }
+        return COMPLETED_RETURN;
+      }
 
-      case 'sync':
+      case 'sync': {
         console.log();
-        runSubcommand('wtlink', ['sync']);
-        return COMPLETED_EXIT;
+        const syncResult = runSubcommandForResult('wtlink', ['link']);
+        if (syncResult.status !== 0) {
+          console.log(red(`Link sync failed (exit code ${syncResult.status})`));
+        }
+        return COMPLETED_RETURN;
+      }
 
       case 'add': {
         const filePath = await promptInput('File path to add (relative to repo root)');
@@ -632,8 +688,21 @@ async function handleLinkConfig(): Promise<FlowResult> {
           return CANCELLED;
         }
         console.log();
-        runSubcommand('wtlink', ['add', filePath]);
-        return COMPLETED_EXIT;
+        try {
+          const repoRoot = git.getRepoRoot();
+          const manifest = loadManifestData(repoRoot);
+          if (manifest.enabled.includes(filePath)) {
+            console.log(dim(`"${filePath}" is already in the manifest.`));
+          } else {
+            const newEnabled = [...manifest.enabled, filePath];
+            saveManifestData(repoRoot, newEnabled, manifest.disabled);
+            console.log(`Added "${filePath}" to link manifest.`);
+            console.log(dim('Run "Sync links" to create hard links.'));
+          }
+        } catch {
+          console.log(red('Not in a git repository'));
+        }
+        return COMPLETED_RETURN;
       }
 
       case 'remove': {
@@ -643,14 +712,33 @@ async function handleLinkConfig(): Promise<FlowResult> {
           return CANCELLED;
         }
         console.log();
-        runSubcommand('wtlink', ['remove', filePath]);
-        return COMPLETED_EXIT;
+        try {
+          const repoRoot = git.getRepoRoot();
+          const manifest = loadManifestData(repoRoot);
+          const inEnabled = manifest.enabled.includes(filePath);
+          const inDisabled = manifest.disabled.includes(filePath);
+          if (!inEnabled && !inDisabled) {
+            console.log(dim(`"${filePath}" is not in the manifest.`));
+          } else {
+            const newEnabled = manifest.enabled.filter((f) => f !== filePath);
+            const newDisabled = manifest.disabled.filter((f) => f !== filePath);
+            saveManifestData(repoRoot, newEnabled, newDisabled);
+            console.log(`Removed "${filePath}" from link manifest.`);
+          }
+        } catch {
+          console.log(red('Not in a git repository'));
+        }
+        return COMPLETED_RETURN;
       }
 
-      case 'validate':
+      case 'validate': {
         console.log();
-        runSubcommand('wtlink', ['validate']);
-        return COMPLETED_EXIT;
+        const validateResult = runSubcommandForResult('wtlink', ['validate']);
+        if (validateResult.status !== 0) {
+          console.log(red(`Command exited with code ${validateResult.status}`));
+        }
+        return COMPLETED_RETURN;
+      }
 
       default:
         return CANCELLED;
@@ -672,8 +760,11 @@ async function handleLinkConfig(): Promise<FlowResult> {
 
 async function handleShowState(): Promise<FlowResult> {
   console.log();
-  runSubcommand('wtstate', []);
-  return COMPLETED_EXIT;
+  const result = runSubcommandForResult('wtstate', []);
+  if (result.status !== 0) {
+    console.log(red(`Command exited with code ${result.status}`));
+  }
+  return COMPLETED_RETURN;
 }
 
 // ============================================================================
@@ -717,10 +808,14 @@ async function handleConfigure(): Promise<FlowResult> {
       case 'back':
         return CANCELLED;
 
-      case 'view':
+      case 'view': {
         console.log();
-        runSubcommand('wtconfig', ['show']);
-        return COMPLETED_EXIT;
+        const viewResult = runSubcommandForResult('wtconfig', ['show']);
+        if (viewResult.status !== 0) {
+          console.log(red(`Command exited with code ${viewResult.status}`));
+        }
+        return COMPLETED_RETURN;
+      }
 
       case 'init': {
         const confirmed = await promptConfirm('Create .worktreerc in current directory?', true);
@@ -728,8 +823,11 @@ async function handleConfigure(): Promise<FlowResult> {
           return CANCELLED;
         }
         console.log();
-        runSubcommand('wtconfig', ['init']);
-        return COMPLETED_EXIT;
+        const initResult = runSubcommandForResult('wtconfig', ['init']);
+        if (initResult.status !== 0) {
+          console.log(red(`Command exited with code ${initResult.status}`));
+        }
+        return COMPLETED_RETURN;
       }
 
       case 'edit': {
@@ -759,8 +857,11 @@ async function handleConfigure(): Promise<FlowResult> {
         }
 
         console.log();
-        runSubcommand('wtconfig', ['set', setting, value]);
-        return COMPLETED_EXIT;
+        const editResult = runSubcommandForResult('wtconfig', ['set', setting, value]);
+        if (editResult.status !== 0) {
+          console.log(red(`Command exited with code ${editResult.status}`));
+        }
+        return COMPLETED_RETURN;
       }
 
       default:
