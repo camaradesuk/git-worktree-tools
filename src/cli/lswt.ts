@@ -9,6 +9,8 @@ import * as path from 'path';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as colors from '../lib/colors.js';
+import { setColorEnabled } from '../lib/colors.js';
+import { initializeLogger } from '../lib/logger.js';
 import {
   parseArgs,
   getHelpText,
@@ -113,6 +115,18 @@ async function main(): Promise<void> {
   }
 
   const options = result.options;
+
+  // Initialize logger
+  initializeLogger({
+    verbose: options.verbose,
+    quiet: options.quiet,
+    noColor: options.noColor,
+    json: options.json,
+    commandName: 'lswt',
+  });
+  if (options.noColor) {
+    setColorEnabled(false);
+  }
 
   // Check for gh cli if status requested
   if (options.showStatus && !github.isGhInstalled()) {

@@ -10,6 +10,8 @@ import fs from 'fs';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as colors from '../lib/colors.js';
+import { setColorEnabled } from '../lib/colors.js';
+import { logger, initializeLogger, setAuditContext } from '../lib/logger.js';
 import { promptChoiceIndex, promptConfirm, withSpinner } from '../lib/prompts.js';
 import { getEnabledFiles } from '../lib/wtlink/config-manifest.js';
 import { run as runWtlink } from '../lib/wtlink/link-configs.js';
@@ -54,12 +56,6 @@ import {
 import type { HookRunner } from '../lib/newpr/hook-runner.js';
 
 /**
- * Debug logging - enabled with DEBUG=newpr or DEBUG=*
- */
-const DEBUG_ENABLED =
-  process.env.DEBUG === 'newpr' || process.env.DEBUG === '*' || process.env.DEBUG === '1';
-
-/**
  * Error class for non-interactive mode failures
  */
 class NonInteractiveError extends Error {
@@ -69,17 +65,6 @@ class NonInteractiveError extends Error {
   ) {
     super(message);
     this.name = 'NonInteractiveError';
-  }
-}
-
-function debug(message: string, data?: Record<string, unknown>): void {
-  if (!DEBUG_ENABLED) return;
-  const timestamp = new Date().toISOString();
-  console.error(colors.dim(`[DEBUG ${timestamp}] ${message}`));
-  if (data) {
-    for (const [key, value] of Object.entries(data)) {
-      console.error(colors.dim(`  ${key}: ${JSON.stringify(value)}`));
-    }
   }
 }
 
@@ -345,7 +330,7 @@ async function setupWorktree(
     mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
   } catch {
     // If we can't determine main worktree, skip linking
-    debug('Could not determine main worktree root, skipping config file linking');
+    logger.debug('Could not determine main worktree root, skipping config file linking');
     return;
   }
 
@@ -356,11 +341,11 @@ async function setupWorktree(
 
     if (config.linkConfigFiles === false) {
       // Explicitly disabled - skip
-      debug('linkConfigFiles is false, skipping auto-link');
+      logger.debug('linkConfigFiles is false, skipping auto-link');
     } else if (config.linkConfigFiles === true) {
       // Explicitly enabled - auto-link
       shouldLink = true;
-      debug('linkConfigFiles is true, auto-linking');
+      logger.debug('linkConfigFiles is true, auto-linking');
     } else if (!options.nonInteractive && !options.json) {
       // Not configured - prompt user
       progress(options, '');
@@ -375,7 +360,7 @@ async function setupWorktree(
     } else {
       // Non-interactive/JSON mode - default to linking
       shouldLink = true;
-      debug('Non-interactive mode, defaulting to auto-link');
+      logger.debug('Non-interactive mode, defaulting to auto-link');
     }
 
     if (shouldLink) {
@@ -477,7 +462,7 @@ async function handlePlanGeneration(
   }
 
   if (!shouldGenerate) {
-    debug('Plan generation skipped', { reason: decision.reason });
+    logger.debug('Plan generation skipped', { reason: decision.reason });
     return undefined;
   }
 
@@ -569,7 +554,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
       baseBranch: options.baseBranch,
     },
     {
-      verbose: DEBUG_ENABLED,
+      verbose: options.verbose ?? false,
       showOutput: true,
       defaultTimeout: config.hookDefaults?.timeout,
       maxTimeout: config.hookDefaults?.maxTimeout,
@@ -661,6 +646,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
     hookRunner
   );
 
+  setAuditContext({ prNumber, worktreePath, gitBranch: pr.headBranch });
   printSummary(prNumber, pr.headBranch, worktreePath, pr.url, options, { draft: pr.isDraft });
 }
 
@@ -682,7 +668,7 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
       baseBranch: options.baseBranch,
     },
     {
-      verbose: DEBUG_ENABLED,
+      verbose: options.verbose ?? false,
       showOutput: true,
       defaultTimeout: config.hookDefaults?.timeout,
       maxTimeout: config.hookDefaults?.maxTimeout,
@@ -823,6 +809,7 @@ PR created from existing branch: \`${branchName}\`
     hookRunner
   );
 
+  setAuditContext({ prNumber: pr.number, worktreePath, gitBranch: branchName });
   printSummary(pr.number, branchName, worktreePath, pr.url, options);
 }
 
@@ -844,7 +831,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       description,
     },
     {
-      verbose: DEBUG_ENABLED,
+      verbose: options.verbose ?? false,
       showOutput: true,
       defaultTimeout: config.hookDefaults?.timeout,
       maxTimeout: config.hookDefaults?.maxTimeout,
@@ -885,7 +872,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     exitWithError('Aborted by post-analyze hook.', ErrorCode.HOOK_FAILED, options.json);
   }
 
-  debug('State analysis complete', {
+  logger.debug('State analysis complete', {
     scenario,
     branchType: state.branchType,
     currentBranch: state.currentBranch,
@@ -909,7 +896,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
     process.exit(1);
   }
 
-  debug('User selected action', {
+  logger.debug('User selected action', {
     action: action.action,
     branchFrom: action.branchFrom,
     stashUnstaged: action.stashUnstaged,
@@ -961,7 +948,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   const originalBranch = git.getCurrentBranch() || 'main';
   const deps = createActionDeps(repoRoot);
 
-  debug('Before executeStateAction', {
+  logger.debug('Before executeStateAction', {
     originalBranch,
     branchName,
     stagedFilesBefore: git.getStagedFiles(),
@@ -970,7 +957,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
   const actionResult = executeStateAction(action, description, branchName, deps, repoRoot);
 
-  debug('After executeStateAction', {
+  logger.debug('After executeStateAction', {
     success: actionResult.success,
     stashRef: actionResult.stashRef,
     stagedFilesAfter: git.getStagedFiles(),
@@ -1005,7 +992,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     progress(options, colors.info(`Creating branch from ${branchFrom}...`));
 
-    debug('Before checkout', {
+    logger.debug('Before checkout', {
       branchFrom,
       branchName,
       currentBranch: git.getCurrentBranch(),
@@ -1037,7 +1024,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     const stagedFiles = git.getStagedFiles();
 
-    debug('After checkout', {
+    logger.debug('After checkout', {
       newBranch: git.getCurrentBranch(),
       stagedFilesAfterCheckout: stagedFiles,
       stagedFilesCount: stagedFiles.length,
@@ -1056,7 +1043,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
       progress(options, colors.info('Committing staged changes...'));
       git.commit({ message: `feat: ${description}\n\n🤖 Created with newpr` });
-      debug('Committed staged changes');
+      logger.debug('Committed staged changes');
 
       // Run post-commit hook
       await hookRunner.runHook('post-commit');
@@ -1071,7 +1058,7 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
         message: `chore: initialize ${branchName}\n\nBranch created for: ${description}\n\n🤖 Created with newpr`,
         allowEmpty: true,
       });
-      debug('Created empty commit (no staged files found)');
+      logger.debug('Created empty commit (no staged files found)');
 
       // Run post-commit hook
       await hookRunner.runHook('post-commit');
@@ -1199,6 +1186,7 @@ ${description}
       hookRunner
     );
 
+    setAuditContext({ prNumber: pr.number, worktreePath, gitBranch: branchName });
     printSummary(pr.number, branchName, worktreePath, pr.url, options, {
       scenario,
       actionTaken: action.action,
@@ -1256,6 +1244,18 @@ async function main(): Promise<void> {
   }
 
   const { options } = result;
+
+  // Initialize logger
+  initializeLogger({
+    verbose: options.verbose,
+    quiet: options.quiet,
+    noColor: options.noColor,
+    json: options.json,
+    commandName: 'newpr',
+  });
+  if (options.noColor) {
+    setColorEnabled(false);
+  }
 
   // Apply config.draftPr if user didn't explicitly set --draft or --ready
   try {

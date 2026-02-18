@@ -16,6 +16,8 @@
 import yargs, { ArgumentsCamelCase } from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import * as colors from '../lib/colors.js';
+import { setColorEnabled } from '../lib/colors.js';
+import { initializeLogger } from '../lib/logger.js';
 import * as manage from '../lib/wtlink/manage-manifest.js';
 import * as link from '../lib/wtlink/link-configs.js';
 import * as validate from '../lib/wtlink/validate-manifest.js';
@@ -98,6 +100,18 @@ yargs(hideBin(process.argv))
     description: 'Disable colored output',
     default: false,
     global: true,
+  })
+  .middleware((argv) => {
+    initializeLogger({
+      verbose: argv.verbose as boolean,
+      quiet: argv.quiet as boolean,
+      noColor: (argv['no-color'] as boolean) || (argv.noColor as boolean),
+      json: argv.json as boolean,
+      commandName: 'wtlink',
+    });
+    if (argv['no-color'] || argv.noColor) {
+      setColorEnabled(false);
+    }
   })
   .command<ManageArgv>(
     'manage',

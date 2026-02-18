@@ -13,6 +13,8 @@ import * as github from '../lib/github.js';
 import * as prompts from '../lib/prompts.js';
 import { withSpinner } from '../lib/prompts.js';
 import * as colors from '../lib/colors.js';
+import { setColorEnabled } from '../lib/colors.js';
+import { logger, initializeLogger } from '../lib/logger.js';
 import { loadConfig } from '../lib/config.js';
 import {
   parseArgs,
@@ -441,6 +443,18 @@ async function main(): Promise<void> {
 
   const { prNumber, options } = parseResult;
 
+  // Initialize logger
+  initializeLogger({
+    verbose: options.verbose,
+    quiet: options.quiet,
+    noColor: options.noColor,
+    json: options.json,
+    commandName: 'cleanpr',
+  });
+  if (options.noColor) {
+    setColorEnabled(false);
+  }
+
   // Check prerequisites
   if (!github.isGhInstalled()) {
     if (options.json) {
@@ -468,6 +482,7 @@ async function main(): Promise<void> {
 
   // Load configuration
   const config = loadConfig(repoRoot);
+  logger.debug('Scanning worktrees', { repoRoot, pattern: config.worktreePattern });
 
   // Gather worktree info
   const gatherDeps = createDefaultDeps();
@@ -480,6 +495,8 @@ async function main(): Promise<void> {
       return await gatherPrWorktreeInfo(repoRoot, config.worktreePattern, gatherDeps);
     });
   }
+
+  logger.debug('Found worktrees', { count: worktrees.length });
 
   if (prNumber !== null) {
     await cleanSpecific(prNumber, worktrees, repoRoot, config, options);
