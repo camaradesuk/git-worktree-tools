@@ -18,6 +18,7 @@ import { hideBin } from 'yargs/helpers';
 import * as colors from '../lib/colors.js';
 import { setColorEnabled } from '../lib/colors.js';
 import { initializeLogger } from '../lib/logger.js';
+import { printError, setJsonMode } from '../lib/ui/index.js';
 import * as manage from '../lib/wtlink/manage-manifest.js';
 import * as link from '../lib/wtlink/link-configs.js';
 import * as validate from '../lib/wtlink/validate-manifest.js';
@@ -109,6 +110,7 @@ yargs(hideBin(process.argv))
       json: argv.json as boolean,
       commandName: 'wtlink',
     });
+    setJsonMode(argv.json as boolean);
     if (argv['no-color'] || argv.noColor) {
       setColorEnabled(false);
     }

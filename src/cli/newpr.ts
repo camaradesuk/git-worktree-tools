@@ -54,6 +54,15 @@ import {
   type PlanGeneratorResult,
 } from '../lib/newpr/plan-generator.js';
 import type { HookRunner } from '../lib/newpr/hook-runner.js';
+import {
+  printStatus,
+  printDim,
+  printSummaryBox,
+  printNextSteps,
+  printError,
+  errorToDisplay,
+  setJsonMode,
+} from '../lib/ui/index.js';
 
 /**
  * Error class for non-interactive mode failures
@@ -1253,6 +1262,7 @@ async function main(): Promise<void> {
     json: options.json,
     commandName: 'newpr',
   });
+  setJsonMode(options.json);
   if (options.noColor) {
     setColorEnabled(false);
   }

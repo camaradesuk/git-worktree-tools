@@ -44,6 +44,16 @@ import {
   type CleanprDryRunData,
   type CleanedWorktreeInfo,
 } from '../lib/json-output.js';
+import {
+  printStatus,
+  printHeader,
+  printDim,
+  printNextSteps,
+  printError,
+  errorToDisplay,
+  setJsonMode,
+  changeIndicator,
+} from '../lib/ui/index.js';
 
 /**
  * Create cleanup dependencies using real git operations
@@ -451,6 +461,7 @@ async function main(): Promise<void> {
     json: options.json,
     commandName: 'cleanpr',
   });
+  setJsonMode(options.json);
   if (options.noColor) {
     setColorEnabled(false);
   }

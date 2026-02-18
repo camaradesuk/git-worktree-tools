@@ -28,6 +28,14 @@ import {
   getErrorSuggestion,
 } from '../lib/json-output.js';
 import type { WorktreeDisplay, ListOptions } from '../lib/lswt/index.js';
+import {
+  printTable as sharedPrintTable,
+  printStatus,
+  printError,
+  errorToDisplay,
+  setJsonMode,
+  changeIndicator,
+} from '../lib/ui/index.js';
 
 /**
  * Check if --json flag is present in args (for early error handling)
@@ -124,6 +132,7 @@ async function main(): Promise<void> {
     json: options.json,
     commandName: 'lswt',
   });
+  setJsonMode(options.json);
   if (options.noColor) {
     setColorEnabled(false);
   }
