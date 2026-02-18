@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 ## Current Position
 
 Phase: 4 of 5 (JSON Output and LLM Ergonomics)
-Plan: 3 of 4 in current phase
-Status: Plan 04-03 complete
-Last activity: 2026-02-18 — Completed 04-03 MCP tool annotations
+Plan: 4 of 4 in current phase (04-01 done last, out of order)
+Status: Plan 04-01 complete (plans 01, 02, 03 done; 04 remaining)
+Last activity: 2026-02-18 — Completed 04-01 JSON error gap patches
 
 Progress: [████████░░] 75%
 
@@ -20,9 +20,9 @@ Progress: [████████░░] 75%
 
 **Velocity:**
 
-- Total plans completed: 11
-- Average duration: 11min
-- Total execution time: 122min
+- Total plans completed: 12
+- Average duration: 13min
+- Total execution time: 154min
 
 **By Phase:**
 
@@ -31,12 +31,12 @@ Progress: [████████░░] 75%
 | 01-logger-wiring                  | 3/3   | 28min | 9min     |
 | 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
 | 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
-| 04-json-output-and-llm-ergonomics | 2/4   | 33min | 17min    |
+| 04-json-output-and-llm-ergonomics | 3/4   | 65min | 22min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-01 (7min), 03-02 (8min), 03-03 (9min), 04-02 (19min), 04-03 (14min)
-- Trend: Stable
+- Last 5 plans: 03-02 (8min), 03-03 (9min), 04-02 (19min), 04-03 (14min), 04-01 (32min)
+- Trend: Increasing (04-01 required re-implementation due to empty commit from prior session)
 
 _Updated after each plan completion_
 
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - 04-03: Export tools array from server.ts for test access; mock MCP SDK server/transport to prevent startup
 - 04-03: Shared commandResultBase object for DRY outputSchema definitions across all 5 MCP tools
 - 04-03: All MCP error paths (validation, default, catch) use createErrorResult() for consistent envelope
+- 04-01: hasJsonFlag() for CLIs without yargs middleware (wtstate, wt); isJsonMode() for CLIs with middleware (wtlink)
+- 04-01: wtconfig show/get/validate get --json; set/edit/init remain interactive-only
+- 04-01: PrsJsonOutput kept deprecated; PrsResultData replaces it in production via createSuccessResult
 
 ### Pending Todos
 
@@ -96,5 +99,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 04-03-PLAN.md (MCP tool annotations)
+Stopped at: Completed 04-01-PLAN.md (JSON error gap patches)
 Resume file: None
