@@ -987,8 +987,9 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       if (errorMessage.includes('overwritten') || errorMessage.includes('conflict')) {
         printError({
           title: 'Checkout failed due to conflicting changes.',
-          detail:
-            'Your staged changes are preserved. To resolve this, either:\n' +
+          detail: 'Your staged changes are preserved in the index.',
+          hint:
+            'To resolve this, either:\n' +
             '  1. Commit your changes first, then run newpr again\n' +
             '  2. Stash your changes: git stash push\n' +
             '  3. Use a different branch point (e.g., HEAD instead of origin/main)',
