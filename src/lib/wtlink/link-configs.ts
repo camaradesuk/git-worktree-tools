@@ -558,7 +558,7 @@ export async function run(argv: LinkArgv): Promise<void> {
   // Detect conflicts BEFORE any linking
   const conflictReport = detectConflicts(filesToLink, sourceDir, destDir);
 
-  console.log(colors.green(`✓ Scanned ${filesToLink.length} files`));
+  console.log(colors.success(`Scanned ${filesToLink.length} files`));
 
   // Handle conflicts interactively (if any)
   const resolutions = new Map<string, ConflictResolution>();
@@ -566,7 +566,7 @@ export async function run(argv: LinkArgv): Promise<void> {
 
   if (conflictReport.conflicts.length > 0 && !argv.yes && !argv.dryRun) {
     console.log(
-      colors.yellow(`\n⚠️  Found ${conflictReport.conflicts.length} conflicting files\n`)
+      `\n${colors.warning(`Found ${conflictReport.conflicts.length} conflicting files`)}\n`
     );
     console.log(colors.dim('Launching interactive conflict resolver...\n'));
 
@@ -610,26 +610,26 @@ export async function run(argv: LinkArgv): Promise<void> {
     console.log(colors.bold('Summary:'));
     if (conflictReport.alreadyLinked.length > 0) {
       console.log(
-        colors.dim(`  ✓ Already linked: ${conflictReport.alreadyLinked.length} files (will skip)`)
+        `  ${colors.success(`Already linked: ${conflictReport.alreadyLinked.length} files (will skip)`)}`
       );
     }
     if (replaceFiles.length > 0) {
       console.log(
-        colors.yellow(`  ⚠  Replace: ${replaceFiles.length} files (will overwrite and link)`)
+        `  ${colors.warning(`Replace: ${replaceFiles.length} files (will overwrite and link)`)}`
       );
     }
     if (ignoreFiles.length > 0) {
       console.log(
-        colors.blue(`  ℹ  Ignore: ${ignoreFiles.length} files (will skip, keep destination)`)
+        `  ${colors.info(`Ignore: ${ignoreFiles.length} files (will skip, keep destination)`)}`
       );
     }
     if (filesToRemoveFromManifest.length > 0) {
       console.log(
-        colors.red(`  ✗ Remove: ${filesToRemoveFromManifest.length} files (removed from manifest)`)
+        `  ${colors.error(`Remove: ${filesToRemoveFromManifest.length} files (removed from manifest)`)}`
       );
     }
     if (safeFiles.length > 0) {
-      console.log(colors.green(`  ✓ Safe: ${safeFiles.length} files (no conflict)`));
+      console.log(`  ${colors.success(`Safe: ${safeFiles.length} files (no conflict)`)}`);
     }
 
     console.log('');
