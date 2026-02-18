@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Logger Wiring** - Wire the shared logger singleton into all 4 legacy CLI entry points and remove the `newpr`-specific debug mechanism
 - [x] **Phase 2: Shared UI Primitives** - Extract a `src/lib/ui/` module with consistent output formatting functions used by all commands
-- [ ] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
+- [x] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
 - [ ] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
 - [ ] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
 
@@ -76,9 +76,9 @@ Plans:
 
 Plans:
 
-- [ ] 03-01-PLAN.md — Replace runSubcommand with runSubcommandForResult in interactive-menu.ts; rewire broken wtlink actions to direct library calls
-- [ ] 03-02-PLAN.md — Extract shared runPrsCommand to lib/prs/command.ts; eliminate duplicate code path in wt prs
-- [ ] 03-03-PLAN.md — Add global terminal state safety net in wt.ts; fix prs Ctrl+C handling to follow lswt gold standard
+- [x] 03-01-PLAN.md — Replace runSubcommand with runSubcommandForResult in interactive-menu.ts; rewire broken wtlink actions to direct library calls
+- [x] 03-02-PLAN.md — Extract shared runPrsCommand to lib/prs/command.ts; eliminate duplicate code path in wt prs
+- [x] 03-03-PLAN.md — Add global terminal state safety net in wt.ts; fix prs Ctrl+C handling to follow lswt gold standard
 
 ### Phase 4: JSON Output and LLM Ergonomics
 
@@ -128,6 +128,6 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | --------------------------------- | -------------- | ----------- | ---------- |
 | 1. Logger Wiring                  | 3/3            | ✓ Complete  | 2026-02-18 |
 | 2. Shared UI Primitives           | 3/3            | ✓ Complete  | 2026-02-18 |
-| 3. Interactive Menu Reliability   | 0/4            | Not started | -          |
+| 3. Interactive Menu Reliability   | 3/3            | ✓ Complete  | 2026-02-18 |
 | 4. JSON Output and LLM Ergonomics | 0/4            | Not started | -          |
 | 5. In-Process Delegation          | 0/3            | Not started | -          |
