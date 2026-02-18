@@ -91,14 +91,14 @@ Plans:
 2. `wt --help` and all subcommand `--help` outputs list accurate flags with no stale or missing entries
 3. MCP tool descriptions in `src/mcp/server.ts` include input schema, output schema, and an example JSON response for each tool
 4. `wt completion` generates working shell completion scripts for bash, zsh, and fish that enumerate all current subcommands and flags
-   **Plans**: TBD
+   **Plans**: 4 plans
 
 Plans:
 
-- [ ] 04-01: Audit all code paths in all 4 CLIs for `--json` flag handling; patch any path that exits without JSON output
-- [ ] 04-02: Audit and rewrite `--help` text for all subcommands; add `--json` schema documentation to help output
-- [ ] 04-03: Audit `src/mcp/server.ts`; annotate all tool descriptions with input/output schemas and example JSON
-- [ ] 04-04: Implement `wt completion` subcommand for bash/zsh/fish
+- [ ] 04-01-PLAN.md — Patch JSON gaps in wtstate, wtlink, wt, wtconfig error paths; add --json to wtconfig show/get/validate; migrate prs to CommandResult<T>
+- [ ] 04-02-PLAN.md — Audit and fix --help text for all 9 wt subcommands; add missing flags (--base-branch, --delete-remote, --refresh, config subcommands)
+- [ ] 04-03-PLAN.md — Add ToolAnnotations, outputSchema, and enriched descriptions to all 5 MCP tools in server.ts
+- [ ] 04-04-PLAN.md — Update zsh and fish completion scripts with missing subcommands (prs, init) and flags; add completion tests
 
 ### Phase 5: In-Process Delegation
 
@@ -129,5 +129,5 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | 1. Logger Wiring                  | 3/3            | ✓ Complete  | 2026-02-18 |
 | 2. Shared UI Primitives           | 3/3            | ✓ Complete  | 2026-02-18 |
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete  | 2026-02-18 |
-| 4. JSON Output and LLM Ergonomics | 0/4            | Not started | -          |
+| 4. JSON Output and LLM Ergonomics | 0/4            | Planned     | -          |
 | 5. In-Process Delegation          | 0/3            | Not started | -          |
