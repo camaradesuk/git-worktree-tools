@@ -10,7 +10,7 @@ interface CompletionArgs {
   shell?: string;
 }
 
-const BASH_COMPLETION = `###-begin-wt-completions-###
+export const BASH_COMPLETION = `###-begin-wt-completions-###
 #
 # wt bash completion script
 #
@@ -40,7 +40,7 @@ _wt_yargs_completions()
 complete -o bashdefault -o default -F _wt_yargs_completions wt
 ###-end-wt-completions-###`;
 
-const ZSH_COMPLETION = `#compdef wt
+export const ZSH_COMPLETION = `#compdef wt
 ###-begin-wt-completions-###
 #
 # wt zsh completion script
@@ -66,6 +66,8 @@ _wt() {
     's:Query git worktree state'
     'config:Configuration management'
     'cfg:Configuration management'
+    'prs:Browse repository pull requests'
+    'init:Initialize configuration'
     'completion:Generate shell completion scripts'
   )
 
@@ -103,7 +105,8 @@ _wt() {
             '--json[Output as JSON]' \\
             '--no-status[Skip GitHub PR status lookup]' \\
             '--no-interactive[Disable interactive mode]' \\
-            '--filter[Filter worktrees by type]:filter:(pr main feature)'
+            '--filter[Filter worktrees by type]:filter:(pr main feature)' \\
+            '--refresh[Force refresh PR status from GitHub]'
           ;;
         clean|c)
           _arguments \\
@@ -123,13 +126,33 @@ _wt() {
           _arguments \\
             '--json[Output as JSON]' \\
             '--verbose[Show detailed state information]' \\
-            '--base-branch[Base branch to compare against]:branch:'
+            '--base-branch[Base branch to compare against]:branch:' \\
+            '--quiet[Only output state name]'
           ;;
         config|cfg)
           _arguments \\
             '1:command:(interactive init show set get edit validate migrate schema)' \\
             '--json[Output as JSON]' \\
             '--help[Show help]'
+          ;;
+        prs)
+          _arguments \\
+            '--state[Filter by PR state]:state:(open closed merged all)' \\
+            '--author[Filter by author]:author:' \\
+            '--label[Filter by label]:label:' \\
+            '--draft[Show only draft PRs]' \\
+            '--no-draft[Exclude draft PRs]' \\
+            '--with-worktree[Show only PRs with local worktrees]' \\
+            '--limit[Maximum PRs to fetch]:number:' \\
+            '--json[Output as JSON]' \\
+            '--no-interactive[Disable interactive mode]' \\
+            '--refresh[Force refresh from GitHub]'
+          ;;
+        init)
+          _arguments \\
+            '--local[Create local config]' \\
+            '--global[Create global config]' \\
+            '--force[Overwrite existing config]'
           ;;
         completion)
           _arguments \\
@@ -143,7 +166,7 @@ _wt() {
 _wt "$@"
 ###-end-wt-completions-###`;
 
-const FISH_COMPLETION = `# wt fish completion script
+export const FISH_COMPLETION = `# wt fish completion script
 #
 # Installation:
 #   wt completion fish > ~/.config/fish/completions/wt.fish
@@ -165,6 +188,8 @@ complete -c wt -n '__fish_use_subcommand' -a 'state' -d 'Query git worktree stat
 complete -c wt -n '__fish_use_subcommand' -a 's' -d 'Query state (alias)'
 complete -c wt -n '__fish_use_subcommand' -a 'config' -d 'Configuration management'
 complete -c wt -n '__fish_use_subcommand' -a 'cfg' -d 'Config (alias)'
+complete -c wt -n '__fish_use_subcommand' -a 'prs' -d 'Browse repository pull requests'
+complete -c wt -n '__fish_use_subcommand' -a 'init' -d 'Initialize configuration'
 complete -c wt -n '__fish_use_subcommand' -a 'completion' -d 'Generate shell completion scripts'
 
 # new/n options
@@ -191,6 +216,7 @@ complete -c wt -n '__fish_seen_subcommand_from list ls' -l json -d 'Output as JS
 complete -c wt -n '__fish_seen_subcommand_from list ls' -l no-status -s s -d 'Skip GitHub PR status'
 complete -c wt -n '__fish_seen_subcommand_from list ls' -l no-interactive -s n -d 'Disable interactive mode'
 complete -c wt -n '__fish_seen_subcommand_from list ls' -l filter -s f -d 'Filter by type' -ra 'pr main feature'
+complete -c wt -n '__fish_seen_subcommand_from list ls' -l refresh -d 'Force refresh PR status from GitHub'
 
 # clean/c options
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l all -s a -d 'Clean all merged/closed'
@@ -198,6 +224,23 @@ complete -c wt -n '__fish_seen_subcommand_from clean c' -l dry-run -s d -d 'Prev
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l force -s f -d 'Force cleanup'
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l delete-remote -s r -d 'Delete remote branches'
 complete -c wt -n '__fish_seen_subcommand_from clean c' -l json -d 'Output as JSON'
+
+# prs options
+complete -c wt -n '__fish_seen_subcommand_from prs' -l state -s s -d 'Filter by PR state' -ra 'open closed merged all'
+complete -c wt -n '__fish_seen_subcommand_from prs' -l author -s a -d 'Filter by author' -r
+complete -c wt -n '__fish_seen_subcommand_from prs' -l label -s l -d 'Filter by label' -r
+complete -c wt -n '__fish_seen_subcommand_from prs' -l draft -d 'Show only draft PRs'
+complete -c wt -n '__fish_seen_subcommand_from prs' -l no-draft -d 'Exclude draft PRs'
+complete -c wt -n '__fish_seen_subcommand_from prs' -l with-worktree -d 'Only PRs with local worktrees'
+complete -c wt -n '__fish_seen_subcommand_from prs' -l limit -s n -d 'Maximum PRs to fetch' -r
+complete -c wt -n '__fish_seen_subcommand_from prs' -l json -s j -d 'Output as JSON'
+complete -c wt -n '__fish_seen_subcommand_from prs' -l no-interactive -d 'Disable interactive mode'
+complete -c wt -n '__fish_seen_subcommand_from prs' -l refresh -s r -d 'Force refresh from GitHub'
+
+# init options
+complete -c wt -n '__fish_seen_subcommand_from init' -l local -s l -d 'Create local config'
+complete -c wt -n '__fish_seen_subcommand_from init' -l global -s g -d 'Create global config'
+complete -c wt -n '__fish_seen_subcommand_from init' -l force -s f -d 'Overwrite existing config'
 
 # link/l subcommands
 complete -c wt -n '__fish_seen_subcommand_from link l' -a 'link' -d 'Create hard links'
@@ -213,7 +256,11 @@ complete -c wt -n '__fish_seen_subcommand_from state s' -l quiet -s q -d 'Only o
 # config/cfg subcommands
 complete -c wt -n '__fish_seen_subcommand_from config cfg' -a 'show' -d 'Show config'
 complete -c wt -n '__fish_seen_subcommand_from config cfg' -a 'init' -d 'Initialize config'
+complete -c wt -n '__fish_seen_subcommand_from config cfg' -a 'set' -d 'Set config value'
+complete -c wt -n '__fish_seen_subcommand_from config cfg' -a 'get' -d 'Get config value'
 complete -c wt -n '__fish_seen_subcommand_from config cfg' -a 'edit' -d 'Edit config'
+complete -c wt -n '__fish_seen_subcommand_from config cfg' -a 'validate' -d 'Validate config'
+complete -c wt -n '__fish_seen_subcommand_from config cfg' -a 'migrate' -d 'Migrate legacy config'
 
 # completion shells
 complete -c wt -n '__fish_seen_subcommand_from completion' -a 'bash' -d 'Bash completion'
