@@ -28,14 +28,51 @@ import { queryState } from '../api/state.js';
 import { listWorktrees } from '../api/list.js';
 import { cleanWorktrees } from '../api/clean.js';
 import { createPr, setupPrWorktree } from '../api/create.js';
-import { type StateActionKey, isValidStateActionKey } from '../lib/json-output.js';
+import {
+  type StateActionKey,
+  isValidStateActionKey,
+  createErrorResult,
+  ErrorCode,
+} from '../lib/json-output.js';
+
+// Common outputSchema fields shared across all tools (CommandResult<T> envelope)
+const commandResultBase = {
+  success: { type: 'boolean' },
+  command: { type: 'string' },
+  timestamp: { type: 'string' },
+  error: {
+    type: 'object',
+    properties: {
+      code: { type: 'string' },
+      message: { type: 'string' },
+      suggestion: { type: 'string' },
+    },
+  },
+  warnings: {
+    type: 'array',
+    items: { type: 'string' },
+  },
+};
 
 // Tool definitions
 const tools: Tool[] = [
   {
     name: 'worktree_get_state',
     description:
-      'Analyze current git state and return available actions. Call this BEFORE creating a PR to understand what options are available based on the current git state (staged files, branch, commits, etc.).',
+      'Analyze current git state and return available actions. Call this BEFORE creating a PR to understand what options are available based on the current git state (staged files, branch, commits, etc.).\n\n' +
+      'Returns a CommandResult JSON with:\n' +
+      '- data.scenario: Git state scenario identifier (e.g., "main_clean_same", "branch_divergent")\n' +
+      '- data.availableActions: Array of {key, label, description} for possible next steps\n' +
+      '- data.recommendedAction: The suggested default action key\n\n' +
+      'Example success response:\n' +
+      '{"success":true,"command":"wtstate","timestamp":"...","data":{"scenario":"main_clean_same","scenarioDescription":"On main, clean, same as origin","currentBranch":"main","baseBranch":"main","worktreeType":"main_worktree","hasChanges":false,"availableActions":[{"key":"empty_commit","label":"Create empty commit"}],"recommendedAction":"empty_commit"}}',
+    annotations: {
+      title: 'Get Worktree State',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -49,11 +86,60 @@ const tools: Tool[] = [
         },
       },
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        ...commandResultBase,
+        data: {
+          type: 'object',
+          properties: {
+            scenario: { type: 'string' },
+            scenarioDescription: { type: 'string' },
+            currentBranch: { type: 'string' },
+            baseBranch: { type: 'string' },
+            worktreeType: { type: 'string' },
+            hasChanges: { type: 'boolean' },
+            hasStagedChanges: { type: 'boolean' },
+            hasUnstagedChanges: { type: 'boolean' },
+            localCommits: { type: 'array', items: { type: 'string' } },
+            stagedFiles: { type: 'array', items: { type: 'string' } },
+            unstagedFiles: { type: 'array', items: { type: 'string' } },
+            availableActions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  key: { type: 'string' },
+                  label: { type: 'string' },
+                  description: { type: 'string' },
+                },
+              },
+            },
+            recommendedAction: { type: 'string' },
+          },
+        },
+      },
+      required: ['success', 'command', 'timestamp'],
+    },
   },
   {
     name: 'worktree_create_pr',
     description:
-      'Create a new PR with a dedicated worktree. Handles git state intelligently based on the specified action. Use worktree_get_state first to understand available actions.',
+      'Create a new PR with a dedicated worktree. Handles git state intelligently based on the specified action. Use worktree_get_state first to understand available actions.\n\n' +
+      'Returns a CommandResult JSON with:\n' +
+      '- data.prNumber: The created PR number\n' +
+      '- data.prUrl: URL to the PR on GitHub\n' +
+      '- data.branch: Branch name used for the PR\n' +
+      '- data.worktreePath: Absolute path to the new worktree directory\n\n' +
+      'Example success response:\n' +
+      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","created":true}}',
+    annotations: {
+      title: 'Create PR with Worktree',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -81,11 +167,44 @@ const tools: Tool[] = [
       },
       required: ['description'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        ...commandResultBase,
+        data: {
+          type: 'object',
+          properties: {
+            prNumber: { type: 'number' },
+            prUrl: { type: 'string' },
+            branch: { type: 'string' },
+            worktreePath: { type: 'string' },
+            draft: { type: 'boolean' },
+            scenario: { type: 'string' },
+            actionTaken: { type: 'string' },
+            created: { type: 'boolean' },
+          },
+        },
+      },
+      required: ['success', 'command', 'timestamp'],
+    },
   },
   {
     name: 'worktree_setup_pr',
     description:
-      'Set up a worktree for an existing PR. Use this when you want to work on an existing PR that does not have a local worktree.',
+      'Set up a worktree for an existing PR. Use this when you want to work on an existing PR that does not have a local worktree.\n\n' +
+      'Returns a CommandResult JSON with:\n' +
+      '- data.prNumber: The PR number\n' +
+      '- data.worktreePath: Absolute path to the new worktree directory\n' +
+      '- data.branch: Branch name checked out in the worktree\n\n' +
+      'Example success response:\n' +
+      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/existing-feature","worktreePath":"/home/user/repo.pr42","draft":false,"created":false}}',
+    annotations: {
+      title: 'Setup PR Worktree',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -96,10 +215,42 @@ const tools: Tool[] = [
       },
       required: ['prNumber'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        ...commandResultBase,
+        data: {
+          type: 'object',
+          properties: {
+            prNumber: { type: 'number' },
+            prUrl: { type: 'string' },
+            branch: { type: 'string' },
+            worktreePath: { type: 'string' },
+            draft: { type: 'boolean' },
+            created: { type: 'boolean' },
+          },
+        },
+      },
+      required: ['success', 'command', 'timestamp'],
+    },
   },
   {
     name: 'worktree_list',
-    description: 'List all git worktrees with their PR status.',
+    description:
+      'List all git worktrees with their PR status.\n\n' +
+      'Returns a CommandResult JSON with:\n' +
+      '- data.worktrees: Array of worktree objects with path, branch, type, prNumber, prState\n' +
+      '- data.total: Total number of worktrees\n' +
+      '- data.openCount: Number of open PRs\n\n' +
+      'Example success response:\n' +
+      '{"success":true,"command":"lswt","timestamp":"...","data":{"worktrees":[{"path":"/home/user/repo","name":"repo","branch":"main","commit":"abc1234","type":"main","prNumber":null,"prState":null,"isDraft":null,"hasChanges":false}],"total":1,"prCount":0,"remotePrCount":0,"openCount":0,"changesCount":0}}',
+    annotations: {
+      title: 'List Worktrees',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -109,10 +260,60 @@ const tools: Tool[] = [
         },
       },
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        ...commandResultBase,
+        data: {
+          type: 'object',
+          properties: {
+            worktrees: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  path: { type: 'string' },
+                  name: { type: 'string' },
+                  branch: { type: 'string' },
+                  commit: { type: 'string' },
+                  type: { type: 'string' },
+                  prNumber: { type: 'number' },
+                  prState: { type: 'string' },
+                  isDraft: { type: 'boolean' },
+                  hasChanges: { type: 'boolean' },
+                  prTitle: { type: 'string' },
+                  prUrl: { type: 'string' },
+                },
+              },
+            },
+            total: { type: 'number' },
+            prCount: { type: 'number' },
+            remotePrCount: { type: 'number' },
+            openCount: { type: 'number' },
+            changesCount: { type: 'number' },
+          },
+        },
+      },
+      required: ['success', 'command', 'timestamp'],
+    },
   },
   {
     name: 'worktree_clean',
-    description: 'Clean up worktrees for merged or closed PRs.',
+    description:
+      'Clean up worktrees for merged or closed PRs. Removes worktree directories and optionally deletes local and remote branches.\n\n' +
+      'Returns a CommandResult JSON with:\n' +
+      '- data.cleaned: Array of cleaned worktree objects with prNumber, branch, path, prState\n' +
+      '- data.totalCleaned: Number of worktrees cleaned\n' +
+      '- data.skipped: Array of skipped worktrees with reason\n\n' +
+      'Example success response:\n' +
+      '{"success":true,"command":"cleanpr","timestamp":"...","data":{"cleaned":[{"prNumber":42,"branch":"feat/old-feature","path":"/home/user/repo.pr42","prState":"MERGED","localBranchDeleted":true,"remoteBranchDeleted":false}],"skipped":[],"totalCleaned":1,"totalSkipped":0}}',
+    annotations: {
+      title: 'Clean Worktrees',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -133,6 +334,57 @@ const tools: Tool[] = [
           description: 'Preview what would be cleaned without making changes',
         },
       },
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        ...commandResultBase,
+        data: {
+          type: 'object',
+          properties: {
+            cleaned: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  prNumber: { type: 'number' },
+                  branch: { type: 'string' },
+                  path: { type: 'string' },
+                  prState: { type: 'string' },
+                  localBranchDeleted: { type: 'boolean' },
+                  remoteBranchDeleted: { type: 'boolean' },
+                },
+              },
+            },
+            skipped: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  prNumber: { type: 'number' },
+                  reason: { type: 'string' },
+                },
+              },
+            },
+            totalCleaned: { type: 'number' },
+            totalSkipped: { type: 'number' },
+            wouldClean: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  prNumber: { type: 'number' },
+                  branch: { type: 'string' },
+                  path: { type: 'string' },
+                  prState: { type: 'string' },
+                },
+              },
+            },
+            totalWouldClean: { type: 'number' },
+          },
+        },
+      },
+      required: ['success', 'command', 'timestamp'],
     },
   },
 ];
@@ -180,17 +432,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'worktree_create_pr': {
         const description = args?.description as string;
         if (!description) {
+          const errorResult = createErrorResult(
+            'newpr',
+            ErrorCode.INVALID_ARGUMENT,
+            'description is required'
+          );
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  success: false,
-                  error: {
-                    code: 'INVALID_ARGUMENT',
-                    message: 'description is required',
-                  },
-                }),
+                text: JSON.stringify(errorResult, null, 2),
               },
             ],
             isError: true,
@@ -206,17 +457,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         let validatedAction: StateActionKey | undefined;
         if (action) {
           if (!isValidStateActionKey(action)) {
+            const errorResult = createErrorResult(
+              'newpr',
+              ErrorCode.INVALID_ACTION,
+              `Invalid action: ${action}. Use worktree_get_state to see available actions.`
+            );
             return {
               content: [
                 {
                   type: 'text' as const,
-                  text: JSON.stringify({
-                    success: false,
-                    error: {
-                      code: 'INVALID_ACTION',
-                      message: `Invalid action: ${action}. Use worktree_get_state to see available actions.`,
-                    },
-                  }),
+                  text: JSON.stringify(errorResult, null, 2),
                 },
               ],
               isError: true,
@@ -247,17 +497,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'worktree_setup_pr': {
         const prNumber = args?.prNumber as number;
         if (!prNumber || typeof prNumber !== 'number') {
+          const errorResult = createErrorResult(
+            'newpr',
+            ErrorCode.INVALID_ARGUMENT,
+            'prNumber is required and must be a number'
+          );
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  success: false,
-                  error: {
-                    code: 'INVALID_ARGUMENT',
-                    message: 'prNumber is required and must be a number',
-                  },
-                }),
+                text: JSON.stringify(errorResult, null, 2),
               },
             ],
             isError: true,
@@ -317,36 +566,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      default:
+      default: {
+        const errorResult = createErrorResult(
+          name ?? 'unknown',
+          ErrorCode.INVALID_ARGUMENT,
+          `Unknown tool: ${name}`
+        );
         return {
           content: [
             {
               type: 'text' as const,
-              text: JSON.stringify({
-                success: false,
-                error: {
-                  code: 'UNKNOWN_TOOL',
-                  message: `Unknown tool: ${name}`,
-                },
-              }),
+              text: JSON.stringify(errorResult, null, 2),
             },
           ],
           isError: true,
         };
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const errorResult = createErrorResult(name ?? 'unknown', ErrorCode.UNKNOWN_ERROR, message);
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({
-            success: false,
-            error: {
-              code: 'INTERNAL_ERROR',
-              message,
-            },
-          }),
+          text: JSON.stringify(errorResult, null, 2),
         },
       ],
       isError: true,
