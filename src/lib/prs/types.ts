@@ -165,7 +165,23 @@ export interface PrInteractiveDeps {
 }
 
 /**
+ * Structured result data for prs command (used with CommandResult<PrsResultData>)
+ */
+export interface PrsResultData {
+  total: number;
+  filters: {
+    states: string[];
+    showDrafts: boolean | 'only';
+    labels: string[];
+    author: string | null;
+    hasWorktree: boolean | null;
+  };
+  prs: PrDisplayItem[];
+}
+
+/**
  * JSON output for wt prs --json
+ * @deprecated Use CommandResult<PrsResultData> instead
  */
 export interface PrsJsonOutput {
   /** Whether the command succeeded */

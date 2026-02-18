@@ -333,6 +333,71 @@ describe('prs CLI command', () => {
       expect(parsed.data.prs).toEqual([]);
     });
 
+    it('should output CommandResult<PrsResultData> envelope with all required fields', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      const mockPr = createMockPr(42);
+      mockFetchPrsWithWorktrees.mockReturnValue([mockPr]);
+      mockApplyFilters.mockReturnValue([mockPr]);
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await runPrsCommand(createOptions({ json: true }));
+
+      expect(consoleSpy).toHaveBeenCalled();
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+
+      // Verify CommandResult envelope
+      expect(parsed).toHaveProperty('success', true);
+      expect(parsed).toHaveProperty('command', 'prs');
+      expect(parsed).toHaveProperty('timestamp');
+      expect(new Date(parsed.timestamp).toISOString()).toBe(parsed.timestamp);
+
+      // Verify PrsResultData shape
+      expect(parsed.data).toHaveProperty('total', 1);
+      expect(parsed.data).toHaveProperty('filters');
+      expect(parsed.data.filters).toHaveProperty('states');
+      expect(parsed.data.filters).toHaveProperty('showDrafts');
+      expect(parsed.data.filters).toHaveProperty('labels');
+      expect(parsed.data.filters).toHaveProperty('author');
+      expect(parsed.data.filters).toHaveProperty('hasWorktree');
+      expect(parsed.data).toHaveProperty('prs');
+      expect(parsed.data.prs).toHaveLength(1);
+      expect(parsed.data.prs[0].number).toBe(42);
+    });
+
+    it('should output CommandResult error JSON when fetch fails in json mode', async () => {
+      mockGetRepoRoot.mockReturnValue('/test/repo');
+      mockIsGhInstalled.mockReturnValue(true);
+      mockIsAuthenticated.mockReturnValue(true);
+      mockGetRepoInfo.mockReturnValue(createMockRepoInfo());
+      mockLoadConfig.mockReturnValue(createMockConfig());
+      mockCreateDefaultDataDeps.mockReturnValue(
+        {} as ReturnType<typeof prsData.createDefaultDataDeps>
+      );
+      mockFetchPrsWithWorktrees.mockImplementation(() => {
+        throw new Error('API rate limit exceeded');
+      });
+      const consoleSpy = vi.spyOn(console, 'log');
+
+      await expect(runPrsCommand(createOptions({ json: true }))).rejects.toThrow(ExitError);
+
+      expect(process.exit).toHaveBeenCalledWith(1);
+      const output = consoleSpy.mock.calls[0][0];
+      const parsed = JSON.parse(output);
+      expect(parsed.success).toBe(false);
+      expect(parsed.command).toBe('prs');
+      expect(parsed.error).toBeDefined();
+      expect(parsed.error.code).toBe(ErrorCode.GH_API_ERROR);
+      expect(parsed.error.message).toBe('API rate limit exceeded');
+    });
+
     it('should handle fetch error gracefully', async () => {
       mockGetRepoRoot.mockReturnValue('/test/repo');
       mockIsGhInstalled.mockReturnValue(true);

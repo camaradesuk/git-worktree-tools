@@ -24,11 +24,12 @@ import {
   createDefaultFilterState,
   type PrsCommandOptions,
   type PrDisplayItem,
-  type PrsJsonOutput,
+  type PrsResultData,
 } from './types.js';
 import { formatPrListHeader, formatPrSummary, formatPrTable } from './formatters.js';
 import { runPrInteractiveMode, createDefaultPrInteractiveDeps } from './interactive.js';
 import {
+  createSuccessResult,
   createErrorResult,
   formatJsonResult,
   ErrorCode,
@@ -163,23 +164,18 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
   // Output based on mode
   if (jsonMode) {
     const filteredPrs = applyFilters(prs, filterState);
-    const output: PrsJsonOutput = {
-      success: true,
-      command: 'prs',
-      timestamp: new Date().toISOString(),
-      data: {
-        total: filteredPrs.length,
-        filters: {
-          states: Array.from(filterState.states),
-          showDrafts: filterState.showDrafts,
-          labels: filterState.labels,
-          author: filterState.author,
-          hasWorktree: filterState.hasWorktree,
-        },
-        prs: filteredPrs,
+    const result = createSuccessResult<PrsResultData>('prs', {
+      total: filteredPrs.length,
+      filters: {
+        states: Array.from(filterState.states),
+        showDrafts: filterState.showDrafts,
+        labels: filterState.labels,
+        author: filterState.author,
+        hasWorktree: filterState.hasWorktree,
       },
-    };
-    console.log(JSON.stringify(output, null, 2));
+      prs: filteredPrs,
+    });
+    console.log(formatJsonResult(result));
     return;
   }
 
