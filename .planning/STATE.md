@@ -9,31 +9,31 @@ See: .planning/PROJECT.md (updated 2026-02-18)
 
 ## Current Position
 
-Phase: 2 of 5 (Shared UI Primitives) — IN PROGRESS
-Plan: 2 of 3 in current phase (02-02 complete)
-Status: Executing Phase 2
-Last activity: 2026-02-18 — Completed 02-02-PLAN.md (CLI refactoring to UI primitives)
+Phase: 2 of 5 (Shared UI Primitives) — COMPLETE
+Plan: 3 of 3 in current phase (02-03 complete)
+Status: Phase 2 Complete
+Last activity: 2026-02-18 — Completed 02-03-PLAN.md (standardize error rendering to title+detail+hint)
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 5
-- Average duration: 13min
-- Total execution time: 57min
+- Total plans completed: 6
+- Average duration: 11min
+- Total execution time: 65min
 
 **By Phase:**
 
 | Phase                   | Plans | Total | Avg/Plan |
 | ----------------------- | ----- | ----- | -------- |
 | 01-logger-wiring        | 3/3   | 28min | 9min     |
-| 02-shared-ui-primitives | 2/3   | 29min | 15min    |
+| 02-shared-ui-primitives | 3/3   | 37min | 12min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (12min), 01-03 (16min), 02-01 (9min), 02-02 (20min)
+- Last 5 plans: 01-03 (16min), 02-01 (9min), 02-02 (20min), 02-03 (8min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -63,6 +63,9 @@ Recent decisions affecting current work:
 - 02-02: Extracted getWtlinkHint() to eliminate duplicated error hint logic in wtlink.ts
 - 02-02: CLI error catch pattern: errorToDisplay(error) + printError(display) + process.exit(1)
 - 02-02: cleanpr group label colors (Merged/Closed/Open/Unknown) kept as raw console.log -- decorative, not status
+- 02-03: exitWithError() uses getErrorSuggestion(code) to auto-populate hints from error code mapping
+- 02-03: validate-manifest.ts does NOT print errors; throws ManifestError for caller to display (avoids double-display)
+- 02-03: Checkout failure in newpr splits resolution steps into hint (dim) instead of detail (plain)
 
 ### Pending Todos
 
@@ -78,5 +81,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 02-02-PLAN.md — All 5 CLI entry points refactored to use shared UI primitives
+Stopped at: Completed 02-03-PLAN.md — Phase 2 complete, all error paths use printError() with title+detail+hint
 Resume file: None
