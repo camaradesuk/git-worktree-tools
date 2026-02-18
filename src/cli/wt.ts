@@ -39,6 +39,7 @@ import { prsCommand } from './wt/prs.js';
 import { showMainMenu } from './wt/interactive-menu.js';
 import { initializeLogger } from '../lib/logger.js';
 import { printError } from '../lib/ui/index.js';
+import { createErrorResult, formatJsonResult, ErrorCode } from '../lib/json-output.js';
 import { loadConfig } from '../lib/config.js';
 import { checkAndWarnGlobalInstall } from '../lib/global-check.js';
 import * as git from '../lib/git.js';
@@ -93,6 +94,13 @@ export function initializeCliEnvironment(): void {
 
   // Check global installation (non-critical warning)
   checkAndWarnGlobalInstall(config);
+}
+
+/**
+ * Check if --json flag is present in args (for early error handling before yargs parsing)
+ */
+function hasJsonFlag(args: string[]): boolean {
+  return args.includes('--json');
 }
 
 // Initialize logger early (CLI flags only)
@@ -167,7 +175,10 @@ yargs(hideBin(process.argv))
   .example('wt -v new "Feature"', 'Create PR with verbose logging')
   .strict()
   .fail((msg, err) => {
-    if (err) {
+    if (hasJsonFlag(process.argv.slice(2))) {
+      const errorResult = createErrorResult('wt', ErrorCode.INVALID_ARGUMENT, err?.message || msg);
+      console.log(formatJsonResult(errorResult));
+    } else if (err) {
       printError({ title: err.message });
     } else {
       printError({ title: msg });
@@ -177,6 +188,11 @@ yargs(hideBin(process.argv))
   .parseAsync()
   .catch((err) => {
     const message = err instanceof Error ? err.message : String(err);
-    printError({ title: message });
+    if (hasJsonFlag(process.argv.slice(2))) {
+      const errorResult = createErrorResult('wt', ErrorCode.UNKNOWN_ERROR, message);
+      console.log(formatJsonResult(errorResult));
+    } else {
+      printError({ title: message });
+    }
     process.exit(1);
   });

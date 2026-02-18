@@ -18,7 +18,7 @@ import { hideBin } from 'yargs/helpers';
 import * as colors from '../lib/colors.js';
 import { setColorEnabled } from '../lib/colors.js';
 import { initializeLogger } from '../lib/logger.js';
-import { printError, setJsonMode } from '../lib/ui/index.js';
+import { printError, setJsonMode, isJsonMode } from '../lib/ui/index.js';
 import { ManifestError } from '../lib/errors.js';
 import * as manage from '../lib/wtlink/manage-manifest.js';
 import * as link from '../lib/wtlink/link-configs.js';
@@ -31,6 +31,12 @@ import {
   runMigration,
   formatMigrationReport,
 } from '../lib/config-migration/index.js';
+import {
+  createErrorResult,
+  formatJsonResult,
+  ErrorCode,
+  getErrorCodeFromError,
+} from '../lib/json-output.js';
 
 // Define interfaces for command arguments for type safety
 interface GlobalOptions {
@@ -270,7 +276,14 @@ yargs(hideBin(process.argv))
   .alias('h', 'help')
   .strict()
   .fail((msg, err) => {
-    if (err) {
+    if (isJsonMode()) {
+      const errorResult = createErrorResult(
+        'wtlink',
+        err ? getErrorCodeFromError(err) : ErrorCode.INVALID_ARGUMENT,
+        err?.message || msg
+      );
+      console.log(formatJsonResult(errorResult));
+    } else if (err) {
       const detail =
         err instanceof ManifestError && err.issues
           ? err.issues.map((p) => `  - ${p}`).join('\n')
@@ -290,12 +303,21 @@ yargs(hideBin(process.argv))
     }
   })
   .catch((err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    const detail =
-      err instanceof ManifestError && err.issues
-        ? err.issues.map((p) => `  - ${p}`).join('\n')
-        : undefined;
-    printError({ title: message, detail, hint: getWtlinkHint(message) });
+    if (isJsonMode()) {
+      const errorResult = createErrorResult(
+        'wtlink',
+        getErrorCodeFromError(err),
+        err instanceof Error ? err.message : String(err)
+      );
+      console.log(formatJsonResult(errorResult));
+    } else {
+      const message = err instanceof Error ? err.message : String(err);
+      const detail =
+        err instanceof ManifestError && err.issues
+          ? err.issues.map((p) => `  - ${p}`).join('\n')
+          : undefined;
+      printError({ title: message, detail, hint: getWtlinkHint(message) });
+    }
     process.exit(1);
   });
 

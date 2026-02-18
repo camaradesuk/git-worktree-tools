@@ -28,7 +28,14 @@ async function main(): Promise<void> {
   }
 
   if (result.kind === 'error') {
-    if (result.message) {
+    if (hasJsonFlag(process.argv.slice(2))) {
+      const errorResult = createErrorResult(
+        'wtstate',
+        ErrorCode.INVALID_ARGUMENT,
+        result.message || 'Invalid arguments'
+      );
+      console.log(formatJsonResult(errorResult));
+    } else if (result.message) {
       console.error(colors.error(result.message));
     }
     process.exit(1);
@@ -95,7 +102,20 @@ async function main(): Promise<void> {
   }
 }
 
+/**
+ * Check if --json flag is present in args (for early error handling before parsing)
+ */
+function hasJsonFlag(args: string[]): boolean {
+  return args.includes('--json');
+}
+
 main().catch((error) => {
-  console.error(colors.error(error instanceof Error ? error.message : String(error)));
+  const message = error instanceof Error ? error.message : String(error);
+  if (hasJsonFlag(process.argv.slice(2))) {
+    const errorResult = createErrorResult('wtstate', ErrorCode.UNKNOWN_ERROR, message);
+    console.log(formatJsonResult(errorResult));
+  } else {
+    console.error(colors.error(message));
+  }
   process.exit(1);
 });

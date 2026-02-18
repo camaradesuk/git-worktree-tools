@@ -24,6 +24,12 @@ import {
   formatMigrationReport,
   formatMigrationReportJSON,
 } from '../lib/config-migration/index.js';
+import {
+  createSuccessResult,
+  createErrorResult,
+  formatJsonResult,
+  ErrorCode,
+} from '../lib/json-output.js';
 
 /**
  * Safely get repository root, returning null if not in a git repo
@@ -60,10 +66,17 @@ import type { WorktreeConfig } from '../lib/config.js';
 // Parse command line arguments
 const args = process.argv.slice(2);
 const command = args[0] || 'show';
+const jsonMode = args.includes('--json');
 
 // Entry point
 main().catch((error) => {
-  console.error(colors.error(`Error: ${error instanceof Error ? error.message : String(error)}`));
+  const message = error instanceof Error ? error.message : String(error);
+  if (jsonMode) {
+    const errorResult = createErrorResult('wtconfig', ErrorCode.UNKNOWN_ERROR, message);
+    console.log(formatJsonResult(errorResult));
+  } else {
+    console.error(colors.error(`Error: ${message}`));
+  }
   process.exit(1);
 });
 
@@ -75,7 +88,7 @@ async function main(): Promise<void> {
       break;
 
     case 'show':
-      await showConfig();
+      await showConfig(jsonMode);
       break;
 
     case 'set':
@@ -83,7 +96,7 @@ async function main(): Promise<void> {
       break;
 
     case 'get':
-      await getConfig(args[1]);
+      await getConfig(args[1], jsonMode);
       break;
 
     case 'edit':
@@ -91,7 +104,7 @@ async function main(): Promise<void> {
       break;
 
     case 'validate':
-      await validateCurrentConfig();
+      await validateCurrentConfig(jsonMode);
       break;
 
     case 'migrate':
@@ -105,8 +118,17 @@ async function main(): Promise<void> {
       break;
 
     default:
-      console.error(colors.error(`Unknown command: ${command}`));
-      showHelp();
+      if (jsonMode) {
+        const errorResult = createErrorResult(
+          'wtconfig',
+          ErrorCode.INVALID_ARGUMENT,
+          `Unknown command: ${command}`
+        );
+        console.log(formatJsonResult(errorResult));
+      } else {
+        console.error(colors.error(`Unknown command: ${command}`));
+        showHelp();
+      }
       process.exit(1);
   }
 }
@@ -125,11 +147,13 @@ ${colors.cyan('Usage:')}
   wtconfig migrate          Migrate legacy config to latest version
   wtconfig help             Show this help message
 
+${colors.cyan('Global Options:')}
+  --json             Output results as JSON (for show, get, validate, migrate)
+
 ${colors.cyan('Migration Options:')}
   --yes              Skip confirmation prompts
   --dry-run          Preview changes without modifying files
   --delete-legacy    Delete legacy .wtlinkrc file after migration
-  --json             Output results as JSON
 
 ${colors.cyan('Configuration Locations:')}
   Global:     ~/.worktreerc (applies to all repos)
@@ -148,10 +172,21 @@ ${colors.cyan('Examples:')}
 `);
 }
 
-async function showConfig(): Promise<void> {
+async function showConfig(json = false): Promise<void> {
   const repoRoot = findRepoRoot();
   const source = getConfigSource(repoRoot ?? undefined);
   const config = loadMergedConfig(repoRoot ?? undefined);
+
+  if (json) {
+    const result = createSuccessResult('wtconfig', {
+      subcommand: 'show',
+      source: source.type === 'none' ? null : source.path,
+      config,
+    });
+    console.log(formatJsonResult(result));
+    return;
+  }
+
   const defaults = getDefaultConfig();
 
   console.log(colors.info('Current Configuration'));
@@ -334,10 +369,19 @@ async function setConfig(key: string | undefined, value: string | undefined): Pr
   }
 }
 
-async function getConfig(key: string | undefined): Promise<void> {
+async function getConfig(key: string | undefined, json = false): Promise<void> {
   if (!key) {
-    console.error(colors.error('Usage: wtconfig get <key>'));
-    console.error(colors.dim('Example: wtconfig get ai.provider'));
+    if (json) {
+      const errorResult = createErrorResult(
+        'wtconfig',
+        ErrorCode.MISSING_ARGUMENT,
+        'Missing key argument for "get" command'
+      );
+      console.log(formatJsonResult(errorResult));
+    } else {
+      console.error(colors.error('Usage: wtconfig get <key>'));
+      console.error(colors.dim('Example: wtconfig get ai.provider'));
+    }
     process.exit(1);
   }
 
@@ -352,8 +396,27 @@ async function getConfig(key: string | undefined): Promise<void> {
   }
 
   if (value === undefined) {
-    console.error(colors.error(`Unknown configuration key: ${key}`));
+    if (json) {
+      const errorResult = createErrorResult(
+        'wtconfig',
+        ErrorCode.INVALID_ARGUMENT,
+        `Unknown configuration key: ${key}`
+      );
+      console.log(formatJsonResult(errorResult));
+    } else {
+      console.error(colors.error(`Unknown configuration key: ${key}`));
+    }
     process.exit(1);
+  }
+
+  if (json) {
+    const result = createSuccessResult('wtconfig', {
+      subcommand: 'get',
+      key,
+      value,
+    });
+    console.log(formatJsonResult(result));
+    return;
   }
 
   if (typeof value === 'object') {
@@ -417,40 +480,66 @@ async function editConfig(): Promise<void> {
   }
 }
 
-async function validateCurrentConfig(): Promise<void> {
+async function validateCurrentConfig(json = false): Promise<void> {
   const repoRoot = findRepoRoot();
   const source = getConfigSource(repoRoot ?? undefined);
 
   if (source.type === 'none') {
-    console.log(colors.success('No configuration file found. Nothing to validate.'));
+    if (json) {
+      const result = createSuccessResult('wtconfig', {
+        subcommand: 'validate',
+        valid: true,
+        source: null,
+        errors: [],
+        warnings: [],
+      });
+      console.log(formatJsonResult(result));
+    } else {
+      console.log(colors.success('No configuration file found. Nothing to validate.'));
+    }
+    return;
+  }
+
+  const config = loadMergedConfig(repoRoot ?? undefined);
+  const validationResult = validateConfig(config);
+
+  if (json) {
+    const result = createSuccessResult('wtconfig', {
+      subcommand: 'validate',
+      valid: validationResult.valid,
+      source: source.path,
+      errors: validationResult.errors,
+      warnings: validationResult.warnings,
+    });
+    console.log(formatJsonResult(result));
+    if (!validationResult.valid) {
+      process.exit(1);
+    }
     return;
   }
 
   console.log(colors.info(`Validating: ${source.path}`));
 
-  const config = loadMergedConfig(repoRoot ?? undefined);
-  const result = validateConfig(config);
-
-  if (result.valid && result.warnings.length === 0) {
+  if (validationResult.valid && validationResult.warnings.length === 0) {
     console.log(colors.success('Configuration is valid.'));
     return;
   }
 
-  if (result.errors.length > 0) {
+  if (validationResult.errors.length > 0) {
     console.log(colors.error('\nErrors:'));
-    for (const error of result.errors) {
+    for (const error of validationResult.errors) {
       console.log(colors.error(`  ${error.path}: ${error.message}`));
     }
   }
 
-  if (result.warnings.length > 0) {
+  if (validationResult.warnings.length > 0) {
     console.log(colors.warning('\nWarnings:'));
-    for (const warning of result.warnings) {
+    for (const warning of validationResult.warnings) {
       console.log(colors.warning(`  ${warning.path}: ${warning.message}`));
     }
   }
 
-  if (!result.valid) {
+  if (!validationResult.valid) {
     process.exit(1);
   }
 }
