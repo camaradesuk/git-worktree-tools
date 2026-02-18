@@ -63,44 +63,42 @@ const colorMap = {
 
 function printTable(worktrees: WorktreeDisplay[], options: ListOptions, cwd: string): void {
   if (worktrees.length === 0) {
-    console.log(colors.info('No worktrees found.'));
+    printStatus('info', 'No worktrees found.');
     return;
   }
 
   const repoName = path.basename(worktrees[0].path.replace(/\.pr\d+$/, ''));
-  console.log('');
-  console.log(colors.bold(`${repoName} worktrees:`));
-  console.log('');
 
-  for (const wt of worktrees) {
+  const rows = worktrees.map((wt) => {
     const { text, color } = formatTypeLabel(wt);
     const typeLabel = colorMap[color](text);
-    const changeIndicator = wt.hasChanges ? colors.red(' *') : '';
+    const ci = changeIndicator(wt.hasChanges);
 
-    console.log(`  ${typeLabel}${changeIndicator}`);
-    console.log(`    Branch: ${wt.branch || colors.dim('(detached)')}`);
-
-    const displayPath = getDisplayPath(wt.path, cwd, options.verbose);
-    console.log(`    Path:   ${displayPath}`);
-
+    const fields: Array<{ key: string; value: string }> = [
+      { key: 'Branch', value: wt.branch || colors.dim('(detached)') },
+      { key: 'Path', value: getDisplayPath(wt.path, cwd, options.verbose) },
+    ];
     if (options.verbose) {
-      console.log(`    Commit: ${colors.dim(wt.commit)}`);
+      fields.push({ key: 'Commit', value: colors.dim(wt.commit) });
     }
-    console.log('');
-  }
 
-  // Summary
+    return { label: typeLabel, indicator: ci, fields };
+  });
+
+  // Build summary
   const prCount = worktrees.filter((w) => w.type === 'pr').length;
   const openCount = worktrees.filter((w) => w.prState === 'OPEN').length;
   const changesCount = worktrees.filter((w) => w.hasChanges).length;
-
   const parts: string[] = [`${worktrees.length} worktrees`];
   if (prCount > 0) parts.push(`${prCount} PRs`);
   if (openCount > 0) parts.push(`${openCount} open`);
   if (changesCount > 0) parts.push(colors.red(`${changesCount} with changes`));
 
-  console.log(colors.dim(parts.join(' · ')));
-  console.log('');
+  sharedPrintTable({
+    title: `${repoName} worktrees:`,
+    rows,
+    summary: parts.join(' · '),
+  });
 }
 
 async function main(): Promise<void> {
@@ -117,7 +115,7 @@ async function main(): Promise<void> {
     if (jsonMode) {
       outputJsonError(ErrorCode.INVALID_ARGUMENT, result.message);
     } else {
-      console.error(colors.error(result.message));
+      printError({ title: result.message });
     }
     process.exit(1);
   }
@@ -140,8 +138,7 @@ async function main(): Promise<void> {
   // Check for gh cli if status requested
   if (options.showStatus && !github.isGhInstalled()) {
     if (!options.json) {
-      console.error(colors.warning('GitHub CLI (gh) not installed. PR status will not be shown.'));
-      console.error(colors.dim('Install: https://cli.github.com/'));
+      printStatus('warning', 'GitHub CLI (gh) not installed. PR status will not be shown.');
     }
     options.showStatus = false;
   }
@@ -152,8 +149,10 @@ async function main(): Promise<void> {
     if (options.json) {
       outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not a git repository');
     } else {
-      console.error(colors.error('Not a git repository.'));
-      console.error(colors.dim('Run this command from within a git repository.'));
+      printError({
+        title: 'Not a git repository.',
+        hint: 'Run this command from within a git repository.',
+      });
     }
     process.exit(1);
   }
@@ -187,14 +186,17 @@ main().catch((err) => {
     if (jsonMode) {
       outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not a git repository');
     } else {
-      console.error(colors.error('Not a git repository'));
-      console.error(colors.dim('Run this command from within a git repository.'));
+      printError({
+        title: 'Not a git repository',
+        hint: 'Run this command from within a git repository.',
+      });
     }
   } else {
     if (jsonMode) {
       outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
     } else {
-      console.error(colors.error(`Error: ${message}`));
+      const display = errorToDisplay(err);
+      printError(display);
     }
   }
   process.exit(1);

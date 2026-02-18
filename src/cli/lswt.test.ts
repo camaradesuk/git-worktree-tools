@@ -112,7 +112,8 @@ describe('cli/lswt', () => {
 
       await runCli(['--status']);
 
-      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('GitHub CLI'));
+      // printStatus('warning', ...) goes through console.log via ui/output.print()
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('GitHub CLI'));
     });
   });
 
@@ -242,8 +243,8 @@ describe('cli/lswt', () => {
 
       await runCli(['--verbose']);
 
-      // Verify commit is printed in verbose mode
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Commit:'));
+      // Verify commit is printed in verbose mode (shared printTable uses "Commit" key)
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Commit'));
     });
 
     it('shows change indicator for worktrees with uncommitted changes', async () => {
