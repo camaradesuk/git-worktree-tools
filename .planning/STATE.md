@@ -31,11 +31,11 @@ Progress: [████████░░] 75%
 | 01-logger-wiring                  | 3/3   | 28min | 9min     |
 | 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
 | 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
-| 04-json-output-and-llm-ergonomics | 1/4   | 19min | 19min    |
+| 04-json-output-and-llm-ergonomics | 2/4   | 33min | 17min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 02-03 (8min), 03-01 (7min), 03-02 (8min), 03-03 (9min), 04-02 (19min)
+- Last 5 plans: 03-01 (7min), 03-02 (8min), 03-03 (9min), 04-02 (19min), 04-03 (14min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -78,6 +78,9 @@ Recent decisions affecting current work:
 - 04-02: wt wrapper flag naming uses descriptive names (--delete-remote) even when underlying CLI uses short names (--remote)
 - 04-02: Only expose flags in wt wrappers that the underlying CLI actually accepts (removed --stash-untracked bug)
 - 04-02: --filter and --refresh cannot be added to wt list until upstream lswt parseArgs supports them
+- 04-03: Export tools array from server.ts for test access; mock MCP SDK server/transport to prevent startup
+- 04-03: Shared commandResultBase object for DRY outputSchema definitions across all 5 MCP tools
+- 04-03: All MCP error paths (validation, default, catch) use createErrorResult() for consistent envelope
 
 ### Pending Todos
 
@@ -87,11 +90,11 @@ None yet.
 
 - Phase 3: RESOLVED -- wt prs duplicate code path confirmed and fixed in 03-02 (missing refreshPrs callback)
 - Phase 3: PTY tests may silently skip on CI (`node-pty` native addon); non-PTY smoke tests required alongside any menu changes
-- Phase 4: MCP annotation baseline is unknown; Phase 4 planning must start with a full audit of `src/mcp/server.ts`
+- Phase 4: RESOLVED -- MCP annotations added to all 5 tools (04-03); baseline fully documented
 - Phase 5: `lswt` TTY-aware interactive mode has behavioral subtleties; pre-implementation coverage pass recommended before migrating
 
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 04-02-PLAN.md (help text audit)
+Stopped at: Completed 04-03-PLAN.md (MCP tool annotations)
 Resume file: None
