@@ -43,6 +43,25 @@ import { loadConfig } from '../lib/config.js';
 import { checkAndWarnGlobalInstall } from '../lib/global-check.js';
 import * as git from '../lib/git.js';
 
+// Global terminal state safety net
+// Ensures raw mode is disabled and cursor is visible on ANY exit path
+// This catches crashes, unhandled rejections, and any exit that bypasses cleanup
+process.on('exit', () => {
+  try {
+    // Restore cursor visibility only when connected to a real terminal
+    // (avoids corrupting JSON/piped output with escape sequences)
+    if (process.stdout.isTTY) {
+      process.stdout.write('\x1b[?25h');
+    }
+    // Disable raw mode if it was left enabled
+    if (process.stdin.isTTY && process.stdin.isRaw) {
+      process.stdin.setRawMode(false);
+    }
+  } catch {
+    // Best-effort cleanup — ignore errors during exit
+  }
+});
+
 // Initialize logger early (before yargs) for proper log output
 // Only reads CLI flags - config-based settings applied later
 function initializeLoggerFromCliFlags(): void {

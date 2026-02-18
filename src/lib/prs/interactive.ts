@@ -287,7 +287,20 @@ async function selectPrWithShortcuts(
     process.stdin.setRawMode(true);
     process.stdin.resume();
 
+    // Signal handler to ensure terminal is restored on unexpected termination
+    const handleSignal = () => {
+      cleanup();
+      process.exit(0);
+    };
+    process.on('SIGINT', handleSignal);
+    process.on('SIGTERM', handleSignal);
+
     const cleanup = () => {
+      // Restore cursor visibility
+      process.stdout.write('\x1b[?25h');
+      // Remove signal handlers to prevent memory leaks
+      process.removeListener('SIGINT', handleSignal);
+      process.removeListener('SIGTERM', handleSignal);
       process.stdin.setRawMode(false);
       process.stdin.removeListener('data', onKeypress);
       process.stdin.pause();
@@ -296,10 +309,11 @@ async function selectPrWithShortcuts(
     const onKeypress = (key: Buffer) => {
       const char = key.toString();
 
-      // Handle Ctrl+C
+      // Handle Ctrl+C - cleanup and resolve instead of process.exit
       if (char === '\x03') {
         cleanup();
-        process.exit(0);
+        resolve({ pr: null, action: null });
+        return;
       }
 
       if (searchMode) {
