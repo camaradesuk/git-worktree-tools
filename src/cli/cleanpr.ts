@@ -39,7 +39,6 @@ import {
   formatJsonResult,
   ErrorCode,
   getErrorCodeFromError,
-  getErrorSuggestion,
   type CleanprResultData,
   type CleanprDryRunData,
   type CleanedWorktreeInfo,
@@ -100,8 +99,8 @@ function createCleanupDeps(repoRoot: string): CleanupDeps {
  * Print worktree with status indicator
  */
 function printWorktree(w: WorktreeInfo): void {
-  const changeIndicator = w.hasChanges ? colors.red(' [has changes]') : '';
-  console.log(`    PR #${w.prNumber}: ${w.branch}${changeIndicator}`);
+  const ci = changeIndicator(w.hasChanges);
+  console.log(`    PR #${w.prNumber}: ${w.branch}${ci}`);
 }
 
 /**
@@ -195,15 +194,13 @@ async function interactiveClean(
   options: CleanOptions
 ): Promise<void> {
   if (worktrees.length === 0) {
-    console.log(colors.info('No PR worktrees found.'));
+    printStatus('info', 'No PR worktrees found.');
     return;
   }
 
   const groups = groupWorktreesByState(worktrees);
 
-  console.log('');
-  console.log(colors.bold('PR Worktrees:'));
-  console.log('');
+  printHeader('PR Worktrees:');
 
   if (groups.merged.length > 0) {
     console.log(colors.yellow(`  Merged (${groups.merged.length}):`));
@@ -229,7 +226,7 @@ async function interactiveClean(
 
   const cleanable = getCleanableWorktrees(worktrees);
   if (cleanable.length === 0) {
-    console.log(colors.info('No merged or closed PRs to clean up.'));
+    printStatus('info', 'No merged or closed PRs to clean up.');
     return;
   }
 
@@ -247,7 +244,7 @@ async function interactiveClean(
   const action = await prompts.promptChoice('What would you like to clean?', choices);
 
   if (action === 'cancel') {
-    console.log(colors.info('Cancelled.'));
+    printStatus('info', 'Cancelled.');
     return;
   }
 
@@ -271,7 +268,7 @@ async function interactiveClean(
   }
 
   if (toClean.length === 0) {
-    console.log(colors.info('Nothing to clean.'));
+    printStatus('info', 'Nothing to clean.');
     return;
   }
 
@@ -286,21 +283,21 @@ async function interactiveClean(
   const results = toClean.map((w) => {
     const result = cleanWorktree(w, options, deps);
     if (result.success) {
-      console.log(colors.success(result.message));
+      printStatus('success', result.message);
     } else {
-      console.log(colors.warning(result.message));
+      printStatus('warning', result.message);
     }
     return result;
   });
 
   const summary = summarizeResults(results);
   console.log('');
-  console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
+  printStatus('success', `Cleaned ${summary.cleaned} of ${summary.total} worktrees.`);
   if (summary.cleaned > 0) {
-    console.log('');
-    console.log(colors.dim('Next steps:'));
-    console.log(colors.dim('  lswt                        # List remaining worktrees'));
-    console.log(colors.dim('  newpr "feature description" # Create a new PR'));
+    printNextSteps([
+      { command: 'lswt', description: 'List remaining worktrees' },
+      { command: 'newpr "feature description"', description: 'Create a new PR' },
+    ]);
   }
 }
 
@@ -325,13 +322,13 @@ async function cleanAll(
       };
       console.log(formatJsonResult(createSuccessResult('cleanpr', data)));
     } else {
-      console.log(colors.info('No merged or closed PR worktrees to clean.'));
+      printStatus('info', 'No merged or closed PR worktrees to clean.');
     }
     return;
   }
 
   if (!options.json) {
-    console.log(colors.info(`Found ${cleanable.length} merged/closed PR worktrees.`));
+    printStatus('info', `Found ${cleanable.length} merged/closed PR worktrees.`);
     console.log('');
   }
 
@@ -340,9 +337,9 @@ async function cleanAll(
     const result = cleanWorktree(w, options, deps);
     if (!options.json) {
       if (result.success) {
-        console.log(colors.success(result.message));
+        printStatus('success', result.message);
       } else {
-        console.log(colors.warning(result.message));
+        printStatus('warning', result.message);
       }
     }
     return result;
@@ -354,14 +351,14 @@ async function cleanAll(
     const summary = summarizeResults(results);
     console.log('');
     if (options.dryRun) {
-      console.log(colors.info(`Would clean ${summary.cleaned} of ${summary.total} worktrees.`));
+      printStatus('info', `Would clean ${summary.cleaned} of ${summary.total} worktrees.`);
     } else {
-      console.log(colors.success(`Cleaned ${summary.cleaned} of ${summary.total} worktrees.`));
+      printStatus('success', `Cleaned ${summary.cleaned} of ${summary.total} worktrees.`);
       if (summary.cleaned > 0) {
-        console.log('');
-        console.log(colors.dim('Next steps:'));
-        console.log(colors.dim('  lswt                        # List remaining worktrees'));
-        console.log(colors.dim('  newpr "feature description" # Create a new PR'));
+        printNextSteps([
+          { command: 'lswt', description: 'List remaining worktrees' },
+          { command: 'newpr "feature description"', description: 'Create a new PR' },
+        ]);
       }
     }
   }
@@ -388,17 +385,19 @@ async function cleanSpecific(
     if (options.json) {
       outputJsonError(ErrorCode.PR_NOT_FOUND, `No worktree found for PR #${prNumber}`);
     } else {
-      console.error(colors.error(`No worktree found for PR #${prNumber}`));
-      console.error(colors.dim(`Expected at: ${expectedPath}`));
+      printError({
+        title: `No worktree found for PR #${prNumber}`,
+        detail: `Expected at: ${expectedPath}`,
+      });
     }
     process.exit(1);
   }
 
   if (!options.json) {
-    console.log(colors.info(`Cleaning PR #${prNumber} worktree...`));
-    console.log(colors.dim(`  Path: ${target.path}`));
-    console.log(colors.dim(`  Branch: ${target.branch}`));
-    console.log(colors.dim(`  State: ${target.prState}`));
+    printStatus('info', `Cleaning PR #${prNumber} worktree...`);
+    printDim(`  Path: ${target.path}`);
+    printDim(`  Branch: ${target.branch}`);
+    printDim(`  State: ${target.prState}`);
     console.log('');
   }
 
@@ -410,17 +409,17 @@ async function cleanSpecific(
   } else if (result.success) {
     console.log('');
     if (options.dryRun) {
-      console.log(colors.info(result.message));
+      printStatus('info', result.message);
     } else {
-      console.log(colors.success(`PR #${prNumber} worktree cleaned up successfully.`));
-      console.log('');
-      console.log(colors.dim('Next steps:'));
-      console.log(colors.dim('  lswt                        # List remaining worktrees'));
-      console.log(colors.dim('  cleanpr --all               # Clean all merged/closed PRs'));
-      console.log(colors.dim('  newpr "feature description" # Create a new PR'));
+      printStatus('success', `PR #${prNumber} worktree cleaned up successfully.`);
+      printNextSteps([
+        { command: 'lswt', description: 'List remaining worktrees' },
+        { command: 'cleanpr --all', description: 'Clean all merged/closed PRs' },
+        { command: 'newpr "feature description"', description: 'Create a new PR' },
+      ]);
     }
   } else {
-    console.log(colors.warning(result.message));
+    printStatus('warning', result.message);
     process.exit(1);
   }
 }
@@ -446,7 +445,7 @@ async function main(): Promise<void> {
     if (useJson) {
       outputJsonError(ErrorCode.INVALID_ARGUMENT, parseResult.message);
     } else {
-      console.error(colors.error(parseResult.message));
+      printError({ title: parseResult.message });
     }
     process.exit(1);
   }
@@ -474,8 +473,10 @@ async function main(): Promise<void> {
         'GitHub CLI (gh) is required for PR status checking'
       );
     } else {
-      console.error(colors.error('GitHub CLI (gh) is required for PR status checking.'));
-      console.error(colors.dim('Install: https://cli.github.com/'));
+      printError({
+        title: 'GitHub CLI (gh) is required for PR status checking.',
+        hint: 'Install: https://cli.github.com/',
+      });
     }
     process.exit(1);
   }
@@ -486,7 +487,7 @@ async function main(): Promise<void> {
     if (options.json) {
       outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not in a git repository');
     } else {
-      console.error(colors.error('Not in a git repository.'));
+      printError({ title: 'Not in a git repository.' });
     }
     process.exit(1);
   }
@@ -528,18 +529,14 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
   const useJson = hasJsonFlag(process.argv.slice(2));
-  const message = err instanceof Error ? err.message : String(err);
-  const code = getErrorCodeFromError(err);
-  const suggestion = getErrorSuggestion(code);
 
   if (useJson) {
+    const message = err instanceof Error ? err.message : String(err);
+    const code = getErrorCodeFromError(err);
     outputJsonError(code, message);
   } else {
-    console.error(colors.error(`Error: ${message}`));
-    if (suggestion) {
-      console.error('');
-      console.error(colors.dim(suggestion));
-    }
+    const display = errorToDisplay(err);
+    printError(display);
   }
   process.exit(1);
 });
