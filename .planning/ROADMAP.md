@@ -14,7 +14,7 @@ This milestone refactors four independently-evolved CLI entry points (`newpr`, `
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Logger Wiring** - Wire the shared logger singleton into all 4 legacy CLI entry points and remove the `newpr`-specific debug mechanism
-- [ ] **Phase 2: Shared UI Primitives** - Extract a `src/lib/ui/` module with consistent output formatting functions used by all commands
+- [x] **Phase 2: Shared UI Primitives** - Extract a `src/lib/ui/` module with consistent output formatting functions used by all commands
 - [ ] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
 - [ ] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
 - [ ] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
@@ -56,9 +56,9 @@ Plans:
 
 Plans:
 
-- [ ] 02-01-PLAN.md — Create src/lib/ui/ module with theme.ts, output.ts, status.ts, table.ts, error.ts, spinner.ts + barrel export and tests
-- [ ] 02-02-PLAN.md — Refactor all 5 CLI entry points to use shared UI primitives; wire JSON mode gate; fix icon inconsistencies in link-configs.ts
-- [ ] 02-03-PLAN.md — Standardize error rendering to title + detail + hint format across all commands; integration tests for error pipeline
+- [x] 02-01-PLAN.md — Create src/lib/ui/ module with theme.ts, output.ts, status.ts, table.ts, error.ts, spinner.ts + barrel export and tests
+- [x] 02-02-PLAN.md — Refactor all 5 CLI entry points to use shared UI primitives; wire JSON mode gate; fix icon inconsistencies in link-configs.ts
+- [x] 02-03-PLAN.md — Standardize error rendering to title + detail + hint format across all commands; integration tests for error pipeline
 
 ### Phase 3: Interactive Menu Reliability
 
@@ -128,7 +128,7 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | Phase                             | Plans Complete | Status      | Completed  |
 | --------------------------------- | -------------- | ----------- | ---------- |
 | 1. Logger Wiring                  | 3/3            | ✓ Complete  | 2026-02-18 |
-| 2. Shared UI Primitives           | 0/3            | Not started | -          |
+| 2. Shared UI Primitives           | 3/3            | ✓ Complete  | 2026-02-18 |
 | 3. Interactive Menu Reliability   | 0/4            | Not started | -          |
 | 4. JSON Output and LLM Ergonomics | 0/4            | Not started | -          |
 | 5. In-Process Delegation          | 0/3            | Not started | -          |
