@@ -34,7 +34,7 @@ Progress: [█████░░░░░] 53%
 
 **Recent Trend:**
 
-- Last 5 plans: 02-01 (9min), 02-02 (20min), 02-03 (8min), 03-01 (7min)
+- Last 5 plans: 02-01 (9min), 02-02 (20min), 02-03 (8min), 03-01 (7min), 03-02 (8min)
 - Trend: Stable-fast
 
 _Updated after each plan completion_
@@ -70,6 +70,8 @@ Recent decisions affecting current work:
 - 03-01: COMPLETED_EXIT replaced with COMPLETED_RETURN (returnToMenu: true) -- all menu flows loop back
 - 03-01: wtlink sync maps to 'wtlink link' subcommand (actual CLI command for hard link creation)
 - 03-01: wtlink view/add/remove use loadManifestData/saveManifestData directly instead of spawning subprocesses
+- 03-02: Re-export runPrsCommand and outputJsonError from cli/prs.ts for downstream consumers
+- 03-02: cli/wt/prs.ts imports only runPrsCommand (outputJsonError not needed by yargs handler)
 
 ### Pending Todos
 
@@ -77,7 +79,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 3: The exact mechanism of the `wt prs` broken duplicate code path needs confirmation before planning begins (noted in research SUMMARY.md gaps)
+- Phase 3: RESOLVED -- wt prs duplicate code path confirmed and fixed in 03-02 (missing refreshPrs callback)
 - Phase 3: PTY tests may silently skip on CI (`node-pty` native addon); non-PTY smoke tests required alongside any menu changes
 - Phase 4: MCP annotation baseline is unknown; Phase 4 planning must start with a full audit of `src/mcp/server.ts`
 - Phase 5: `lswt` TTY-aware interactive mode has behavioral subtleties; pre-implementation coverage pass recommended before migrating
@@ -85,5 +87,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-18
-Stopped at: Completed 03-01-PLAN.md
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
