@@ -8,6 +8,19 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mock the MCP SDK to prevent server startup when importing server.ts
+vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
+  Server: vi.fn().mockImplementation(() => ({
+    setRequestHandler: vi.fn(),
+    connect: vi.fn(),
+    close: vi.fn(),
+  })),
+}));
+
+vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
+  StdioServerTransport: vi.fn(),
+}));
+
 // Mock the API modules before importing anything that uses them
 vi.mock('../api/state.js', () => ({
   queryState: vi.fn(),
@@ -32,6 +45,8 @@ import { listWorktrees } from '../api/list.js';
 import { cleanWorktrees } from '../api/clean.js';
 import { createPr, setupPrWorktree } from '../api/create.js';
 import { isValidStateActionKey, type StateActionKey, ErrorCode } from '../lib/json-output.js';
+// Import tools array for definition tests (safe because SDK is mocked)
+import { tools } from './server.js';
 
 describe('MCP Server', () => {
   beforeEach(() => {
@@ -499,6 +514,120 @@ describe('MCP Server', () => {
       vi.mocked(cleanWorktrees).mockRejectedValue(new Error('Unexpected error'));
 
       await expect(cleanWorktrees({ prNumber: null })).rejects.toThrow('Unexpected error');
+    });
+  });
+
+  describe('MCP tool definitions', () => {
+    const expectedToolNames = [
+      'worktree_get_state',
+      'worktree_create_pr',
+      'worktree_setup_pr',
+      'worktree_list',
+      'worktree_clean',
+    ];
+
+    it('defines exactly 5 tools', () => {
+      expect(tools).toHaveLength(5);
+      const names = tools.map((t) => t.name);
+      expect(names).toEqual(expectedToolNames);
+    });
+
+    it('all tools have annotations with required hint fields', () => {
+      for (const tool of tools) {
+        expect(tool.annotations).toBeDefined();
+        const annotations = tool.annotations!;
+
+        expect(typeof annotations.title).toBe('string');
+        expect(annotations.title!.length).toBeGreaterThan(0);
+        expect(typeof annotations.readOnlyHint).toBe('boolean');
+        expect(typeof annotations.destructiveHint).toBe('boolean');
+        expect(typeof annotations.idempotentHint).toBe('boolean');
+        expect(typeof annotations.openWorldHint).toBe('boolean');
+      }
+    });
+
+    it('all tools have outputSchema with CommandResult structure', () => {
+      for (const tool of tools) {
+        expect(tool.outputSchema).toBeDefined();
+        const schema = tool.outputSchema as Record<string, unknown>;
+
+        expect(schema.type).toBe('object');
+        expect(schema.required).toContain('success');
+        expect(schema.required).toContain('command');
+        expect(schema.required).toContain('timestamp');
+
+        const properties = schema.properties as Record<string, unknown>;
+        expect(properties.success).toBeDefined();
+        expect(properties.command).toBeDefined();
+        expect(properties.timestamp).toBeDefined();
+        expect(properties.data).toBeDefined();
+        expect(properties.error).toBeDefined();
+      }
+    });
+
+    it('worktree_get_state is annotated as read-only', () => {
+      const tool = tools.find((t) => t.name === 'worktree_get_state');
+      expect(tool).toBeDefined();
+      expect(tool!.annotations!.readOnlyHint).toBe(true);
+      expect(tool!.annotations!.destructiveHint).toBe(false);
+      expect(tool!.annotations!.idempotentHint).toBe(true);
+      expect(tool!.annotations!.openWorldHint).toBe(false);
+    });
+
+    it('worktree_clean is annotated as destructive', () => {
+      const tool = tools.find((t) => t.name === 'worktree_clean');
+      expect(tool).toBeDefined();
+      expect(tool!.annotations!.destructiveHint).toBe(true);
+      expect(tool!.annotations!.readOnlyHint).toBe(false);
+      expect(tool!.annotations!.idempotentHint).toBe(true);
+    });
+
+    it('worktree_create_pr is annotated as not idempotent', () => {
+      const tool = tools.find((t) => t.name === 'worktree_create_pr');
+      expect(tool).toBeDefined();
+      expect(tool!.annotations!.idempotentHint).toBe(false);
+      expect(tool!.annotations!.readOnlyHint).toBe(false);
+      expect(tool!.annotations!.destructiveHint).toBe(false);
+      expect(tool!.annotations!.openWorldHint).toBe(true);
+    });
+
+    it('worktree_list is annotated as read-only with open world', () => {
+      const tool = tools.find((t) => t.name === 'worktree_list');
+      expect(tool).toBeDefined();
+      expect(tool!.annotations!.readOnlyHint).toBe(true);
+      expect(tool!.annotations!.destructiveHint).toBe(false);
+      expect(tool!.annotations!.openWorldHint).toBe(true);
+    });
+
+    it('worktree_setup_pr is annotated as idempotent with open world', () => {
+      const tool = tools.find((t) => t.name === 'worktree_setup_pr');
+      expect(tool).toBeDefined();
+      expect(tool!.annotations!.idempotentHint).toBe(true);
+      expect(tool!.annotations!.readOnlyHint).toBe(false);
+      expect(tool!.annotations!.destructiveHint).toBe(false);
+      expect(tool!.annotations!.openWorldHint).toBe(true);
+    });
+
+    it('all tool descriptions mention JSON response format', () => {
+      for (const tool of tools) {
+        const desc = tool.description ?? '';
+        const mentionsJson =
+          desc.includes('CommandResult') ||
+          desc.includes('JSON') ||
+          desc.includes('success') ||
+          desc.includes('Example success response');
+
+        expect(mentionsJson).toBe(true);
+      }
+    });
+
+    it('all tool descriptions include example JSON responses', () => {
+      for (const tool of tools) {
+        const desc = tool.description ?? '';
+        expect(desc).toContain('Example success response:');
+        // Each example should contain valid-looking JSON with "success":true
+        expect(desc).toContain('"success":true');
+      }
     });
   });
 });

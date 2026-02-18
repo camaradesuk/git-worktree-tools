@@ -54,8 +54,8 @@ const commandResultBase = {
   },
 };
 
-// Tool definitions
-const tools: Tool[] = [
+// Tool definitions (exported for testing)
+export const tools: Tool[] = [
   {
     name: 'worktree_get_state',
     description:
