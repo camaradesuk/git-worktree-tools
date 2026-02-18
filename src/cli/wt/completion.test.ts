@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Argv } from 'yargs';
+import { BASH_COMPLETION, ZSH_COMPLETION, FISH_COMPLETION } from './completion.js';
 
 // Mock child_process before importing the module
 vi.mock('child_process', () => ({
@@ -230,6 +231,128 @@ describe('completionCommand', () => {
 
       // Should not output anything for unknown shell
       expect(mockConsoleLog).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('Shell completion scripts', () => {
+  const ALL_SUBCOMMANDS = [
+    'new',
+    'list',
+    'clean',
+    'link',
+    'state',
+    'config',
+    'prs',
+    'init',
+    'completion',
+  ];
+
+  describe('subcommand presence', () => {
+    it('zsh completion includes all subcommands', () => {
+      for (const cmd of ALL_SUBCOMMANDS) {
+        expect(ZSH_COMPLETION).toContain(`'${cmd}:`);
+      }
+    });
+
+    it('fish completion includes all subcommands', () => {
+      for (const cmd of ALL_SUBCOMMANDS) {
+        expect(FISH_COMPLETION).toContain(`-a '${cmd}'`);
+      }
+    });
+  });
+
+  describe('flag presence - zsh', () => {
+    it('zsh state completion includes --base-branch', () => {
+      expect(ZSH_COMPLETION).toContain('--base-branch');
+    });
+
+    it('zsh state completion includes --verbose', () => {
+      expect(ZSH_COMPLETION).toContain("'--verbose[Show detailed state information]'");
+    });
+
+    it('zsh state completion includes --quiet', () => {
+      expect(ZSH_COMPLETION).toContain("'--quiet[Only output state name]'");
+    });
+
+    it('zsh clean completion includes --delete-remote', () => {
+      expect(ZSH_COMPLETION).toContain('--delete-remote');
+    });
+
+    it('zsh list completion includes --refresh', () => {
+      expect(ZSH_COMPLETION).toContain("'--refresh[Force refresh PR status from GitHub]'");
+    });
+
+    it('zsh config completion includes set, get, validate, migrate subcommands', () => {
+      for (const sub of ['set', 'get', 'validate', 'migrate']) {
+        expect(ZSH_COMPLETION).toContain(sub);
+      }
+    });
+
+    it('zsh prs completion includes --state, --author, --json, --refresh flags', () => {
+      // Verify prs case exists with key flags
+      expect(ZSH_COMPLETION).toContain("'--state[Filter by PR state]");
+      expect(ZSH_COMPLETION).toContain("'--author[Filter by author]");
+      expect(ZSH_COMPLETION).toContain("'--json[Output as JSON]'");
+      expect(ZSH_COMPLETION).toContain("'--refresh[Force refresh from GitHub]'");
+    });
+
+    it('zsh init completion includes --local, --global, --force flags', () => {
+      expect(ZSH_COMPLETION).toContain("'--local[Create local config]'");
+      expect(ZSH_COMPLETION).toContain("'--global[Create global config]'");
+      expect(ZSH_COMPLETION).toContain("'--force[Overwrite existing config]'");
+    });
+  });
+
+  describe('flag presence - fish', () => {
+    it('fish prs completion includes --state and --json', () => {
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from prs' -l state");
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from prs' -l json");
+    });
+
+    it('fish prs completion includes --author, --label, --draft', () => {
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from prs' -l author");
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from prs' -l label");
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from prs' -l draft");
+    });
+
+    it('fish state completion includes --base-branch', () => {
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from state s' -l base-branch");
+    });
+
+    it('fish clean completion includes --delete-remote', () => {
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from clean c' -l delete-remote");
+    });
+
+    it('fish list completion includes --refresh', () => {
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from list ls' -l refresh");
+    });
+
+    it('fish config completion includes set, get, validate, migrate', () => {
+      for (const sub of ['set', 'get', 'validate', 'migrate']) {
+        expect(FISH_COMPLETION).toContain(`__fish_seen_subcommand_from config cfg' -a '${sub}'`);
+      }
+    });
+
+    it('fish init completion includes --local, --global, --force', () => {
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from init' -l local");
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from init' -l global");
+      expect(FISH_COMPLETION).toContain("__fish_seen_subcommand_from init' -l force");
+    });
+  });
+
+  describe('structural validity', () => {
+    it('bash completion is a valid bash script', () => {
+      expect(BASH_COMPLETION).toContain('###-begin-wt-completions-###');
+      expect(BASH_COMPLETION).toContain('###-end-wt-completions-###');
+    });
+
+    it('zsh completion starts with #compdef wt', () => {
+      expect(ZSH_COMPLETION.startsWith('#compdef wt')).toBe(true);
+    });
+
+    it('fish completion disables file completions', () => {
+      expect(FISH_COMPLETION).toContain('complete -c wt -f');
     });
   });
 });
