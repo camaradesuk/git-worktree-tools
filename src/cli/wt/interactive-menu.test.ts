@@ -3,10 +3,10 @@
  *
  * These tests verify that each menu flow:
  * 1. Gathers the correct user inputs
- * 2. Passes the correct arguments to subcommands
- * 3. Returns to menu after subcommand execution (not exit)
+ * 2. Calls the correct library functions with proper arguments
+ * 3. Returns to menu after operation execution (not exit)
  * 4. Handles cancellation and back navigation correctly
- * 5. Uses library calls for wtlink view/add/remove
+ * 5. Uses direct library calls (no subprocess spawning)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -28,17 +28,6 @@ vi.mock('../../lib/prompts.js', () => {
     UserNavigatedBack: MockUserNavigatedBack,
   };
 });
-
-vi.mock('./run-command.js', () => ({
-  runSubcommandForResult: vi.fn(() => ({
-    status: 0,
-    stdout: Buffer.from(''),
-    stderr: Buffer.from(''),
-    pid: 0,
-    output: [null, null, null],
-    signal: null,
-  })),
-}));
 
 vi.mock('../../lib/config.js', () => ({
   loadConfig: vi.fn(() => ({
@@ -75,6 +64,8 @@ vi.mock('../../lib/config.js', () => ({
 vi.mock('../../lib/git.js', () => ({
   getRepoRoot: vi.fn(() => '/mock/repo'),
   listLocalBranches: vi.fn(() => ['feat/existing-branch', 'fix/bug-fix', 'main', 'develop']),
+  removeWorktree: vi.fn(),
+  pruneWorktrees: vi.fn(),
 }));
 
 vi.mock('../../lib/wtlink/config-manifest.js', () => ({
@@ -86,12 +77,99 @@ vi.mock('../../lib/wtlink/config-manifest.js', () => ({
   saveManifestData: vi.fn(),
 }));
 
+// Mock direct library imports
+vi.mock('../../lib/lswt/index.js', () => ({
+  gatherWorktreeInfo: vi.fn(async () => []),
+  createDefaultDeps: vi.fn(() => ({})),
+  runInteractiveMode: vi.fn(async () => {}),
+}));
+
+vi.mock('../../lib/prs/command.js', () => ({
+  runPrsCommand: vi.fn(async () => {}),
+}));
+
+vi.mock('../newpr.js', () => ({
+  runNewprHandler: vi.fn(async () => {}),
+}));
+
+vi.mock('../../lib/cleanpr/index.js', () => ({
+  gatherPrWorktreeInfo: vi.fn(async () => []),
+  createDefaultDeps: vi.fn(() => ({})),
+  getCleanableWorktrees: vi.fn(() => []),
+  cleanWorktree: vi.fn(() => ({ success: true, message: 'Cleaned', prNumber: 42 })),
+  findWorktreeByPrNumber: vi.fn(() => null),
+  summarizeResults: vi.fn(() => ({ cleaned: 0, total: 0 })),
+}));
+
+vi.mock('../../lib/wtstate/index.js', () => ({
+  analyzeState: vi.fn(() => ({
+    scenario: 'main_clean_same',
+    scenarioDescription: 'On main, clean, same as origin',
+    currentBranch: 'main',
+    baseBranch: 'main',
+    worktreeType: 'main_worktree',
+    hasChanges: false,
+    hasStagedChanges: false,
+    hasUnstagedChanges: false,
+    localCommits: 0,
+    stagedFiles: [],
+    unstagedFiles: [],
+    availableActions: [],
+    recommendedAction: null,
+  })),
+  formatText: vi.fn(() => 'State: main_clean_same'),
+}));
+
+vi.mock('../../lib/wtlink/link-configs.js', () => ({
+  run: vi.fn(async () => {}),
+}));
+
+vi.mock('../../lib/wtlink/validate-manifest.js', () => ({
+  run: vi.fn(() => {}),
+}));
+
+vi.mock('../../lib/wtconfig/index.js', () => ({
+  formatConfigDisplay: vi.fn(() => '{ baseBranch: "main" }'),
+  setConfigValue: vi.fn((config: Record<string, unknown>, _key: string, _value: string) => config),
+  loadRepoConfig: vi.fn(() => ({})),
+  saveRepoConfig: vi.fn(),
+  validateConfig: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+}));
+
+vi.mock('../../lib/constants.js', () => ({
+  DEFAULT_MANIFEST_FILE: '.wtlinkrc',
+}));
+
+vi.mock('../../lib/ui/index.js', () => ({
+  printStatus: vi.fn(),
+}));
+
+vi.mock('child_process', () => ({
+  execSync: vi.fn(),
+}));
+
 // Import mocked modules
 import { promptChoice, promptInput, promptConfirm } from '../../lib/prompts.js';
-import { runSubcommandForResult } from './run-command.js';
 import { loadConfig } from '../../lib/config.js';
 import * as git from '../../lib/git.js';
 import { loadManifestData, saveManifestData } from '../../lib/wtlink/config-manifest.js';
+import { gatherWorktreeInfo, runInteractiveMode } from '../../lib/lswt/index.js';
+import { runPrsCommand } from '../../lib/prs/command.js';
+import { runNewprHandler } from '../newpr.js';
+import {
+  gatherPrWorktreeInfo,
+  getCleanableWorktrees,
+  summarizeResults,
+} from '../../lib/cleanpr/index.js';
+import { analyzeState, formatText } from '../../lib/wtstate/index.js';
+import { run as runWtlinkLink } from '../../lib/wtlink/link-configs.js';
+import { run as runWtlinkValidate } from '../../lib/wtlink/validate-manifest.js';
+import {
+  formatConfigDisplay,
+  setConfigValue,
+  loadRepoConfig,
+  saveRepoConfig,
+} from '../../lib/wtconfig/index.js';
 
 // Import flows after mocks are set up
 import { flows, showMainMenu } from './interactive-menu.js';
@@ -109,42 +187,50 @@ describe('Interactive Menu Flows', () => {
   });
 
   describe('handleListWorktrees', () => {
-    it('calls lswt subcommand and returns to menu', async () => {
+    it('calls gatherWorktreeInfo and runInteractiveMode and returns to menu', async () => {
       const result = await flows.handleListWorktrees();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('lswt', []);
+      expect(gatherWorktreeInfo).toHaveBeenCalledWith(
+        '/mock/repo',
+        { verbose: false, json: false, showStatus: false },
+        expect.anything()
+      );
+      expect(runInteractiveMode).toHaveBeenCalled();
       expect(result).toEqual({ completed: true, returnToMenu: true });
     });
 
-    it('returns to menu with error message when subcommand fails', async () => {
-      vi.mocked(runSubcommandForResult).mockReturnValueOnce({
-        status: 1,
-        stdout: Buffer.from(''),
-        stderr: Buffer.from(''),
-        pid: 0,
-        output: [null, null, null],
-        signal: null,
-      });
+    it('returns to menu with error message when library call fails', async () => {
+      vi.mocked(gatherWorktreeInfo).mockRejectedValueOnce(new Error('git error'));
       const result = await flows.handleListWorktrees();
       expect(result).toEqual({ completed: true, returnToMenu: true });
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('exit'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('git error'));
     });
   });
 
   describe('handleBrowsePRs', () => {
-    it('calls prs subcommand and returns to menu', async () => {
+    it('calls runPrsCommand and returns to menu', async () => {
       const result = await flows.handleBrowsePRs();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('prs', []);
+      expect(runPrsCommand).toHaveBeenCalledWith({
+        state: 'open',
+        limit: 50,
+        json: false,
+        noInteractive: false,
+      });
       expect(result).toEqual({ completed: true, returnToMenu: true });
     });
   });
 
   describe('handleShowState', () => {
-    it('calls wtstate subcommand and returns to menu', async () => {
+    it('calls analyzeState and formatText and returns to menu', async () => {
       const result = await flows.handleShowState();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('wtstate', []);
+      expect(analyzeState).toHaveBeenCalledWith({
+        verbose: false,
+        json: false,
+        baseBranch: 'main',
+      });
+      expect(formatText).toHaveBeenCalled();
       expect(result).toEqual({ completed: true, returnToMenu: true });
     });
   });
@@ -156,7 +242,7 @@ describe('Interactive Menu Flows', () => {
       const result = await flows.handleNewPR();
 
       expect(result).toEqual({ completed: false, returnToMenu: true });
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
+      expect(runNewprHandler).not.toHaveBeenCalled();
     });
 
     it('handles user cancellation (Ctrl+C)', async () => {
@@ -168,7 +254,7 @@ describe('Interactive Menu Flows', () => {
     });
 
     describe('from-description flow', () => {
-      it('gathers all inputs and calls newpr with correct args', async () => {
+      it('gathers all inputs and calls runNewprHandler with correct Options', async () => {
         vi.mocked(promptChoice)
           .mockResolvedValueOnce('from-description') // New PR sub-menu
           .mockResolvedValueOnce(true); // Draft PR selection
@@ -181,11 +267,20 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', ['Add dark mode support']);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'new',
+            description: 'Add dark mode support',
+            baseBranch: 'main',
+            draft: true,
+            installDeps: false,
+            openEditor: false,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
-      it('passes --ready flag when not draft', async () => {
+      it('passes ready flag when not draft', async () => {
         vi.mocked(promptChoice)
           .mockResolvedValueOnce('from-description')
           .mockResolvedValueOnce(false); // Ready for review (not draft)
@@ -196,14 +291,17 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-          'Fix critical bug',
-          '--ready',
-        ]);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'new',
+            description: 'Fix critical bug',
+            draft: false,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
-      it('passes --base flag when not main', async () => {
+      it('passes non-main base branch', async () => {
         vi.mocked(promptChoice)
           .mockResolvedValueOnce('from-description')
           .mockResolvedValueOnce(true);
@@ -214,15 +312,15 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-          'Feature work',
-          '--base',
-          'develop',
-        ]);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            baseBranch: 'develop',
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
-      it('passes --install flag when requested', async () => {
+      it('passes install flag when requested', async () => {
         vi.mocked(promptChoice)
           .mockResolvedValueOnce('from-description')
           .mockResolvedValueOnce(true);
@@ -233,11 +331,15 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', ['Add feature', '--install']);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            installDeps: true,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
-      it('passes --code flag when requested', async () => {
+      it('passes code flag when requested', async () => {
         vi.mocked(promptChoice)
           .mockResolvedValueOnce('from-description')
           .mockResolvedValueOnce(true);
@@ -246,7 +348,11 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', ['Add feature', '--code']);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            openEditor: true,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
@@ -263,14 +369,16 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-          'Full feature',
-          '--base',
-          'develop',
-          '--ready',
-          '--install',
-          '--code',
-        ]);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'new',
+            description: 'Full feature',
+            baseBranch: 'develop',
+            draft: false,
+            installDeps: true,
+            openEditor: true,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
@@ -281,7 +389,7 @@ describe('Interactive Menu Flows', () => {
         const result = await flows.handleNewPR();
 
         expect(result).toEqual({ completed: false, returnToMenu: true });
-        expect(runSubcommandForResult).not.toHaveBeenCalled();
+        expect(runNewprHandler).not.toHaveBeenCalled();
       });
 
       it('handles user cancellation during input', async () => {
@@ -295,18 +403,23 @@ describe('Interactive Menu Flows', () => {
     });
 
     describe('from-pr flow', () => {
-      it('gathers PR number and calls newpr with --pr flag', async () => {
+      it('gathers PR number and calls runNewprHandler with mode pr', async () => {
         vi.mocked(promptChoice).mockResolvedValueOnce('from-pr');
         vi.mocked(promptInput).mockResolvedValueOnce('42');
         vi.mocked(promptConfirm).mockResolvedValueOnce(false).mockResolvedValueOnce(false);
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', ['--pr', '42']);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'pr',
+            prNumber: 42,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
-      it('passes --install and --code flags', async () => {
+      it('passes install and code flags', async () => {
         vi.mocked(promptChoice).mockResolvedValueOnce('from-pr');
         vi.mocked(promptInput).mockResolvedValueOnce('123');
         vi.mocked(promptConfirm)
@@ -315,12 +428,14 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-          '--pr',
-          '123',
-          '--install',
-          '--code',
-        ]);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'pr',
+            prNumber: 123,
+            installDeps: true,
+            openEditor: true,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
@@ -331,7 +446,7 @@ describe('Interactive Menu Flows', () => {
         const result = await flows.handleNewPR();
 
         expect(result).toEqual({ completed: false, returnToMenu: true });
-        expect(runSubcommandForResult).not.toHaveBeenCalled();
+        expect(runNewprHandler).not.toHaveBeenCalled();
       });
 
       it('returns CANCELLED when PR number is invalid', async () => {
@@ -341,7 +456,7 @@ describe('Interactive Menu Flows', () => {
         const result = await flows.handleNewPR();
 
         expect(result).toEqual({ completed: false, returnToMenu: true });
-        expect(runSubcommandForResult).not.toHaveBeenCalled();
+        expect(runNewprHandler).not.toHaveBeenCalled();
       });
 
       it('returns CANCELLED when PR number is zero', async () => {
@@ -351,7 +466,7 @@ describe('Interactive Menu Flows', () => {
         const result = await flows.handleNewPR();
 
         expect(result).toEqual({ completed: false, returnToMenu: true });
-        expect(runSubcommandForResult).not.toHaveBeenCalled();
+        expect(runNewprHandler).not.toHaveBeenCalled();
       });
 
       it('returns CANCELLED when PR number is negative', async () => {
@@ -361,7 +476,7 @@ describe('Interactive Menu Flows', () => {
         const result = await flows.handleNewPR();
 
         expect(result).toEqual({ completed: false, returnToMenu: true });
-        expect(runSubcommandForResult).not.toHaveBeenCalled();
+        expect(runNewprHandler).not.toHaveBeenCalled();
       });
     });
 
@@ -375,10 +490,12 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-          '--branch',
-          'feat/existing-branch',
-        ]);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'branch',
+            branchName: 'feat/existing-branch',
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
@@ -393,14 +510,16 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-          '--branch',
-          'feat/my-new-branch',
-        ]);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'branch',
+            branchName: 'feat/my-new-branch',
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
-      it('passes --base and --ready flags', async () => {
+      it('passes non-main base branch and ready flag', async () => {
         vi.mocked(promptChoice)
           .mockResolvedValueOnce('from-branch')
           .mockResolvedValueOnce('fix/bug-fix')
@@ -409,13 +528,14 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleNewPR();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-          '--branch',
-          'fix/bug-fix',
-          '--base',
-          'develop',
-          '--ready',
-        ]);
+        expect(runNewprHandler).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'branch',
+            branchName: 'fix/bug-fix',
+            baseBranch: 'develop',
+            draft: false,
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
@@ -428,7 +548,7 @@ describe('Interactive Menu Flows', () => {
         const result = await flows.handleNewPR();
 
         expect(result).toEqual({ completed: false, returnToMenu: true });
-        expect(runSubcommandForResult).not.toHaveBeenCalled();
+        expect(runNewprHandler).not.toHaveBeenCalled();
       });
 
       it('handles empty branch list gracefully', async () => {
@@ -456,17 +576,17 @@ describe('Interactive Menu Flows', () => {
       const result = await flows.handleCleanPRs();
 
       expect(result).toEqual({ completed: false, returnToMenu: true });
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
+      expect(gatherPrWorktreeInfo).not.toHaveBeenCalled();
     });
 
     describe('clean-all', () => {
-      it('calls cleanpr with --all after confirmation and returns to menu', async () => {
+      it('calls cleanpr library after confirmation and returns to menu', async () => {
         vi.mocked(promptChoice).mockResolvedValueOnce('clean-all');
         vi.mocked(promptConfirm).mockResolvedValueOnce(true);
 
         const result = await flows.handleCleanPRs();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('cleanpr', ['--all']);
+        expect(gatherPrWorktreeInfo).toHaveBeenCalled();
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
@@ -477,7 +597,7 @@ describe('Interactive Menu Flows', () => {
         const result = await flows.handleCleanPRs();
 
         expect(result).toEqual({ completed: false, returnToMenu: true });
-        expect(runSubcommandForResult).not.toHaveBeenCalled();
+        expect(gatherPrWorktreeInfo).not.toHaveBeenCalled();
       });
     });
 
@@ -488,7 +608,7 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleCleanPRs();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('cleanpr', ['42']);
+        expect(gatherPrWorktreeInfo).toHaveBeenCalled();
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
@@ -512,12 +632,13 @@ describe('Interactive Menu Flows', () => {
     });
 
     describe('dry-run', () => {
-      it('calls cleanpr with --dry-run and returns to menu', async () => {
+      it('calls cleanpr with dry-run and returns to menu', async () => {
         vi.mocked(promptChoice).mockResolvedValueOnce('dry-run');
 
         const result = await flows.handleCleanPRs();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('cleanpr', ['--dry-run']);
+        expect(gatherPrWorktreeInfo).toHaveBeenCalled();
+        expect(getCleanableWorktrees).toHaveBeenCalled();
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
     });
@@ -538,7 +659,6 @@ describe('Interactive Menu Flows', () => {
       const result = await flows.handleLinkConfig();
 
       expect(result).toEqual({ completed: false, returnToMenu: true });
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
     });
 
     describe('view via library', () => {
@@ -581,30 +701,29 @@ describe('Interactive Menu Flows', () => {
     });
 
     describe('sync via wtlink link', () => {
-      it('calls wtlink link subcommand', async () => {
+      it('calls wtlink link library function', async () => {
         vi.mocked(promptChoice).mockResolvedValueOnce('sync');
 
         const result = await flows.handleLinkConfig();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('wtlink', ['link']);
+        expect(runWtlinkLink).toHaveBeenCalledWith(
+          expect.objectContaining({
+            manifestFile: '.wtlinkrc',
+            dryRun: false,
+            type: 'hard',
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
 
       it('shows error when sync fails', async () => {
-        vi.mocked(runSubcommandForResult).mockReturnValueOnce({
-          status: 1,
-          stdout: Buffer.from(''),
-          stderr: Buffer.from(''),
-          pid: 0,
-          output: [null, null, null],
-          signal: null,
-        });
+        vi.mocked(runWtlinkLink).mockRejectedValueOnce(new Error('Link failed'));
         vi.mocked(promptChoice).mockResolvedValueOnce('sync');
 
         const result = await flows.handleLinkConfig();
 
         expect(result).toEqual({ completed: true, returnToMenu: true });
-        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('sync failed'));
+        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Link failed'));
       });
     });
 
@@ -685,7 +804,11 @@ describe('Interactive Menu Flows', () => {
 
         const result = await flows.handleLinkConfig();
 
-        expect(runSubcommandForResult).toHaveBeenCalledWith('wtlink', ['validate']);
+        expect(runWtlinkValidate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            manifestFile: '.wtlinkrc',
+          })
+        );
         expect(result).toEqual({ completed: true, returnToMenu: true });
       });
     });
@@ -706,25 +829,25 @@ describe('Interactive Menu Flows', () => {
       const result = await flows.handleConfigure();
 
       expect(result).toEqual({ completed: false, returnToMenu: true });
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
     });
 
-    it('view calls wtconfig show and returns to menu', async () => {
+    it('view calls formatConfigDisplay and returns to menu', async () => {
       vi.mocked(promptChoice).mockResolvedValueOnce('view');
 
       const result = await flows.handleConfigure();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('wtconfig', ['show']);
+      expect(loadRepoConfig).toHaveBeenCalledWith('/mock/repo');
+      expect(formatConfigDisplay).toHaveBeenCalled();
       expect(result).toEqual({ completed: true, returnToMenu: true });
     });
 
-    it('init calls wtconfig init after confirmation and returns to menu', async () => {
+    it('init shows redirect message after confirmation and returns to menu', async () => {
       vi.mocked(promptChoice).mockResolvedValueOnce('init');
       vi.mocked(promptConfirm).mockResolvedValueOnce(true);
 
       const result = await flows.handleConfigure();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('wtconfig', ['init']);
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('wt init'));
       expect(result).toEqual({ completed: true, returnToMenu: true });
     });
 
@@ -735,20 +858,16 @@ describe('Interactive Menu Flows', () => {
       const result = await flows.handleConfigure();
 
       expect(result).toEqual({ completed: false, returnToMenu: true });
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
     });
 
-    it('edit calls wtconfig set with setting and value', async () => {
+    it('edit calls setConfigValue and saveRepoConfig with setting and value', async () => {
       vi.mocked(promptChoice).mockResolvedValueOnce('edit').mockResolvedValueOnce('baseBranch');
       vi.mocked(promptInput).mockResolvedValueOnce('develop');
 
       const result = await flows.handleConfigure();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('wtconfig', [
-        'set',
-        'baseBranch',
-        'develop',
-      ]);
+      expect(setConfigValue).toHaveBeenCalledWith({}, 'baseBranch', 'develop');
+      expect(saveRepoConfig).toHaveBeenCalled();
       expect(result).toEqual({ completed: true, returnToMenu: true });
     });
 
@@ -759,7 +878,7 @@ describe('Interactive Menu Flows', () => {
       const result = await flows.handleConfigure();
 
       expect(result).toEqual({ completed: false, returnToMenu: true });
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
+      expect(saveRepoConfig).not.toHaveBeenCalled();
     });
 
     it('handles user cancellation', async () => {
@@ -777,7 +896,7 @@ describe('Interactive Menu Flows', () => {
 
       await showMainMenu();
 
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
+      expect(runNewprHandler).not.toHaveBeenCalled();
     });
 
     it('exits on user cancellation', async () => {
@@ -785,7 +904,7 @@ describe('Interactive Menu Flows', () => {
 
       await showMainMenu();
 
-      expect(runSubcommandForResult).not.toHaveBeenCalled();
+      expect(runNewprHandler).not.toHaveBeenCalled();
     });
 
     it('re-throws non-cancellation errors', async () => {
@@ -813,7 +932,7 @@ describe('Interactive Menu Flows', () => {
 
       await showMainMenu();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('lswt', []);
+      expect(gatherWorktreeInfo).toHaveBeenCalled();
       expect(promptChoice).toHaveBeenCalledTimes(2);
     });
 
@@ -824,7 +943,7 @@ describe('Interactive Menu Flows', () => {
 
       await showMainMenu();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('prs', []);
+      expect(runPrsCommand).toHaveBeenCalled();
       expect(promptChoice).toHaveBeenCalledTimes(2);
     });
 
@@ -835,7 +954,7 @@ describe('Interactive Menu Flows', () => {
 
       await showMainMenu();
 
-      expect(runSubcommandForResult).toHaveBeenCalledWith('wtstate', []);
+      expect(analyzeState).toHaveBeenCalled();
       expect(promptChoice).toHaveBeenCalledTimes(2);
     });
   });
@@ -850,13 +969,12 @@ describe('Interactive Menu Flows', () => {
       expect(result.returnToMenu).toBe(true);
     });
 
-    it('flows that run subcommands return completed with returnToMenu=true', async () => {
+    it('flows that run operations return completed with returnToMenu=true', async () => {
       vi.mocked(promptChoice).mockResolvedValueOnce('dry-run');
 
       const result = await flows.handleCleanPRs();
 
       expect(result).toEqual({ completed: true, returnToMenu: true });
-      expect(runSubcommandForResult).toHaveBeenCalled();
     });
   });
 });
@@ -907,12 +1025,12 @@ describe('Config loading in flows', () => {
 
     // Verify loadConfig was called
     expect(loadConfig).toHaveBeenCalled();
-    // Since user entered 'develop' (matching config default), --base flag present
-    expect(runSubcommandForResult).toHaveBeenCalledWith('newpr', [
-      'Test feature',
-      '--base',
-      'develop',
-    ]);
+    // Verify runNewprHandler was called with develop base branch
+    expect(runNewprHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseBranch: 'develop',
+      })
+    );
     expect(result).toEqual({ completed: true, returnToMenu: true });
   });
 });
