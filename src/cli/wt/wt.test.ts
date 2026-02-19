@@ -1,10 +1,10 @@
 /**
  * Tests for wt unified command handlers
  *
- * Commands that still use spawnSync (new, link) are tested
+ * Commands that still use spawnSync (link) are tested
  * by verifying the argument array passed to spawnSync.
  *
- * Commands migrated to direct library calls (list, state, clean) are tested
+ * Commands migrated to direct library calls (list, state, clean, new) are tested
  * by mocking the library modules they call.
  */
 
@@ -15,6 +15,11 @@ import yargs, { type CommandModule } from 'yargs';
 vi.mock('child_process', () => ({
   spawnSync: vi.fn(() => ({ status: 0 }) as SpawnSyncReturns<Buffer>),
   execSync: vi.fn(),
+}));
+
+// Mock newpr.ts for new command (direct library call)
+vi.mock('../newpr.js', () => ({
+  runNewprHandler: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock library dependencies for list command (direct library calls)
@@ -172,6 +177,7 @@ import { analyzeState, formatText } from '../../lib/wtstate/index.js';
 import { gatherPrWorktreeInfo, getCleanableWorktrees } from '../../lib/cleanpr/index.js';
 import { setJsonMode, printError } from '../../lib/ui/index.js';
 import { createSuccessResult, formatJsonResult } from '../../lib/json-output.js';
+import { runNewprHandler } from '../newpr.js';
 import * as git from '../../lib/git.js';
 import * as github from '../../lib/github.js';
 
@@ -207,33 +213,39 @@ describe('wt subcommand handlers', () => {
       expect(true).toBe(true);
     });
 
-    it('passes description to newpr', () => {
-      newCommand.handler({
+    it('calls runNewprHandler with description', async () => {
+      await newCommand.handler({
         description: 'Add dark mode',
         json: false,
         'non-interactive': false,
         draft: false,
       } as never);
 
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['Add dark mode']),
-        expect.any(Object)
-      );
-      expect(mockExit).toHaveBeenCalledWith(0);
-    });
-
-    it('passes --pr flag to newpr', () => {
-      newCommand.handler({ pr: 42, json: false, 'non-interactive': false, draft: false } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--pr', '42']),
-        expect.any(Object)
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'new',
+          description: 'Add dark mode',
+        })
       );
     });
 
-    it('passes --ready flag to newpr', () => {
-      newCommand.handler({
+    it('calls runNewprHandler with pr mode for --pr flag', async () => {
+      await newCommand.handler({
+        pr: 42,
+        json: false,
+        'non-interactive': false,
+        draft: false,
+      } as never);
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'pr',
+          prNumber: 42,
+        })
+      );
+    });
+
+    it('maps --ready flag to draft=false and draftExplicitlySet=true', async () => {
+      await newCommand.handler({
         ready: true,
         json: false,
         'non-interactive': false,
@@ -243,15 +255,16 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--ready']),
-        expect.any(Object)
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          draft: false,
+          draftExplicitlySet: true,
+        })
       );
     });
 
-    it('passes --base flag to newpr', () => {
-      newCommand.handler({
+    it('maps --base flag to baseBranch option', async () => {
+      await newCommand.handler({
         base: 'develop',
         json: false,
         'non-interactive': false,
@@ -262,15 +275,13 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--base', 'develop']),
-        expect.any(Object)
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ baseBranch: 'develop' })
       );
     });
 
-    it('passes --branch flag to newpr', () => {
-      newCommand.handler({
+    it('maps --branch flag to branch mode', async () => {
+      await newCommand.handler({
         branch: 'feat/my-feature',
         json: false,
         'non-interactive': false,
@@ -281,15 +292,16 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--branch', 'feat/my-feature']),
-        expect.any(Object)
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'branch',
+          branchName: 'feat/my-feature',
+        })
       );
     });
 
-    it('passes --install flag to newpr', () => {
-      newCommand.handler({
+    it('maps --install flag to installDeps option', async () => {
+      await newCommand.handler({
         install: true,
         json: false,
         'non-interactive': false,
@@ -299,15 +311,11 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--install']),
-        expect.any(Object)
-      );
+      expect(runNewprHandler).toHaveBeenCalledWith(expect.objectContaining({ installDeps: true }));
     });
 
-    it('passes --code flag to newpr', () => {
-      newCommand.handler({
+    it('maps --code flag to openEditor option', async () => {
+      await newCommand.handler({
         code: true,
         json: false,
         'non-interactive': false,
@@ -317,15 +325,11 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--code']),
-        expect.any(Object)
-      );
+      expect(runNewprHandler).toHaveBeenCalledWith(expect.objectContaining({ openEditor: true }));
     });
 
-    it('passes --no-wtlink flag to newpr', () => {
-      newCommand.handler({
+    it('maps --no-wtlink flag to runWtlink=false option', async () => {
+      await newCommand.handler({
         'no-wtlink': true,
         json: false,
         'non-interactive': false,
@@ -335,15 +339,11 @@ describe('wt subcommand handlers', () => {
         ready: false,
         'no-hooks': false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--no-wtlink']),
-        expect.any(Object)
-      );
+      expect(runNewprHandler).toHaveBeenCalledWith(expect.objectContaining({ runWtlink: false }));
     });
 
-    it('passes --no-hooks flag to newpr', () => {
-      newCommand.handler({
+    it('maps --no-hooks flag to noHooks option', async () => {
+      await newCommand.handler({
         'no-hooks': true,
         json: false,
         'non-interactive': false,
@@ -353,80 +353,85 @@ describe('wt subcommand handlers', () => {
         ready: false,
         'no-wtlink': false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--no-hooks']),
-        expect.any(Object)
+      expect(runNewprHandler).toHaveBeenCalledWith(expect.objectContaining({ noHooks: true }));
+    });
+
+    it('maps --json flag to json option', async () => {
+      await newCommand.handler({
+        json: true,
+        'non-interactive': false,
+        draft: false,
+      } as never);
+      expect(runNewprHandler).toHaveBeenCalledWith(expect.objectContaining({ json: true }));
+      expect(setJsonMode).toHaveBeenCalledWith(true);
+    });
+
+    it('maps --non-interactive flag to nonInteractive option', async () => {
+      await newCommand.handler({
+        json: false,
+        'non-interactive': true,
+        draft: false,
+      } as never);
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ nonInteractive: true })
       );
     });
 
-    it('passes --json flag to newpr', () => {
-      newCommand.handler({ json: true, 'non-interactive': false, draft: false } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--json']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --non-interactive flag to newpr', () => {
-      newCommand.handler({ json: false, 'non-interactive': true, draft: false } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--non-interactive']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --action flag to newpr', () => {
-      newCommand.handler({
+    it('maps --action flag to action option', async () => {
+      await newCommand.handler({
         action: 'commit_all',
         json: false,
         'non-interactive': false,
         draft: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--action', 'commit_all']),
-        expect.any(Object)
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'commit_all' })
       );
     });
 
-    it('passes --draft flag to newpr', () => {
-      newCommand.handler({ json: false, 'non-interactive': false, draft: true } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--draft']),
-        expect.any(Object)
+    it('maps --draft flag to draft=true and draftExplicitlySet=true', async () => {
+      await newCommand.handler({
+        json: false,
+        'non-interactive': false,
+        draft: true,
+      } as never);
+      expect(runNewprHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          draft: true,
+          draftExplicitlySet: true,
+        })
       );
     });
 
-    it('passes --plan flag to newpr', () => {
-      newCommand.handler({
+    it('maps --plan flag to generatePlan option', async () => {
+      await newCommand.handler({
         json: false,
         'non-interactive': false,
         draft: false,
         plan: true,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--plan']),
-        expect.any(Object)
-      );
+      expect(runNewprHandler).toHaveBeenCalledWith(expect.objectContaining({ generatePlan: true }));
     });
 
-    it('passes --confirm-hooks flag to newpr', () => {
-      newCommand.handler({
+    it('maps --confirm-hooks flag to confirmHooks option', async () => {
+      await newCommand.handler({
         json: false,
         'non-interactive': false,
         draft: false,
         'confirm-hooks': true,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--confirm-hooks']),
-        expect.any(Object)
-      );
+      expect(runNewprHandler).toHaveBeenCalledWith(expect.objectContaining({ confirmHooks: true }));
+    });
+
+    it('does not spawn a child process', async () => {
+      vi.mocked(spawnSync).mockClear();
+      await newCommand.handler({
+        description: 'Test',
+        json: false,
+        'non-interactive': false,
+        draft: false,
+      } as never);
+      expect(spawnSync).not.toHaveBeenCalled();
     });
   });
 

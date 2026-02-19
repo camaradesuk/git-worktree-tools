@@ -1,11 +1,14 @@
 /**
  * wt new - Create a new PR with worktree
  *
- * Wraps the newpr CLI tool functionality
+ * Calls runNewprHandler directly (in-process, no subprocess spawning)
  */
 
 import type { CommandModule } from 'yargs';
-import { runSubcommand } from './run-command.js';
+import { runNewprHandler } from '../newpr.js';
+import type { Options } from '../../lib/newpr/index.js';
+import { setJsonMode, printError } from '../../lib/ui/index.js';
+import { createErrorResult, formatJsonResult, ErrorCode } from '../../lib/json-output.js';
 
 interface NewArgs {
   description?: string;
@@ -138,96 +141,69 @@ export const newCommand: CommandModule<object, NewArgs> = {
       .example('$0 new "Fix" --non-interactive --json', 'Automation mode')
       .example('$0 new "Fix" -y --action=commit_staged', 'Non-interactive with explicit action');
   },
-  handler: (argv) => {
-    const args: string[] = [];
-
-    if (argv.description) {
-      args.push(argv.description);
+  handler: async (argv) => {
+    // Validate PR number if provided (yargs may parse non-numeric strings as NaN)
+    if (argv.pr !== undefined && (isNaN(argv.pr) || argv.pr <= 0)) {
+      const useJson = !!argv.json;
+      if (useJson) {
+        console.log(
+          formatJsonResult(
+            createErrorResult(
+              'newpr',
+              ErrorCode.INVALID_ARGUMENT,
+              'PR number must be a positive integer'
+            )
+          )
+        );
+      } else {
+        printError({ title: 'PR number must be a positive integer' });
+      }
+      process.exit(1);
     }
 
+    // Determine mode from argv
+    let mode: Options['mode'] = 'new';
     if (argv.pr !== undefined) {
-      args.push('--pr', String(argv.pr));
+      mode = 'pr';
+    } else if (argv.branch) {
+      mode = 'branch';
     }
 
-    if (argv.branch) {
-      args.push('--branch', argv.branch);
-    }
-
-    if (argv.base) {
-      args.push('--base', argv.base);
-    }
-
-    if (argv.install) {
-      args.push('--install');
-    }
-
-    if (argv.code) {
-      args.push('--code');
-    }
-
-    if (argv.ready) {
-      args.push('--ready');
-    }
-
+    // Determine draft/draftExplicitlySet from argv
+    let draft = false;
+    let draftExplicitlySet = false;
     if (argv.draft) {
-      args.push('--draft');
+      draft = true;
+      draftExplicitlySet = true;
+    } else if (argv.ready) {
+      draft = false;
+      draftExplicitlySet = true;
     }
 
-    if (argv['no-wtlink']) {
-      args.push('--no-wtlink');
-    }
+    const options: Options = {
+      mode,
+      description: argv.description,
+      prNumber: argv.pr,
+      branchName: argv.branch,
+      baseBranch: argv.base || 'main',
+      draft,
+      draftExplicitlySet,
+      installDeps: !!argv.install,
+      openEditor: !!argv.code,
+      runWtlink: !argv['no-wtlink'],
+      json: !!argv.json,
+      nonInteractive: !!argv['non-interactive'],
+      action: argv.action as Options['action'],
+      noHooks: !!argv['no-hooks'],
+      confirmHooks: !!argv['confirm-hooks'],
+      generatePlan: argv.plan,
+      noPlan: argv['no-plan'],
+      verbose: !!argv.verbose,
+      quiet: !!argv.quiet,
+      noColor: !!argv.noColor,
+    };
 
-    if (argv['no-hooks']) {
-      args.push('--no-hooks');
-    }
-
-    if (argv['confirm-hooks']) {
-      args.push('--confirm-hooks');
-    }
-
-    if (argv.plan) {
-      args.push('--plan');
-    }
-
-    if (argv['no-plan']) {
-      args.push('--no-plan');
-    }
-
-    if (argv.json) {
-      args.push('--json');
-    }
-
-    if (argv['non-interactive']) {
-      args.push('--non-interactive');
-    }
-
-    if (argv.action) {
-      args.push('--action', argv.action);
-    }
-
-    // Forward global logging flags to child process
-    if (argv.verbose) {
-      args.push('--verbose');
-    }
-    if (argv.quiet) {
-      args.push('--quiet');
-    }
-    if (argv.noColor) {
-      args.push('--no-color');
-    }
-
-    // Belt-and-suspenders: also set env vars for child process
-    const envOverrides: Record<string, string> = {};
-    if (argv.verbose) {
-      envOverrides.GWT_LOG_LEVEL = 'debug';
-    }
-    if (argv.quiet) {
-      envOverrides.GWT_LOG_LEVEL = 'error';
-    }
-    if (argv.noColor) {
-      envOverrides.NO_COLOR = '1';
-    }
-
-    runSubcommand('newpr', args, envOverrides);
+    setJsonMode(options.json);
+    await runNewprHandler(options);
   },
 };

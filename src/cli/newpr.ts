@@ -1210,37 +1210,17 @@ function exitWithError(message: string, code: ErrorCode, useJson: boolean): neve
 }
 
 /**
- * Main entry point
+ * Run the newpr handler with already-parsed options.
+ *
+ * This is the core newpr workflow, callable both from the standalone CLI
+ * entry point and from the `wt new` handler (in-process delegation).
+ *
+ * Callers are responsible for:
+ * - Initializing the logger (initializeLogger)
+ * - Setting JSON mode (setJsonMode)
+ * - Setting color enabled state (setColorEnabled)
  */
-async function main(): Promise<void> {
-  const rawArgs = process.argv.slice(2);
-  const useJson = hasJsonFlag(rawArgs);
-  const result = parseArgs(rawArgs);
-
-  if (result.kind === 'help') {
-    console.log(getHelpText());
-    process.exit(0);
-  }
-
-  if (result.kind === 'error') {
-    exitWithError(result.message, ErrorCode.INVALID_ARGUMENT, useJson);
-  }
-
-  const { options } = result;
-
-  // Initialize logger
-  initializeLogger({
-    verbose: options.verbose,
-    quiet: options.quiet,
-    noColor: options.noColor,
-    json: options.json,
-    commandName: 'newpr',
-  });
-  setJsonMode(options.json);
-  if (options.noColor) {
-    setColorEnabled(false);
-  }
-
+export async function runNewprHandler(options: Options): Promise<void> {
   // Apply config.draftPr if user didn't explicitly set --draft or --ready
   try {
     const repoRoot = git.getRepoRoot();
@@ -1284,21 +1264,60 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  // Determine if JSON output is expected
-  const useJson = hasJsonFlag(process.argv.slice(2));
+/**
+ * Main entry point (standalone CLI)
+ */
+async function main(): Promise<void> {
+  const rawArgs = process.argv.slice(2);
+  const useJson = hasJsonFlag(rawArgs);
+  const result = parseArgs(rawArgs);
 
-  if (error instanceof NonInteractiveError) {
-    exitWithError(error.message, error.code, useJson);
+  if (result.kind === 'help') {
+    console.log(getHelpText());
+    process.exit(0);
   }
 
-  if (useJson) {
-    const message = error instanceof Error ? error.message : String(error);
-    const code = getErrorCodeFromError(error);
-    exitWithError(message, code, useJson);
-  } else {
-    const display = errorToDisplay(error);
-    printError(display);
-    process.exit(1);
+  if (result.kind === 'error') {
+    exitWithError(result.message, ErrorCode.INVALID_ARGUMENT, useJson);
   }
-});
+
+  const { options } = result;
+
+  // Initialize logger (only when run as standalone CLI)
+  initializeLogger({
+    verbose: options.verbose,
+    quiet: options.quiet,
+    noColor: options.noColor,
+    json: options.json,
+    commandName: 'newpr',
+  });
+  setJsonMode(options.json);
+  if (options.noColor) {
+    setColorEnabled(false);
+  }
+
+  await runNewprHandler(options);
+}
+
+// Only run main() when this file is executed directly (not when imported)
+const isMain = import.meta.url.endsWith(process.argv[1]?.replace(/\\/g, '/') || '');
+if (isMain || process.argv[1]?.endsWith('newpr.js')) {
+  main().catch((error) => {
+    // Determine if JSON output is expected
+    const useJson = hasJsonFlag(process.argv.slice(2));
+
+    if (error instanceof NonInteractiveError) {
+      exitWithError(error.message, error.code, useJson);
+    }
+
+    if (useJson) {
+      const message = error instanceof Error ? error.message : String(error);
+      const code = getErrorCodeFromError(error);
+      exitWithError(message, code, useJson);
+    } else {
+      const display = errorToDisplay(error);
+      printError(display);
+      process.exit(1);
+    }
+  });
+}

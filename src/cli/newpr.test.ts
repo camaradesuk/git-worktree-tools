@@ -253,7 +253,7 @@ describe('cli/newpr', () => {
   });
 
   async function runCli(args: string[] = []): Promise<void> {
-    process.argv = ['node', 'newpr', ...args];
+    process.argv = ['node', '/path/to/newpr.js', ...args];
     await import('./newpr.js');
     // Allow time for all async operations to complete
     await new Promise((resolve) => setTimeout(resolve, 100));
