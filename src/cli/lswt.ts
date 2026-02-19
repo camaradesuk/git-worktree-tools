@@ -5,6 +5,7 @@
  * CLI thin wrapper - orchestration and side effects only
  */
 
+import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import { setColorEnabled } from '../lib/colors.js';
@@ -42,6 +43,7 @@ function outputJsonError(code: ErrorCode, message: string): void {
 }
 
 async function main(): Promise<void> {
+  printDeprecationNotice('lswt', 'wt list');
   const rawArgs = process.argv.slice(2);
   const jsonMode = hasJsonFlag(rawArgs);
   const result = parseArgs(rawArgs);

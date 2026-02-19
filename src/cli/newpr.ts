@@ -7,6 +7,7 @@
 
 import path from 'path';
 import fs from 'fs';
+import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as colors from '../lib/colors.js';
@@ -1268,6 +1269,7 @@ export async function runNewprHandler(options: Options): Promise<void> {
  * Main entry point (standalone CLI)
  */
 async function main(): Promise<void> {
+  printDeprecationNotice('newpr', 'wt new');
   const rawArgs = process.argv.slice(2);
   const useJson = hasJsonFlag(rawArgs);
   const result = parseArgs(rawArgs);

@@ -120,5 +120,7 @@ WHAT IT REMOVES
   - Git worktree directory
   - Local branch associated with the PR
   - Remote branch (with --remote flag)
+
+DEPRECATED: Use "wt clean" instead. This command will be removed in a future version.
 `;
 }

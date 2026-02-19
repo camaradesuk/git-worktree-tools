@@ -98,5 +98,7 @@ AI/Automation workflow:
 
   # 3. Execute with chosen action
   newpr "Fix bug" --non-interactive --action=$ACTION --json
+
+DEPRECATED: Use "wt state" instead. This command will be removed in a future version.
 `.trim();
 }

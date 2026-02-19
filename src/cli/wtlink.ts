@@ -15,6 +15,7 @@
 
 import yargs, { ArgumentsCamelCase } from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as colors from '../lib/colors.js';
 import { setColorEnabled } from '../lib/colors.js';
 import { initializeLogger } from '../lib/logger.js';
@@ -74,6 +75,8 @@ interface MigrateArgv extends GlobalOptions {
   deleteLegacy: boolean;
   dryRun: boolean;
 }
+
+printDeprecationNotice('wtlink', 'wt link');
 
 yargs(hideBin(process.argv))
   .scriptName('wtlink')
@@ -272,6 +275,7 @@ yargs(hideBin(process.argv))
     }
   )
   .wrap(Math.max(40, Math.min(100, process.stdout.columns ?? 100)))
+  .epilog('DEPRECATED: Use "wt link" instead. This command will be removed in a future version.')
   .help()
   .alias('h', 'help')
   .strict()

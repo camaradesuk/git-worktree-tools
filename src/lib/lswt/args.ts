@@ -118,5 +118,7 @@ OUTPUT
   - Branch name
   - Path (relative or absolute based on context)
   - Uncommitted changes indicator
+
+DEPRECATED: Use "wt list" instead. This command will be removed in a future version.
 `;
 }

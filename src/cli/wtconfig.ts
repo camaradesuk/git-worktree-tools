@@ -15,6 +15,7 @@
 
 import { execSync } from 'child_process';
 import inquirer from 'inquirer';
+import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as colors from '../lib/colors.js';
 import * as git from '../lib/git.js';
 import { getDefaultConfig, type ResolvedConfig } from '../lib/config.js';
@@ -81,6 +82,7 @@ main().catch((error) => {
 });
 
 async function main(): Promise<void> {
+  printDeprecationNotice('wtconfig', 'wt config');
   switch (command) {
     case 'init':
     case 'wizard':
@@ -169,6 +171,8 @@ ${colors.cyan('Examples:')}
   wtconfig migrate                       # Interactive migration
   wtconfig migrate --dry-run             # Preview migration changes
   wtconfig migrate --yes --delete-legacy # Auto-approve and cleanup
+
+${colors.warning('DEPRECATED: Use "wt config" instead. This command will be removed in a future version.')}
 `);
 }
 

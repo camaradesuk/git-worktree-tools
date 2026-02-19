@@ -246,5 +246,7 @@ Examples:
   # AI/Automation usage
   newpr "Add dark mode" --non-interactive --json
   newpr "Fix bug" --non-interactive --action=commit_staged --json
+
+DEPRECATED: Use "wt new" instead. This command will be removed in a future version.
 `.trim();
 }

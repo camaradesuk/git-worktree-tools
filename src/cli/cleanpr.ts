@@ -8,6 +8,7 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 
+import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as prompts from '../lib/prompts.js';
@@ -433,6 +434,7 @@ function hasJsonFlag(args: string[]): boolean {
 }
 
 async function main(): Promise<void> {
+  printDeprecationNotice('cleanpr', 'wt clean');
   const rawArgs = process.argv.slice(2);
   const useJson = hasJsonFlag(rawArgs);
   const parseResult = parseArgs(rawArgs);

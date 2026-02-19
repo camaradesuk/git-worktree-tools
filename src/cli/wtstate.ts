@@ -5,6 +5,7 @@
  * CLI thin wrapper - orchestration and side effects only
  */
 
+import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as git from '../lib/git.js';
 import * as colors from '../lib/colors.js';
 import { parseArgs, getHelpText, analyzeState, formatText } from '../lib/wtstate/index.js';
@@ -20,6 +21,7 @@ import {
  * Main entry point
  */
 async function main(): Promise<void> {
+  printDeprecationNotice('wtstate', 'wt state');
   const result = parseArgs(process.argv.slice(2));
 
   if (result.kind === 'help') {
