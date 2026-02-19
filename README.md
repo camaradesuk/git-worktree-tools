@@ -93,18 +93,17 @@ The menu provides guided workflows for:
 ### Global Options
 
 ```bash
-wt -v               # Verbose output (debug level)
-wt -vv              # Very verbose (trace level)
-wt --debug          # Debug output
+wt -v, --verbose    # Verbose output (debug level)
 wt -q, --quiet      # Suppress non-essential output
-wt --log-file FILE  # Write logs to file
+wt --no-color       # Disable colored output
+wt --json           # JSON output (where supported)
 ```
 
 ---
 
 ## Commands Reference
 
-### wt new / newpr
+### wt new
 
 Create a new PR with an associated worktree.
 
@@ -123,7 +122,7 @@ wt new --install --code      # Install deps and open editor
 - On a feature branch? Create PR for it or start new
 - Detached HEAD? Create branch from current commit or main
 
-### wt list / lswt
+### wt list
 
 List and manage git worktrees with an interactive interface.
 
@@ -144,7 +143,7 @@ wt ls --verbose           # Show more details
 | `p` | Open PR in browser / Create PR from branch |
 | `d` | Show worktree details                      |
 | `c` | Copy path to clipboard                     |
-| `l` | Link config files (via wtlink)             |
+| `l` | Link config files (via wt link)            |
 | `r` | Remove worktree (not available for main)   |
 | `/` | Fuzzy search worktrees                     |
 | `q` | Quit                                       |
@@ -194,7 +193,7 @@ wt prs --no-interactive   # Plain table output
 - Shows CI/checks status (passing, failing, pending)
 - Highlights configurable label (default: "preview")
 
-### wt clean / cleanpr
+### wt clean
 
 Clean up worktrees for merged or closed PRs.
 
@@ -205,7 +204,7 @@ wt clean --force      # Force remove even if not merged
 wt clean --dry-run    # Preview what would be cleaned
 ```
 
-### wt link / wtlink
+### wt link
 
 Interactive CLI for managing configuration file links between git worktrees.
 
@@ -232,16 +231,16 @@ wt link migrate               # Migrate legacy .wtlinkrc to .worktreerc
 - `enabled` — Files that are hard-linked between worktrees
 - `disabled` — Files tracked but not currently linked (toggle on/off via manage)
 
-**Legacy format (`.wtlinkrc`):** Still supported for backwards compatibility. Run `wtlink migrate` to convert to the new JSON format.
+**Legacy format (`.wtlinkrc`):** Still supported for backwards compatibility. Run `wt link migrate` to convert to the new JSON format.
 
 **Best practices:**
 
 - **Good for linking:** `.vscode/settings.json`, `.editorconfig`, `.env.local`, certificates
 - **Not for linking:** `node_modules/`, `dist/`, `build/`, `.git/`
 
-See [wtlink documentation](#wtlink-details) for full details.
+See [link details](#link-details) for full details.
 
-### wt state / wtstate
+### wt state
 
 Query the current git state for AI agents and automation.
 
@@ -284,6 +283,28 @@ wt init            # Interactive initialization
 wt init --local    # Create local config (gitignored)
 wt init --global   # Create global config
 wt init --force    # Overwrite existing config
+```
+
+---
+
+## Legacy Commands (Deprecated)
+
+The following standalone commands are deprecated and will be removed in a future version.
+Use the `wt` equivalents instead:
+
+| Legacy Command | Replacement | Notes                       |
+| -------------- | ----------- | --------------------------- |
+| `newpr`        | `wt new`    | Same options, same behavior |
+| `cleanpr`      | `wt clean`  | Same options, same behavior |
+| `lswt`         | `wt list`   | Same options, same behavior |
+| `wtlink`       | `wt link`   | Same options, same behavior |
+| `wtstate`      | `wt state`  | Same options, same behavior |
+| `wtconfig`     | `wt config` | Same options, same behavior |
+
+Legacy commands show a deprecation notice on stderr. Suppress with:
+
+```bash
+export GWT_NO_DEPRECATION_WARNINGS=1
 ```
 
 ---
@@ -414,7 +435,7 @@ Run custom commands at various points in the workflow:
 
 **Levels:** `silent`, `error`, `warn`, `info`, `debug`, `trace`
 
-CLI flags override config: `-v` (debug), `-vv` (trace), `-q` (silent), `--log-file`
+CLI flags override config: `-v` (debug), `-q` (silent), `--no-color`
 
 ---
 
@@ -500,9 +521,9 @@ wt completion fish > ~/.config/fish/completions/wt.fish
 
 ---
 
-## wtlink Details
+## Link Details
 
-The `wtlink` command provides an interactive TUI for managing configuration file links.
+The `wt link` command provides an interactive TUI for managing configuration file links.
 
 ### Interactive UI Navigation
 
@@ -523,24 +544,24 @@ The `wtlink` command provides an interactive TUI for managing configuration file
 
 ```bash
 # manage - Discover and manage the manifest
-wtlink manage                   # Interactive mode
-wtlink manage --non-interactive # Auto-add new files as commented
-wtlink manage --clean           # Remove stale entries
-wtlink manage --dry-run         # Preview changes
+wt link manage                   # Interactive mode
+wt link manage --non-interactive # Auto-add new files as commented
+wt link manage --clean           # Remove stale entries
+wt link manage --dry-run         # Preview changes
 
 # link - Create links between worktrees
-wtlink link [source] [dest]     # Link from source to destination
-wtlink link --dry-run           # Preview what would be linked
-wtlink link --type symbolic     # Use symlinks instead of hard links
-wtlink link --yes               # Skip confirmation prompts
+wt link link [source] [dest]     # Link from source to destination
+wt link link --dry-run           # Preview what would be linked
+wt link link --type symbolic     # Use symlinks instead of hard links
+wt link link --yes               # Skip confirmation prompts
 
 # validate - Check manifest integrity
-wtlink validate                 # Validate against current worktree
+wt link validate                 # Validate against current worktree
 
 # migrate - Convert legacy .wtlinkrc to .worktreerc
-wtlink migrate                  # Migrate to new JSON format
-wtlink migrate --delete-legacy  # Also delete old .wtlinkrc file
-wtlink migrate --dry-run        # Preview migration
+wt link migrate                  # Migrate to new JSON format
+wt link migrate --delete-legacy  # Also delete old .wtlinkrc file
+wt link migrate --dry-run        # Preview migration
 ```
 
 ---
