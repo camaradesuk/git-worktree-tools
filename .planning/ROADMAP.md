@@ -111,13 +111,14 @@ Plans:
 2. Running `newpr`, `cleanpr`, `lswt`, or `wtlink` prints a deprecation notice directing users to the `wt` equivalent before completing normally
 3. `--verbose`, `--quiet`, `--json`, and `--no-color` flags work identically whether invoked through `wt <subcommand>` or through a legacy alias
 4. README and all `--help` output present `wt` as the canonical entry point with legacy commands listed as deprecated aliases
-   **Plans**: TBD
+   **Plans**: 4 plans
 
 Plans:
 
-- [ ] 05-01: Replace `runSubcommand('lswt', args)` in `wt/list.ts` with direct `gatherWorktreeInfo()` + `printWorktreeTable()` calls; add TTY-aware behavior tests
-- [ ] 05-02: Replace `runSubcommand` calls in `wt/clean.ts` and `wt/state.ts` with direct library function imports
-- [ ] 05-03: Add deprecation notice to `newpr`, `cleanpr`, `lswt`, `wtlink` bin entry points; update README to present `wt` as canonical
+- [ ] 05-01-PLAN.md — Extract printTable to shared module; migrate wt/list.ts and wt/state.ts to direct library calls
+- [ ] 05-02-PLAN.md — Migrate wt/clean.ts and wt/config.ts to direct library calls
+- [ ] 05-03-PLAN.md — Extract runNewprHandler; migrate wt/new.ts and wt/link.ts to direct library calls
+- [ ] 05-04-PLAN.md — Deprecation notices on all legacy CLIs; migrate interactive menu to direct calls; update README
 
 ## Progress
 
@@ -130,4 +131,4 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | 2. Shared UI Primitives           | 3/3            | ✓ Complete  | 2026-02-18 |
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete  | 2026-02-18 |
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete  | 2026-02-18 |
-| 5. In-Process Delegation          | 0/3            | Not started | -          |
+| 5. In-Process Delegation          | 0/4            | Not started | -          |
