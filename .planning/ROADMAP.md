@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Shared UI Primitives** - Extract a `src/lib/ui/` module with consistent output formatting functions used by all commands
 - [x] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
 - [x] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
-- [ ] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
+- [x] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
 
 ## Phase Details
 
@@ -115,20 +115,20 @@ Plans:
 
 Plans:
 
-- [ ] 05-01-PLAN.md — Extract printTable to shared module; migrate wt/list.ts and wt/state.ts to direct library calls
-- [ ] 05-02-PLAN.md — Migrate wt/clean.ts and wt/config.ts to direct library calls
-- [ ] 05-03-PLAN.md — Extract runNewprHandler; migrate wt/new.ts and wt/link.ts to direct library calls
-- [ ] 05-04-PLAN.md — Deprecation notices on all legacy CLIs; migrate interactive menu to direct calls; update README
+- [x] 05-01-PLAN.md — Extract printTable to shared module; migrate wt/list.ts and wt/state.ts to direct library calls
+- [x] 05-02-PLAN.md — Migrate wt/clean.ts and wt/config.ts to direct library calls
+- [x] 05-03-PLAN.md — Extract runNewprHandler; migrate wt/new.ts and wt/link.ts to direct library calls
+- [x] 05-04-PLAN.md — Deprecation notices on all legacy CLIs; migrate interactive menu to direct calls; update README
 
 ## Progress
 
 **Execution Order:**
 Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 
-| Phase                             | Plans Complete | Status      | Completed  |
-| --------------------------------- | -------------- | ----------- | ---------- |
-| 1. Logger Wiring                  | 3/3            | ✓ Complete  | 2026-02-18 |
-| 2. Shared UI Primitives           | 3/3            | ✓ Complete  | 2026-02-18 |
-| 3. Interactive Menu Reliability   | 3/3            | ✓ Complete  | 2026-02-18 |
-| 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete  | 2026-02-18 |
-| 5. In-Process Delegation          | 0/4            | Not started | -          |
+| Phase                             | Plans Complete | Status     | Completed  |
+| --------------------------------- | -------------- | ---------- | ---------- |
+| 1. Logger Wiring                  | 3/3            | ✓ Complete | 2026-02-18 |
+| 2. Shared UI Primitives           | 3/3            | ✓ Complete | 2026-02-18 |
+| 3. Interactive Menu Reliability   | 3/3            | ✓ Complete | 2026-02-18 |
+| 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
+| 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
