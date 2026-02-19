@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 5 in progress — all handler files migrated, interactive menu remaining
+**Current focus:** Phase 5 complete — all 17 plans across 5 phases executed successfully
 
 ## Current Position
 
 Phase: 5 of 5 (In-Process Delegation)
-Plan: 3 of 4 in current phase
-Status: Executing
-Last activity: 2026-02-19 — Completed 05-03 (new/link in-process delegation)
+Plan: 4 of 4 in current phase
+Status: Phase Complete
+Last activity: 2026-02-19 — Completed 05-04 (deprecation notices, menu migration, README update)
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 16
+- Total plans completed: 17
 - Average duration: 14min
-- Total execution time: 218min
+- Total execution time: 233min
 
 **By Phase:**
 
@@ -32,12 +32,12 @@ Progress: [█████████░] 94%
 | 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
 | 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
 | 04-json-output-and-llm-ergonomics | 4/4   | 70min | 18min    |
-| 05-in-process-delegation          | 3/4   | 59min | 20min    |
+| 05-in-process-delegation          | 4/4   | 74min | 19min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 04-01 (32min), 04-04 (5min), 05-01 (included in 05-02), 05-02 (41min), 05-03 (18min)
-- Trend: 05-03 faster than 05-02 (established pattern reuse; 2 handlers, less orchestration logic)
+- Last 5 plans: 04-04 (5min), 05-01 (included in 05-02), 05-02 (41min), 05-03 (18min), 05-04 (15min)
+- Trend: Phase 05 complete; 05-04 fast (deprecation utility + menu rewrite + README = well-scoped plan)
 
 _Updated after each plan completion_
 
@@ -99,6 +99,10 @@ Recent decisions affecting current work:
 - [Phase 05-03]: runNewprHandler takes Options directly -- caller builds Options from argv, no re-parsing
 - [Phase 05-03]: PR number validation in wt/new.ts catches yargs NaN edge case for --pr flag
 - [Phase 05-03]: wt link migrate delegates to migration library directly, matching standalone wtlink.ts pattern
+- [Phase 05-04]: Deprecation uses process.stderr.write directly (not logger) to avoid requiring logger init in legacy CLIs
+- [Phase 05-04]: printDeprecationNotice suppresses on --json (argv check) and GWT_NO_DEPRECATION_WARNINGS=1 (env check)
+- [Phase 05-04]: Interactive menu calls library functions directly (runNewprHandler, gatherWorktreeInfo, analyzeState, etc.) -- zero runSubcommandForResult calls remain
+- [Phase 05-04]: README removes legacy names from headings, adds Legacy Commands (Deprecated) section with migration table
 
 ### Pending Todos
 
@@ -114,5 +118,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 05-03-PLAN.md (new/link in-process delegation)
+Stopped at: Completed 05-04-PLAN.md (deprecation notices, menu migration, README update) -- Phase 05 complete
 Resume file: None
