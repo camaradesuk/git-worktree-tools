@@ -1,10 +1,10 @@
 /**
  * Tests for wt unified command handlers
  *
- * Commands that still use spawnSync (new, clean, config, link) are tested
+ * Commands that still use spawnSync (new, link) are tested
  * by verifying the argument array passed to spawnSync.
  *
- * Commands migrated to direct library calls (list, state) are tested
+ * Commands migrated to direct library calls (list, state, clean) are tested
  * by mocking the library modules they call.
  */
 
@@ -14,6 +14,7 @@ import yargs, { type CommandModule } from 'yargs';
 
 vi.mock('child_process', () => ({
   spawnSync: vi.fn(() => ({ status: 0 }) as SpawnSyncReturns<Buffer>),
+  execSync: vi.fn(),
 }));
 
 // Mock library dependencies for list command (direct library calls)
@@ -55,22 +56,94 @@ vi.mock('../../lib/wtstate/index.js', () => ({
   getDefaultOptions: vi.fn(),
 }));
 
-// Mock git module for list/state handlers
-vi.mock('../../lib/git.js', () => ({
-  getRepoRoot: vi.fn().mockReturnValue('/fake/repo'),
+// Mock library dependencies for clean command (direct library calls)
+vi.mock('../../lib/cleanpr/index.js', () => ({
+  gatherPrWorktreeInfo: vi.fn().mockResolvedValue([]),
+  createDefaultDeps: vi.fn().mockReturnValue({}),
+  groupWorktreesByState: vi.fn().mockReturnValue({ merged: [], closed: [], open: [], unknown: [] }),
+  getCleanableWorktrees: vi.fn().mockReturnValue([]),
+  findWorktreeByPrNumber: vi.fn().mockReturnValue(null),
+  cleanWorktree: vi.fn().mockReturnValue({
+    success: true,
+    prNumber: 42,
+    message: 'Cleaned',
+    localBranchDeleted: true,
+    remoteBranchDeleted: false,
+  }),
+  summarizeResults: vi.fn().mockReturnValue({ cleaned: 0, total: 0, failed: 0 }),
 }));
 
-// Mock github module for list handler
+// Mock config module for clean command
+vi.mock('../../lib/config.js', () => ({
+  loadConfig: vi.fn().mockReturnValue({ worktreePattern: '{repo}.pr{number}', baseBranch: 'main' }),
+  loadConfigWithValidation: vi.fn().mockReturnValue({ config: {}, validation: null }),
+  getDefaultConfig: vi.fn().mockReturnValue({}),
+  getConfigPath: vi.fn().mockReturnValue(null),
+}));
+
+// Mock logger for clean command
+vi.mock('../../lib/logger.js', () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+// Mock prompts module for clean command
+vi.mock('../../lib/prompts.js', () => ({
+  withSpinner: vi.fn((_msg: string, fn: () => Promise<unknown>) => fn()),
+  promptChoice: vi.fn(),
+  promptConfirm: vi.fn(),
+}));
+
+// Mock colors module for clean command
+vi.mock('../../lib/colors.js', () => ({
+  error: vi.fn((s: string) => s),
+  dim: vi.fn((s: string) => s),
+  success: vi.fn((s: string) => s),
+  info: vi.fn((s: string) => s),
+  cyan: vi.fn((s: string) => s),
+  yellow: vi.fn((s: string) => s),
+  red: vi.fn((s: string) => s),
+  green: vi.fn((s: string) => s),
+  bold: vi.fn((s: string) => s),
+  warning: vi.fn((s: string) => s),
+}));
+
+// Mock config-editor for config command
+vi.mock('../../lib/config-editor.js', () => ({
+  runConfigEditor: vi.fn().mockResolvedValue({ saved: false }),
+  quickEditConfig: vi.fn().mockResolvedValue({ saved: false }),
+}));
+
+// Mock config-validation for config command
+vi.mock('../../lib/config-validation.js', () => ({
+  formatValidationErrors: vi.fn().mockReturnValue('formatted errors'),
+}));
+
+// Mock global-config for config command
+vi.mock('../../lib/global-config.js', () => ({
+  getSchemaUrl: vi.fn().mockReturnValue('https://example.com/schema.json'),
+}));
+
+// Mock git module for list/state/clean handlers
+vi.mock('../../lib/git.js', () => ({
+  getRepoRoot: vi.fn().mockReturnValue('/fake/repo'),
+  removeWorktree: vi.fn(),
+  pruneWorktrees: vi.fn(),
+}));
+
+// Mock github module for list/clean handlers
 vi.mock('../../lib/github.js', () => ({
   isGhInstalled: vi.fn().mockReturnValue(true),
 }));
 
-// Mock UI module for list/state handlers
+// Mock UI module for list/state/clean handlers
 vi.mock('../../lib/ui/index.js', () => ({
   setJsonMode: vi.fn(),
   printStatus: vi.fn(),
   printDim: vi.fn(),
   printError: vi.fn(),
+  printHeader: vi.fn(),
+  printNextSteps: vi.fn(),
+  changeIndicator: vi.fn().mockReturnValue(''),
   errorToDisplay: vi.fn().mockReturnValue({ title: 'error' }),
 }));
 
@@ -96,8 +169,11 @@ import { linkCommand } from './link.js';
 // Import mocked modules for assertions
 import { gatherWorktreeInfo, printWorktreeTable, formatJsonOutput } from '../../lib/lswt/index.js';
 import { analyzeState, formatText } from '../../lib/wtstate/index.js';
-import { setJsonMode } from '../../lib/ui/index.js';
+import { gatherPrWorktreeInfo, getCleanableWorktrees } from '../../lib/cleanpr/index.js';
+import { setJsonMode, printError } from '../../lib/ui/index.js';
 import { createSuccessResult, formatJsonResult } from '../../lib/json-output.js';
+import * as git from '../../lib/git.js';
+import * as github from '../../lib/github.js';
 
 // Mock process.exit to prevent test from exiting
 const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
@@ -422,76 +498,68 @@ describe('wt subcommand handlers', () => {
       expect(true).toBe(true);
     });
 
-    it('passes pr-number to cleanpr', () => {
-      cleanCommand.handler({
-        prNumber: 42,
-        all: false,
+    it('calls gatherPrWorktreeInfo for --all mode', async () => {
+      await cleanCommand.handler({
+        all: true,
         'dry-run': false,
         force: false,
         json: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['42']),
+      expect(gatherPrWorktreeInfo).toHaveBeenCalledWith(
+        '/fake/repo',
+        '{repo}.pr{number}',
         expect.any(Object)
       );
+      expect(getCleanableWorktrees).toHaveBeenCalled();
     });
 
-    it('passes --all flag to cleanpr', () => {
-      cleanCommand.handler({ all: true, 'dry-run': false, force: false, json: false } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--all']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --dry-run flag to cleanpr', () => {
-      cleanCommand.handler({ 'dry-run': true, all: false, force: false, json: false } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--dry-run']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --force flag to cleanpr', () => {
-      cleanCommand.handler({ force: true, all: false, 'dry-run': false, json: false } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--force']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --json flag to cleanpr', () => {
-      cleanCommand.handler({
+    it('calls setJsonMode when --json is passed', async () => {
+      await cleanCommand.handler({
+        all: true,
+        'dry-run': false,
+        force: false,
         json: true,
-        all: false,
-        'dry-run': false,
-        force: false,
-        remote: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--json']),
-        expect.any(Object)
-      );
+      expect(setJsonMode).toHaveBeenCalledWith(true);
     });
 
-    it('passes --delete-remote flag to cleanpr as --remote', () => {
-      cleanCommand.handler({
-        'delete-remote': true,
-        json: false,
+    it('handles gh not installed error', async () => {
+      vi.mocked(github.isGhInstalled).mockReturnValueOnce(false);
+      await cleanCommand.handler({
         all: false,
         'dry-run': false,
         force: false,
+        json: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--remote']),
-        expect.any(Object)
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringContaining('GitHub CLI') })
       );
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
+    it('handles not in git repo error', async () => {
+      vi.mocked(git.getRepoRoot).mockReturnValueOnce(null as never);
+      await cleanCommand.handler({
+        all: false,
+        'dry-run': false,
+        force: false,
+        json: false,
+      } as never);
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringContaining('git repository') })
+      );
+      expect(mockExit).toHaveBeenCalledWith(1);
+    });
+
+    it('does not spawn a child process', async () => {
+      vi.mocked(spawnSync).mockClear();
+      await cleanCommand.handler({
+        all: true,
+        'dry-run': false,
+        force: false,
+        json: false,
+      } as never);
+      expect(spawnSync).not.toHaveBeenCalled();
     });
   });
 
@@ -548,24 +616,6 @@ describe('wt subcommand handlers', () => {
     it('builder registers positional args', () => {
       invokeBuilder(configCommand, []);
       expect(true).toBe(true);
-    });
-
-    it('passes subcommand to wtconfig', () => {
-      configCommand.handler({ subcommand: 'show', args: [] } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['show']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes subcommand and args to wtconfig', () => {
-      configCommand.handler({ subcommand: 'set', args: ['baseBranch', 'develop'] } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['set', 'baseBranch', 'develop']),
-        expect.any(Object)
-      );
     });
 
     it('handles no subcommand (defaults to interactive)', async () => {
