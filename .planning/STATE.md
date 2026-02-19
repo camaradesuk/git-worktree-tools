@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 4 verified — ready for Phase 5
+**Current focus:** Phase 5 in progress — clean and config migrated, new and link remaining
 
 ## Current Position
 
-Phase: 4 of 5 (JSON Output and LLM Ergonomics) — VERIFIED ✓
-Plan: 4 of 4 in current phase
-Status: Phase Complete — Verified (15/16 must-haves; 1 gap deferred to Phase 5)
-Last activity: 2026-02-18 — Phase 4 verified and marked complete in ROADMAP.md
+Phase: 5 of 5 (In-Process Delegation)
+Plan: 2 of 4 in current phase
+Status: Executing
+Last activity: 2026-02-19 — Completed 05-02 (clean/config migration)
 
-Progress: [████████░░] 80%
+Progress: [████████░░] 88%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 13
-- Average duration: 12min
-- Total execution time: 159min
+- Total plans completed: 15
+- Average duration: 14min
+- Total execution time: 200min
 
 **By Phase:**
 
@@ -32,11 +32,12 @@ Progress: [████████░░] 80%
 | 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
 | 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
 | 04-json-output-and-llm-ergonomics | 4/4   | 70min | 18min    |
+| 05-in-process-delegation          | 2/4   | 41min | 21min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 03-03 (9min), 04-02 (19min), 04-03 (14min), 04-01 (32min), 04-04 (5min)
-- Trend: Variable (04-04 was quick -- incremental completion script updates)
+- Last 5 plans: 04-03 (14min), 04-01 (32min), 04-04 (5min), 05-01 (included in 05-02), 05-02 (41min)
+- Trend: 05-02 was larger scope (2 medium-complexity handler migrations with full test rewrites)
 
 _Updated after each plan completion_
 
@@ -87,6 +88,13 @@ Recent decisions affecting current work:
 - 04-04: Exported BASH_COMPLETION, ZSH_COMPLETION, FISH_COMPLETION constants for direct test import
 - 04-04: Init completion flags (--local, --global, --force) match actual wt init CLI, not plan's --help-only suggestion
 - 04-04: --refresh added to list completions (intended surface) even though wt list wrapper doesn't forward it yet
+- 05-02: Config init redirects to 'wt init' instead of duplicating wizard from wtconfig
+- 05-02: Config set (with key+value) saves to repo config by default (no interactive scope prompt)
+- 05-02: printNextSteps in clean handler references 'wt list', 'wt new', 'wt clean' instead of legacy binaries
+- 05-02: Config edit uses spawnSync for editor opening (intentional -- editor launch, not CLI delegation)
+- [Phase 05-01]: Extracted printWorktreeTable to src/lib/lswt/table.ts as shared module importable by both lswt.ts and wt/list.ts
+- [Phase 05-01]: Handler functions are async; logger init NOT called (already done by wt.ts middleware)
+- [Phase 05-01]: Used importOriginal for colors mock in table.test.ts to prevent mock leaking across vitest workers
 
 ### Pending Todos
 
@@ -101,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-18
-Stopped at: Phase 4 verified (15/16 must-haves); ROADMAP.md updated; ready for Phase 5 planning
+Last session: 2026-02-19
+Stopped at: Completed 05-02-PLAN.md (clean/config in-process delegation)
 Resume file: None
