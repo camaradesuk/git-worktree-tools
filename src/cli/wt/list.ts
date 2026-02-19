@@ -1,11 +1,34 @@
 /**
  * wt list - List worktrees with PR status
  *
- * Wraps the lswt CLI tool functionality
+ * Direct library call handler - no subprocess spawning.
+ * Calls gatherWorktreeInfo, printWorktreeTable, etc. in-process.
  */
 
 import type { CommandModule } from 'yargs';
-import { runSubcommand } from './run-command.js';
+import {
+  gatherWorktreeInfo,
+  createDefaultDeps,
+  formatJsonOutput,
+  runInteractiveMode,
+  printWorktreeTable,
+} from '../../lib/lswt/index.js';
+import * as git from '../../lib/git.js';
+import * as github from '../../lib/github.js';
+import {
+  setJsonMode,
+  printStatus,
+  printDim,
+  printError,
+  errorToDisplay,
+} from '../../lib/ui/index.js';
+import {
+  createErrorResult,
+  formatJsonResult,
+  ErrorCode,
+  getErrorSuggestion,
+} from '../../lib/json-output.js';
+import type { ListOptions } from '../../lib/lswt/index.js';
 
 interface ListArgs {
   verbose?: boolean;
@@ -15,6 +38,14 @@ interface ListArgs {
   'no-interactive'?: boolean;
   quiet?: boolean;
   noColor?: boolean;
+}
+
+/**
+ * Output error in JSON format for programmatic consumers
+ */
+function outputJsonError(code: ErrorCode, message: string): void {
+  const result = createErrorResult('lswt', code, message, undefined, getErrorSuggestion(code));
+  console.log(formatJsonResult(result));
 }
 
 export const listCommand: CommandModule<object, ListArgs> = {
@@ -55,50 +86,81 @@ export const listCommand: CommandModule<object, ListArgs> = {
       .example('$0 ls --status', 'Include PR status from GitHub')
       .example('$0 ls --no-interactive', 'Non-interactive (no menu)');
   },
-  handler: (argv) => {
-    const args: string[] = [];
+  handler: async (argv) => {
+    const options: ListOptions = {
+      verbose: !!argv.verbose,
+      json: !!argv.json,
+      showStatus: !!argv.status,
+      interactive: argv.interactive,
+      noColor: !!argv.noColor,
+      quiet: !!argv.quiet,
+    };
 
-    if (argv.verbose) {
-      args.push('--verbose');
-    }
+    setJsonMode(options.json);
 
-    if (argv.json) {
-      args.push('--json');
-    }
-
-    if (argv.status) {
-      args.push('--status');
-    }
-
-    if (argv.interactive) {
-      args.push('--interactive');
-    }
-
-    if (argv['no-interactive']) {
-      args.push('--no-interactive');
+    // Check for gh cli if status requested
+    if (options.showStatus && !github.isGhInstalled()) {
+      if (!options.json) {
+        printStatus('warning', 'GitHub CLI (gh) not installed. PR status will not be shown.');
+        printDim('Install: https://cli.github.com/');
+      }
+      options.showStatus = false;
     }
 
-    // Forward global logging flags to child process
-    // Note: --verbose is already forwarded above (shared display + logger meaning)
-    if (argv.quiet) {
-      args.push('--quiet');
-    }
-    if (argv.noColor) {
-      args.push('--no-color');
-    }
-
-    // Belt-and-suspenders: also set env vars for child process
-    const envOverrides: Record<string, string> = {};
-    if (argv.verbose) {
-      envOverrides.GWT_LOG_LEVEL = 'debug';
-    }
-    if (argv.quiet) {
-      envOverrides.GWT_LOG_LEVEL = 'error';
-    }
-    if (argv.noColor) {
-      envOverrides.NO_COLOR = '1';
+    // Find repo root
+    const repoRoot = git.getRepoRoot();
+    if (!repoRoot) {
+      if (options.json) {
+        outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not a git repository');
+      } else {
+        printError({
+          title: 'Not a git repository.',
+          hint: 'Run this command from within a git repository.',
+        });
+      }
+      process.exit(1);
     }
 
-    runSubcommand('lswt', args, envOverrides);
+    try {
+      // Gather worktree info
+      const deps = createDefaultDeps();
+      const worktrees = await gatherWorktreeInfo(repoRoot, options, deps);
+
+      // Determine if we should use interactive mode
+      // Default to interactive if TTY and not explicitly disabled, and not JSON output
+      const useInteractive =
+        options.interactive === true ||
+        (options.interactive === undefined && process.stdout.isTTY && !options.json);
+
+      // Output
+      if (options.json) {
+        console.log(formatJsonOutput(worktrees));
+      } else if (useInteractive) {
+        await runInteractiveMode(worktrees, options);
+      } else {
+        printWorktreeTable(worktrees, options, process.cwd());
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.includes('not a git repository')) {
+        if (options.json) {
+          outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not a git repository');
+        } else {
+          printError({
+            title: 'Not a git repository',
+            hint: 'Run this command from within a git repository.',
+          });
+        }
+      } else {
+        if (options.json) {
+          outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
+        } else {
+          const display = errorToDisplay(error);
+          printError(display);
+        }
+      }
+      process.exit(1);
+    }
   },
 };

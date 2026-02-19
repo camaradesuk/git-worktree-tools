@@ -1,13 +1,89 @@
 /**
  * Tests for wt unified command handlers
  *
- * These are thin wrappers around spawnSync that delegate to the underlying CLI tools.
- * We test that each handler correctly builds the argument array and spawns the right tool.
+ * Commands that still use spawnSync (new, clean, config, link) are tested
+ * by verifying the argument array passed to spawnSync.
+ *
+ * Commands migrated to direct library calls (list, state) are tested
+ * by mocking the library modules they call.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawnSync, type SpawnSyncReturns } from 'child_process';
-import yargs, { type Argv, type CommandModule } from 'yargs';
+import yargs, { type CommandModule } from 'yargs';
+
+vi.mock('child_process', () => ({
+  spawnSync: vi.fn(() => ({ status: 0 }) as SpawnSyncReturns<Buffer>),
+}));
+
+// Mock library dependencies for list command (direct library calls)
+vi.mock('../../lib/lswt/index.js', () => ({
+  gatherWorktreeInfo: vi.fn().mockResolvedValue([]),
+  createDefaultDeps: vi.fn().mockReturnValue({}),
+  formatJsonOutput: vi.fn().mockReturnValue('[]'),
+  runInteractiveMode: vi.fn().mockResolvedValue(undefined),
+  printWorktreeTable: vi.fn(),
+  parseArgs: vi.fn(),
+  getHelpText: vi.fn(),
+  formatTypeLabel: vi.fn(),
+  getDisplayPath: vi.fn(),
+  sortWorktrees: vi.fn(),
+  extractPrNumber: vi.fn(),
+  isMainWorktree: vi.fn(),
+}));
+
+// Mock library dependencies for state command (direct library calls)
+vi.mock('../../lib/wtstate/index.js', () => ({
+  analyzeState: vi.fn().mockReturnValue({
+    scenario: 'main_clean_same',
+    scenarioDescription: 'On main branch, same as origin/main, no changes',
+    currentBranch: 'main',
+    baseBranch: 'main',
+    worktreeType: 'main_worktree',
+    hasChanges: false,
+    hasStagedChanges: false,
+    hasUnstagedChanges: false,
+    localCommits: [],
+    stagedFiles: [],
+    unstagedFiles: [],
+    availableActions: [],
+    recommendedAction: null,
+  }),
+  formatText: vi.fn().mockReturnValue('State: main_clean_same'),
+  parseArgs: vi.fn(),
+  getHelpText: vi.fn(),
+  getDefaultOptions: vi.fn(),
+}));
+
+// Mock git module for list/state handlers
+vi.mock('../../lib/git.js', () => ({
+  getRepoRoot: vi.fn().mockReturnValue('/fake/repo'),
+}));
+
+// Mock github module for list handler
+vi.mock('../../lib/github.js', () => ({
+  isGhInstalled: vi.fn().mockReturnValue(true),
+}));
+
+// Mock UI module for list/state handlers
+vi.mock('../../lib/ui/index.js', () => ({
+  setJsonMode: vi.fn(),
+  printStatus: vi.fn(),
+  printDim: vi.fn(),
+  printError: vi.fn(),
+  errorToDisplay: vi.fn().mockReturnValue({ title: 'error' }),
+}));
+
+// Mock json-output module (partial mock to preserve exports for all command handlers)
+vi.mock('../../lib/json-output.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/json-output.js')>();
+  return {
+    ...actual,
+    createSuccessResult: vi.fn().mockReturnValue({ success: true }),
+    createErrorResult: vi.fn().mockReturnValue({ success: false }),
+    formatJsonResult: vi.fn().mockReturnValue('{}'),
+  };
+});
 
 // Import all commands statically so coverage is tracked
 import { newCommand } from './new.js';
@@ -17,19 +93,18 @@ import { stateCommand } from './state.js';
 import { configCommand } from './config.js';
 import { linkCommand } from './link.js';
 
-vi.mock('child_process', () => ({
-  spawnSync: vi.fn(() => ({ status: 0 }) as SpawnSyncReturns<Buffer>),
-}));
+// Import mocked modules for assertions
+import { gatherWorktreeInfo, printWorktreeTable, formatJsonOutput } from '../../lib/lswt/index.js';
+import { analyzeState, formatText } from '../../lib/wtstate/index.js';
+import { setJsonMode } from '../../lib/ui/index.js';
+import { createSuccessResult, formatJsonResult } from '../../lib/json-output.js';
 
 // Mock process.exit to prevent test from exiting
 const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
 // Helper to invoke builder for coverage
-function invokeBuilder(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  command: CommandModule<any, any>,
-  args: string[]
-): void {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function invokeBuilder(command: CommandModule<any, any>, args: string[]): void {
   const parser = yargs(args);
   if (typeof command.builder === 'function') {
     command.builder(parser);
@@ -53,10 +128,7 @@ describe('wt subcommand handlers', () => {
 
     it('builder registers all expected options', () => {
       invokeBuilder(newCommand, []);
-      expect(true).toBe(true); // Builder executed for coverage
-      // Verify builder returns a yargs instance with registered options
-
-      // The builder function is invoked for coverage
+      expect(true).toBe(true);
     });
 
     it('passes description to newpr', () => {
@@ -76,13 +148,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes --pr flag to newpr', () => {
-      newCommand.handler({
-        pr: 42,
-        json: false,
-        'non-interactive': false,
-        draft: false,
-      } as never);
-
+      newCommand.handler({ pr: 42, json: false, 'non-interactive': false, draft: false } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--pr', '42']),
@@ -101,7 +167,6 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--ready']),
@@ -121,7 +186,6 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--base', 'develop']),
@@ -141,7 +205,6 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--branch', 'feat/my-feature']),
@@ -160,7 +223,6 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--install']),
@@ -179,7 +241,6 @@ describe('wt subcommand handlers', () => {
         'no-wtlink': false,
         'no-hooks': false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--code']),
@@ -198,7 +259,6 @@ describe('wt subcommand handlers', () => {
         ready: false,
         'no-hooks': false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--no-wtlink']),
@@ -217,7 +277,6 @@ describe('wt subcommand handlers', () => {
         ready: false,
         'no-wtlink': false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--no-hooks']),
@@ -226,12 +285,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes --json flag to newpr', () => {
-      newCommand.handler({
-        json: true,
-        'non-interactive': false,
-        draft: false,
-      } as never);
-
+      newCommand.handler({ json: true, 'non-interactive': false, draft: false } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--json']),
@@ -240,12 +294,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes --non-interactive flag to newpr', () => {
-      newCommand.handler({
-        json: false,
-        'non-interactive': true,
-        draft: false,
-      } as never);
-
+      newCommand.handler({ json: false, 'non-interactive': true, draft: false } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--non-interactive']),
@@ -260,7 +309,6 @@ describe('wt subcommand handlers', () => {
         'non-interactive': false,
         draft: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--action', 'commit_all']),
@@ -269,12 +317,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes --draft flag to newpr', () => {
-      newCommand.handler({
-        json: false,
-        'non-interactive': false,
-        draft: true,
-      } as never);
-
+      newCommand.handler({ json: false, 'non-interactive': false, draft: true } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--draft']),
@@ -289,7 +332,6 @@ describe('wt subcommand handlers', () => {
         draft: false,
         plan: true,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--plan']),
@@ -304,7 +346,6 @@ describe('wt subcommand handlers', () => {
         draft: false,
         'confirm-hooks': true,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--confirm-hooks']),
@@ -321,83 +362,52 @@ describe('wt subcommand handlers', () => {
 
     it('builder registers all expected options', () => {
       invokeBuilder(listCommand, []);
-      expect(true).toBe(true); // Builder executed for coverage
+      expect(true).toBe(true);
     });
 
-    it('passes --verbose flag to lswt', () => {
-      listCommand.handler({
-        verbose: true,
-        json: false,
-        'no-interactive': false,
-        status: false,
-      } as never);
-
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--verbose']),
+    it('calls gatherWorktreeInfo with verbose option', async () => {
+      await listCommand.handler({ verbose: true, json: false, status: false } as never);
+      expect(gatherWorktreeInfo).toHaveBeenCalledWith(
+        '/fake/repo',
+        expect.objectContaining({ verbose: true }),
         expect.any(Object)
       );
     });
 
-    it('passes --json flag to lswt', () => {
-      listCommand.handler({
-        json: true,
-        verbose: false,
-        'no-interactive': false,
-        status: false,
-      } as never);
-
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--json']),
-        expect.any(Object)
-      );
+    it('calls setJsonMode and formatJsonOutput for --json', async () => {
+      await listCommand.handler({ json: true, verbose: false, status: false } as never);
+      expect(setJsonMode).toHaveBeenCalledWith(true);
+      expect(formatJsonOutput).toHaveBeenCalled();
     });
 
-    it('passes --no-interactive flag to lswt', () => {
-      listCommand.handler({
-        'no-interactive': true,
+    it('calls printWorktreeTable for non-interactive non-json output', async () => {
+      await listCommand.handler({
         json: false,
         verbose: false,
         status: false,
+        interactive: false,
       } as never);
+      expect(printWorktreeTable).toHaveBeenCalled();
+    });
 
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--no-interactive']),
+    it('passes status option to gatherWorktreeInfo', async () => {
+      await listCommand.handler({ status: true, json: false, verbose: false } as never);
+      expect(gatherWorktreeInfo).toHaveBeenCalledWith(
+        '/fake/repo',
+        expect.objectContaining({ showStatus: true }),
         expect.any(Object)
       );
     });
 
-    it('passes --interactive flag to lswt', () => {
-      listCommand.handler({
-        interactive: true,
+    it('does not spawn a child process', async () => {
+      vi.mocked(spawnSync).mockClear();
+      await listCommand.handler({
         json: false,
         verbose: false,
         status: false,
-        'no-interactive': false,
+        interactive: false,
       } as never);
-
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--interactive']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --status flag to lswt', () => {
-      listCommand.handler({
-        status: true,
-        json: false,
-        verbose: false,
-        'no-interactive': false,
-      } as never);
-
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--status']),
-        expect.any(Object)
-      );
+      expect(spawnSync).not.toHaveBeenCalled();
     });
   });
 
@@ -409,7 +419,7 @@ describe('wt subcommand handlers', () => {
 
     it('builder registers all expected options', () => {
       invokeBuilder(cleanCommand, []);
-      expect(true).toBe(true); // Builder executed for coverage
+      expect(true).toBe(true);
     });
 
     it('passes pr-number to cleanpr', () => {
@@ -420,7 +430,6 @@ describe('wt subcommand handlers', () => {
         force: false,
         json: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['42']),
@@ -429,13 +438,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes --all flag to cleanpr', () => {
-      cleanCommand.handler({
-        all: true,
-        'dry-run': false,
-        force: false,
-        json: false,
-      } as never);
-
+      cleanCommand.handler({ all: true, 'dry-run': false, force: false, json: false } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--all']),
@@ -444,13 +447,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes --dry-run flag to cleanpr', () => {
-      cleanCommand.handler({
-        'dry-run': true,
-        all: false,
-        force: false,
-        json: false,
-      } as never);
-
+      cleanCommand.handler({ 'dry-run': true, all: false, force: false, json: false } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--dry-run']),
@@ -459,13 +456,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes --force flag to cleanpr', () => {
-      cleanCommand.handler({
-        force: true,
-        all: false,
-        'dry-run': false,
-        json: false,
-      } as never);
-
+      cleanCommand.handler({ force: true, all: false, 'dry-run': false, json: false } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--force']),
@@ -481,7 +472,6 @@ describe('wt subcommand handlers', () => {
         force: false,
         remote: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--json']),
@@ -497,7 +487,6 @@ describe('wt subcommand handlers', () => {
         'dry-run': false,
         force: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--remote']),
@@ -514,33 +503,39 @@ describe('wt subcommand handlers', () => {
 
     it('builder registers all expected options', () => {
       invokeBuilder(stateCommand, []);
-      expect(true).toBe(true); // Builder executed for coverage
+      expect(true).toBe(true);
     });
 
-    it('passes --json flag to wtstate', () => {
-      stateCommand.handler({
-        json: true,
+    it('calls analyzeState and formatJsonResult for --json', async () => {
+      await stateCommand.handler({ json: true, verbose: false } as never);
+      expect(analyzeState).toHaveBeenCalledWith(
+        expect.objectContaining({ json: true, verbose: false })
+      );
+      expect(createSuccessResult).toHaveBeenCalledWith('wtstate', expect.any(Object));
+      expect(formatJsonResult).toHaveBeenCalled();
+    });
+
+    it('calls analyzeState and formatText for text output', async () => {
+      await stateCommand.handler({ verbose: true, json: false } as never);
+      expect(analyzeState).toHaveBeenCalledWith(
+        expect.objectContaining({ verbose: true, json: false })
+      );
+      expect(formatText).toHaveBeenCalled();
+    });
+
+    it('passes base-branch option to analyzeState', async () => {
+      await stateCommand.handler({
         verbose: false,
+        json: false,
+        'base-branch': 'develop',
       } as never);
-
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--json']),
-        expect.any(Object)
-      );
+      expect(analyzeState).toHaveBeenCalledWith(expect.objectContaining({ baseBranch: 'develop' }));
     });
 
-    it('passes --verbose flag to wtstate', () => {
-      stateCommand.handler({
-        verbose: true,
-        json: false,
-      } as never);
-
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--verbose']),
-        expect.any(Object)
-      );
+    it('does not spawn a child process', async () => {
+      vi.mocked(spawnSync).mockClear();
+      await stateCommand.handler({ json: false, verbose: false } as never);
+      expect(spawnSync).not.toHaveBeenCalled();
     });
   });
 
@@ -552,15 +547,11 @@ describe('wt subcommand handlers', () => {
 
     it('builder registers positional args', () => {
       invokeBuilder(configCommand, []);
-      expect(true).toBe(true); // Builder executed for coverage
+      expect(true).toBe(true);
     });
 
     it('passes subcommand to wtconfig', () => {
-      configCommand.handler({
-        subcommand: 'show',
-        args: [],
-      } as never);
-
+      configCommand.handler({ subcommand: 'show', args: [] } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['show']),
@@ -569,11 +560,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('passes subcommand and args to wtconfig', () => {
-      configCommand.handler({
-        subcommand: 'set',
-        args: ['baseBranch', 'develop'],
-      } as never);
-
+      configCommand.handler({ subcommand: 'set', args: ['baseBranch', 'develop'] } as never);
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['set', 'baseBranch', 'develop']),
@@ -582,16 +569,7 @@ describe('wt subcommand handlers', () => {
     });
 
     it('handles no subcommand (defaults to interactive)', async () => {
-      // The interactive mode calls git.getRepoRoot() first
-      // Since we're not in a git repo in tests, it will error out
-      // We just verify the handler runs without throwing
-      const handler = configCommand.handler({
-        subcommand: undefined,
-        args: [],
-      } as never);
-
-      // Handler is now async; it will call process.exit
-      // We just check it returns a promise
+      const handler = configCommand.handler({ subcommand: undefined, args: [] } as never);
       expect(handler).toBeInstanceOf(Promise);
     });
   });
@@ -604,7 +582,7 @@ describe('wt subcommand handlers', () => {
 
     it('builder registers all expected options', () => {
       invokeBuilder(linkCommand, []);
-      expect(true).toBe(true); // Builder executed for coverage
+      expect(true).toBe(true);
     });
 
     it('passes subcommand and args to wtlink', () => {
@@ -617,7 +595,6 @@ describe('wt subcommand handlers', () => {
         json: false,
         verbose: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['link', 'source', 'dest']),
@@ -634,7 +611,6 @@ describe('wt subcommand handlers', () => {
         json: false,
         verbose: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--dry-run']),
@@ -651,7 +627,6 @@ describe('wt subcommand handlers', () => {
         json: false,
         verbose: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--yes']),
@@ -668,7 +643,6 @@ describe('wt subcommand handlers', () => {
         json: false,
         verbose: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--non-interactive']),
@@ -685,7 +659,6 @@ describe('wt subcommand handlers', () => {
         'non-interactive': false,
         verbose: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--json']),
@@ -702,7 +675,6 @@ describe('wt subcommand handlers', () => {
         'non-interactive': false,
         json: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--verbose']),
@@ -720,7 +692,6 @@ describe('wt subcommand handlers', () => {
         json: false,
         verbose: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--manifest-file', '.custom-manifest']),
@@ -739,7 +710,6 @@ describe('wt subcommand handlers', () => {
         clean: false,
         backup: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalled();
     });
 
@@ -754,7 +724,6 @@ describe('wt subcommand handlers', () => {
         verbose: false,
         backup: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--clean']),
@@ -773,7 +742,6 @@ describe('wt subcommand handlers', () => {
         verbose: false,
         clean: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--backup']),
@@ -793,7 +761,6 @@ describe('wt subcommand handlers', () => {
         clean: false,
         backup: false,
       } as never);
-
       expect(spawnSync).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining(['--type', 'symbolic']),

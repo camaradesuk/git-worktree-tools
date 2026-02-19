@@ -18,6 +18,7 @@ vi.mock('../lib/lswt/index.js', () => ({
   gatherWorktreeInfo: vi.fn(),
   createDefaultDeps: vi.fn(),
   runInteractiveMode: vi.fn(),
+  printWorktreeTable: vi.fn(),
 }));
 
 // Import after mocking
@@ -158,7 +159,7 @@ describe('cli/lswt', () => {
   });
 
   describe('table output', () => {
-    it('prints table for normal output', async () => {
+    it('calls printWorktreeTable for normal output', async () => {
       const mockWorktrees = [
         {
           path: '/repo',
@@ -182,8 +183,6 @@ describe('cli/lswt', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
       vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
-      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
-      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
 
       await runCli([]);
 
@@ -193,11 +192,15 @@ describe('cli/lswt', () => {
         expect.objectContaining({ verbose: false, json: false, showStatus: false }), // options
         mockDeps // deps from createDefaultDeps
       );
-      expect(lswt.formatTypeLabel).toHaveBeenCalledWith(mockWorktrees[0]);
-      expect(mockConsoleLog).toHaveBeenCalled();
+      // printWorktreeTable is now called instead of local printTable
+      expect(lswt.printWorktreeTable).toHaveBeenCalledWith(
+        mockWorktrees,
+        expect.objectContaining({ verbose: false, json: false }),
+        expect.any(String)
+      );
     });
 
-    it('shows empty message when no worktrees', async () => {
+    it('calls printWorktreeTable with empty worktrees', async () => {
       vi.mocked(lswt.parseArgs).mockReturnValue({
         kind: 'success',
         options: { verbose: false, json: false, showStatus: false },
@@ -211,10 +214,15 @@ describe('cli/lswt', () => {
 
       await runCli([]);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('No worktrees'));
+      // printWorktreeTable handles empty case internally
+      expect(lswt.printWorktreeTable).toHaveBeenCalledWith(
+        [],
+        expect.any(Object),
+        expect.any(String)
+      );
     });
 
-    it('shows commit hash when verbose flag is set', async () => {
+    it('passes verbose options to printWorktreeTable', async () => {
       const mockWorktrees = [
         {
           path: '/repo',
@@ -238,16 +246,17 @@ describe('cli/lswt', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
       vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
-      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
-      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
 
       await runCli(['--verbose']);
 
-      // Verify commit is printed in verbose mode (shared printTable uses "Commit" key)
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Commit'));
+      expect(lswt.printWorktreeTable).toHaveBeenCalledWith(
+        mockWorktrees,
+        expect.objectContaining({ verbose: true }),
+        expect.any(String)
+      );
     });
 
-    it('shows change indicator for worktrees with uncommitted changes', async () => {
+    it('passes worktrees with changes to printWorktreeTable', async () => {
       const mockWorktrees = [
         {
           path: '/repo',
@@ -271,15 +280,17 @@ describe('cli/lswt', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
       vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
-      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
-      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
 
       await runCli([]);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('with changes'));
+      expect(lswt.printWorktreeTable).toHaveBeenCalledWith(
+        mockWorktrees,
+        expect.any(Object),
+        expect.any(String)
+      );
     });
 
-    it('shows detached label when branch is missing', async () => {
+    it('passes worktrees with empty branch to printWorktreeTable', async () => {
       const mockWorktrees = [
         {
           path: '/repo',
@@ -303,15 +314,17 @@ describe('cli/lswt', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
       vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
-      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
-      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
 
       await runCli([]);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('(detached)'));
+      expect(lswt.printWorktreeTable).toHaveBeenCalledWith(
+        mockWorktrees,
+        expect.any(Object),
+        expect.any(String)
+      );
     });
 
-    it('shows PR count in summary', async () => {
+    it('passes multiple worktrees including PRs to printWorktreeTable', async () => {
       const mockWorktrees = [
         {
           path: '/repo',
@@ -346,14 +359,14 @@ describe('cli/lswt', () => {
       vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
       vi.mocked(lswt.createDefaultDeps).mockReturnValue(mockDeps);
       vi.mocked(lswt.gatherWorktreeInfo).mockResolvedValue(mockWorktrees);
-      vi.mocked(lswt.formatTypeLabel).mockReturnValue({ text: '[main]', color: 'cyan' });
-      vi.mocked(lswt.getDisplayPath).mockReturnValue('/repo');
 
       await runCli([]);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('2 worktrees'));
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('1 PRs'));
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('1 open'));
+      expect(lswt.printWorktreeTable).toHaveBeenCalledWith(
+        mockWorktrees,
+        expect.any(Object),
+        expect.any(String)
+      );
     });
   });
 

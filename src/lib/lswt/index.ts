@@ -61,6 +61,9 @@ export { executeAction, createDefaultExecutorDeps } from './action-executors.js'
 export type { InteractiveDeps } from './interactive.js';
 export { runInteractiveMode, createDefaultInteractiveDeps } from './interactive.js';
 
+// Table display
+export { printWorktreeTable } from './table.js';
+
 // Fuzzy search
 export {
   fuzzyScore,
