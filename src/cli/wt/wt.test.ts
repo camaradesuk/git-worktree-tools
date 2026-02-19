@@ -1,11 +1,8 @@
 /**
  * Tests for wt unified command handlers
  *
- * Commands that still use spawnSync (link) are tested
- * by verifying the argument array passed to spawnSync.
- *
- * Commands migrated to direct library calls (list, state, clean, new) are tested
- * by mocking the library modules they call.
+ * All commands are migrated to direct library calls (list, state, clean, new, link)
+ * and tested by mocking the library modules they call.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -128,9 +125,48 @@ vi.mock('../../lib/global-config.js', () => ({
   getSchemaUrl: vi.fn().mockReturnValue('https://example.com/schema.json'),
 }));
 
-// Mock git module for list/state/clean handlers
+// Mock library dependencies for link command (direct library calls)
+vi.mock('../../lib/wtlink/manage-manifest.js', () => ({
+  run: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../lib/wtlink/link-configs.js', () => ({
+  run: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../lib/wtlink/validate-manifest.js', () => ({
+  run: vi.fn(),
+}));
+
+vi.mock('../../lib/wtlink/main-menu.js', () => ({
+  showMainMenu: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../lib/wtlink/config-manifest.js', () => ({
+  hasLegacyManifest: vi.fn().mockReturnValue(false),
+}));
+
+vi.mock('../../lib/config-migration/index.js', () => ({
+  detectMigrationIssues: vi.fn().mockReturnValue({ issues: [] }),
+  runMigration: vi.fn().mockResolvedValue({ success: true, errors: [] }),
+  formatMigrationReport: vi.fn().mockReturnValue(''),
+}));
+
+vi.mock('../../lib/errors.js', () => ({
+  ManifestError: class ManifestError extends Error {
+    issues?: string[];
+    constructor(message: string, issues?: string[]) {
+      super(message);
+      this.name = 'ManifestError';
+      this.issues = issues;
+    }
+  },
+}));
+
+// Mock git module for list/state/clean/link handlers
 vi.mock('../../lib/git.js', () => ({
   getRepoRoot: vi.fn().mockReturnValue('/fake/repo'),
+  getMainWorktreeRoot: vi.fn().mockReturnValue('/fake/repo'),
   removeWorktree: vi.fn(),
   pruneWorktrees: vi.fn(),
 }));
@@ -140,9 +176,10 @@ vi.mock('../../lib/github.js', () => ({
   isGhInstalled: vi.fn().mockReturnValue(true),
 }));
 
-// Mock UI module for list/state/clean handlers
+// Mock UI module for all handlers
 vi.mock('../../lib/ui/index.js', () => ({
   setJsonMode: vi.fn(),
+  isJsonMode: vi.fn().mockReturnValue(false),
   printStatus: vi.fn(),
   printDim: vi.fn(),
   printError: vi.fn(),
@@ -178,6 +215,10 @@ import { gatherPrWorktreeInfo, getCleanableWorktrees } from '../../lib/cleanpr/i
 import { setJsonMode, printError } from '../../lib/ui/index.js';
 import { createSuccessResult, formatJsonResult } from '../../lib/json-output.js';
 import { runNewprHandler } from '../newpr.js';
+import { run as manageRun } from '../../lib/wtlink/manage-manifest.js';
+import { run as linkRun } from '../../lib/wtlink/link-configs.js';
+import { run as validateRun } from '../../lib/wtlink/validate-manifest.js';
+import { showMainMenu } from '../../lib/wtlink/main-menu.js';
 import * as git from '../../lib/git.js';
 import * as github from '../../lib/github.js';
 
@@ -640,8 +681,8 @@ describe('wt subcommand handlers', () => {
       expect(true).toBe(true);
     });
 
-    it('passes subcommand and args to wtlink', () => {
-      linkCommand.handler({
+    it('calls link.run with source and destination for link subcommand', async () => {
+      await linkCommand.handler({
         subcommand: 'link',
         args: ['source', 'dest'],
         'dry-run': false,
@@ -650,112 +691,74 @@ describe('wt subcommand handlers', () => {
         json: false,
         verbose: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['link', 'source', 'dest']),
-        expect.any(Object)
+      expect(linkRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'source',
+          destination: 'dest',
+          dryRun: false,
+          yes: false,
+        })
       );
     });
 
-    it('passes --dry-run flag to wtlink', () => {
-      linkCommand.handler({
+    it('passes --dry-run to link.run', async () => {
+      await linkCommand.handler({
+        subcommand: 'link',
+        args: [],
         'dry-run': true,
-        args: [],
         yes: false,
         'non-interactive': false,
         json: false,
         verbose: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--dry-run']),
-        expect.any(Object)
-      );
+      expect(linkRun).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
     });
 
-    it('passes --yes flag to wtlink', () => {
-      linkCommand.handler({
+    it('passes --yes to link.run', async () => {
+      await linkCommand.handler({
+        subcommand: 'link',
+        args: [],
+        'dry-run': false,
         yes: true,
-        args: [],
-        'dry-run': false,
         'non-interactive': false,
         json: false,
         verbose: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--yes']),
-        expect.any(Object)
-      );
+      expect(linkRun).toHaveBeenCalledWith(expect.objectContaining({ yes: true }));
     });
 
-    it('passes --non-interactive flag to wtlink', () => {
-      linkCommand.handler({
-        'non-interactive': true,
+    it('calls setJsonMode when --json is passed', async () => {
+      await linkCommand.handler({
+        subcommand: 'link',
         args: [],
         'dry-run': false,
         yes: false,
-        json: false,
-        verbose: false,
-      } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--non-interactive']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --json flag to wtlink', () => {
-      linkCommand.handler({
+        'non-interactive': false,
         json: true,
+        verbose: false,
+      } as never);
+      expect(setJsonMode).toHaveBeenCalledWith(true);
+    });
+
+    it('calls manage.run with verbose option for manage subcommand', async () => {
+      await linkCommand.handler({
+        subcommand: 'manage',
         args: [],
         'dry-run': false,
         yes: false,
         'non-interactive': false,
-        verbose: false,
-      } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--json']),
-        expect.any(Object)
-      );
-    });
-
-    it('passes --verbose flag to wtlink', () => {
-      linkCommand.handler({
+        json: false,
         verbose: true,
-        args: [],
-        'dry-run': false,
-        yes: false,
-        'non-interactive': false,
-        json: false,
+        clean: false,
+        backup: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--verbose']),
-        expect.any(Object)
-      );
+      expect(manageRun).toHaveBeenCalledWith(expect.objectContaining({ verbose: true }));
     });
 
-    it('passes --manifest-file flag to wtlink', () => {
-      linkCommand.handler({
+    it('passes --manifest-file to manage.run', async () => {
+      await linkCommand.handler({
+        subcommand: 'manage',
         'manifest-file': '.custom-manifest',
-        args: [],
-        'dry-run': false,
-        yes: false,
-        'non-interactive': false,
-        json: false,
-        verbose: false,
-      } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--manifest-file', '.custom-manifest']),
-        expect.any(Object)
-      );
-    });
-
-    it('handles no subcommand (defaults to interactive)', () => {
-      linkCommand.handler({
         args: [],
         'dry-run': false,
         yes: false,
@@ -765,11 +768,28 @@ describe('wt subcommand handlers', () => {
         clean: false,
         backup: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalled();
+      expect(manageRun).toHaveBeenCalledWith(
+        expect.objectContaining({ manifestFile: '.custom-manifest' })
+      );
     });
 
-    it('passes --clean flag to wtlink', () => {
-      linkCommand.handler({
+    it('shows interactive menu when no subcommand provided', async () => {
+      await linkCommand.handler({
+        args: [],
+        'dry-run': false,
+        yes: false,
+        'non-interactive': false,
+        json: false,
+        verbose: false,
+        clean: false,
+        backup: false,
+      } as never);
+      expect(showMainMenu).toHaveBeenCalled();
+    });
+
+    it('passes --clean to manage.run', async () => {
+      await linkCommand.handler({
+        subcommand: 'manage',
         clean: true,
         args: [],
         'dry-run': false,
@@ -779,15 +799,12 @@ describe('wt subcommand handlers', () => {
         verbose: false,
         backup: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--clean']),
-        expect.any(Object)
-      );
+      expect(manageRun).toHaveBeenCalledWith(expect.objectContaining({ clean: true }));
     });
 
-    it('passes --backup flag to wtlink', () => {
-      linkCommand.handler({
+    it('passes --backup to manage.run', async () => {
+      await linkCommand.handler({
+        subcommand: 'manage',
         backup: true,
         args: [],
         'dry-run': false,
@@ -797,15 +814,12 @@ describe('wt subcommand handlers', () => {
         verbose: false,
         clean: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--backup']),
-        expect.any(Object)
-      );
+      expect(manageRun).toHaveBeenCalledWith(expect.objectContaining({ backup: true }));
     });
 
-    it('passes --type flag to wtlink', () => {
-      linkCommand.handler({
+    it('passes --type to link.run', async () => {
+      await linkCommand.handler({
+        subcommand: 'link',
         type: 'symbolic',
         args: [],
         'dry-run': false,
@@ -816,11 +830,35 @@ describe('wt subcommand handlers', () => {
         clean: false,
         backup: false,
       } as never);
-      expect(spawnSync).toHaveBeenCalledWith(
-        process.execPath,
-        expect.arrayContaining(['--type', 'symbolic']),
-        expect.any(Object)
-      );
+      expect(linkRun).toHaveBeenCalledWith(expect.objectContaining({ type: 'symbolic' }));
+    });
+
+    it('calls validate.run for validate subcommand', async () => {
+      await linkCommand.handler({
+        subcommand: 'validate',
+        args: [],
+        'dry-run': false,
+        yes: false,
+        'non-interactive': false,
+        json: false,
+        verbose: false,
+      } as never);
+      expect(validateRun).toHaveBeenCalled();
+    });
+
+    it('does not spawn a child process', async () => {
+      vi.mocked(spawnSync).mockClear();
+      await linkCommand.handler({
+        args: [],
+        'dry-run': false,
+        yes: false,
+        'non-interactive': false,
+        json: false,
+        verbose: false,
+        clean: false,
+        backup: false,
+      } as never);
+      expect(spawnSync).not.toHaveBeenCalled();
     });
   });
 });

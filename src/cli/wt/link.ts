@@ -1,11 +1,31 @@
 /**
  * wt link - Manage config file linking between worktrees
  *
- * Wraps the wtlink CLI tool functionality
+ * Calls wtlink library functions directly (in-process, no subprocess spawning)
  */
 
 import type { CommandModule } from 'yargs';
-import { runSubcommand } from './run-command.js';
+import * as git from '../../lib/git.js';
+import * as colors from '../../lib/colors.js';
+import * as manage from '../../lib/wtlink/manage-manifest.js';
+import * as link from '../../lib/wtlink/link-configs.js';
+import * as validate from '../../lib/wtlink/validate-manifest.js';
+import { hasLegacyManifest } from '../../lib/wtlink/config-manifest.js';
+import { DEFAULT_MANIFEST_FILE } from '../../lib/constants.js';
+import {
+  detectMigrationIssues,
+  runMigration,
+  formatMigrationReport,
+} from '../../lib/config-migration/index.js';
+import {
+  createErrorResult,
+  formatJsonResult,
+  ErrorCode,
+  getErrorCodeFromError,
+} from '../../lib/json-output.js';
+import { ManifestError } from '../../lib/errors.js';
+import { setJsonMode, isJsonMode, printError } from '../../lib/ui/index.js';
+import { showMainMenu } from '../../lib/wtlink/main-menu.js';
 
 interface LinkArgs {
   subcommand?: string;
@@ -95,74 +115,133 @@ export const linkCommand: CommandModule<object, LinkArgs> = {
       .example('$0 link validate', 'Validate manifest entries')
       .example('$0 link migrate', '[Deprecated] Use "wt config migrate" instead');
   },
-  handler: (argv) => {
-    const args: string[] = [];
+  handler: async (argv) => {
+    setJsonMode(!!argv.json);
 
-    if (argv.subcommand) {
-      args.push(argv.subcommand);
-    }
+    const sub = argv.subcommand || '';
+    const manifestFile = argv['manifest-file'] || DEFAULT_MANIFEST_FILE;
 
-    if (argv.args && argv.args.length > 0) {
-      args.push(...argv.args);
-    }
+    try {
+      switch (sub) {
+        case '': {
+          // No subcommand: show interactive main menu
+          await showMainMenu();
+          return;
+        }
 
-    if (argv['manifest-file']) {
-      args.push('--manifest-file', argv['manifest-file']);
-    }
+        case 'manage': {
+          await manage.run({
+            nonInteractive: !!argv['non-interactive'],
+            clean: !!argv.clean,
+            dryRun: !!argv['dry-run'],
+            manifestFile,
+            backup: !!argv.backup,
+            verbose: !!argv.verbose,
+          });
+          return;
+        }
 
-    if (argv.json) {
-      args.push('--json');
-    }
+        case 'link': {
+          const linkArgs = argv.args || [];
+          await link.run({
+            source: linkArgs[0],
+            destination: linkArgs[1],
+            dryRun: !!argv['dry-run'],
+            manifestFile,
+            type: (argv.type as 'hard' | 'symbolic') || 'hard',
+            yes: !!argv.yes,
+          });
+          return;
+        }
 
-    if (argv['dry-run']) {
-      args.push('--dry-run');
-    }
+        case 'validate': {
+          const validateArgs = argv.args || [];
+          validate.run({
+            manifestFile,
+            source: validateArgs[0],
+          });
+          return;
+        }
 
-    if (argv['non-interactive']) {
-      args.push('--non-interactive');
-    }
+        case 'migrate': {
+          // Show deprecation notice
+          console.log(colors.yellow('Note: "wt link migrate" is deprecated.'));
+          console.log(colors.dim('Please use "wt config migrate" for all migration tasks.'));
+          console.log();
 
-    if (argv.verbose) {
-      args.push('--verbose');
-    }
+          const mainWorktreeRoot = git.getMainWorktreeRoot();
 
-    if (argv.yes) {
-      args.push('--yes');
-    }
+          // Use new migration system for detection
+          const detection = detectMigrationIssues(mainWorktreeRoot);
 
-    if (argv.clean) {
-      args.push('--clean');
-    }
+          // Filter to only legacy .wtlinkrc issues for backward compatibility
+          const legacyIssues = detection.issues.filter((i) => i.type === 'legacy_wtlinkrc');
 
-    if (argv.backup) {
-      args.push('--backup');
-    }
+          if (legacyIssues.length === 0 && !hasLegacyManifest(mainWorktreeRoot)) {
+            console.log(colors.yellow(`No legacy ${DEFAULT_MANIFEST_FILE} file found.`));
+            console.log(
+              colors.dim('Your config is already using .worktreerc or no manifest exists yet.')
+            );
+            console.log(colors.dim("Run 'wtlink manage' to create or modify your manifest."));
+            return;
+          }
 
-    if (argv.type) {
-      args.push('--type', argv.type);
-    }
+          // Dry run mode - show report
+          if (argv['dry-run']) {
+            console.log(formatMigrationReport(detection, { verbose: true }));
+            console.log();
+            console.log(colors.cyan('[DRY RUN] No changes were made.'));
+            return;
+          }
 
-    // Forward global logging flags to child process
-    // Note: --verbose is already forwarded above (shared display + logger meaning)
-    if (argv.quiet) {
-      args.push('--quiet');
-    }
-    if (argv.noColor) {
-      args.push('--no-color');
-    }
+          // Run migration
+          const result = await runMigration(mainWorktreeRoot, detection, {
+            deleteLegacyFiles: false,
+          });
 
-    // Belt-and-suspenders: also set env vars for child process
-    const envOverrides: Record<string, string> = {};
-    if (argv.verbose) {
-      envOverrides.GWT_LOG_LEVEL = 'debug';
-    }
-    if (argv.quiet) {
-      envOverrides.GWT_LOG_LEVEL = 'error';
-    }
-    if (argv.noColor) {
-      envOverrides.NO_COLOR = '1';
-    }
+          if (result.success) {
+            console.log(colors.green('Migration completed successfully!'));
+            if (result.backupPath) {
+              console.log(colors.dim(`Backup created: ${result.backupPath}`));
+            }
+          } else {
+            console.log(colors.yellow('Migration completed with issues:'));
+            for (const error of result.errors) {
+              console.log(colors.red(`  ${error}`));
+            }
+          }
+          return;
+        }
 
-    runSubcommand('wtlink', args, envOverrides);
+        default: {
+          // Unknown subcommand
+          const msg = `Unknown subcommand: ${sub}`;
+          if (isJsonMode()) {
+            console.log(
+              formatJsonResult(createErrorResult('wtlink', ErrorCode.INVALID_ARGUMENT, msg))
+            );
+          } else {
+            printError({ title: msg, hint: 'Available: manage, link, validate, migrate' });
+          }
+          process.exit(1);
+        }
+      }
+    } catch (err) {
+      if (isJsonMode()) {
+        const errorResult = createErrorResult(
+          'wtlink',
+          err ? getErrorCodeFromError(err) : ErrorCode.UNKNOWN_ERROR,
+          err instanceof Error ? err.message : String(err)
+        );
+        console.log(formatJsonResult(errorResult));
+      } else if (err instanceof ManifestError && err.issues) {
+        const detail = err.issues.map((p) => `  - ${p}`).join('\n');
+        printError({ title: err.message, detail });
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        printError({ title: message });
+      }
+      process.exit(1);
+    }
   },
 };
