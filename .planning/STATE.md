@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 5 in progress — clean and config migrated, new and link remaining
+**Current focus:** Phase 5 in progress — all handler files migrated, interactive menu remaining
 
 ## Current Position
 
 Phase: 5 of 5 (In-Process Delegation)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: Executing
-Last activity: 2026-02-19 — Completed 05-02 (clean/config migration)
+Last activity: 2026-02-19 — Completed 05-03 (new/link in-process delegation)
 
-Progress: [████████░░] 88%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 15
+- Total plans completed: 16
 - Average duration: 14min
-- Total execution time: 200min
+- Total execution time: 218min
 
 **By Phase:**
 
@@ -32,12 +32,12 @@ Progress: [████████░░] 88%
 | 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
 | 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
 | 04-json-output-and-llm-ergonomics | 4/4   | 70min | 18min    |
-| 05-in-process-delegation          | 2/4   | 41min | 21min    |
+| 05-in-process-delegation          | 3/4   | 59min | 20min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 04-03 (14min), 04-01 (32min), 04-04 (5min), 05-01 (included in 05-02), 05-02 (41min)
-- Trend: 05-02 was larger scope (2 medium-complexity handler migrations with full test rewrites)
+- Last 5 plans: 04-01 (32min), 04-04 (5min), 05-01 (included in 05-02), 05-02 (41min), 05-03 (18min)
+- Trend: 05-03 faster than 05-02 (established pattern reuse; 2 handlers, less orchestration logic)
 
 _Updated after each plan completion_
 
@@ -95,6 +95,10 @@ Recent decisions affecting current work:
 - [Phase 05-01]: Extracted printWorktreeTable to src/lib/lswt/table.ts as shared module importable by both lswt.ts and wt/list.ts
 - [Phase 05-01]: Handler functions are async; logger init NOT called (already done by wt.ts middleware)
 - [Phase 05-01]: Used importOriginal for colors mock in table.test.ts to prevent mock leaking across vitest workers
+- [Phase 05-03]: Guard main() in newpr.ts with isMain check to prevent execution on import (same pattern as prs.ts)
+- [Phase 05-03]: runNewprHandler takes Options directly -- caller builds Options from argv, no re-parsing
+- [Phase 05-03]: PR number validation in wt/new.ts catches yargs NaN edge case for --pr flag
+- [Phase 05-03]: wt link migrate delegates to migration library directly, matching standalone wtlink.ts pattern
 
 ### Pending Todos
 
@@ -110,5 +114,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 05-02-PLAN.md (clean/config in-process delegation)
+Stopped at: Completed 05-03-PLAN.md (new/link in-process delegation)
 Resume file: None
