@@ -77,7 +77,7 @@ Each task was committed atomically:
 1. **Task 1: Extract printTable and migrate list/state to direct calls** - `f796884` (feat)
 2. **Task 2: Add tests for extracted printWorktreeTable** - `d3ab111` (test)
 
-**Plan metadata:** [pending] (docs: complete plan)
+**Plan metadata:** `f275463` (docs: complete plan)
 
 ## Files Created/Modified
 
