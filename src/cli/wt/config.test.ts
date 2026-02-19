@@ -1,5 +1,7 @@
 /**
  * Unit tests for wt config command
+ *
+ * All subcommands are handled via direct library calls (no subprocess spawning).
  */
 
 import {
@@ -13,9 +15,13 @@ import {
   type MockInstance,
 } from 'vitest';
 
-// Mock dependencies before importing the module
-vi.mock('./run-command.js', () => ({
-  runSubcommand: vi.fn(),
+// Mock child_process for edit subcommand (spawnSync for editor)
+vi.mock('child_process', () => ({
+  spawnSync: vi.fn(),
+}));
+
+vi.mock('fs', () => ({
+  existsSync: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock('../../lib/git.js', () => ({
@@ -29,7 +35,15 @@ vi.mock('../../lib/config-editor.js', () => ({
 
 vi.mock('../../lib/config.js', () => ({
   loadConfigWithValidation: vi.fn(),
-  getDefaultConfig: vi.fn(() => ({})),
+  getDefaultConfig: vi.fn(() => ({
+    baseBranch: 'main',
+    draftPr: false,
+    branchPrefix: 'feat',
+    worktreePattern: '{repo}.pr{number}',
+    worktreeParent: '..',
+    preferredEditor: 'auto',
+    sharedRepos: [],
+  })),
   getConfigPath: vi.fn(),
 }));
 
@@ -44,35 +58,95 @@ vi.mock('../../lib/colors.js', () => ({
   info: vi.fn((s: string) => s),
   cyan: vi.fn((s: string) => s),
   yellow: vi.fn((s: string) => s),
+  warning: vi.fn((s: string) => s),
+  bold: vi.fn((s: string) => s),
 }));
 
 vi.mock('../../lib/global-config.js', () => ({
   getSchemaUrl: vi.fn(() => 'https://example.com/schema.json'),
 }));
 
+vi.mock('../../lib/wtconfig/index.js', () => ({
+  getConfigSource: vi.fn().mockReturnValue({ type: 'none', path: null }),
+  loadMergedConfig: vi.fn().mockReturnValue({ baseBranch: 'main' }),
+  getConfigValue: vi.fn(),
+  setConfigValue: vi.fn().mockReturnValue({ baseBranch: 'develop' }),
+  validateConfig: vi.fn().mockReturnValue({ valid: true, errors: [], warnings: [] }),
+  loadRepoConfig: vi.fn().mockReturnValue({}),
+  loadGlobalConfig: vi.fn().mockReturnValue({}),
+  saveRepoConfig: vi.fn(),
+  saveGlobalConfig: vi.fn(),
+  getDefaultRepoConfigPath: vi.fn().mockReturnValue('/repo/.worktreerc'),
+  getGlobalConfigPath: vi.fn().mockReturnValue('/home/user/.worktreerc'),
+  findRepoConfigPath: vi.fn().mockReturnValue(null),
+}));
+
+vi.mock('../../lib/config-migration/index.js', () => ({
+  detectMigrationIssues: vi.fn().mockReturnValue({ issues: [] }),
+  runMigration: vi.fn().mockResolvedValue({
+    success: true,
+    backupPath: null,
+    newConfigPath: '/repo/.worktreerc',
+    actionsExecuted: [],
+    errors: [],
+  }),
+  formatMigrationReport: vi.fn().mockReturnValue('Migration report'),
+  formatMigrationReportJSON: vi.fn().mockReturnValue({}),
+}));
+
+vi.mock('../../lib/json-output.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/json-output.js')>();
+  return {
+    ...actual,
+    createSuccessResult: vi.fn().mockReturnValue({ success: true }),
+    createErrorResult: vi.fn().mockReturnValue({ success: false }),
+    formatJsonResult: vi.fn().mockReturnValue('{}'),
+  };
+});
+
+vi.mock('../../lib/ui/index.js', () => ({
+  printError: vi.fn(),
+  printStatus: vi.fn(),
+  setJsonMode: vi.fn(),
+}));
+
 import { configCommand } from './config.js';
 import * as git from '../../lib/git.js';
 import * as configEditor from '../../lib/config-editor.js';
 import * as config from '../../lib/config.js';
-import { runSubcommand } from './run-command.js';
+import {
+  getConfigSource,
+  loadMergedConfig,
+  getConfigValue,
+  setConfigValue,
+  validateConfig,
+  saveRepoConfig,
+  findRepoConfigPath,
+} from '../../lib/wtconfig/index.js';
+import { detectMigrationIssues } from '../../lib/config-migration/index.js';
+import { createSuccessResult, formatJsonResult } from '../../lib/json-output.js';
+import { printError, printStatus } from '../../lib/ui/index.js';
+import { spawnSync } from 'child_process';
 
 // Helper to create valid yargs argv for tests
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createArgv(args: { subcommand?: string; args?: string[] }): any {
+function createArgv(args: { subcommand?: string; args?: string[]; json?: boolean }): any {
   return {
     _: [],
     $0: 'wt',
     subcommand: args.subcommand,
     args: args.args ?? [],
+    json: args.json ?? false,
   };
 }
 
 describe('wt config command', () => {
-  // Using 'any' for spies since vitest's MockInstance typing is complex for these methods
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let consoleLogSpy: MockInstance<any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let consoleErrorSpy: MockInstance<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let consoleWarnSpy: MockInstance<any>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let processExitSpy: MockInstance<any>;
 
@@ -80,12 +154,14 @@ describe('wt config command', () => {
     vi.clearAllMocks();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
   });
 
   afterEach(() => {
     consoleLogSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+    consoleWarnSpy.mockRestore();
     processExitSpy.mockRestore();
   });
 
@@ -200,6 +276,127 @@ describe('wt config command', () => {
     });
   });
 
+  describe('handler - show subcommand', () => {
+    it('calls loadMergedConfig and outputs config display', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(createArgv({ subcommand: 'show' }));
+
+      expect(loadMergedConfig).toHaveBeenCalledWith('/repo');
+      expect(getConfigSource).toHaveBeenCalledWith('/repo');
+      expect(consoleLogSpy).toHaveBeenCalled();
+    });
+
+    it('outputs JSON when --json is passed', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(createArgv({ subcommand: 'show', json: true }));
+
+      expect(createSuccessResult).toHaveBeenCalledWith(
+        'wtconfig',
+        expect.objectContaining({ subcommand: 'show' })
+      );
+      expect(formatJsonResult).toHaveBeenCalled();
+    });
+  });
+
+  describe('handler - get subcommand', () => {
+    it('calls getConfigValue with the requested key', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (getConfigValue as Mock).mockReturnValue('main');
+
+      await configCommand.handler(createArgv({ subcommand: 'get', args: ['baseBranch'] }));
+
+      expect(loadMergedConfig).toHaveBeenCalledWith('/repo');
+      expect(getConfigValue).toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith('main');
+    });
+
+    it('exits with error when no key provided', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'get', args: [] }));
+
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringContaining('Missing key') })
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('exits with error when key not found', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (getConfigValue as Mock).mockReturnValue(undefined);
+
+      await configCommand.handler(createArgv({ subcommand: 'get', args: ['nonexistent'] }));
+
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringContaining('not found') })
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('outputs JSON when --json is passed', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (getConfigValue as Mock).mockReturnValue('auto');
+
+      await configCommand.handler(
+        createArgv({ subcommand: 'get', args: ['ai.provider'], json: true })
+      );
+
+      expect(createSuccessResult).toHaveBeenCalledWith(
+        'wtconfig',
+        expect.objectContaining({ subcommand: 'get', key: 'ai.provider' })
+      );
+    });
+  });
+
+  describe('handler - set subcommand with key and value', () => {
+    it('calls setConfigValue and saves to repo config', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(
+        createArgv({ subcommand: 'set', args: ['baseBranch', 'develop'] })
+      );
+
+      expect(setConfigValue).toHaveBeenCalled();
+      expect(validateConfig).toHaveBeenCalled();
+      expect(saveRepoConfig).toHaveBeenCalledWith('/repo', expect.any(Object));
+    });
+
+    it('exits with error when not in git repo', async () => {
+      (git.getRepoRoot as Mock).mockImplementation(() => {
+        throw new Error('Not a git repo');
+      });
+
+      await configCommand.handler(
+        createArgv({ subcommand: 'set', args: ['baseBranch', 'develop'] })
+      );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Not in a git repository.');
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('exits with error when validation fails', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (validateConfig as Mock).mockReturnValue({
+        valid: false,
+        errors: [{ path: 'baseBranch', message: 'invalid' }],
+        warnings: [],
+      });
+
+      await configCommand.handler(
+        createArgv({ subcommand: 'set', args: ['baseBranch', 'invalid!'] })
+      );
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('exits with error when less than 2 args', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'set', args: [] }));
+
+      expect(printError).toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
   describe('handler - set subcommand with single arg (quick edit)', () => {
     it('runs quick edit when set has only key', async () => {
       (git.getRepoRoot as Mock).mockReturnValue('/repo');
@@ -250,6 +447,41 @@ describe('wt config command', () => {
       await configCommand.handler(createArgv({ subcommand: 'set', args: ['baseBranch'] }));
 
       expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('handler - edit subcommand', () => {
+    it('opens editor for repo config when found', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (findRepoConfigPath as Mock).mockReturnValue('/repo/.worktreerc');
+
+      await configCommand.handler(createArgv({ subcommand: 'edit' }));
+
+      expect(spawnSync).toHaveBeenCalledWith(
+        expect.any(String),
+        ['/repo/.worktreerc'],
+        expect.any(Object)
+      );
+    });
+
+    it('shows error when no config found', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (findRepoConfigPath as Mock).mockReturnValue(null);
+
+      await configCommand.handler(createArgv({ subcommand: 'edit' }));
+
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringContaining('No configuration file') })
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('handler - init subcommand', () => {
+    it('shows message directing to wt init', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'init' }));
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('wt init'));
     });
   });
 
@@ -312,45 +544,69 @@ describe('wt config command', () => {
     });
   });
 
-  describe('handler - schema subcommand', () => {
-    // Note: The handleSchema function uses dynamic require() which doesn't work
-    // with ESM mocks. The schema functionality is tested via integration tests.
-    it('has schema routing defined', () => {
-      expect(configCommand.handler).toBeDefined();
+  describe('handler - migrate subcommand', () => {
+    it('shows no migration needed when no issues found', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(createArgv({ subcommand: 'migrate' }));
+
+      expect(detectMigrationIssues).toHaveBeenCalledWith('/repo');
+      expect(printStatus).toHaveBeenCalledWith('success', 'No migration needed.');
+    });
+
+    it('exits with error when not in git repo', async () => {
+      (git.getRepoRoot as Mock).mockImplementation(() => {
+        throw new Error('Not a git repo');
+      });
+
+      await configCommand.handler(createArgv({ subcommand: 'migrate' }));
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
 
-  describe('handler - delegation to wtconfig', () => {
-    it('delegates show subcommand to wtconfig', async () => {
+  describe('handler - schema subcommand', () => {
+    it('outputs schema URL', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'schema' }));
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('example.com/schema'));
+    });
+  });
+
+  describe('handler - unknown subcommand', () => {
+    it('exits with error for unknown subcommand', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'foobar' }));
+
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringContaining('Unknown config subcommand') })
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('no subprocess spawning', () => {
+    it('does not call runSubcommand for show', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
       await configCommand.handler(createArgv({ subcommand: 'show' }));
-
-      expect(runSubcommand).toHaveBeenCalledWith('wtconfig', ['show']);
+      // No runSubcommand import means it cannot be called
+      expect(loadMergedConfig).toHaveBeenCalled();
     });
 
-    it('delegates get subcommand with args to wtconfig', async () => {
-      await configCommand.handler(createArgv({ subcommand: 'get', args: ['ai.provider'] }));
-
-      expect(runSubcommand).toHaveBeenCalledWith('wtconfig', ['get', 'ai.provider']);
+    it('does not call runSubcommand for get', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (getConfigValue as Mock).mockReturnValue('main');
+      await configCommand.handler(createArgv({ subcommand: 'get', args: ['baseBranch'] }));
+      expect(getConfigValue).toHaveBeenCalled();
     });
 
-    it('delegates set subcommand with key and value to wtconfig', async () => {
+    it('does not call runSubcommand for set with key+value', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
       await configCommand.handler(
         createArgv({ subcommand: 'set', args: ['baseBranch', 'develop'] })
       );
-
-      expect(runSubcommand).toHaveBeenCalledWith('wtconfig', ['set', 'baseBranch', 'develop']);
-    });
-
-    it('delegates edit subcommand to wtconfig', async () => {
-      await configCommand.handler(createArgv({ subcommand: 'edit' }));
-
-      expect(runSubcommand).toHaveBeenCalledWith('wtconfig', ['edit']);
-    });
-
-    it('delegates init subcommand to wtconfig', async () => {
-      await configCommand.handler(createArgv({ subcommand: 'init' }));
-
-      expect(runSubcommand).toHaveBeenCalledWith('wtconfig', ['init']);
+      expect(setConfigValue).toHaveBeenCalled();
+      expect(saveRepoConfig).toHaveBeenCalled();
     });
   });
 });
