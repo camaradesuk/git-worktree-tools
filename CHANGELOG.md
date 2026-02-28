@@ -1,3 +1,58 @@
+# [1.10.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.9.0...v1.10.0) (2026-02-28)
+
+
+### Bug Fixes
+
+* **01-logger-wiring:** revise plans based on checker feedback ([2edf605](https://github.com/camaradesuk/git-worktree-tools/commit/2edf605863647d81fd4f11f02c472f1110a4eeae))
+* **02-02:** replace raw unicode icons in link-configs.ts with colors.ts semantics ([b96bc00](https://github.com/camaradesuk/git-worktree-tools/commit/b96bc008bb5c6bda76b86f3572f62cf470ed1d15))
+* **02-02:** replace remaining console.log(colors.error) in newpr.ts cancel path ([f1dad86](https://github.com/camaradesuk/git-worktree-tools/commit/f1dad86fabaf74b09e385bc65c0af3dbb9bfac9d))
+* **02-03:** split checkout failure message into detail + hint ([5e5e69e](https://github.com/camaradesuk/git-worktree-tools/commit/5e5e69e5eeb2db602f1015e5f34a332f9ada0caf))
+* **logger:** close audit file stream in _resetForTesting ([b8a48a8](https://github.com/camaradesuk/git-worktree-tools/commit/b8a48a813c37f3dfafb2b31d1e60bcbca9b1e5e8))
+* **logger:** synchronously close audit stream fd for Windows compat ([9fddefc](https://github.com/camaradesuk/git-worktree-tools/commit/9fddefcd3d16d6053d7291cb77c1eaa5ebbf90e5))
+* replace fixed 200ms sleep with polling in logger tests ([847394b](https://github.com/camaradesuk/git-worktree-tools/commit/847394b73b5e25eccd069dcb48a10891c2d87deb))
+* **tests:** resolve CI failures on Windows and Ubuntu ([0033c24](https://github.com/camaradesuk/git-worktree-tools/commit/0033c24c599405119e234d4a8eaf1714ce481a7f))
+* use path.join in XDG test assertions for Windows compatibility ([f5d46d9](https://github.com/camaradesuk/git-worktree-tools/commit/f5d46d982ea6f546f4425398b8699c45689efd3f))
+
+
+### Features
+
+* **01-01:** add getGlobalDataDir to constants.ts and make colors.ts mutable ([91636cb](https://github.com/camaradesuk/git-worktree-tools/commit/91636cbfccfbf80855f3bf24de94d2fc7874df9e))
+* **01-01:** replace logger.ts with consola-based wrapper ([8641013](https://github.com/camaradesuk/git-worktree-tools/commit/8641013951943e377a6383edd9023003df0f64d2))
+* **01-01:** update consumers to new consola-compatible logger API ([ef1ffb4](https://github.com/camaradesuk/git-worktree-tools/commit/ef1ffb44bfe6bb6d39c4b5f3395981c8ee39c047))
+* **01-02:** add --verbose/--quiet/--no-color to all 4 legacy arg parsers ([1c8b3ac](https://github.com/camaradesuk/git-worktree-tools/commit/1c8b3aca768f1a702f4b7f6016601ea3fedf103c))
+* **01-02:** forward logging flags from wt wrappers to child processes ([16ca52b](https://github.com/camaradesuk/git-worktree-tools/commit/16ca52b3f9572435535a1188aa374984c3a5294c))
+* **01-02:** wire initializeLogger into all 4 legacy CLI entry points ([e7342e9](https://github.com/camaradesuk/git-worktree-tools/commit/e7342e97df19552ac18dad6824034fe7bc167507))
+* **02-01:** create ui/error.ts for structured error display ([c21c531](https://github.com/camaradesuk/git-worktree-tools/commit/c21c53190e415732db88348487a68e22ffd4d800))
+* **02-01:** create ui/index.ts barrel export for all UI primitives ([0cc4764](https://github.com/camaradesuk/git-worktree-tools/commit/0cc476445530fb88896ada41cdb4e770f9817732))
+* **02-01:** create ui/output.ts JSON-mode-aware output gate ([c4445cc](https://github.com/camaradesuk/git-worktree-tools/commit/c4445cc6b3290ded83ea29ca8dc1fb09ee174b6a))
+* **02-01:** create ui/spinner.ts as re-export of prompts.withSpinner ([3accc1b](https://github.com/camaradesuk/git-worktree-tools/commit/3accc1b4d125dc8f5a1dcadbf1826c96db13a1e1))
+* **02-01:** create ui/status.ts with printStatus, printHeader, printSummaryBox ([002115b](https://github.com/camaradesuk/git-worktree-tools/commit/002115b8435c488559db5f47c7ad73bc5ab09dbe))
+* **02-01:** create ui/table.ts for structured worktree table output ([0835f73](https://github.com/camaradesuk/git-worktree-tools/commit/0835f73dfe7e503bd16cfa4263d22d5cd434322d))
+* **02-01:** create ui/theme.ts with centralized icons and box-drawing constants ([0d72db6](https://github.com/camaradesuk/git-worktree-tools/commit/0d72db6ff0ee1e68012db7fe8deba7ca69783086))
+* **02-02:** add colored error output to wt.ts via printError ([ee41450](https://github.com/camaradesuk/git-worktree-tools/commit/ee4145055831a88f995101d6b1cce55698ea347e))
+* **02-02:** wire setJsonMode() into all CLI init paths ([31f42af](https://github.com/camaradesuk/git-worktree-tools/commit/31f42afb789a71ae19d573cfff597864cd1fb5c6))
+* **02-03:** add error hints to exitWithError() in newpr.ts ([d956a1c](https://github.com/camaradesuk/git-worktree-tools/commit/d956a1c3c139afd5f2cff1f807ece955502ecbc3))
+* **02-03:** add hints to cleanpr.ts error paths ([778d8a8](https://github.com/camaradesuk/git-worktree-tools/commit/778d8a8f1ed8016ce8dd804740902f210aaf826b))
+* **02-03:** add hints to newpr checkPrerequisites() ([a97e88d](https://github.com/camaradesuk/git-worktree-tools/commit/a97e88d85d4fd26c521ab6b4d4a022c8f2cb1cc8))
+* **02-03:** add install hint to lswt GH CLI warning ([8e72f6a](https://github.com/camaradesuk/git-worktree-tools/commit/8e72f6ac10f6065aa5408053886d2cd2c90aaf30))
+* **02-03:** standardize validate-manifest error to title+detail+hint ([73d66d7](https://github.com/camaradesuk/git-worktree-tools/commit/73d66d79271dab39665da41f7001627190e41060))
+* **03-01:** replace runSubcommand with runSubcommandForResult and rewire wtlink actions ([bae03d3](https://github.com/camaradesuk/git-worktree-tools/commit/bae03d3360935ef1a4c96cc8f561017f2f8c7041))
+* **03-03:** add global terminal safety net and fix prs Ctrl+C handling ([c3139ea](https://github.com/camaradesuk/git-worktree-tools/commit/c3139eab7f7da0a1e6822f07efb66e80a34b36dc))
+* **04-01:** migrate prs JSON output to CommandResult<PrsResultData> ([2e5d956](https://github.com/camaradesuk/git-worktree-tools/commit/2e5d95636fbe8d6a447e13d79b5f278095ea586c))
+* **04-01:** patch JSON error gaps in wtstate, wtlink, wt, and wtconfig CLIs ([5d34f93](https://github.com/camaradesuk/git-worktree-tools/commit/5d34f93eaa242de56a96ebcbc8f7505fcfd3a795))
+* **04-01:** patch JSON error gaps in wtstate, wtlink, wt, and wtconfig CLIs ([1fece64](https://github.com/camaradesuk/git-worktree-tools/commit/1fece640b518a82ac4dc26a2a3d35e3d80f975b6))
+* **04-02:** audit and fix help text for prs, link, init, new subcommands ([f524728](https://github.com/camaradesuk/git-worktree-tools/commit/f5247287a35990eddc7d85ec57f3818f81884a3e))
+* **04-02:** audit and fix help text for state, clean, list, config subcommands ([47da4a0](https://github.com/camaradesuk/git-worktree-tools/commit/47da4a027a9430d3f58f33f16daf93dd97eb5329))
+* **04-03:** add annotations, outputSchema, and enriched descriptions to MCP tools ([3d98e59](https://github.com/camaradesuk/git-worktree-tools/commit/3d98e59bb134acafd617e4c775700a877f2e1428))
+* **04-04:** add prs and init to zsh/fish completions with all missing flags ([4c6d338](https://github.com/camaradesuk/git-worktree-tools/commit/4c6d338907ed91db5b1b695de471f1db7146dfff))
+* **05-01:** migrate wt list and wt state from subprocess to direct library calls ([f796884](https://github.com/camaradesuk/git-worktree-tools/commit/f796884d4534a21d0e8f372322550cd8f6ce2315))
+* **05-02:** migrate wt/clean.ts from subprocess to direct library calls ([2dec4ce](https://github.com/camaradesuk/git-worktree-tools/commit/2dec4ce93f08311e1aa03f215f770e35041c0eb7)), closes [#not-installed](https://github.com/camaradesuk/git-worktree-tools/issues/not-installed)
+* **05-02:** migrate wt/config.ts from subprocess to direct library calls ([876e0c2](https://github.com/camaradesuk/git-worktree-tools/commit/876e0c2eb42e52cc17dd7f109e89060e8021042f))
+* **05-03:** extract runNewprHandler and migrate wt/new.ts to direct library calls ([9487825](https://github.com/camaradesuk/git-worktree-tools/commit/94878256b7ad0949de39efd4720544db0b76063d))
+* **05-03:** migrate wt/link.ts from subprocess to direct library calls ([358dd7f](https://github.com/camaradesuk/git-worktree-tools/commit/358dd7fb0eeb6cd6e93d36d238e46664b86259be))
+* **05-04:** add deprecation notices to all legacy CLI entry points ([b42b5f4](https://github.com/camaradesuk/git-worktree-tools/commit/b42b5f4694aad6cdde9c136aaa388ec7e8449ae9))
+* **05-04:** migrate interactive menu from subprocess to direct library calls ([70af18a](https://github.com/camaradesuk/git-worktree-tools/commit/70af18a68c48b18128aaed2fb8061c3184aea5bd))
+
 # [1.9.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.8.0...v1.9.0) (2026-01-13)
 
 
