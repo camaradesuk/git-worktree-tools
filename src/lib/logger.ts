@@ -433,6 +433,9 @@ export function _resetForTesting(): void {
   jsonMode = false;
   auditContext = {};
   auditFileWarned = false;
+  if (activeAuditReporter) {
+    activeAuditReporter.close();
+  }
   activeAuditReporter = null;
   // Note: we don't reset exitHandlerRegistered because process.on('exit') handlers
   // cannot be removed cleanly and we only register once per process.
