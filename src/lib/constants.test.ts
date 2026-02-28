@@ -125,7 +125,7 @@ describe('constants', () => {
       Object.defineProperty(process, 'platform', { value: 'linux' });
       process.env.XDG_CONFIG_HOME = '/custom/config';
       const result = getGlobalConfigDir();
-      expect(result).toBe('/custom/config/git-worktree-tools');
+      expect(result).toBe(path.join('/custom/config', 'git-worktree-tools'));
     });
 
     it('returns default .config path on Linux when XDG_CONFIG_HOME is not set', () => {
@@ -172,7 +172,7 @@ describe('constants', () => {
       Object.defineProperty(process, 'platform', { value: 'linux' });
       process.env.XDG_STATE_HOME = '/custom/state';
       const result = getGlobalLogDir();
-      expect(result).toBe('/custom/state/git-worktree-tools/logs');
+      expect(result).toBe(path.join('/custom/state', 'git-worktree-tools', 'logs'));
     });
 
     it('returns default .local/state path on Linux when XDG_STATE_HOME is not set', () => {
@@ -224,7 +224,7 @@ describe('constants', () => {
       Object.defineProperty(process, 'platform', { value: 'linux' });
       process.env.XDG_DATA_HOME = '/custom/data';
       const result = getGlobalDataDir();
-      expect(result).toBe('/custom/data/git-worktree-tools');
+      expect(result).toBe(path.join('/custom/data', 'git-worktree-tools'));
     });
 
     it('returns default .local/share path on Linux when XDG_DATA_HOME is not set', () => {
