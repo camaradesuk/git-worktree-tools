@@ -103,25 +103,36 @@ describe('constants', () => {
     const originalEnv = { ...process.env };
 
     afterEach(() => {
-      // Restore environment
       process.env = { ...originalEnv };
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
+    it('returns APPDATA path on win32 when APPDATA is set', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      process.env.APPDATA = 'C:\\Users\\test\\AppData\\Roaming';
+      const result = getGlobalConfigDir();
+      expect(result).toBe(path.join('C:\\Users\\test\\AppData\\Roaming', 'git-worktree-tools'));
+    });
+
+    it('returns default AppData\\Roaming path on win32 when APPDATA is not set', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      delete process.env.APPDATA;
+      const result = getGlobalConfigDir();
+      expect(result).toBe(path.join(os.homedir(), 'AppData', 'Roaming', 'git-worktree-tools'));
+    });
+
     it('returns XDG config path on Linux when XDG_CONFIG_HOME is set', () => {
-      if (process.platform !== 'win32') {
-        process.env.XDG_CONFIG_HOME = '/custom/config';
-        const result = getGlobalConfigDir();
-        expect(result).toBe('/custom/config/git-worktree-tools');
-      }
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      process.env.XDG_CONFIG_HOME = '/custom/config';
+      const result = getGlobalConfigDir();
+      expect(result).toBe('/custom/config/git-worktree-tools');
     });
 
     it('returns default .config path on Linux when XDG_CONFIG_HOME is not set', () => {
-      if (process.platform !== 'win32') {
-        delete process.env.XDG_CONFIG_HOME;
-        const result = getGlobalConfigDir();
-        expect(result).toBe(path.join(os.homedir(), '.config', 'git-worktree-tools'));
-      }
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      delete process.env.XDG_CONFIG_HOME;
+      const result = getGlobalConfigDir();
+      expect(result).toBe(path.join(os.homedir(), '.config', 'git-worktree-tools'));
     });
 
     it('returns path containing package name', () => {
@@ -135,27 +146,40 @@ describe('constants', () => {
     const originalEnv = { ...process.env };
 
     afterEach(() => {
-      // Restore environment
       process.env = { ...originalEnv };
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
+    it('returns LOCALAPPDATA path on win32 when LOCALAPPDATA is set', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      process.env.LOCALAPPDATA = 'C:\\Users\\test\\AppData\\Local';
+      const result = getGlobalLogDir();
+      expect(result).toBe(
+        path.join('C:\\Users\\test\\AppData\\Local', 'git-worktree-tools', 'logs')
+      );
+    });
+
+    it('returns default AppData\\Local path on win32 when LOCALAPPDATA is not set', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      delete process.env.LOCALAPPDATA;
+      const result = getGlobalLogDir();
+      expect(result).toBe(
+        path.join(os.homedir(), 'AppData', 'Local', 'git-worktree-tools', 'logs')
+      );
+    });
+
     it('returns XDG state path on Linux when XDG_STATE_HOME is set', () => {
-      if (process.platform !== 'win32') {
-        process.env.XDG_STATE_HOME = '/custom/state';
-        const result = getGlobalLogDir();
-        expect(result).toBe('/custom/state/git-worktree-tools/logs');
-      }
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      process.env.XDG_STATE_HOME = '/custom/state';
+      const result = getGlobalLogDir();
+      expect(result).toBe('/custom/state/git-worktree-tools/logs');
     });
 
     it('returns default .local/state path on Linux when XDG_STATE_HOME is not set', () => {
-      if (process.platform !== 'win32') {
-        delete process.env.XDG_STATE_HOME;
-        const result = getGlobalLogDir();
-        expect(result).toBe(
-          path.join(os.homedir(), '.local', 'state', 'git-worktree-tools', 'logs')
-        );
-      }
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      delete process.env.XDG_STATE_HOME;
+      const result = getGlobalLogDir();
+      expect(result).toBe(path.join(os.homedir(), '.local', 'state', 'git-worktree-tools', 'logs'));
     });
 
     it('returns path containing package name and logs', () => {
@@ -166,26 +190,48 @@ describe('constants', () => {
   });
 
   describe('getGlobalDataDir', () => {
+    const originalPlatform = process.platform;
     const originalEnv = { ...process.env };
 
     afterEach(() => {
       process.env = { ...originalEnv };
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    });
+
+    it('returns APPDATA path on win32 when APPDATA is set', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      process.env.APPDATA = 'C:\\Users\\test\\AppData\\Roaming';
+      const result = getGlobalDataDir();
+      expect(result).toBe(path.join('C:\\Users\\test\\AppData\\Roaming', 'git-worktree-tools'));
+    });
+
+    it('returns default AppData\\Roaming path on win32 when APPDATA is not set', () => {
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      delete process.env.APPDATA;
+      const result = getGlobalDataDir();
+      expect(result).toBe(path.join(os.homedir(), 'AppData', 'Roaming', 'git-worktree-tools'));
+    });
+
+    it('returns Library/Application Support path on darwin', () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      const result = getGlobalDataDir();
+      expect(result).toBe(
+        path.join(os.homedir(), 'Library', 'Application Support', 'git-worktree-tools')
+      );
     });
 
     it('returns XDG data path on Linux when XDG_DATA_HOME is set', () => {
-      if (process.platform !== 'win32' && process.platform !== 'darwin') {
-        process.env.XDG_DATA_HOME = '/custom/data';
-        const result = getGlobalDataDir();
-        expect(result).toBe('/custom/data/git-worktree-tools');
-      }
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      process.env.XDG_DATA_HOME = '/custom/data';
+      const result = getGlobalDataDir();
+      expect(result).toBe('/custom/data/git-worktree-tools');
     });
 
     it('returns default .local/share path on Linux when XDG_DATA_HOME is not set', () => {
-      if (process.platform !== 'win32' && process.platform !== 'darwin') {
-        delete process.env.XDG_DATA_HOME;
-        const result = getGlobalDataDir();
-        expect(result).toBe(path.join(os.homedir(), '.local', 'share', 'git-worktree-tools'));
-      }
+      Object.defineProperty(process, 'platform', { value: 'linux' });
+      delete process.env.XDG_DATA_HOME;
+      const result = getGlobalDataDir();
+      expect(result).toBe(path.join(os.homedir(), '.local', 'share', 'git-worktree-tools'));
     });
 
     it('returns path containing package name', () => {
