@@ -44,6 +44,30 @@ function cleanupTempDir(dir: string): void {
   }
 }
 
+/**
+ * Wait for an audit log file to have non-empty content.
+ * Polls every 50ms up to the given timeout (default 2s).
+ * WriteStream flush timing varies across platforms/Node versions.
+ */
+async function waitForAuditContent(filePath: string, timeoutMs = 2000): Promise<string> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      if (content.length > 0) return content;
+    } catch {
+      // file may not exist yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  // Final attempt — return whatever is there (may be empty, test will fail with a clear message)
+  try {
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // parseLogLevel
 // ---------------------------------------------------------------------------
@@ -413,11 +437,8 @@ describe('AuditFileReporter', () => {
     initializeLogger({ commandName: 'test-cmd' });
     logger.info('test audit message');
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
     const auditPath = path.join(tempDir, 'audit.log');
-    expect(fs.existsSync(auditPath)).toBe(true);
-    const content = fs.readFileSync(auditPath, 'utf-8');
+    const content = await waitForAuditContent(auditPath);
     expect(content).toContain('test audit message');
 
     stderrSpy.mockRestore();
@@ -432,10 +453,8 @@ describe('AuditFileReporter', () => {
     initializeLogger({ commandName: 'test-cmd' });
     logger.warn('something went wrong');
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
     const auditPath = path.join(tempDir, 'audit.log');
-    const content = fs.readFileSync(auditPath, 'utf-8');
+    const content = await waitForAuditContent(auditPath);
     expect(content).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
     expect(content).toMatch(/WARN/);
     expect(content).toContain('something went wrong');
@@ -452,10 +471,8 @@ describe('AuditFileReporter', () => {
     initializeLogger({ json: true, commandName: 'test-cmd' });
     logger.info('json test message');
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
     const auditPath = path.join(tempDir, 'audit.log');
-    const content = fs.readFileSync(auditPath, 'utf-8').trim();
+    const content = (await waitForAuditContent(auditPath)).trim();
     const lines = content.split('\n').filter((l) => l.trim().length > 0);
 
     for (const line of lines) {
@@ -534,7 +551,7 @@ describe('Audit log rotation', () => {
     expect(rotatedContent).toBe(bigContent);
 
     logger.info('post-rotation entry');
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await waitForAuditContent(auditPath);
 
     expect(fs.existsSync(auditPath)).toBe(true);
     const newSize = fs.statSync(auditPath).size;
