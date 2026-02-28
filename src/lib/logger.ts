@@ -115,8 +115,26 @@ class AuditFileReporter implements ConsolaReporter {
 
   close(): void {
     if (this.stream) {
-      this.stream.end();
+      const stream = this.stream;
       this.stream = null;
+      // Close the fd synchronously so callers can immediately delete the file.
+      // On Windows, stream.end()/destroy() close the fd asynchronously, leaving
+      // the file locked until the next tick.
+      const streamInternal = stream as unknown as { fd: number | null };
+      const fd = streamInternal.fd;
+      if (typeof fd === 'number') {
+        // Null out the fd BEFORE closing so destroy() won't try to close it
+        // again (which would risk closing a reused fd number).
+        streamInternal.fd = null;
+        try {
+          fs.closeSync(fd);
+        } catch {
+          /* best effort */
+        }
+      }
+      stream.removeAllListeners('error');
+      stream.on('error', () => {});
+      stream.destroy();
     }
   }
 }
