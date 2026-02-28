@@ -40,7 +40,7 @@ function createTempDir(): string {
 
 function cleanupTempDir(dir: string): void {
   if (dir && fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }
 

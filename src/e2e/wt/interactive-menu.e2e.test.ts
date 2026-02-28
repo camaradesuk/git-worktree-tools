@@ -110,17 +110,17 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('shows main menu with all options including Browse PRs', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 10000,
       });
 
       try {
-        // Wait for menu options to fully render (not just the header)
-        await session.waitFor(/list worktree/i, 5000);
+        // Wait for menu options to fully render (wait for Browse PRs to ensure full menu is in buffer)
+        await session.waitFor(/browse.*pr/i, 5000);
 
         const output = stripAnsi(session.getOutput());
 
-        // Should show menu options (at least the first items - PTY buffer may not capture all)
+        // Should show menu options
         expect(output).toMatch(/list.*worktree/i);
         expect(output).toMatch(/browse.*pr/i);
         // The menu has more items (Create new PR, Clean up PRs, etc.) but PTY buffer
@@ -140,7 +140,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('navigates to Browse PRs using arrow keys and shows PR list', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -183,7 +183,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('shows PR details in Browse PRs view', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -216,7 +216,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('pressing m key shows MERGED PRs exclusively', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -263,7 +263,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('pressing a key shows ALL PRs', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -314,7 +314,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
 
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -359,7 +359,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('pressing o key returns to OPEN PRs from another state', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -403,7 +403,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('can refresh PR list with r key', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -439,7 +439,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('can copy PR URL with c key', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -473,7 +473,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('can view PR details with d key', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -512,7 +512,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('can quit from Browse PRs with q key', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -540,7 +540,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('can go back with escape key', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 15000,
       });
 
@@ -576,7 +576,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('can navigate up and down through menu items', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 10000,
       });
 
@@ -614,7 +614,7 @@ describePty('wt interactive menu e2e tests (PTY)', () => {
     it('List worktrees option is selectable', async () => {
       const session = await spawnPty('wt', [], {
         cwd: repoDir,
-        env: { ...ghMock.mockEnv, FORCE_COLOR: '0', NO_COLOR: '1' },
+        env: { ...ghMock.mockEnv, NO_COLOR: '1' },
         timeout: 10000,
       });
 
