@@ -1,3 +1,15 @@
+# [1.11.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.10.0...v1.11.0) (2026-03-01)
+
+
+### Bug Fixes
+
+* add ajv devDependency and exclude test files from build ([382b465](https://github.com/camaradesuk/git-worktree-tools/commit/382b4659aa13412be43dd0cd7f2aa2b9d49cd933))
+
+
+### Features
+
+* add npx-compatible bin entry for git-worktree-tools ([ae6be14](https://github.com/camaradesuk/git-worktree-tools/commit/ae6be14ff5b38ffd30eb3826963ac20a60ba1893))
+
 # [1.10.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.9.0...v1.10.0) (2026-02-28)
 
 
