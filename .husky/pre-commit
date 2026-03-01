@@ -2,10 +2,10 @@
 set -e
 
 # Run TypeScript type checking first (catches type errors that eslint/prettier miss)
-npx tsc --noEmit
+pnpm exec tsc --noEmit
 
 # Check formatting on all files (catches files modified after staging)
-npx prettier --check .
+pnpm exec prettier --check .
 
 # Then run lint-staged for eslint and prettier fixes on staged files
-npx lint-staged
+pnpm exec lint-staged
