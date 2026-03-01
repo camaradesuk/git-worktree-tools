@@ -3,18 +3,18 @@
 ## Running Unit Tests
 
 ```bash
-npm test              # Run all tests once
-npm run test:watch    # Watch mode for development
-npm run test:coverage # Run with coverage report
+pnpm test              # Run all tests once
+pnpm run test:watch    # Watch mode for development
+pnpm run test:coverage # Run with coverage report
 ```
 
 ## Testing CLI Commands Locally
 
-### Option 1: Use npm link (recommended for testing like a real install)
+### Option 1: Use pnpm link (recommended for testing like a real install)
 
 ```bash
-npm run build         # Build the TypeScript
-npm link              # Create global symlink
+pnpm run build         # Build the TypeScript
+pnpm link --global     # Create global symlink
 
 # Now you can run commands directly:
 wt --help             # Unified command (recommended)
@@ -35,12 +35,12 @@ wtstate --help
 wtconfig --help
 ```
 
-**Note:** If you already have `@camaradesuk/git-worktree-tools` installed globally, `npm link` will override it with a symlink to your local dev copy. The original installed version remains in the global `node_modules`, but the symlink takes precedence.
+**Note:** If you already have `@camaradesuk/git-worktree-tools` installed globally, `pnpm link --global` will override it with a symlink to your local dev copy. The original installed version remains in the global store, but the symlink takes precedence.
 
 ### Option 2: Run directly without linking
 
 ```bash
-npm run build
+pnpm run build
 node dist/cli/wt.js --help         # Unified command
 node dist/cli/newpr.js --help
 node dist/cli/cleanpr.js --help
@@ -53,7 +53,7 @@ node dist/cli/wtconfig.js --help
 ### Option 3: Use npx from the project directory
 
 ```bash
-npm run build
+pnpm run build
 npx wt --help
 npx newpr --help
 ```
@@ -63,7 +63,7 @@ npx newpr --help
 Run the TypeScript compiler in watch mode:
 
 ```bash
-npm run dev           # Rebuilds on file changes
+pnpm run dev           # Rebuilds on file changes
 ```
 
 Then in another terminal, run your commands to test changes.
@@ -72,7 +72,7 @@ Then in another terminal, run your commands to test changes.
 
 ```bash
 # Remove the symlink
-npm unlink -g @camaradesuk/git-worktree-tools
+pnpm uninstall --global @camaradesuk/git-worktree-tools
 
 # If the original global install is gone, reinstall:
 npm install -g @camaradesuk/git-worktree-tools
@@ -82,7 +82,7 @@ npm install -g @camaradesuk/git-worktree-tools
 
 ```bash
 # List global packages
-npm ls -g --depth=0
+pnpm list --global
 
 # See where the command points
 which wt               # Unix/macOS/Linux
@@ -107,10 +107,10 @@ alias wtconfig-dev="node /path/to/git-worktree-tools/dist/cli/wtconfig.js"
 ## Linting & Formatting
 
 ```bash
-npm run lint          # Check for linting issues
-npm run lint:fix      # Auto-fix linting issues
-npm run format        # Format code with Prettier
-npm run format:check  # Check formatting without changes
+pnpm run lint          # Check for linting issues
+pnpm run lint:fix      # Auto-fix linting issues
+pnpm run format        # Format code with Prettier
+pnpm run format:check  # Check formatting without changes
 ```
 
 ## Project Structure

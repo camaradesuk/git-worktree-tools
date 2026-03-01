@@ -604,10 +604,10 @@ wt clean
 ```bash
 git clone https://github.com/camaradesuk/git-worktree-tools.git
 cd git-worktree-tools
-npm install
-npm run build
-npm test
-npm link  # For local development
+pnpm install
+pnpm run build
+pnpm test
+pnpm link --global  # For local development
 ```
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed development instructions.

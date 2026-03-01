@@ -127,19 +127,19 @@ The newpr tool handles 10 git state scenarios intelligently:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Build
-npm run build
+pnpm run build
 
 # Run tests
-npm test
+pnpm test
 
 # Watch mode for tests
-npm run test:watch
+pnpm run test:watch
 
 # Watch mode for build
-npm run dev
+pnpm run dev
 ```
 
 ## Configuration (.worktreerc)

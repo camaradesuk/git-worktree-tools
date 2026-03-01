@@ -48,19 +48,19 @@ git clone https://github.com/YOUR_USERNAME/git-worktree-tools.git
 cd git-worktree-tools
 
 # Install dependencies
-npm install
+pnpm install
 
 # Build the project
-npm run build
+pnpm run build
 
 # Link for global testing
-npm link
+pnpm link --global
 
 # Run tests
-npm test
+pnpm test
 
 # Watch mode for development
-npm run dev
+pnpm run dev
 ```
 
 #### Making Changes
@@ -88,10 +88,10 @@ npm run dev
 5. **Test your changes**:
 
    ```bash
-   npm test              # Run all tests
-   npm run build         # Ensure it builds
-   npm run lint          # Check linting
-   npm run format:check  # Check formatting
+   pnpm test              # Run all tests
+   pnpm run build         # Ensure it builds
+   pnpm run lint          # Check linting
+   pnpm run format:check  # Check formatting
    ```
 
 6. **Commit with conventional commits**:
@@ -170,8 +170,8 @@ BREAKING CHANGE: Command syntax has changed. Use --help for new syntax.
 ### Code Style
 
 - **TypeScript**: Strict mode enabled
-- **Formatting**: Run `npm run format` (Prettier)
-- **Linting**: Run `npm run lint` (ESLint)
+- **Formatting**: Run `pnpm run format` (Prettier)
+- **Linting**: Run `pnpm run lint` (ESLint)
 - **Naming**:
   - camelCase for functions and variables
   - PascalCase for types and interfaces
