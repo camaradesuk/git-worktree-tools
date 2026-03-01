@@ -54,6 +54,12 @@
     "node": ">=18"
   },
   "packageManager": "pnpm@10.30.3",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "node-pty"
+    ]
+  },
   "publishConfig": {
     "access": "public"
   },
