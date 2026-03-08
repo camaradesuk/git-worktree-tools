@@ -1,6 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
-import { extractPrNumber } from './worktree-utils.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { extractPrNumber, extractPrNumberAsync } from './worktree-utils.js';
 import { DEFAULT_WORKTREE_PATTERN } from './constants.js';
+import * as github from './github.js';
+import * as git from './git.js';
+
+vi.mock('./github.js');
+vi.mock('./git.js');
 
 describe('extractPrNumber', () => {
   describe('pattern-based extraction', () => {
@@ -60,5 +65,83 @@ describe('extractPrNumber', () => {
       const result = extractPrNumber('');
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('extractPrNumberAsync', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should return sync result when pattern matches', async () => {
+    const result = await extractPrNumberAsync('/worktrees/myproject.pr42', {
+      worktreePattern: '{repo}.pr{number}',
+    });
+    expect(result).toBe(42);
+    expect(git.listWorktrees).not.toHaveBeenCalled();
+  });
+
+  it('should fall back to gh CLI when pattern does not match', async () => {
+    vi.mocked(git.listWorktrees).mockReturnValue([
+      {
+        path: '/worktrees/some-random-name',
+        branch: 'feat/my-feature',
+        commit: 'abc123',
+        isMain: false,
+        isBare: false,
+        isLocked: false,
+        isPrunable: false,
+      },
+    ]);
+    vi.mocked(github.getPrByBranch).mockReturnValue({
+      number: 77,
+      title: 'My Feature',
+      state: 'OPEN',
+      url: 'https://github.com/org/repo/pull/77',
+      headBranch: 'feat/my-feature',
+      baseBranch: 'main',
+      isDraft: false,
+    });
+
+    const result = await extractPrNumberAsync('/worktrees/some-random-name', {
+      worktreePattern: '{repo}.pr{number}',
+    });
+    expect(result).toBe(77);
+    expect(github.getPrByBranch).toHaveBeenCalledWith('feat/my-feature', undefined);
+  });
+
+  it('should return null when gh CLI finds no PR', async () => {
+    vi.mocked(git.listWorktrees).mockReturnValue([
+      {
+        path: '/worktrees/some-name',
+        branch: 'feat/no-pr',
+        commit: 'abc123',
+        isMain: false,
+        isBare: false,
+        isLocked: false,
+        isPrunable: false,
+      },
+    ]);
+    vi.mocked(github.getPrByBranch).mockReturnValue(null);
+
+    const result = await extractPrNumberAsync('/worktrees/some-name');
+    expect(result).toBeNull();
+  });
+
+  it('should return null when worktree has no branch', async () => {
+    vi.mocked(git.listWorktrees).mockReturnValue([
+      {
+        path: '/worktrees/detached',
+        branch: null,
+        commit: 'abc123',
+        isMain: false,
+        isBare: false,
+        isLocked: false,
+        isPrunable: false,
+      },
+    ]);
+
+    const result = await extractPrNumberAsync('/worktrees/detached');
+    expect(result).toBeNull();
   });
 });
