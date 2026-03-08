@@ -234,7 +234,8 @@ export interface WorktreeConfig {
 
   /**
    * Worktree directory naming pattern
-   * Placeholders: {repo}, {number}, {branch}
+   * Placeholders: {repo}, {number}, {branch}, {slug}
+   * {slug} is the branch name after the first '/', filesystem-safe (e.g. "feat/my-feature" → "my-feature")
    * Default: "{repo}.pr{number}"
    */
   worktreePattern?: string;
@@ -738,6 +739,12 @@ export function generateWorktreePath(
   pattern = pattern.replace('{number}', String(prNumber));
   if (branchName) {
     pattern = pattern.replace('{branch}', branchName);
+    // {slug}: branch after first '/', with non-filesystem-safe chars replaced by '-'
+    const slugBase = branchName.includes('/')
+      ? branchName.substring(branchName.indexOf('/') + 1)
+      : branchName;
+    const slug = slugBase.replace(/[^a-zA-Z0-9._-]/g, '-');
+    pattern = pattern.replace('{slug}', slug);
   }
 
   // Resolve parent directory

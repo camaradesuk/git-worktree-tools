@@ -142,6 +142,42 @@ describe('config', () => {
       );
       expect(normalizePath(result)).toBe('/home/user/repos/myproject.feature-x');
     });
+
+    it('should use slug (branch after first slash) when pattern uses {slug}', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: '.worktrees',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        2380,
+        'claude/add-mongodb-docker-container-svX2L'
+      );
+      expect(normalizePath(result)).toBe(
+        '/home/user/repos/myproject/.worktrees/pr2380.add-mongodb-docker-container-svX2L'
+      );
+    });
+
+    it('should use full branch as slug when branch has no slash', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: '.worktrees',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        42,
+        'fix-login-bug'
+      );
+      expect(normalizePath(result)).toBe(
+        '/home/user/repos/myproject/.worktrees/pr42.fix-login-bug'
+      );
+    });
   });
 
   describe('loadConfig', () => {
