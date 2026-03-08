@@ -29,10 +29,10 @@ function patternToRegex(pattern: string): RegExp | null {
   let regexStr = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   // Now replace escaped placeholder sequences
-  regexStr = regexStr.replace('\\{repo\\}', '.*');
+  regexStr = regexStr.replace('\\{repo\\}', '.*?');
   regexStr = regexStr.replace('\\{number\\}', '(\\d+)');
-  regexStr = regexStr.replace('\\{branch\\}', '.*');
-  regexStr = regexStr.replace('\\{slug\\}', '.*');
+  regexStr = regexStr.replace('\\{branch\\}', '.*?');
+  regexStr = regexStr.replace('\\{slug\\}', '.*?');
 
   // Anchor to full string
   regexStr = `^${regexStr}$`;

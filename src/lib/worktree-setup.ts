@@ -33,8 +33,12 @@ export interface EnsureWorktreeParentResult {
  * Check if a path is inside the repo root
  */
 function isInsideRepo(dirPath: string, repoRoot: string): boolean {
-  const resolved = path.resolve(dirPath);
-  const resolvedRoot = path.resolve(repoRoot);
+  let resolved = path.resolve(dirPath);
+  let resolvedRoot = path.resolve(repoRoot);
+  if (process.platform === 'win32') {
+    resolved = resolved.toLowerCase();
+    resolvedRoot = resolvedRoot.toLowerCase();
+  }
   return resolved.startsWith(resolvedRoot + path.sep) || resolved === resolvedRoot;
 }
 
@@ -66,8 +70,9 @@ function addToGitignore(gitignorePath: string, entry: string): void {
     content = fs.readFileSync(gitignorePath, 'utf8');
   }
 
-  const addition = `\n# git-worktree-tools worktree directory\n${entry}\n`;
-  content = content.trimEnd() + '\n' + addition;
+  const addition = `# git-worktree-tools worktree directory\n${entry}\n`;
+  const trimmed = content.trimEnd();
+  content = trimmed ? trimmed + '\n\n' + addition : addition;
   fs.writeFileSync(gitignorePath, content, 'utf8');
 }
 

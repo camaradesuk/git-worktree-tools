@@ -65,6 +65,13 @@ describe('extractPrNumber', () => {
       const result = extractPrNumber('');
       expect(result).toBeNull();
     });
+
+    it('should return null for pattern without {number} placeholder', () => {
+      const result = extractPrNumber('/worktrees/myproject', {
+        worktreePattern: '{repo}-{branch}',
+      });
+      expect(result).toBeNull();
+    });
   });
 });
 
@@ -125,6 +132,15 @@ describe('extractPrNumberAsync', () => {
     vi.mocked(github.getPrByBranch).mockReturnValue(null);
 
     const result = await extractPrNumberAsync('/worktrees/some-name');
+    expect(result).toBeNull();
+  });
+
+  it('should return null when git.listWorktrees throws', async () => {
+    vi.mocked(git.listWorktrees).mockImplementation(() => {
+      throw new Error('git not found');
+    });
+
+    const result = await extractPrNumberAsync('/worktrees/no-match');
     expect(result).toBeNull();
   });
 
