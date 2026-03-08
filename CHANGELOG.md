@@ -1,3 +1,15 @@
+# [1.12.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.11.0...v1.12.0) (2026-03-08)
+
+
+### Bug Fixes
+
+* strip unreplaced {slug} and {branch} placeholders when branchName is absent ([e349f11](https://github.com/camaradesuk/git-worktree-tools/commit/e349f119519bcbc0752b53b4aed294ee0197d65a))
+
+
+### Features
+
+* add {slug} placeholder to worktree naming pattern ([c822638](https://github.com/camaradesuk/git-worktree-tools/commit/c8226380a53d0a3bfb2ec6d3a171edb38b154c72))
+
 # [1.11.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.10.0...v1.11.0) (2026-03-01)
 
 
