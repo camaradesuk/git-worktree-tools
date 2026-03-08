@@ -144,7 +144,7 @@ export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<
     }
 
     // Generate worktree path
-    const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber);
+    const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
 
     if (fs.existsSync(worktreePath)) {
       return createErrorResult(
@@ -342,7 +342,13 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       // Check if PR already exists
       const existingPr = github.getPrByBranch(currentBranch);
       if (existingPr) {
-        const worktreePath = generateWorktreePath(config, repoRoot, repoName, existingPr.number);
+        const worktreePath = generateWorktreePath(
+          config,
+          repoRoot,
+          repoName,
+          existingPr.number,
+          currentBranch
+        );
 
         // Create worktree if it doesn't exist
         if (!fs.existsSync(worktreePath)) {
@@ -385,7 +391,13 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         draft,
       });
 
-      const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+      const worktreePath = generateWorktreePath(
+        config,
+        repoRoot,
+        repoName,
+        pr.number,
+        currentBranch
+      );
 
       try {
         git.addWorktree(worktreePath, currentBranch, {
@@ -498,7 +510,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       });
 
       // Create worktree
-      const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+      const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
       git.addWorktree(worktreePath, branchName, { cwd: repoRoot });
 
       // Apply unstaged changes to worktree

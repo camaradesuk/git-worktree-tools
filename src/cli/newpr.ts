@@ -564,7 +564,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   printStatus('info', `PR branch: ${pr.headBranch}`);
 
-  const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber);
+  const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
 
   if (fs.existsSync(worktreePath)) {
     exitWithError(
@@ -755,7 +755,7 @@ PR created from existing branch: \`${branchName}\`
     prUrl: pr.url,
   });
 
-  const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+  const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
 
   // Use spinner for worktree creation
   if (options.json) {
@@ -1121,7 +1121,7 @@ ${description}
     // Run post-pr hook
     await hookRunner.runHook('post-pr');
 
-    const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+    const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
 
     // Update context with worktree path
     hookRunner.updateContext({ worktreePath });
