@@ -33,7 +33,7 @@
     "worktreePattern": {
       "type": "string",
       "default": "{repo}.pr{number}",
-      "description": "Worktree directory naming pattern. Placeholders: {repo}, {number}, {branch}"
+      "description": "Worktree directory naming pattern. Placeholders: {repo}, {number}, {branch}, {slug} ({slug} is the branch name after the first '/', filesystem-safe)"
     },
     "worktreeParent": {
       "type": "string",
