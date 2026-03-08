@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  extractPrNumber,
-  gatherPrWorktreeInfo,
-  createDefaultDeps,
-  GatherDeps,
-} from './worktree-info.js';
+import { gatherPrWorktreeInfo, createDefaultDeps, GatherDeps } from './worktree-info.js';
 import type { Worktree } from '../git.js';
 import * as git from '../git.js';
 import * as github from '../github.js';
@@ -35,44 +30,6 @@ describe('cleanpr/worktree-info', () => {
     hasUncommittedChanges: () => false,
     getPrState: async () => 'UNKNOWN',
     ...overrides,
-  });
-
-  describe('extractPrNumber', () => {
-    it('extracts PR number from .pr123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo.pr123')).toBe(123);
-    });
-
-    it('extracts PR number from .pr-123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo.pr-42')).toBe(42);
-    });
-
-    it('extracts PR number from -pr123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo-pr99')).toBe(99);
-    });
-
-    it('extracts PR number from _pr123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo_pr5')).toBe(5);
-    });
-
-    it('returns null for non-PR path', () => {
-      expect(extractPrNumber('/home/user/repo')).toBeNull();
-    });
-
-    it('returns null for path with pr in middle', () => {
-      expect(extractPrNumber('/home/user/project-name')).toBeNull();
-    });
-
-    it('extracts using custom pattern with {number}', () => {
-      expect(extractPrNumber('/workspace/myrepo.pr42', '{repo}.pr{number}')).toBe(42);
-    });
-
-    it('extracts using custom pattern with different format', () => {
-      expect(extractPrNumber('/workspace/myrepo-issue-99', '{repo}-issue-{number}')).toBe(99);
-    });
-
-    it('falls back to common patterns if custom pattern does not match', () => {
-      expect(extractPrNumber('/home/user/repo.pr123', 'nomatch{number}')).toBe(123);
-    });
   });
 
   describe('gatherPrWorktreeInfo', () => {

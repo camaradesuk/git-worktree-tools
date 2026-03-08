@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  extractPrNumber,
   isMainWorktree,
   formatTypeLabel,
   sortWorktrees,
@@ -10,36 +9,6 @@ import {
 import type { WorktreeDisplay } from './types.js';
 
 describe('lswt/formatters', () => {
-  describe('extractPrNumber', () => {
-    it('extracts PR number from .pr123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo.pr123')).toBe(123);
-    });
-
-    it('extracts PR number from .pr-123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo.pr-42')).toBe(42);
-    });
-
-    it('extracts PR number from -pr123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo-pr99')).toBe(99);
-    });
-
-    it('extracts PR number from _pr123 pattern', () => {
-      expect(extractPrNumber('/home/user/repo_pr5')).toBe(5);
-    });
-
-    it('returns null for non-PR path', () => {
-      expect(extractPrNumber('/home/user/repo')).toBeNull();
-    });
-
-    it('returns null for path with pr in middle', () => {
-      expect(extractPrNumber('/home/user/project-name')).toBeNull();
-    });
-
-    it('extracts from nested path', () => {
-      expect(extractPrNumber('/workspace/projects/myrepo.pr42')).toBe(42);
-    });
-  });
-
   describe('isMainWorktree', () => {
     it('returns true when paths match', () => {
       expect(isMainWorktree('/home/user/repo', '/home/user/repo')).toBe(true);

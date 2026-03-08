@@ -10,7 +10,10 @@ export { parseArgs, getHelpText } from './args.js';
 
 // Worktree info gathering
 export type { GatherDeps } from './worktree-info.js';
-export { extractPrNumber, gatherPrWorktreeInfo, createDefaultDeps } from './worktree-info.js';
+export { gatherPrWorktreeInfo, createDefaultDeps } from './worktree-info.js';
+
+// Shared worktree utilities
+export { extractPrNumber, extractPrNumberAsync } from '../worktree-utils.js';
 
 // Cleanup operations
 export type { CleanupDeps, GroupedWorktrees, CleanupSummary } from './cleanup.js';
