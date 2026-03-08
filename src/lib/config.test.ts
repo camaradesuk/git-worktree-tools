@@ -191,7 +191,7 @@ describe('config', () => {
         'myproject',
         99
       );
-      expect(normalizePath(result)).toBe('/home/user/repos/myproject/.worktrees/pr99.');
+      expect(normalizePath(result)).toBe('/home/user/repos/myproject/.worktrees/pr99');
     });
 
     it('should clean up trailing separators when branchName is absent', () => {

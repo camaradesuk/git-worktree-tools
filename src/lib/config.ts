@@ -751,6 +751,14 @@ export function generateWorktreePath(
     pattern = pattern.replace('{slug}', '');
   }
 
+  // Clean up separator artifacts from placeholder replacement
+  // Remove doubled separators: pr123..foo → pr123.foo
+  pattern = pattern.replace(/([.\-_]){2,}/g, '$1');
+  // Remove leading separators: .pr123 → pr123
+  pattern = pattern.replace(/^[.\-_]+/, '');
+  // Remove trailing separators: pr123. → pr123
+  pattern = pattern.replace(/[.\-_]+$/, '');
+
   // Resolve parent directory
   let parentDir: string;
   if (path.isAbsolute(config.worktreeParent)) {
