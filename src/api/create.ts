@@ -5,9 +5,11 @@
  */
 
 import * as fs from 'fs';
+import * as path from 'path';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import { loadConfig, generateBranchName, generateWorktreePath } from '../lib/config.js';
+import { ensureWorktreeParentDir } from '../lib/worktree-setup.js';
 import { analyzeGitState, detectScenario, type Scenario } from '../lib/state-detection.js';
 import {
   getScenarioContext,
@@ -153,6 +155,13 @@ export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<
         `Worktree already exists: ${worktreePath}`
       );
     }
+
+    // Auto-setup worktree parent directory
+    await ensureWorktreeParentDir({
+      resolvedParentDir: path.dirname(worktreePath),
+      repoRoot,
+      interactive: false,
+    });
 
     // Fetch and create worktree
     git.fetch('origin', repoRoot);
@@ -352,6 +361,13 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
         // Create worktree if it doesn't exist
         if (!fs.existsSync(worktreePath)) {
+          // Auto-setup worktree parent directory
+          await ensureWorktreeParentDir({
+            resolvedParentDir: path.dirname(worktreePath),
+            repoRoot,
+            interactive: false,
+          });
+
           try {
             git.addWorktree(worktreePath, currentBranch, {
               createBranch: true,
@@ -398,6 +414,13 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         pr.number,
         currentBranch
       );
+
+      // Auto-setup worktree parent directory
+      await ensureWorktreeParentDir({
+        resolvedParentDir: path.dirname(worktreePath),
+        repoRoot,
+        interactive: false,
+      });
 
       try {
         git.addWorktree(worktreePath, currentBranch, {
@@ -511,6 +534,14 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
       // Create worktree
       const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+
+      // Auto-setup worktree parent directory
+      await ensureWorktreeParentDir({
+        resolvedParentDir: path.dirname(worktreePath),
+        repoRoot,
+        interactive: false,
+      });
+
       git.addWorktree(worktreePath, branchName, { cwd: repoRoot });
 
       // Apply unstaged changes to worktree

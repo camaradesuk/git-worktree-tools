@@ -24,6 +24,7 @@ import {
   type ResolvedConfig,
 } from '../lib/config.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
+import { ensureWorktreeParentDir } from '../lib/worktree-setup.js';
 import {
   parseArgs,
   getHelpText,
@@ -566,6 +567,16 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
 
+  // Auto-setup worktree parent directory
+  const setupResult = await ensureWorktreeParentDir({
+    resolvedParentDir: path.dirname(worktreePath),
+    repoRoot,
+    interactive: !options.json && !options.nonInteractive,
+  });
+  if (setupResult.declined) {
+    exitWithError('Worktree directory setup declined.', ErrorCode.USER_CANCELLED, options.json);
+  }
+
   if (fs.existsSync(worktreePath)) {
     exitWithError(
       `Worktree already exists: ${worktreePath}`,
@@ -756,6 +767,16 @@ PR created from existing branch: \`${branchName}\`
   });
 
   const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+
+  // Auto-setup worktree parent directory
+  const setupResult = await ensureWorktreeParentDir({
+    resolvedParentDir: path.dirname(worktreePath),
+    repoRoot,
+    interactive: !options.json && !options.nonInteractive,
+  });
+  if (setupResult.declined) {
+    exitWithError('Worktree directory setup declined.', ErrorCode.USER_CANCELLED, options.json);
+  }
 
   // Use spinner for worktree creation
   if (options.json) {
@@ -1122,6 +1143,16 @@ ${description}
     await hookRunner.runHook('post-pr');
 
     const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+
+    // Auto-setup worktree parent directory
+    const worktreeSetupResult = await ensureWorktreeParentDir({
+      resolvedParentDir: path.dirname(worktreePath),
+      repoRoot,
+      interactive: !options.json && !options.nonInteractive,
+    });
+    if (worktreeSetupResult.declined) {
+      exitWithError('Worktree directory setup declined.', ErrorCode.USER_CANCELLED, options.json);
+    }
 
     // Update context with worktree path
     hookRunner.updateContext({ worktreePath });
