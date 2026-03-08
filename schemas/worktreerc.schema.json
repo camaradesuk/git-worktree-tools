@@ -33,12 +33,12 @@
     "worktreePattern": {
       "type": "string",
       "default": "{repo}.pr{number}",
-      "description": "Worktree directory naming pattern. Placeholders: {repo}, {number}, {branch}, {slug} ({slug} is the branch name after the first '/', filesystem-safe)"
+      "description": "Worktree directory naming pattern. Placeholders: {repo}, {number}, {branch}, {slug}. {slug} is the branch name after the first '/', made filesystem-safe. Doubled or trailing separators (., -, _) are cleaned automatically."
     },
     "worktreeParent": {
       "type": "string",
       "default": "..",
-      "description": "Parent directory for worktrees (absolute or relative to repo root)"
+      "description": "Parent directory for worktrees (absolute or relative to repo root). When the resolved path is inside the repository, the directory will be auto-created and added to .gitignore."
     },
     "syncPatterns": {
       "type": "array",
