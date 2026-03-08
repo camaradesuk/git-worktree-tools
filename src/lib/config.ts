@@ -745,6 +745,10 @@ export function generateWorktreePath(
       : branchName;
     const slug = slugBase.replace(/[^a-zA-Z0-9._-]/g, '-');
     pattern = pattern.replace('{slug}', slug);
+  } else {
+    // Strip unreplaced branch-dependent placeholders so paths stay clean
+    pattern = pattern.replace('{branch}', '');
+    pattern = pattern.replace('{slug}', '');
   }
 
   // Resolve parent directory

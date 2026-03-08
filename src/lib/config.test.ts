@@ -178,6 +178,21 @@ describe('config', () => {
         '/home/user/repos/myproject/.worktrees/pr42.fix-login-bug'
       );
     });
+
+    it('should strip {slug} placeholder when branchName is not provided', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: '.worktrees',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        99
+      );
+      expect(normalizePath(result)).toBe('/home/user/repos/myproject/.worktrees/pr99.');
+    });
   });
 
   describe('loadConfig', () => {
