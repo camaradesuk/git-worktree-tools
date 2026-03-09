@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
 - [x] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
 - [x] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
+- [ ] **Phase 7: Legacy CLI Wiring Completeness** - Wire `initializeLogger()` and `printDeprecationNotice()` into deprecated legacy CLIs to close audit integration gaps
 
 ## Phase Details
 
@@ -120,6 +121,13 @@ Plans:
 - [x] 05-03-PLAN.md — Extract runNewprHandler; migrate wt/new.ts and wt/link.ts to direct library calls
 - [x] 05-04-PLAN.md — Deprecation notices on all legacy CLIs; migrate interactive menu to direct calls; update README
 
+### Phase 7: Legacy CLI Wiring Completeness
+
+**Goal:** Deprecated legacy CLIs (`wtstate`, `wtconfig`, `prs`) call `initializeLogger()` and `printDeprecationNotice()` consistently — closing all 3 medium integration gaps from the v1.0 audit
+**Depends on**: Phase 5
+**Requirements:** LOG-01, LOG-04, UNI-01
+**Gap Closure:** Closes INT-01, INT-02, INT-03 from v1.0 audit
+
 ## Progress
 
 **Execution Order:**
@@ -132,3 +140,4 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete | 2026-02-18 |
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
 | 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
+| 7. Legacy CLI Wiring Completeness | 0/0            | Pending    |            |

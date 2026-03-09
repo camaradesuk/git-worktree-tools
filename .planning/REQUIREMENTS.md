@@ -7,38 +7,38 @@
 
 ### Logging
 
-- [ ] **LOG-01**: User can control all debug output via `GWT_LOG_LEVEL` — shared logger wired into all 4 legacy CLI entry points (`newpr`, `cleanpr`, `lswt`, `wtlink`)
-- [ ] **LOG-02**: `newpr` debug output routes through shared logger singleton; local `debug()` function and `DEBUG=newpr` env var removed
-- [ ] **LOG-03**: All commands write structured entries to a persistent audit log file with rotation (default: `~/.local/share/git-worktree-tools/audit.log`)
-- [ ] **LOG-04**: All `wt` subcommands respect `--verbose` (DEBUG level) and `--quiet` (ERROR only) flags consistently
+- [x] **LOG-01**: User can control all debug output via `GWT_LOG_LEVEL` — shared logger wired into all 4 legacy CLI entry points (`newpr`, `cleanpr`, `lswt`, `wtlink`)
+- [x] **LOG-02**: `newpr` debug output routes through shared logger singleton; local `debug()` function and `DEBUG=newpr` env var removed
+- [x] **LOG-03**: All commands write structured entries to a persistent audit log file with rotation (default: `~/.local/share/git-worktree-tools/audit.log`)
+- [x] **LOG-04**: All `wt` subcommands respect `--verbose` (DEBUG level) and `--quiet` (ERROR only) flags consistently
 
 ### UI Consistency
 
-- [ ] **UI-01**: All commands use shared `src/lib/ui/` output primitives (`printTable`, `printHeader`, `printStatus`, `printError`) instead of inline `console.log` calls
-- [ ] **UI-02**: ✓/✗/⚠/ℹ icons carry the same semantic meaning (success/error/warning/info) across all commands
-- [ ] **UI-03**: All async operations use the same spinner style and formatting (consistent library and configuration)
-- [ ] **UI-04**: All errors display as title + detail + hint — no raw stack traces or unformatted error objects exposed to users
+- [x] **UI-01**: All commands use shared `src/lib/ui/` output primitives (`printTable`, `printHeader`, `printStatus`, `printError`) instead of inline `console.log` calls
+- [x] **UI-02**: ✓/✗/⚠/ℹ icons carry the same semantic meaning (success/error/warning/info) across all commands
+- [x] **UI-03**: All async operations use the same spinner style and formatting (consistent library and configuration)
+- [x] **UI-04**: All errors display as title + detail + hint — no raw stack traces or unformatted error objects exposed to users
 
 ### Menu Reliability
 
-- [ ] **MENU-01**: `wt` interactive menu actions for link management invoke code that actually exists in `wtlink.ts` (list/sync/add/remove subcommands fixed or re-wired)
-- [ ] **MENU-02**: No interactive menu silently exits; all menus have explicit Back/Done options; submenus return to their parent menu
-- [ ] **MENU-03**: `wt prs` uses a single working code path for listing PRs; broken/duplicate path removed
-- [ ] **MENU-04**: Interrupting any command with Ctrl+C restores terminal state cleanly (raw mode exited, cursor restored)
+- [x] **MENU-01**: `wt` interactive menu actions for link management invoke code that actually exists in `wtlink.ts` (list/sync/add/remove subcommands fixed or re-wired)
+- [x] **MENU-02**: No interactive menu silently exits; all menus have explicit Back/Done options; submenus return to their parent menu
+- [x] **MENU-03**: `wt prs` uses a single working code path for listing PRs; broken/duplicate path removed
+- [x] **MENU-04**: Interrupting any command with Ctrl+C restores terminal state cleanly (raw mode exited, cursor restored)
 
 ### LLM Ergonomics
 
-- [ ] **LLM-01**: Every `wt` subcommand outputs valid `CommandResult<T>` JSON when `--json` is passed; no code paths exit without JSON output in JSON mode
-- [ ] **LLM-02**: `wt --help` and all subcommand `--help` text is accurate, complete, and current (no stale flags, no missing subcommands)
-- [ ] **LLM-03**: MCP server tool descriptions and input schemas in `src/mcp/server.ts` are fully documented and annotated
-- [ ] **LLM-04**: `wt completion` generates working shell completions for all subcommands and flags (bash/zsh/fish)
+- [x] **LLM-01**: Every `wt` subcommand outputs valid `CommandResult<T>` JSON when `--json` is passed; no code paths exit without JSON output in JSON mode
+- [x] **LLM-02**: `wt --help` and all subcommand `--help` text is accurate, complete, and current (no stale flags, no missing subcommands)
+- [x] **LLM-03**: MCP server tool descriptions and input schemas in `src/mcp/server.ts` are fully documented and annotated
+- [x] **LLM-04**: `wt completion` generates working shell completions for all subcommands and flags (bash/zsh/fish)
 
 ### CLI Unification
 
-- [ ] **UNI-01**: `newpr`, `cleanpr`, `lswt`, `wtlink` binaries delegate to corresponding `wt` subcommands and print a deprecation notice
-- [ ] **UNI-02**: `wt` subcommands call library functions directly rather than spawning child processes via `runSubcommand()`
-- [ ] **UNI-03**: `--verbose`, `--quiet`, `--json`, and `--no-color` flags work consistently and are available across all `wt` subcommands
-- [ ] **UNI-04**: README and all help text present `wt` as the canonical entry point; legacy commands documented as deprecated aliases
+- [x] **UNI-01**: `newpr`, `cleanpr`, `lswt`, `wtlink` binaries delegate to corresponding `wt` subcommands and print a deprecation notice
+- [x] **UNI-02**: `wt` subcommands call library functions directly rather than spawning child processes via `runSubcommand()`
+- [x] **UNI-03**: `--verbose`, `--quiet`, `--json`, and `--no-color` flags work consistently and are available across all `wt` subcommands
+- [x] **UNI-04**: README and all help text present `wt` as the canonical entry point; legacy commands documented as deprecated aliases
 
 ## v2 Requirements
 
@@ -73,36 +73,37 @@
 
 ## Traceability
 
-| Requirement | Phase   | Status  |
-| ----------- | ------- | ------- |
-| LOG-01      | Phase 1 | Pending |
-| LOG-02      | Phase 1 | Pending |
-| LOG-03      | Phase 1 | Pending |
-| LOG-04      | Phase 1 | Pending |
-| UI-01       | Phase 2 | Pending |
-| UI-02       | Phase 2 | Pending |
-| UI-03       | Phase 2 | Pending |
-| UI-04       | Phase 2 | Pending |
-| MENU-01     | Phase 3 | Pending |
-| MENU-02     | Phase 3 | Pending |
-| MENU-03     | Phase 3 | Pending |
-| MENU-04     | Phase 3 | Pending |
-| LLM-01      | Phase 4 | Pending |
-| LLM-02      | Phase 4 | Pending |
-| LLM-03      | Phase 4 | Pending |
-| LLM-04      | Phase 4 | Pending |
-| UNI-01      | Phase 5 | Pending |
-| UNI-02      | Phase 5 | Pending |
-| UNI-03      | Phase 5 | Pending |
-| UNI-04      | Phase 5 | Pending |
+| Requirement | Phase   | Status    |
+| ----------- | ------- | --------- |
+| LOG-01      | Phase 1 | Satisfied |
+| LOG-02      | Phase 1 | Satisfied |
+| LOG-03      | Phase 1 | Satisfied |
+| LOG-04      | Phase 1 | Satisfied |
+| UI-01       | Phase 2 | Satisfied |
+| UI-02       | Phase 2 | Satisfied |
+| UI-03       | Phase 2 | Satisfied |
+| UI-04       | Phase 2 | Satisfied |
+| MENU-01     | Phase 3 | Satisfied |
+| MENU-02     | Phase 3 | Satisfied |
+| MENU-03     | Phase 3 | Satisfied |
+| MENU-04     | Phase 3 | Satisfied |
+| LLM-01      | Phase 4 | Satisfied |
+| LLM-02      | Phase 4 | Satisfied |
+| LLM-03      | Phase 4 | Satisfied |
+| LLM-04      | Phase 4 | Satisfied |
+| UNI-01      | Phase 5 | Satisfied |
+| UNI-02      | Phase 5 | Satisfied |
+| UNI-03      | Phase 5 | Satisfied |
+| UNI-04      | Phase 5 | Satisfied |
 
 **Coverage:**
 
 - v1 requirements: 20 total
+- Satisfied: 20 ✓
 - Mapped to phases: 20
 - Unmapped: 0 ✓
 
 ---
 
 _Requirements defined: 2026-02-18_
-_Last updated: 2026-02-18 after roadmap creation_
+_Last updated: 2026-03-09 after milestone audit gap closure_
