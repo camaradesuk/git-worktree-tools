@@ -132,7 +132,7 @@ Plans:
 Plans:
 
 - [x] 07-01-PLAN.md — Wire logger + deprecation into wtstate.ts and prs.ts; migrate UI primitives in wtstate.ts, prs.ts, prs/command.ts
-- [ ] 07-02-PLAN.md — Wire logger into wtconfig.ts; add setJsonMode to wt/config.ts; migrate ~160 console calls to UI primitives
+- [x] 07-02-PLAN.md — Wire logger into wtconfig.ts; add setJsonMode to wt/config.ts; migrate ~160 console calls to UI primitives
 
 ## Progress
 
@@ -146,4 +146,4 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete | 2026-02-18 |
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
 | 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
-| 7. Legacy CLI Wiring Completeness | 2/2            | Complete   | 2026-03-09 |
+| 7. Legacy CLI Wiring Completeness | 2/2            | ✓ Complete | 2026-03-09 |
