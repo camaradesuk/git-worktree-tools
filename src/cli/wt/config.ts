@@ -40,7 +40,14 @@ import {
   formatJsonResult,
   ErrorCode,
 } from '../../lib/json-output.js';
-import { printError, printStatus } from '../../lib/ui/index.js';
+import {
+  setJsonMode,
+  print,
+  printErr,
+  printDim,
+  printError,
+  printStatus,
+} from '../../lib/ui/index.js';
 
 interface ConfigArgs {
   subcommand?: string;
@@ -88,12 +95,12 @@ export const configCommand: CommandModule<object, ConfigArgs> = {
       .example('$0 cfg edit', 'Open config in text editor')
       .example('$0 config validate', 'Validate configuration')
       .example('$0 config migrate', 'Migrate legacy config to latest version')
-      .example('$0 config migrate --json', 'Migrate with JSON output')
-      .example('$0 config schema', 'Show JSON schema URL');
+      .example('$0 config migrate --json', 'Migrate with JSON output');
   },
   handler: async (argv) => {
     const subcommand = argv.subcommand || 'interactive';
     const args = argv.args || [];
+    setJsonMode(!!argv.json);
 
     switch (subcommand) {
       case 'interactive':
@@ -141,8 +148,8 @@ export const configCommand: CommandModule<object, ConfigArgs> = {
 async function handleInteractive(): Promise<void> {
   const repoRoot = getRepoRoot();
   if (!repoRoot) {
-    console.error(colors.error('Not in a git repository.'));
-    console.log(colors.dim('Run this command from within a git repository.'));
+    printError({ title: 'Not in a git repository.' });
+    printDim('Run this command from within a git repository.');
     process.exit(1);
   }
   try {
@@ -177,15 +184,15 @@ function handleShow(json: boolean): void {
     return;
   }
   const defaults = getDefaultConfig();
-  console.log(colors.info('Current Configuration'));
-  console.log();
+  printStatus('info', 'Current Configuration');
+  print('');
   if (source.type === 'none') {
-    console.log(colors.dim('No configuration file found. Using defaults.'));
-    console.log(colors.dim('Run "wt init" to create a configuration file.'));
-    console.log();
+    printDim('No configuration file found. Using defaults.');
+    printDim('Run "wt init" to create a configuration file.');
+    print('');
   } else {
-    console.log(colors.dim(`Source: ${source.path}`));
-    console.log();
+    printDim(`Source: ${source.path}`);
+    print('');
   }
   const lines: string[] = ['{'];
   const addLine = (key: string, value: unknown, defaultValue: unknown) => {
@@ -225,7 +232,7 @@ function handleShow(json: boolean): void {
     lines.push(`  ${colors.info('hooks:')} ${JSON.stringify(config.hooks)}`);
   }
   lines.push('}');
-  console.log(lines.join('\n'));
+  print(lines.join('\n'));
 }
 
 /**
@@ -263,9 +270,9 @@ function handleGet(args: string[], json: boolean): void {
     return;
   }
   if (typeof value === 'object') {
-    console.log(JSON.stringify(value, null, 2));
+    print(JSON.stringify(value, null, 2));
   } else {
-    console.log(String(value));
+    print(String(value));
   }
 }
 
@@ -281,7 +288,7 @@ function handleSet(args: string[]): void {
   const value = args[1];
   const repoRoot = getRepoRoot();
   if (!repoRoot) {
-    console.error(colors.error('Not in a git repository.'));
+    printError({ title: 'Not in a git repository.' });
     process.exit(1);
   }
   const currentConfig = loadRepoConfig(repoRoot) || {};
@@ -289,21 +296,21 @@ function handleSet(args: string[]): void {
     const newConfig = setConfigValue(currentConfig, key, value);
     const validation = validateConfig(newConfig);
     if (!validation.valid) {
-      console.error(colors.error('Configuration validation failed:'));
+      printError({ title: 'Configuration validation failed:' });
       for (const error of validation.errors) {
-        console.error(colors.error(`  ${error.path}: ${error.message}`));
+        printErr(colors.error(`  ${error.path}: ${error.message}`));
       }
       process.exit(1);
     }
     for (const warning of validation.warnings) {
-      console.warn(colors.warning(`Warning: ${warning.path}: ${warning.message}`));
+      printErr(colors.warning(`Warning: ${warning.path}: ${warning.message}`));
     }
     saveRepoConfig(repoRoot, newConfig);
-    console.log(colors.success(`Set ${key} = ${value}`));
+    printStatus('success', `Set ${key} = ${value}`);
   } catch (error) {
-    console.error(
-      colors.error(`Failed to set value: ${error instanceof Error ? error.message : String(error)}`)
-    );
+    printError({
+      title: `Failed to set value: ${error instanceof Error ? error.message : String(error)}`,
+    });
     process.exit(1);
   }
 }
@@ -314,7 +321,7 @@ function handleSet(args: string[]): void {
 async function handleQuickEdit(key: string): Promise<void> {
   const repoRoot = getRepoRoot();
   if (!repoRoot) {
-    console.error(colors.error('Not in a git repository.'));
+    printError({ title: 'Not in a git repository.' });
     process.exit(1);
   }
   try {
@@ -351,11 +358,11 @@ function handleEdit(): void {
  */
 function openInEditor(filePath: string): void {
   const editor = process.env.EDITOR || process.env.VISUAL || 'vi';
-  console.log(colors.dim(`Opening ${filePath} in ${editor}...`));
+  printDim(`Opening ${filePath} in ${editor}...`);
   try {
     spawnSync(editor, [filePath], { stdio: 'inherit' });
   } catch {
-    console.error(colors.error('Failed to open editor'));
+    printError({ title: 'Failed to open editor' });
     process.exit(1);
   }
 }
@@ -364,12 +371,12 @@ function openInEditor(filePath: string): void {
  * Handle init subcommand - redirect to wt init
  */
 function handleInit(): void {
-  console.log(colors.info('Use "wt init" to initialize git-worktree-tools configuration.'));
-  console.log();
-  console.log(colors.dim('Examples:'));
-  console.log(colors.dim('  wt init          Interactive initialization'));
-  console.log(colors.dim('  wt init --local   Create local config (gitignored)'));
-  console.log(colors.dim('  wt init --global  Create global config'));
+  printStatus('info', 'Use "wt init" to initialize git-worktree-tools configuration.');
+  print('');
+  printDim('Examples:');
+  printDim('  wt init          Interactive initialization');
+  printDim('  wt init --local   Create local config (gitignored)');
+  printDim('  wt init --global  Create global config');
 }
 
 /**
@@ -407,27 +414,27 @@ function handleValidate(json: boolean): void {
   }
   const repoRoot = getRepoRoot();
   if (!repoRoot) {
-    console.error(colors.error('Not in a git repository.'));
+    printError({ title: 'Not in a git repository.' });
     process.exit(1);
   }
   const configPath = getConfigPath(repoRoot);
   if (!configPath) {
-    console.log(colors.success('No configuration file found. Nothing to validate.'));
-    console.log(colors.dim('Run "wt config" to create a configuration.'));
+    printStatus('success', 'No configuration file found. Nothing to validate.');
+    printDim('Run "wt config" to create a configuration.');
     return;
   }
-  console.log(colors.info(`Validating: ${configPath}`));
+  printStatus('info', `Validating: ${configPath}`);
   const { validation } = loadConfigWithValidation(repoRoot, { warnOnErrors: false });
   if (!validation) {
-    console.log(colors.success('Configuration loaded successfully.'));
+    printStatus('success', 'Configuration loaded successfully.');
     return;
   }
   if (validation.valid) {
-    console.log(colors.success('Configuration is valid.'));
+    printStatus('success', 'Configuration is valid.');
     return;
   }
-  console.log(colors.error('\nValidation errors:'));
-  console.log(formatValidationErrors(validation.errors));
+  printErr(colors.error('\nValidation errors:'));
+  printErr(formatValidationErrors(validation.errors));
   process.exit(1);
 }
 
@@ -445,8 +452,10 @@ async function handleMigrate(json: boolean): Promise<void> {
       );
       console.log(formatJsonResult(errorResult));
     } else {
-      console.error(colors.error('Error: Not in a git repository'));
-      console.error(colors.dim('Run this command from within a git repository.'));
+      printError({
+        title: 'Error: Not in a git repository',
+        hint: 'Run this command from within a git repository.',
+      });
     }
     process.exit(1);
   }
@@ -481,21 +490,21 @@ async function handleMigrate(json: boolean): Promise<void> {
     }
     return;
   }
-  console.log(formatMigrationReport(detection, { verbose: true }));
-  console.log();
+  print(formatMigrationReport(detection, { verbose: true }));
+  print('');
   const result = await runMigration(repoRoot, detection, { deleteLegacyFiles: false });
   if (result.success) {
-    console.log();
+    print('');
     printStatus('success', 'Migration completed successfully!');
     if (result.backupPath) {
-      console.log(colors.dim(`Backup created: ${result.backupPath}`));
+      printDim(`Backup created: ${result.backupPath}`);
     }
-    console.log(colors.dim(`Config updated: ${result.newConfigPath}`));
+    printDim(`Config updated: ${result.newConfigPath}`);
   } else {
-    console.log();
-    console.error(colors.error('Migration failed:'));
+    print('');
+    printError({ title: 'Migration failed:' });
     for (const err of result.errors) {
-      console.error(colors.error(`  ${err}`));
+      printErr(colors.error(`  ${err}`));
     }
     process.exit(1);
   }
@@ -506,16 +515,16 @@ async function handleMigrate(json: boolean): Promise<void> {
  */
 function handleSchema(): void {
   const schemaUrl = getSchemaUrl();
-  console.log(colors.info('JSON Schema for .worktreerc'));
-  console.log();
-  console.log(`URL: ${colors.cyan(schemaUrl)}`);
-  console.log();
-  console.log(colors.dim('Add this to any config file for editor support:'));
-  console.log(colors.dim('  .worktreerc (repo shared)'));
-  console.log(colors.dim('  .worktreerc.local (personal, gitignored)'));
-  console.log(colors.dim('  ~/.config/git-worktree-tools/config.json (global)'));
-  console.log();
-  console.log(
+  printStatus('info', 'JSON Schema for .worktreerc');
+  print('');
+  print(`URL: ${colors.cyan(schemaUrl)}`);
+  print('');
+  printDim('Add this to any config file for editor support:');
+  printDim('  .worktreerc (repo shared)');
+  printDim('  .worktreerc.local (personal, gitignored)');
+  printDim('  ~/.config/git-worktree-tools/config.json (global)');
+  print('');
+  print(
     colors.yellow(`{
   "$schema": "${schemaUrl}",
   ...

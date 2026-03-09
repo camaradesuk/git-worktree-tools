@@ -10,6 +10,34 @@ vi.mock('child_process');
 vi.mock('../lib/git.js');
 vi.mock('../lib/config.js');
 vi.mock('../lib/wtconfig/index.js');
+vi.mock('../lib/logger.js', () => ({
+  initializeLogger: vi.fn(),
+}));
+vi.mock('../lib/deprecation.js', () => ({
+  printDeprecationNotice: vi.fn(),
+}));
+vi.mock('../lib/colors.js', () => ({
+  error: vi.fn((s: string) => s),
+  dim: vi.fn((s: string) => s),
+  success: vi.fn((s: string) => s),
+  info: vi.fn((s: string) => `[INFO] ${s}`),
+  cyan: vi.fn((s: string) => s),
+  yellow: vi.fn((s: string) => s),
+  warning: vi.fn((s: string) => s),
+  bold: vi.fn((s: string) => s),
+  setColorEnabled: vi.fn(),
+}));
+vi.mock('../lib/ui/index.js', () => ({
+  print: vi.fn((msg: string) => console.log(msg)),
+  printErr: vi.fn((msg: string) => console.error(msg)),
+  printError: vi.fn(({ title, hint }: { title: string; hint?: string }) => {
+    console.error(title);
+    if (hint) console.error(hint);
+  }),
+  printStatus: vi.fn((_level: string, msg: string) => console.log(msg)),
+  printDim: vi.fn((msg: string) => console.log(msg)),
+  setJsonMode: vi.fn(),
+}));
 
 import inquirer from 'inquirer';
 import { execSync } from 'child_process';
@@ -17,6 +45,7 @@ import * as git from '../lib/git.js';
 import { getDefaultConfig } from '../lib/config.js';
 import * as wtconfig from '../lib/wtconfig/index.js';
 import type { WorktreeConfig } from '../lib/config.js';
+import { print, printErr, printError, printStatus, printDim } from '../lib/ui/index.js';
 
 describe('cli/wtconfig', () => {
   let mockConsoleLog: ReturnType<typeof vi.spyOn>;
@@ -64,7 +93,7 @@ describe('cli/wtconfig', () => {
   };
 
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
     vi.resetModules();
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -241,7 +270,8 @@ describe('cli/wtconfig', () => {
 
       await runCli(['set', 'ai.provider', 'claude']);
 
-      expect(mockConsoleWarn).toHaveBeenCalledWith(expect.stringContaining('Warning'));
+      // Warnings now routed through printErr (UI primitive) - verify via console.error pass-through
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Warning'));
     });
   });
 
@@ -251,6 +281,7 @@ describe('cli/wtconfig', () => {
 
       await runCli(['validate']);
 
+      // printStatus('success', msg) passes through to console.log
       expect(mockConsoleLog).toHaveBeenCalledWith(
         expect.stringContaining('No configuration file found')
       );
@@ -282,7 +313,8 @@ describe('cli/wtconfig', () => {
 
       await runCli(['validate']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Errors:'));
+      // printErr passes through to console.error
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Errors:'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
@@ -295,7 +327,7 @@ describe('cli/wtconfig', () => {
 
       await runCli(['validate']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Warnings:'));
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Warnings:'));
     });
 
     it('shows both errors and warnings', async () => {
@@ -307,8 +339,8 @@ describe('cli/wtconfig', () => {
 
       await runCli(['validate']);
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Errors:'));
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Warnings:'));
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Errors:'));
+      expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining('Warnings:'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
   });
@@ -317,6 +349,7 @@ describe('cli/wtconfig', () => {
     it('shows help text for help command', async () => {
       await runCli(['help']);
 
+      // showHelp() uses print() which passes through to console.log with full text
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('wtconfig'));
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Usage:'));
     });

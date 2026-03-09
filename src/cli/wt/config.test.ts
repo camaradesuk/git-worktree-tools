@@ -107,6 +107,9 @@ vi.mock('../../lib/json-output.js', async (importOriginal) => {
 vi.mock('../../lib/ui/index.js', () => ({
   printError: vi.fn(),
   printStatus: vi.fn(),
+  printDim: vi.fn(),
+  print: vi.fn(),
+  printErr: vi.fn(),
   setJsonMode: vi.fn(),
 }));
 
@@ -125,7 +128,14 @@ import {
 } from '../../lib/wtconfig/index.js';
 import { detectMigrationIssues } from '../../lib/config-migration/index.js';
 import { createSuccessResult, formatJsonResult } from '../../lib/json-output.js';
-import { printError, printStatus } from '../../lib/ui/index.js';
+import {
+  printError,
+  printStatus,
+  printDim,
+  print,
+  printErr,
+  setJsonMode,
+} from '../../lib/ui/index.js';
 import { spawnSync } from 'child_process';
 
 // Helper to create valid yargs argv for tests
@@ -196,6 +206,24 @@ describe('wt config command', () => {
     });
   });
 
+  describe('handler - setJsonMode', () => {
+    it('calls setJsonMode with true when --json is passed', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(createArgv({ subcommand: 'show', json: true }));
+
+      expect(setJsonMode).toHaveBeenCalledWith(true);
+    });
+
+    it('calls setJsonMode with false when --json is not passed', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(createArgv({ subcommand: 'show' }));
+
+      expect(setJsonMode).toHaveBeenCalledWith(false);
+    });
+  });
+
   describe('handler - interactive subcommand', () => {
     it('runs interactive mode by default', async () => {
       (git.getRepoRoot as Mock).mockReturnValue('/repo');
@@ -231,7 +259,9 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'interactive' }));
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Not in a git repository.');
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Not in a git repository.' })
+      );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
@@ -277,14 +307,15 @@ describe('wt config command', () => {
   });
 
   describe('handler - show subcommand', () => {
-    it('calls loadMergedConfig and outputs config display', async () => {
+    it('calls loadMergedConfig and outputs config display via print', async () => {
       (git.getRepoRoot as Mock).mockReturnValue('/repo');
 
       await configCommand.handler(createArgv({ subcommand: 'show' }));
 
       expect(loadMergedConfig).toHaveBeenCalledWith('/repo');
       expect(getConfigSource).toHaveBeenCalledWith('/repo');
-      expect(consoleLogSpy).toHaveBeenCalled();
+      // Decorative output now uses print() instead of console.log()
+      expect(printStatus).toHaveBeenCalledWith('info', 'Current Configuration');
     });
 
     it('outputs JSON when --json is passed', async () => {
@@ -309,7 +340,8 @@ describe('wt config command', () => {
 
       expect(loadMergedConfig).toHaveBeenCalledWith('/repo');
       expect(getConfigValue).toHaveBeenCalled();
-      expect(consoleLogSpy).toHaveBeenCalledWith('main');
+      // Value output now uses print() instead of console.log()
+      expect(print).toHaveBeenCalledWith('main');
     });
 
     it('exits with error when no key provided', async () => {
@@ -370,7 +402,9 @@ describe('wt config command', () => {
         createArgv({ subcommand: 'set', args: ['baseBranch', 'develop'] })
       );
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Not in a git repository.');
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Not in a git repository.' })
+      );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
@@ -386,6 +420,9 @@ describe('wt config command', () => {
         createArgv({ subcommand: 'set', args: ['baseBranch', 'invalid!'] })
       );
 
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Configuration validation failed:' })
+      );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
@@ -394,6 +431,34 @@ describe('wt config command', () => {
 
       expect(printError).toHaveBeenCalled();
       expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('shows success via printStatus after saving', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(
+        createArgv({ subcommand: 'set', args: ['baseBranch', 'develop'] })
+      );
+
+      expect(printStatus).toHaveBeenCalledWith(
+        'success',
+        expect.stringContaining('Set baseBranch = develop')
+      );
+    });
+
+    it('shows warnings via printErr', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (validateConfig as Mock).mockReturnValue({
+        valid: true,
+        errors: [],
+        warnings: [{ path: 'ai.provider', message: 'Experimental feature' }],
+      });
+
+      await configCommand.handler(
+        createArgv({ subcommand: 'set', args: ['ai.provider', 'claude'] })
+      );
+
+      expect(printErr).toHaveBeenCalledWith(expect.stringContaining('Warning'));
     });
   });
 
@@ -414,7 +479,9 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'set', args: ['baseBranch'] }));
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Not in a git repository.');
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Not in a git repository.' })
+      );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
@@ -475,13 +542,29 @@ describe('wt config command', () => {
       );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
+
+    it('shows opening message via printDim', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (findRepoConfigPath as Mock).mockReturnValue('/repo/.worktreerc');
+
+      await configCommand.handler(createArgv({ subcommand: 'edit' }));
+
+      expect(printDim).toHaveBeenCalledWith(expect.stringContaining('Opening'));
+    });
   });
 
   describe('handler - init subcommand', () => {
-    it('shows message directing to wt init', async () => {
+    it('shows message directing to wt init via printStatus', async () => {
       await configCommand.handler(createArgv({ subcommand: 'init' }));
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('wt init'));
+      expect(printStatus).toHaveBeenCalledWith('info', expect.stringContaining('wt init'));
+    });
+
+    it('shows examples via printDim', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'init' }));
+
+      expect(printDim).toHaveBeenCalledWith('Examples:');
+      expect(printDim).toHaveBeenCalledWith(expect.stringContaining('wt init'));
     });
   });
 
@@ -493,7 +576,9 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'validate' }));
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Not in a git repository.');
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Not in a git repository.' })
+      );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
@@ -503,7 +588,8 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'validate' }));
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(printStatus).toHaveBeenCalledWith(
+        'success',
         'No configuration file found. Nothing to validate.'
       );
     });
@@ -515,7 +601,7 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'validate' }));
 
-      expect(consoleLogSpy).toHaveBeenCalledWith('Configuration loaded successfully.');
+      expect(printStatus).toHaveBeenCalledWith('success', 'Configuration loaded successfully.');
     });
 
     it('shows success when validation passes', async () => {
@@ -527,7 +613,7 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'validate' }));
 
-      expect(consoleLogSpy).toHaveBeenCalledWith('Configuration is valid.');
+      expect(printStatus).toHaveBeenCalledWith('success', 'Configuration is valid.');
     });
 
     it('shows errors and exits 1 when validation fails', async () => {
@@ -539,7 +625,7 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'validate' }));
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Validation errors'));
+      expect(printErr).toHaveBeenCalledWith(expect.stringContaining('Validation errors'));
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
@@ -561,16 +647,30 @@ describe('wt config command', () => {
 
       await configCommand.handler(createArgv({ subcommand: 'migrate' }));
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(printError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: expect.stringContaining('Not in a git repository') })
+      );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
 
   describe('handler - schema subcommand', () => {
-    it('outputs schema URL', async () => {
+    it('outputs schema URL via print', async () => {
       await configCommand.handler(createArgv({ subcommand: 'schema' }));
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('example.com/schema'));
+      expect(print).toHaveBeenCalledWith(expect.stringContaining('example.com/schema'));
+    });
+
+    it('shows schema header via printStatus', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'schema' }));
+
+      expect(printStatus).toHaveBeenCalledWith('info', 'JSON Schema for .worktreerc');
+    });
+
+    it('shows editor support hints via printDim', async () => {
+      await configCommand.handler(createArgv({ subcommand: 'schema' }));
+
+      expect(printDim).toHaveBeenCalledWith(expect.stringContaining('Add this to any config file'));
     });
   });
 
