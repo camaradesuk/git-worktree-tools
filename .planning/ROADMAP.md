@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
 - [x] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
 - [x] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
-- [ ] **Phase 7: Legacy CLI Wiring Completeness** - Wire `initializeLogger()` and `printDeprecationNotice()` into deprecated legacy CLIs to close audit integration gaps
+- [x] **Phase 7: Legacy CLI Wiring Completeness** - Wire `initializeLogger()` and `printDeprecationNotice()` into deprecated legacy CLIs to close audit integration gaps (completed 2026-03-09)
 
 ## Phase Details
 
@@ -127,11 +127,11 @@ Plans:
 **Depends on**: Phase 5
 **Requirements:** LOG-01, LOG-04, UNI-01
 **Gap Closure:** Closes INT-01, INT-02, INT-03, INT-04, INT-05, INT-06, INT-07 from v1.0 audit
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] 07-01-PLAN.md — Wire logger + deprecation into wtstate.ts and prs.ts; migrate UI primitives in wtstate.ts, prs.ts, prs/command.ts
+- [x] 07-01-PLAN.md — Wire logger + deprecation into wtstate.ts and prs.ts; migrate UI primitives in wtstate.ts, prs.ts, prs/command.ts
 - [ ] 07-02-PLAN.md — Wire logger into wtconfig.ts; add setJsonMode to wt/config.ts; migrate ~160 console calls to UI primitives
 
 ## Progress
@@ -146,4 +146,4 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete | 2026-02-18 |
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
 | 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
-| 7. Legacy CLI Wiring Completeness | 0/2            | Planned    |            |
+| 7. Legacy CLI Wiring Completeness | 2/2            | Complete   | 2026-03-09 |

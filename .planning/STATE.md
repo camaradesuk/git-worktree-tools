@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 5 verified — all 17 plans across 5 phases executed and verified. Milestone complete.
+**Current focus:** Phase 7 complete -- all 7 integration gaps closed across 2 plans.
 
 ## Current Position
 
-Phase: 5 of 5 (In-Process Delegation)
-Plan: 4 of 4 in current phase
-Status: Phase Complete — Verified (6/6 must-haves)
-Last activity: 2026-02-19 — Phase 5 verified and marked complete in ROADMAP.md
+Phase: 7 of 7 (Legacy CLI Wiring Completeness)
+Plan: 2 of 2 in current phase
+Status: Phase Complete -- all integration gaps closed (INT-01 through INT-07)
+Last activity: 2026-03-09 -- Plan 07-02 executed (wt/config.ts setJsonMode + UI migration)
 
 Progress: [██████████] 100%
 
@@ -20,24 +20,25 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 17
-- Average duration: 14min
-- Total execution time: 233min
+- Total plans completed: 19
+- Average duration: 18min
+- Total execution time: 350min
 
 **By Phase:**
 
-| Phase                             | Plans | Total | Avg/Plan |
-| --------------------------------- | ----- | ----- | -------- |
-| 01-logger-wiring                  | 3/3   | 28min | 9min     |
-| 02-shared-ui-primitives           | 3/3   | 37min | 12min    |
-| 03-interactive-menu-reliability   | 3/3   | 24min | 8min     |
-| 04-json-output-and-llm-ergonomics | 4/4   | 70min | 18min    |
-| 05-in-process-delegation          | 4/4   | 74min | 19min    |
+| Phase                             | Plans | Total  | Avg/Plan |
+| --------------------------------- | ----- | ------ | -------- |
+| 01-logger-wiring                  | 3/3   | 28min  | 9min     |
+| 02-shared-ui-primitives           | 3/3   | 37min  | 12min    |
+| 03-interactive-menu-reliability   | 3/3   | 24min  | 8min     |
+| 04-json-output-and-llm-ergonomics | 4/4   | 70min  | 18min    |
+| 05-in-process-delegation          | 4/4   | 74min  | 19min    |
+| 07-legacy-cli-wiring-completeness | 2/2   | 117min | 59min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 04-04 (5min), 05-01 (included in 05-02), 05-02 (41min), 05-03 (18min), 05-04 (15min)
-- Trend: Phase 05 complete; 05-04 fast (deprecation utility + menu rewrite + README = well-scoped plan)
+- Last 5 plans: 05-03 (18min), 05-04 (15min), 07-01 (92min), 07-02 (25min)
+- Trend: 07-02 fast (Task 1 already done by 07-01, only wt/config.ts migration needed)
 
 _Updated after each plan completion_
 
@@ -104,6 +105,14 @@ Recent decisions affecting current work:
 - [Phase 05-04]: Interactive menu calls library functions directly (runNewprHandler, gatherWorktreeInfo, analyzeState, etc.) -- zero runSubcommandForResult calls remain
 - [Phase 05-04]: README removes legacy names from headings, adds Legacy Commands (Deprecated) section with migration table
 
+- [Phase 07-01]: wtstate uses manual argv parsing for logger init (same pattern as lswt, no yargs)
+- [Phase 07-01]: prs uses yargs option chain for --verbose/--quiet/--no-color then initializeLogger after parse
+- [Phase 07-01]: Removed colors import from prs/command.ts -- all error output migrated to printError
+- [Phase 07-01]: print('') replaces console.log() for empty separator lines in non-interactive table output
+- [Phase 07-02]: Task 1 (wtconfig.ts wiring) already completed by plan 07-01 -- skipped to avoid duplicate work
+- [Phase 07-02]: Used vi.clearAllMocks instead of vi.resetAllMocks in wtconfig.test.ts to preserve mock implementations
+- [Phase 07-02]: UI mock pass-through pattern: vi.fn((msg) => console.log(msg)) bridges UI primitives to console spies for legacy test assertions
+
 ### Pending Todos
 
 None yet.
@@ -118,5 +127,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-legacy-cli-wiring-completeness/07-CONTEXT.md
+Stopped at: Completed 07-02-PLAN.md -- Phase 7 complete
+Resume file: .planning/phases/07-legacy-cli-wiring-completeness/07-02-SUMMARY.md
