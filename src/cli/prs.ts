@@ -10,7 +10,10 @@
 
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import * as colors from '../lib/colors.js';
+import { setColorEnabled } from '../lib/colors.js';
+import { initializeLogger } from '../lib/logger.js';
+import { printDeprecationNotice } from '../lib/deprecation.js';
+import { printError } from '../lib/ui/index.js';
 import type { PrsCommandOptions } from '../lib/prs/types.js';
 import { runPrsCommand, outputJsonError } from '../lib/prs/command.js';
 import { ErrorCode } from '../lib/json-output.js';
@@ -26,6 +29,8 @@ export function hasJsonFlag(args: string[]): boolean {
 }
 
 async function main(): Promise<void> {
+  printDeprecationNotice('prs', 'wt prs');
+
   const argv = await yargs(hideBin(process.argv))
     .scriptName('prs')
     .usage('$0 [options]\n\nBrowse repository pull requests')
@@ -82,9 +87,38 @@ async function main(): Promise<void> {
       description: 'Force refresh from GitHub (bypass cache)',
       default: false,
     })
+    .option('verbose', {
+      alias: 'v',
+      type: 'boolean',
+      description: 'Enable verbose debug output',
+      default: false,
+    })
+    .option('quiet', {
+      type: 'boolean',
+      description: 'Suppress all output except errors',
+      default: false,
+    })
+    .option('no-color', {
+      type: 'boolean',
+      description: 'Disable colored output',
+      default: false,
+    })
     .help()
     .alias('h', 'help')
     .parse();
+
+  const noColor = argv['no-color'] || argv.noColor;
+  initializeLogger({
+    verbose: argv.verbose as boolean,
+    quiet: argv.quiet as boolean,
+    noColor: noColor as boolean,
+    json: argv.json,
+    commandName: 'prs',
+  });
+  if (noColor) {
+    process.env.NO_COLOR = '1';
+    setColorEnabled(false);
+  }
 
   const options: PrsCommandOptions = {
     state: (argv.state as 'open' | 'closed' | 'merged' | 'all') || 'open',
@@ -113,7 +147,7 @@ if (isMain || process.argv[1]?.endsWith('prs.js')) {
     if (jsonMode) {
       outputJsonError(ErrorCode.UNKNOWN_ERROR, message);
     } else {
-      console.error(colors.error(`Error: ${message}`));
+      printError({ title: `Error: ${message}` });
     }
     process.exit(1);
   });

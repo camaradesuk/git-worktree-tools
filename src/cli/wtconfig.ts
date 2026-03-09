@@ -17,6 +17,7 @@ import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as colors from '../lib/colors.js';
+import { setColorEnabled } from '../lib/colors.js';
 import * as git from '../lib/git.js';
 import { getDefaultConfig, type ResolvedConfig } from '../lib/config.js';
 import {
@@ -31,6 +32,15 @@ import {
   formatJsonResult,
   ErrorCode,
 } from '../lib/json-output.js';
+import { initializeLogger } from '../lib/logger.js';
+import {
+  print,
+  printErr,
+  printError,
+  printStatus,
+  printDim,
+  setJsonMode,
+} from '../lib/ui/index.js';
 
 /**
  * Safely get repository root, returning null if not in a git repo
@@ -68,6 +78,9 @@ import type { WorktreeConfig } from '../lib/config.js';
 const args = process.argv.slice(2);
 const command = args[0] || 'show';
 const jsonMode = args.includes('--json');
+const verbose = args.includes('--verbose');
+const quiet = args.includes('--quiet');
+const noColor = args.includes('--no-color');
 
 // Entry point
 main().catch((error) => {
@@ -76,13 +89,27 @@ main().catch((error) => {
     const errorResult = createErrorResult('wtconfig', ErrorCode.UNKNOWN_ERROR, message);
     console.log(formatJsonResult(errorResult));
   } else {
-    console.error(colors.error(`Error: ${message}`));
+    printError({ title: `Error: ${message}` });
   }
   process.exit(1);
 });
 
 async function main(): Promise<void> {
   printDeprecationNotice('wtconfig', 'wt config');
+
+  initializeLogger({
+    verbose,
+    quiet,
+    noColor,
+    json: jsonMode,
+    commandName: 'wtconfig',
+  });
+  setJsonMode(jsonMode);
+  if (noColor) {
+    process.env.NO_COLOR = '1';
+    setColorEnabled(false);
+  }
+
   switch (command) {
     case 'init':
     case 'wizard':
@@ -128,7 +155,7 @@ async function main(): Promise<void> {
         );
         console.log(formatJsonResult(errorResult));
       } else {
-        console.error(colors.error(`Unknown command: ${command}`));
+        printError({ title: `Unknown command: ${command}` });
         showHelp();
       }
       process.exit(1);
@@ -136,7 +163,7 @@ async function main(): Promise<void> {
 }
 
 function showHelp(): void {
-  console.log(`
+  print(`
 ${colors.cyan('wtconfig')} - Configuration management for git-worktree-tools
 
 ${colors.cyan('Usage:')}
@@ -151,6 +178,9 @@ ${colors.cyan('Usage:')}
 
 ${colors.cyan('Global Options:')}
   --json             Output results as JSON (for show, get, validate, migrate)
+  --verbose          Enable verbose logging
+  --quiet            Suppress non-essential output
+  --no-color         Disable colored output
 
 ${colors.cyan('Migration Options:')}
   --yes              Skip confirmation prompts
@@ -193,21 +223,21 @@ async function showConfig(json = false): Promise<void> {
 
   const defaults = getDefaultConfig();
 
-  console.log(colors.info('Current Configuration'));
-  console.log();
+  printStatus('info', 'Current Configuration');
+  print('');
 
   if (source.type === 'none') {
-    console.log(colors.dim('No configuration file found. Using defaults.'));
-    console.log(colors.dim(`Run 'wtconfig init' to create a configuration file.`));
-    console.log();
+    printDim('No configuration file found. Using defaults.');
+    printDim(`Run 'wtconfig init' to create a configuration file.`);
+    print('');
   } else {
-    console.log(colors.dim(`Source: ${source.path}`));
-    console.log();
+    printDim(`Source: ${source.path}`);
+    print('');
   }
 
   // Show merged config with sources indicated
   const mergedDisplay = formatConfigWithDefaults(config, defaults, source.type !== 'none');
-  console.log(mergedDisplay);
+  print(mergedDisplay);
 }
 
 function formatConfigWithDefaults(
@@ -311,13 +341,15 @@ function formatConfigWithDefaults(
 
 async function setConfig(key: string | undefined, value: string | undefined): Promise<void> {
   if (!key) {
-    console.error(colors.error('Usage: wtconfig set <key> <value>'));
-    console.error(colors.dim('Example: wtconfig set baseBranch develop'));
+    printError({
+      title: 'Usage: wtconfig set <key> <value>',
+      hint: 'Example: wtconfig set baseBranch develop',
+    });
     process.exit(1);
   }
 
   if (value === undefined) {
-    console.error(colors.error(`Missing value for key: ${key}`));
+    printError({ title: `Missing value for key: ${key}` });
     process.exit(1);
   }
 
@@ -345,30 +377,30 @@ async function setConfig(key: string | undefined, value: string | undefined): Pr
     // Validate before saving
     const validation = validateConfig(newConfig);
     if (!validation.valid) {
-      console.error(colors.error('Configuration validation failed:'));
-      for (const error of validation.errors) {
-        console.error(colors.error(`  ${error.path}: ${error.message}`));
+      printError({ title: 'Configuration validation failed:' });
+      for (const validationError of validation.errors) {
+        printErr(colors.error(`  ${validationError.path}: ${validationError.message}`));
       }
       process.exit(1);
     }
 
     // Show warnings
     for (const warning of validation.warnings) {
-      console.warn(colors.warning(`Warning: ${warning.path}: ${warning.message}`));
+      printErr(colors.warning(`Warning: ${warning.path}: ${warning.message}`));
     }
 
     // Save
     if (saveLocation === 'repo' && repoRoot) {
       saveRepoConfig(repoRoot, newConfig);
-      console.log(colors.success(`Set ${key} = ${value} in .worktreerc`));
+      printStatus('success', `Set ${key} = ${value} in .worktreerc`);
     } else {
       saveGlobalConfig(newConfig);
-      console.log(colors.success(`Set ${key} = ${value} in ~/.worktreerc`));
+      printStatus('success', `Set ${key} = ${value} in ~/.worktreerc`);
     }
   } catch (error) {
-    console.error(
-      colors.error(`Failed to set value: ${error instanceof Error ? error.message : String(error)}`)
-    );
+    printError({
+      title: `Failed to set value: ${error instanceof Error ? error.message : String(error)}`,
+    });
     process.exit(1);
   }
 }
@@ -383,8 +415,7 @@ async function getConfig(key: string | undefined, json = false): Promise<void> {
       );
       console.log(formatJsonResult(errorResult));
     } else {
-      console.error(colors.error('Usage: wtconfig get <key>'));
-      console.error(colors.dim('Example: wtconfig get ai.provider'));
+      printError({ title: 'Usage: wtconfig get <key>', hint: 'Example: wtconfig get ai.provider' });
     }
     process.exit(1);
   }
@@ -408,7 +439,7 @@ async function getConfig(key: string | undefined, json = false): Promise<void> {
       );
       console.log(formatJsonResult(errorResult));
     } else {
-      console.error(colors.error(`Unknown configuration key: ${key}`));
+      printError({ title: `Unknown configuration key: ${key}` });
     }
     process.exit(1);
   }
@@ -424,9 +455,9 @@ async function getConfig(key: string | undefined, json = false): Promise<void> {
   }
 
   if (typeof value === 'object') {
-    console.log(JSON.stringify(value, null, 2));
+    print(JSON.stringify(value, null, 2));
   } else {
-    console.log(String(value));
+    print(String(value));
   }
 }
 
@@ -465,7 +496,7 @@ async function editConfig(): Promise<void> {
     ]);
 
     if (!create) {
-      console.log(colors.dim('Cancelled.'));
+      printDim('Cancelled.');
       return;
     }
 
@@ -474,12 +505,12 @@ async function editConfig(): Promise<void> {
 
   // Open in editor
   const editor = process.env.EDITOR || process.env.VISUAL || 'vi';
-  console.log(colors.dim(`Opening ${configPath} in ${editor}...`));
+  printDim(`Opening ${configPath} in ${editor}...`);
 
   try {
     execSync(`${editor} "${configPath}"`, { stdio: 'inherit' });
   } catch {
-    console.error(colors.error('Failed to open editor'));
+    printError({ title: 'Failed to open editor' });
     process.exit(1);
   }
 }
@@ -499,7 +530,7 @@ async function validateCurrentConfig(json = false): Promise<void> {
       });
       console.log(formatJsonResult(result));
     } else {
-      console.log(colors.success('No configuration file found. Nothing to validate.'));
+      printStatus('success', 'No configuration file found. Nothing to validate.');
     }
     return;
   }
@@ -522,24 +553,24 @@ async function validateCurrentConfig(json = false): Promise<void> {
     return;
   }
 
-  console.log(colors.info(`Validating: ${source.path}`));
+  printStatus('info', `Validating: ${source.path}`);
 
   if (validationResult.valid && validationResult.warnings.length === 0) {
-    console.log(colors.success('Configuration is valid.'));
+    printStatus('success', 'Configuration is valid.');
     return;
   }
 
   if (validationResult.errors.length > 0) {
-    console.log(colors.error('\nErrors:'));
+    printErr(colors.error('\nErrors:'));
     for (const error of validationResult.errors) {
-      console.log(colors.error(`  ${error.path}: ${error.message}`));
+      printErr(colors.error(`  ${error.path}: ${error.message}`));
     }
   }
 
   if (validationResult.warnings.length > 0) {
-    console.log(colors.warning('\nWarnings:'));
+    printErr(colors.warning('\nWarnings:'));
     for (const warning of validationResult.warnings) {
-      console.log(colors.warning(`  ${warning.path}: ${warning.message}`));
+      printErr(colors.warning(`  ${warning.path}: ${warning.message}`));
     }
   }
 
@@ -561,8 +592,10 @@ async function runMigrateCommand(): Promise<void> {
     if (jsonOutput) {
       console.log(JSON.stringify({ success: false, error: 'Not in a git repository' }));
     } else {
-      console.error(colors.error('Error: Not in a git repository'));
-      console.error(colors.dim('Run this command from within a git repository.'));
+      printError({
+        title: 'Error: Not in a git repository',
+        hint: 'Run this command from within a git repository.',
+      });
     }
     process.exit(1);
   }
@@ -614,18 +647,18 @@ async function runMigrateCommand(): Promise<void> {
 
   // Interactive console mode
   if (detection.issues.length === 0) {
-    console.log(colors.success('Config is up to date, no migration needed.'));
+    printStatus('success', 'Config is up to date, no migration needed.');
     return;
   }
 
   // Show detection report
-  console.log(formatMigrationReport(detection, { verbose: true }));
-  console.log();
+  print(formatMigrationReport(detection, { verbose: true }));
+  print('');
 
   // Dry run mode - just show what would happen
   if (dryRun) {
-    console.log(colors.info('[DRY RUN] No changes were made.'));
-    console.log(colors.dim('Remove --dry-run flag to apply the migration.'));
+    printStatus('info', '[DRY RUN] No changes were made.');
+    printDim('Remove --dry-run flag to apply the migration.');
     return;
   }
 
@@ -641,7 +674,7 @@ async function runMigrateCommand(): Promise<void> {
     ]);
 
     if (!confirm) {
-      console.log(colors.dim('Migration cancelled.'));
+      printDim('Migration cancelled.');
       return;
     }
   }
@@ -650,40 +683,42 @@ async function runMigrateCommand(): Promise<void> {
   const result = await runMigration(repoRoot, detection, { deleteLegacyFiles: deleteLegacy });
 
   if (result.success) {
-    console.log();
-    console.log(colors.success('Migration completed successfully!'));
+    print('');
+    printStatus('success', 'Migration completed successfully!');
 
     if (result.backupPath) {
-      console.log(colors.dim(`Backup created: ${result.backupPath}`));
+      printDim(`Backup created: ${result.backupPath}`);
     }
 
-    console.log(colors.dim(`Config updated: ${result.newConfigPath}`));
+    printDim(`Config updated: ${result.newConfigPath}`);
 
     if (result.actionsExecuted.length > 0) {
-      console.log(colors.dim(`${result.actionsExecuted.length} change(s) applied.`));
+      printDim(`${result.actionsExecuted.length} change(s) applied.`);
     }
   } else {
-    console.log();
-    console.error(colors.error('Migration failed:'));
+    print('');
+    printError({ title: 'Migration failed:' });
     for (const error of result.errors) {
-      console.error(colors.error(`  ${error}`));
+      printErr(colors.error(`  ${error}`));
     }
     process.exit(1);
   }
 }
 
 async function runWizard(): Promise<void> {
-  console.log();
-  console.log(colors.info('┌' + '─'.repeat(56) + '┐'));
-  console.log(
-    colors.info('│') + '           git-worktree-tools Setup Wizard           ' + colors.info('│')
+  print('');
+  print(colors.info('\u250C' + '\u2500'.repeat(56) + '\u2510'));
+  print(
+    colors.info('\u2502') +
+      '           git-worktree-tools Setup Wizard           ' +
+      colors.info('\u2502')
   );
-  console.log(colors.info('└' + '─'.repeat(56) + '┘'));
-  console.log();
+  print(colors.info('\u2514' + '\u2500'.repeat(56) + '\u2518'));
+  print('');
 
   // Detect environment
-  console.log(colors.dim('Detecting your environment...'));
-  console.log();
+  printDim('Detecting your environment...');
+  print('');
 
   const repoRoot = findRepoRoot();
   const env = detectEnvironment(repoRoot ?? undefined);
@@ -698,11 +733,11 @@ async function runWizard(): Promise<void> {
   const config = buildConfigFromState(state, env);
 
   // Preview configuration
-  console.log();
-  console.log(colors.info('Configuration Preview:'));
-  console.log();
-  console.log(formatConfigDisplay(config));
-  console.log();
+  print('');
+  printStatus('info', 'Configuration Preview:');
+  print('');
+  print(formatConfigDisplay(config));
+  print('');
 
   // Confirm save
   const { saveChoice } = await inquirer.prompt<{ saveChoice: 'repo' | 'global' | 'cancel' }>([
@@ -720,61 +755,57 @@ async function runWizard(): Promise<void> {
   ]);
 
   if (saveChoice === 'cancel') {
-    console.log(colors.dim('Setup cancelled.'));
+    printDim('Setup cancelled.');
     return;
   }
 
   // Save configuration
   if (saveChoice === 'repo' && repoRoot) {
     saveRepoConfig(repoRoot, config);
-    console.log();
-    console.log(colors.success(`Configuration saved to ${getDefaultRepoConfigPath(repoRoot)}`));
+    print('');
+    printStatus('success', `Configuration saved to ${getDefaultRepoConfigPath(repoRoot)}`);
   } else {
     saveGlobalConfig(config);
-    console.log();
-    console.log(colors.success(`Configuration saved to ${getGlobalConfigPath()}`));
+    print('');
+    printStatus('success', `Configuration saved to ${getGlobalConfigPath()}`);
   }
 
   // Show quick start
-  console.log();
-  console.log(colors.info('Quick Start:'));
-  console.log(`  ${colors.warning('newpr "Add feature"')}     Create a new PR`);
-  console.log(`  ${colors.warning('lswt')}                    List worktrees`);
-  console.log(`  ${colors.warning('cleanpr')}                 Clean merged PRs`);
-  console.log();
+  print('');
+  printStatus('info', 'Quick Start:');
+  print(`  ${colors.warning('newpr "Add feature"')}     Create a new PR`);
+  print(`  ${colors.warning('lswt')}                    List worktrees`);
+  print(`  ${colors.warning('cleanpr')}                 Clean merged PRs`);
+  print('');
 }
 
 function displayEnvironment(env: EnvironmentInfo): void {
-  const check = colors.success('✓');
-  const cross = colors.error('✗');
-  const warn = colors.warning('○');
+  const check = colors.success('\u2713');
+  const cross = colors.error('\u2717');
+  const warn = colors.warning('\u25CB');
 
   // Git
   if (env.git.version) {
     if (env.git.configured) {
-      console.log(`${check} Git ${env.git.version} configured (${env.git.email})`);
+      print(`${check} Git ${env.git.version} configured (${env.git.email})`);
     } else {
-      console.log(
+      print(
         `${warn} Git ${env.git.version} (not configured - run: git config --global user.name/email)`
       );
     }
   } else {
-    console.log(`${cross} Git not found`);
+    print(`${cross} Git not found`);
   }
 
   // GitHub CLI
   if (env.github.installed) {
     if (env.github.authenticated) {
-      console.log(
-        `${check} GitHub CLI authenticated${env.github.user ? ` (${env.github.user})` : ''}`
-      );
+      print(`${check} GitHub CLI authenticated${env.github.user ? ` (${env.github.user})` : ''}`);
     } else {
-      console.log(`${warn} GitHub CLI installed but not authenticated (run: gh auth login)`);
+      print(`${warn} GitHub CLI installed but not authenticated (run: gh auth login)`);
     }
   } else {
-    console.log(
-      `${cross} GitHub CLI not installed (optional, install from: https://cli.github.com)`
-    );
+    print(`${cross} GitHub CLI not installed (optional, install from: https://cli.github.com)`);
   }
 
   // AI tools
@@ -785,14 +816,14 @@ function displayEnvironment(env: EnvironmentInfo): void {
   if (env.ai.codexCLI) aiTools.push('Codex CLI');
 
   if (aiTools.length > 0) {
-    console.log(`${check} AI tools: ${aiTools.join(', ')}`);
+    print(`${check} AI tools: ${aiTools.join(', ')}`);
   } else {
-    console.log(`${colors.dim('○')} No AI tools detected (optional)`);
+    print(`${colors.dim('\u25CB')} No AI tools detected (optional)`);
   }
 
   // Package manager
   if (env.packageManager) {
-    console.log(`${check} Package manager: ${env.packageManager}`);
+    print(`${check} Package manager: ${env.packageManager}`);
   }
 
   // IDE
@@ -801,16 +832,16 @@ function displayEnvironment(env: EnvironmentInfo): void {
   if (env.ide.cursor) ides.push('Cursor');
 
   if (ides.length > 0) {
-    console.log(`${check} IDE: ${ides.join(', ')}`);
+    print(`${check} IDE: ${ides.join(', ')}`);
   }
 
-  console.log();
+  print('');
 }
 
 async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Promise<WizardState> {
   // Step 1: Base Configuration
-  console.log(colors.info('Step 1/4: Base Configuration'));
-  console.log();
+  printStatus('info', 'Step 1/4: Base Configuration');
+  print('');
 
   const defaultBranch = repoRoot ? detectDefaultBranch(repoRoot) : 'main';
 
@@ -866,9 +897,9 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
   }
 
   // Step 2: Worktree Location
-  console.log();
-  console.log(colors.info('Step 2/4: Worktree Location'));
-  console.log();
+  print('');
+  printStatus('info', 'Step 2/4: Worktree Location');
+  print('');
 
   const step2 = await inquirer.prompt<{
     worktreeLocation: 'sibling' | 'inside' | 'custom';
@@ -914,9 +945,9 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
   }
 
   // Step 3: AI Integration
-  console.log();
-  console.log(colors.info('Step 3/4: AI Integration'));
-  console.log();
+  print('');
+  printStatus('info', 'Step 3/4: AI Integration');
+  print('');
 
   let aiEnabled = false;
   let aiProvider: WizardState['aiProvider'] = 'none';
@@ -1009,14 +1040,14 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
       aiCommitMessage = step3b.aiFeatures.includes('commitMessage');
     }
   } else {
-    console.log(colors.dim('No AI tools detected. Skipping AI configuration.'));
-    console.log(colors.dim('Install Claude Code, Gemini CLI, or Ollama to enable AI features.'));
+    printDim('No AI tools detected. Skipping AI configuration.');
+    printDim('Install Claude Code, Gemini CLI, or Ollama to enable AI features.');
   }
 
   // Step 4: Automation Hooks
-  console.log();
-  console.log(colors.info('Step 4/4: Automation Hooks'));
-  console.log();
+  print('');
+  printStatus('info', 'Step 4/4: Automation Hooks');
+  print('');
 
   const hookChoices: { name: string; value: string; checked: boolean }[] = [];
 
@@ -1077,11 +1108,11 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
       preferredEditor = 'vscode';
     }
   } else {
-    console.log(colors.dim('No automation hooks available for your environment.'));
+    printDim('No automation hooks available for your environment.');
   }
 
   // Step 5: Advanced Configuration (optional)
-  console.log();
+  print('');
   const { configureAdvanced } = await inquirer.prompt<{ configureAdvanced: boolean }>([
     {
       type: 'confirm',
@@ -1096,9 +1127,9 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
   const integrations: WizardState['integrations'] = {};
 
   if (configureAdvanced) {
-    console.log();
-    console.log(colors.info('Step 5: Advanced Configuration'));
-    console.log();
+    print('');
+    printStatus('info', 'Step 5: Advanced Configuration');
+    print('');
 
     // Plugins
     const { addPlugins } = await inquirer.prompt<{ addPlugins: boolean }>([

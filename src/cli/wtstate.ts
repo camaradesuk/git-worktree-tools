@@ -7,7 +7,8 @@
 
 import { printDeprecationNotice } from '../lib/deprecation.js';
 import * as git from '../lib/git.js';
-import * as colors from '../lib/colors.js';
+import { setColorEnabled } from '../lib/colors.js';
+import { initializeLogger } from '../lib/logger.js';
 import { parseArgs, getHelpText, analyzeState, formatText } from '../lib/wtstate/index.js';
 import {
   createSuccessResult,
@@ -16,12 +17,34 @@ import {
   ErrorCode,
   type WtstateResultData,
 } from '../lib/json-output.js';
+import { print, printError, setJsonMode } from '../lib/ui/index.js';
 
 /**
  * Main entry point
  */
 async function main(): Promise<void> {
   printDeprecationNotice('wtstate', 'wt state');
+
+  // Parse flags manually from argv for logger initialization (before full arg parsing)
+  const rawArgs = process.argv.slice(2);
+  const verbose = rawArgs.includes('--verbose');
+  const quiet = rawArgs.includes('--quiet');
+  const noColor = rawArgs.includes('--no-color');
+  const jsonFlag = hasJsonFlag(rawArgs);
+
+  initializeLogger({
+    verbose,
+    quiet,
+    noColor,
+    json: jsonFlag,
+    commandName: 'wtstate',
+  });
+  setJsonMode(jsonFlag);
+  if (noColor) {
+    process.env.NO_COLOR = '1';
+    setColorEnabled(false);
+  }
+
   const result = parseArgs(process.argv.slice(2));
 
   if (result.kind === 'help') {
@@ -30,7 +53,7 @@ async function main(): Promise<void> {
   }
 
   if (result.kind === 'error') {
-    if (hasJsonFlag(process.argv.slice(2))) {
+    if (jsonFlag) {
       const errorResult = createErrorResult(
         'wtstate',
         ErrorCode.INVALID_ARGUMENT,
@@ -38,7 +61,7 @@ async function main(): Promise<void> {
       );
       console.log(formatJsonResult(errorResult));
     } else if (result.message) {
-      console.error(colors.error(result.message));
+      printError({ title: result.message });
     }
     process.exit(1);
   }
@@ -57,7 +80,7 @@ async function main(): Promise<void> {
       );
       console.log(formatJsonResult(errorResult));
     } else {
-      console.error(colors.error('Not in a git repository.'));
+      printError({ title: 'Not in a git repository.' });
     }
     process.exit(1);
   }
@@ -87,7 +110,7 @@ async function main(): Promise<void> {
       console.log(formatJsonResult(jsonResult));
     } else {
       // Output as human-readable text
-      console.log(formatText(stateResult, options.verbose));
+      print(formatText(stateResult, options.verbose));
     }
   } catch (error) {
     if (options.json) {
@@ -98,7 +121,7 @@ async function main(): Promise<void> {
       );
       console.log(formatJsonResult(errorResult));
     } else {
-      console.error(colors.error(error instanceof Error ? error.message : String(error)));
+      printError({ title: error instanceof Error ? error.message : String(error) });
     }
     process.exit(1);
   }
@@ -117,7 +140,7 @@ main().catch((error) => {
     const errorResult = createErrorResult('wtstate', ErrorCode.UNKNOWN_ERROR, message);
     console.log(formatJsonResult(errorResult));
   } else {
-    console.error(colors.error(message));
+    printError({ title: message });
   }
   process.exit(1);
 });
