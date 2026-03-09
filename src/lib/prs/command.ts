@@ -11,7 +11,6 @@
 
 import * as path from 'path';
 import * as git from '../git.js';
-import * as colors from '../colors.js';
 import { loadConfig } from '../config.js';
 import { isGhInstalled, isAuthenticated, getRepoInfo } from '../github.js';
 import {
@@ -35,6 +34,7 @@ import {
   ErrorCode,
   getErrorSuggestion,
 } from '../json-output.js';
+import { printError, print } from '../ui/index.js';
 
 /**
  * Output error in JSON format
@@ -61,8 +61,10 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
     if (jsonMode) {
       outputJsonError(ErrorCode.NOT_GIT_REPO, 'Not in a git repository');
     } else {
-      console.error(colors.error('Not in a git repository'));
-      console.error(colors.dim('Please run this command from within a git repository.'));
+      printError({
+        title: 'Not in a git repository',
+        hint: 'Please run this command from within a git repository.',
+      });
     }
     process.exit(1);
   }
@@ -71,8 +73,10 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
     if (jsonMode) {
       outputJsonError(ErrorCode.GH_NOT_INSTALLED, 'GitHub CLI (gh) is not installed');
     } else {
-      console.error(colors.error('GitHub CLI (gh) is not installed'));
-      console.error(colors.dim('Install it from: https://cli.github.com/'));
+      printError({
+        title: 'GitHub CLI (gh) is not installed',
+        hint: 'Install it from: https://cli.github.com/',
+      });
     }
     process.exit(1);
   }
@@ -81,8 +85,10 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
     if (jsonMode) {
       outputJsonError(ErrorCode.GH_NOT_AUTHENTICATED, 'Not authenticated with GitHub CLI');
     } else {
-      console.error(colors.error('Not authenticated with GitHub CLI'));
-      console.error(colors.dim('Run: gh auth login'));
+      printError({
+        title: 'Not authenticated with GitHub CLI',
+        hint: 'Run: gh auth login',
+      });
     }
     process.exit(1);
   }
@@ -127,10 +133,10 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
         error instanceof Error ? error.message : 'Failed to fetch PRs'
       );
     } else {
-      console.error(colors.error('Failed to fetch PRs from GitHub'));
-      if (error instanceof Error) {
-        console.error(colors.dim(error.message));
-      }
+      printError({
+        title: 'Failed to fetch PRs from GitHub',
+        detail: error instanceof Error ? error.message : undefined,
+      });
     }
     process.exit(1);
   }
@@ -202,10 +208,10 @@ export async function runPrsCommand(options: PrsCommandOptions): Promise<void> {
   } else {
     // Non-interactive table output - apply filters here
     const filteredPrs = applyFilters(prs, filterState);
-    console.log(formatPrListHeader(repoName));
-    console.log(formatPrSummary(filteredPrs));
-    console.log();
-    console.log(formatPrTable(filteredPrs, previewLabel));
-    console.log();
+    print(formatPrListHeader(repoName));
+    print(formatPrSummary(filteredPrs));
+    print('');
+    print(formatPrTable(filteredPrs, previewLabel));
+    print('');
   }
 }

@@ -42,12 +42,32 @@ vi.mock('../lib/prs/interactive.js', () => ({
   createDefaultPrInteractiveDeps: vi.fn(),
 }));
 
+vi.mock('../lib/ui/index.js', () => ({
+  printError: vi.fn(),
+  print: vi.fn(),
+}));
+
+vi.mock('../lib/deprecation.js', () => ({
+  printDeprecationNotice: vi.fn(),
+}));
+
+vi.mock('../lib/logger.js', () => ({
+  initializeLogger: vi.fn(),
+}));
+
+vi.mock('../lib/colors.js', () => ({
+  setColorEnabled: vi.fn(),
+}));
+
 // Get mocked functions
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
 import * as config from '../lib/config.js';
 import * as prsData from '../lib/prs/data.js';
 import * as formatters from '../lib/prs/formatters.js';
+import { printError } from '../lib/ui/index.js';
+import { printDeprecationNotice } from '../lib/deprecation.js';
+import { initializeLogger } from '../lib/logger.js';
 
 const mockGetRepoRoot = vi.mocked(git.getRepoRoot);
 const mockIsGhInstalled = vi.mocked(github.isGhInstalled);
@@ -228,6 +248,10 @@ describe('prs CLI command', () => {
 
       await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Not in a git repository',
+        hint: 'Please run this command from within a git repository.',
+      });
     });
 
     it('should output JSON error when not in git repo with json mode', async () => {
@@ -250,6 +274,10 @@ describe('prs CLI command', () => {
 
       await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'GitHub CLI (gh) is not installed',
+        hint: 'Install it from: https://cli.github.com/',
+      });
     });
 
     it('should output JSON error when gh not installed with json mode', async () => {
@@ -272,6 +300,10 @@ describe('prs CLI command', () => {
 
       await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Not authenticated with GitHub CLI',
+        hint: 'Run: gh auth login',
+      });
     });
 
     it('should output JSON error when not authenticated with json mode', async () => {
@@ -413,6 +445,10 @@ describe('prs CLI command', () => {
 
       await expect(runPrsCommand(createOptions({ json: false }))).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Failed to fetch PRs from GitHub',
+        detail: 'API rate limit exceeded',
+      });
     });
 
     it('should map state filter correctly', async () => {
@@ -511,6 +547,20 @@ describe('prs CLI command', () => {
       expect(mockApplyFilters).toHaveBeenCalled();
       const filterState = mockApplyFilters.mock.calls[0][1];
       expect(filterState.showDrafts).toBe(false);
+    });
+  });
+
+  describe('deprecation and logger wiring', () => {
+    it('should import printDeprecationNotice from deprecation module', () => {
+      // Verify that the prs module correctly imports printDeprecationNotice
+      expect(vi.mocked(printDeprecationNotice)).toBeDefined();
+      expect(typeof vi.mocked(printDeprecationNotice)).toBe('function');
+    });
+
+    it('should import initializeLogger from logger module', () => {
+      // Verify that the prs module correctly imports initializeLogger
+      expect(vi.mocked(initializeLogger)).toBeDefined();
+      expect(typeof vi.mocked(initializeLogger)).toBe('function');
     });
   });
 

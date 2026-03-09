@@ -23,13 +23,36 @@ vi.mock('../lib/json-output.js', () => ({
   ErrorCode: {
     NOT_GIT_REPO: 'NOT_GIT_REPO',
     OPERATION_FAILED: 'OPERATION_FAILED',
+    INVALID_ARGUMENT: 'INVALID_ARGUMENT',
+    UNKNOWN_ERROR: 'UNKNOWN_ERROR',
   },
+}));
+
+vi.mock('../lib/logger.js', () => ({
+  initializeLogger: vi.fn(),
+}));
+
+vi.mock('../lib/colors.js', () => ({
+  setColorEnabled: vi.fn(),
+}));
+
+vi.mock('../lib/deprecation.js', () => ({
+  printDeprecationNotice: vi.fn(),
+}));
+
+vi.mock('../lib/ui/index.js', () => ({
+  print: vi.fn(),
+  printError: vi.fn(),
+  setJsonMode: vi.fn(),
 }));
 
 // Import after mocking
 import * as git from '../lib/git.js';
 import * as wtstate from '../lib/wtstate/index.js';
 import * as jsonOutput from '../lib/json-output.js';
+import { initializeLogger } from '../lib/logger.js';
+import { printError } from '../lib/ui/index.js';
+import { print } from '../lib/ui/index.js';
 import type { WtstateResult } from '../lib/wtstate/types.js';
 
 describe('cli/wtstate', () => {
@@ -63,6 +86,82 @@ describe('cli/wtstate', () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 
+  describe('logger initialization', () => {
+    it('calls initializeLogger with parsed flags', async () => {
+      vi.mocked(wtstate.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { baseBranch: 'main', json: false, verbose: false },
+      });
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(wtstate.analyzeState).mockReturnValue({
+        scenario: 'main_clean_same',
+        scenarioDescription: 'On main branch, clean',
+        currentBranch: 'main',
+        baseBranch: 'main',
+        worktreeType: 'main_worktree',
+        hasChanges: false,
+        hasStagedChanges: false,
+        hasUnstagedChanges: false,
+        localCommits: [],
+        stagedFiles: [],
+        unstagedFiles: [],
+        availableActions: [],
+        recommendedAction: 'empty_commit',
+      });
+      vi.mocked(wtstate.formatText).mockReturnValue('output');
+
+      await runCli(['--verbose']);
+
+      expect(vi.mocked(initializeLogger)).toHaveBeenCalledWith({
+        verbose: true,
+        quiet: false,
+        noColor: false,
+        json: false,
+        commandName: 'wtstate',
+      });
+    });
+
+    it('calls initializeLogger with json flag', async () => {
+      vi.mocked(wtstate.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { baseBranch: 'main', json: true, verbose: false },
+      });
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(wtstate.analyzeState).mockReturnValue({
+        scenario: 'main_clean_same',
+        scenarioDescription: 'On main branch, clean',
+        currentBranch: 'main',
+        baseBranch: 'main',
+        worktreeType: 'main_worktree',
+        hasChanges: false,
+        hasStagedChanges: false,
+        hasUnstagedChanges: false,
+        localCommits: [],
+        stagedFiles: [],
+        unstagedFiles: [],
+        availableActions: [],
+        recommendedAction: 'empty_commit',
+      });
+      vi.mocked(jsonOutput.createSuccessResult).mockReturnValue({
+        success: true,
+        command: 'wtstate',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        data: {},
+      });
+      vi.mocked(jsonOutput.formatJsonResult).mockReturnValue('{}');
+
+      await runCli(['--json']);
+
+      expect(vi.mocked(initializeLogger)).toHaveBeenCalledWith({
+        verbose: false,
+        quiet: false,
+        noColor: false,
+        json: true,
+        commandName: 'wtstate',
+      });
+    });
+  });
+
   describe('help option', () => {
     it('prints help and exits 0 on --help', async () => {
       vi.mocked(wtstate.parseArgs).mockReturnValue({ kind: 'help' });
@@ -77,7 +176,7 @@ describe('cli/wtstate', () => {
   });
 
   describe('error handling', () => {
-    it('prints error and exits 1 on parse error', async () => {
+    it('prints error via printError and exits 1 on parse error', async () => {
       vi.mocked(wtstate.parseArgs).mockReturnValue({
         kind: 'error',
         message: 'Unknown option: --invalid',
@@ -85,7 +184,9 @@ describe('cli/wtstate', () => {
 
       await runCli(['--invalid']);
 
-      expect(mockConsoleError).toHaveBeenCalled();
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Unknown option: --invalid',
+      });
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
   });
@@ -117,7 +218,7 @@ describe('cli/wtstate', () => {
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
-    it('outputs text error when --json is not used', async () => {
+    it('outputs text error via printError when --json is not used', async () => {
       vi.mocked(wtstate.parseArgs).mockReturnValue({
         kind: 'success',
         options: { baseBranch: 'main', json: false, verbose: false },
@@ -128,7 +229,9 @@ describe('cli/wtstate', () => {
 
       await runCli([]);
 
-      expect(mockConsoleError).toHaveBeenCalled();
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Not in a git repository.',
+      });
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
   });
@@ -172,7 +275,7 @@ describe('cli/wtstate', () => {
       expect(mockConsoleLog).toHaveBeenCalledWith('{"success":true}');
     });
 
-    it('outputs formatted text when --json is not used', async () => {
+    it('outputs formatted text via print() when --json is not used', async () => {
       vi.mocked(wtstate.parseArgs).mockReturnValue({
         kind: 'success',
         options: { baseBranch: 'main', json: false, verbose: false },
@@ -184,7 +287,7 @@ describe('cli/wtstate', () => {
       await runCli([]);
 
       expect(wtstate.formatText).toHaveBeenCalled();
-      expect(mockConsoleLog).toHaveBeenCalledWith('Scenario: main_clean_same\nBranch: main');
+      expect(vi.mocked(print)).toHaveBeenCalledWith('Scenario: main_clean_same\nBranch: main');
     });
   });
 
@@ -216,7 +319,7 @@ describe('cli/wtstate', () => {
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
-    it('outputs text error when analysis fails without --json', async () => {
+    it('outputs text error via printError when analysis fails without --json', async () => {
       vi.mocked(wtstate.parseArgs).mockReturnValue({
         kind: 'success',
         options: { baseBranch: 'main', json: false, verbose: false },
@@ -228,7 +331,9 @@ describe('cli/wtstate', () => {
 
       await runCli([]);
 
-      expect(mockConsoleError).toHaveBeenCalled();
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Analysis failed',
+      });
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
   });
