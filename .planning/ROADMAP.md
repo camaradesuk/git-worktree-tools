@@ -123,15 +123,21 @@ Plans:
 
 ### Phase 7: Legacy CLI Wiring Completeness
 
-**Goal:** Deprecated legacy CLIs (`wtstate`, `wtconfig`, `prs`) call `initializeLogger()` and `printDeprecationNotice()` consistently — closing all 3 medium integration gaps from the v1.0 audit
+**Goal:** Deprecated legacy CLIs (`wtstate`, `wtconfig`, `prs`) call `initializeLogger()` and `printDeprecationNotice()` consistently — closing all 7 integration gaps from the v1.0 audit
 **Depends on**: Phase 5
 **Requirements:** LOG-01, LOG-04, UNI-01
-**Gap Closure:** Closes INT-01, INT-02, INT-03 from v1.0 audit
+**Gap Closure:** Closes INT-01, INT-02, INT-03, INT-04, INT-05, INT-06, INT-07 from v1.0 audit
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 07-01-PLAN.md — Wire logger + deprecation into wtstate.ts and prs.ts; migrate UI primitives in wtstate.ts, prs.ts, prs/command.ts
+- [ ] 07-02-PLAN.md — Wire logger into wtconfig.ts; add setJsonMode to wt/config.ts; migrate ~160 console calls to UI primitives
 
 ## Progress
 
 **Execution Order:**
-Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
+Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7
 
 | Phase                             | Plans Complete | Status     | Completed  |
 | --------------------------------- | -------------- | ---------- | ---------- |
@@ -140,4 +146,4 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete | 2026-02-18 |
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
 | 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
-| 7. Legacy CLI Wiring Completeness | 0/0            | Pending    |            |
+| 7. Legacy CLI Wiring Completeness | 0/2            | Planned    |            |
