@@ -134,10 +134,21 @@ Plans:
 - [x] 07-01-PLAN.md — Wire logger + deprecation into wtstate.ts and prs.ts; migrate UI primitives in wtstate.ts, prs.ts, prs/command.ts
 - [x] 07-02-PLAN.md — Wire logger into wtconfig.ts; add setJsonMode to wt/config.ts; migrate ~160 console calls to UI primitives
 
+### Phase 8: JSON Mode Gap Closure
+
+**Goal:** Close the two JSON-mode code paths missed during Phase 4 verification — `wt prs --json` (missing `setJsonMode` call) and `wt new --json` interactive mode (bare `console.log` in `handleScenario()`) — so every `wt` subcommand produces clean JSON output with no mixed stdout
+**Depends on**: Phase 7
+**Requirements:** LLM-01, UNI-03
+**Gap Closure:** Closes INT-A, INT-B from v1.0 audit; fixes broken `wt prs --json` and `wt new --json` flows
+
+Plans:
+
+- [ ] 08-01-PLAN.md — Add `setJsonMode(!!argv.json)` to `wt/prs.ts`; guard bare `console.log` calls in `newpr.ts handleScenario()` with `if (!isJsonMode())`
+
 ## Progress
 
 **Execution Order:**
-Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7
+Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7 → 8
 
 | Phase                             | Plans Complete | Status     | Completed  |
 | --------------------------------- | -------------- | ---------- | ---------- |
@@ -147,3 +158,4 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
 | 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
 | 7. Legacy CLI Wiring Completeness | 2/2            | ✓ Complete | 2026-03-09 |
+| 8. JSON Mode Gap Closure          | 0/1            | Pending    |            |
