@@ -140,10 +140,11 @@ Plans:
 **Depends on**: Phase 7
 **Requirements:** LLM-01, UNI-03
 **Gap Closure:** Closes INT-A, INT-B from v1.0 audit; fixes broken `wt prs --json` and `wt new --json` flows
+**Plans:** 1 plan
 
 Plans:
 
-- [ ] 08-01-PLAN.md — Add `setJsonMode(!!argv.json)` to `wt/prs.ts`; guard bare `console.log` calls in `newpr.ts handleScenario()` with `if (!isJsonMode())`
+- [ ] 08-01-PLAN.md — Add `setJsonMode(!!argv.json)` to `wt/prs.ts` handler; replace bare `console.log` in `newpr.ts handleScenario()` and its four helper functions with `print()` from `src/lib/ui/index.js`
 
 ## Progress
 
