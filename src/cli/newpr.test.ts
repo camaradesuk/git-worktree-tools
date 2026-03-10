@@ -121,6 +121,8 @@ import type { StateActionKey } from '../lib/json-output.js';
 import fs from 'fs';
 import { getEnabledFiles } from '../lib/wtlink/config-manifest.js';
 import { run as runWtlink } from '../lib/wtlink/link-configs.js';
+import { setJsonMode } from '../lib/ui/output.js';
+import { runNewprHandler } from './newpr.js';
 
 describe('cli/newpr', () => {
   let mockConsoleLog: ReturnType<typeof vi.spyOn>;
@@ -1404,6 +1406,323 @@ describe('cli/newpr', () => {
 
       expect(getEnabledFiles).not.toHaveBeenCalled();
       expect(runWtlink).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('JSON mode: console.log suppression in show* helpers and handleScenario', () => {
+    // Helper to set up common mocks for runNewprHandler tests
+    const setupHandlerMocks = () => {
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(git.getMainWorktreeRoot).mockImplementation(() => {
+        throw new Error('not available');
+      });
+      vi.mocked(getEnabledFiles).mockReturnValue([]);
+    };
+
+    afterEach(() => {
+      // Reset jsonMode after each test to prevent state leakage
+      setJsonMode(false);
+    });
+
+    it('showLocalCommits does not call console.log when jsonMode=true (main_clean_ahead scenario)', async () => {
+      // main_clean_ahead triggers showLocalCommits via handleScenario
+      setupHandlerMocks();
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          branchType: 'main',
+          commitRelationship: 'ahead',
+          workingTreeStatus: 'clean',
+          localCommits: ['abc123 feat: add something'],
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('main_clean_ahead');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'On main with local commits not on origin',
+        choices: [
+          {
+            label: 'Create PR from local commits',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.getCommitsAhead).mockReturnValue(['abc123 feat: add something']);
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/test');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 99 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr99');
+
+      setJsonMode(true);
+      await runNewprHandler({
+        mode: 'new',
+        description: 'test',
+        ...defaultOptions,
+        json: true,
+      });
+
+      // When jsonMode=true, print() is a no-op — console.log should NOT
+      // be called with the commit display lines from showLocalCommits
+      const commitLogCalls = mockConsoleLog.mock.calls.filter(
+        (call) =>
+          typeof call[0] === 'string' &&
+          (call[0].includes('abc123') || call[0] === '' || call[0].includes('  '))
+      );
+      // The commit content lines should not appear — only JSON output is allowed
+      const hasNonJsonLogCalls = mockConsoleLog.mock.calls.some((call) => {
+        const msg = typeof call[0] === 'string' ? call[0] : '';
+        try {
+          JSON.parse(msg);
+          return false; // it's valid JSON, allowed
+        } catch {
+          return msg.includes('abc123'); // bare commit line is not allowed
+        }
+      });
+      expect(hasNonJsonLogCalls).toBe(false);
+    });
+
+    it('showUncommittedChanges does not call console.log when jsonMode=true (main_unstaged_same scenario)', async () => {
+      setupHandlerMocks();
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          branchType: 'main',
+          commitRelationship: 'same',
+          workingTreeStatus: 'has_unstaged',
+          unstagedFiles: ['README.md'],
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('main_unstaged_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'You have unstaged changes',
+        choices: [
+          {
+            label: 'Stage and commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.getStatusOutput).mockReturnValue('M README.md');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/test');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 99 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr99');
+
+      setJsonMode(true);
+      await runNewprHandler({
+        mode: 'new',
+        description: 'test',
+        ...defaultOptions,
+        json: true,
+      });
+
+      // showUncommittedChanges should not have printed 'M README.md' to console.log
+      const hasStatusOutput = mockConsoleLog.mock.calls.some((call) => {
+        const msg = typeof call[0] === 'string' ? call[0] : '';
+        return msg.includes('M README.md');
+      });
+      expect(hasStatusOutput).toBe(false);
+    });
+
+    it('showStagedChanges does not call console.log when jsonMode=true (main_staged_same scenario)', async () => {
+      setupHandlerMocks();
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          branchType: 'main',
+          commitRelationship: 'same',
+          workingTreeStatus: 'has_staged',
+          stagedFiles: ['src/feature.ts'],
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('main_staged_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'You have staged changes',
+        choices: [
+          {
+            label: 'Commit staged',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.getStagedFiles).mockReturnValue(['src/feature.ts']);
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/test');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 99 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr99');
+
+      setJsonMode(true);
+      await runNewprHandler({
+        mode: 'new',
+        description: 'test',
+        ...defaultOptions,
+        json: true,
+      });
+
+      // 'Staged:' and file names should not appear in console.log output
+      const hasStagedOutput = mockConsoleLog.mock.calls.some((call) => {
+        const msg = typeof call[0] === 'string' ? call[0] : '';
+        return msg.includes('Staged:') || msg.includes('src/feature.ts');
+      });
+      expect(hasStagedOutput).toBe(false);
+    });
+
+    it('showUnstagedChanges does not call console.log when jsonMode=true (main_both_same scenario)', async () => {
+      setupHandlerMocks();
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          branchType: 'main',
+          commitRelationship: 'same',
+          workingTreeStatus: 'has_both',
+          stagedFiles: ['staged.ts'],
+          unstagedFiles: ['unstaged.ts'],
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('main_both_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'You have staged and unstaged changes',
+        choices: [
+          {
+            label: 'Continue',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.getStagedFiles).mockReturnValue(['staged.ts']);
+      vi.mocked(git.getUnstagedFiles).mockReturnValue(['unstaged.ts']);
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/test');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 99 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr99');
+
+      setJsonMode(true);
+      await runNewprHandler({
+        mode: 'new',
+        description: 'test',
+        ...defaultOptions,
+        json: true,
+      });
+
+      // 'Unstaged:' and file names should not appear
+      const hasUnstagedOutput = mockConsoleLog.mock.calls.some((call) => {
+        const msg = typeof call[0] === 'string' ? call[0] : '';
+        return (
+          msg.includes('Unstaged:') || msg.includes('unstaged.ts') || msg.includes('staged.ts')
+        );
+      });
+      expect(hasUnstagedOutput).toBe(false);
+    });
+
+    it('handleScenario PR-worktree warning does not call console.log when nonInteractive+json mode', async () => {
+      setupHandlerMocks();
+      // PR-worktree non-interactive path throws NonInteractiveError
+      // which means console.log('Creating a new PR is best done from the main worktree.') is skipped
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({ worktreeType: 'pr_worktree', branchType: 'feature' })
+      );
+      vi.mocked(detectScenario).mockReturnValue('pr_worktree');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(true);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/test');
+
+      // nonInteractive=true with pr_worktree throws an error caught by main catch
+      // We just verify the 'Creating a new PR is best done...' message is NOT logged
+      try {
+        setJsonMode(true);
+        await runNewprHandler({
+          mode: 'new',
+          description: 'test',
+          ...defaultOptions,
+          json: true,
+          nonInteractive: true,
+        });
+      } catch {
+        // Expected to throw
+      }
+
+      const hasPrWorktreeWarning = mockConsoleLog.mock.calls.some((call) => {
+        const msg = typeof call[0] === 'string' ? call[0] : '';
+        return msg.includes('Creating a new PR is best done from the main worktree');
+      });
+      expect(hasPrWorktreeWarning).toBe(false);
+    });
+
+    it('handleScenario subMessage does not call console.log when jsonMode=true', async () => {
+      setupHandlerMocks();
+      vi.mocked(analyzeGitState).mockReturnValue(
+        makeGitState({
+          branchType: 'main',
+          commitRelationship: 'same',
+          workingTreeStatus: 'clean',
+        })
+      );
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'Ready to create PR',
+        subMessage: 'This is a sub-message that should be suppressed in JSON mode',
+        choices: [
+          {
+            label: 'Create PR',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('info');
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/test');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 99 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr99');
+
+      setJsonMode(true);
+      await runNewprHandler({
+        mode: 'new',
+        description: 'test',
+        ...defaultOptions,
+        json: true,
+      });
+
+      // subMessage should not appear in console.log output
+      const hasSubMessage = mockConsoleLog.mock.calls.some((call) => {
+        const msg = typeof call[0] === 'string' ? call[0] : '';
+        return msg.includes('sub-message that should be suppressed');
+      });
+      expect(hasSubMessage).toBe(false);
     });
   });
 });
