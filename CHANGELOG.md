@@ -1,3 +1,26 @@
+# [1.13.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.12.0...v1.13.0) (2026-03-10)
+
+
+### Bug Fixes
+
+* address code review findings from phase 06 ([e28c6f2](https://github.com/camaradesuk/git-worktree-tools/commit/e28c6f22941535bd5e3e4c4b480238cb8a1d4552))
+* clean up separator artifacts in worktree path generation ([5dd8665](https://github.com/camaradesuk/git-worktree-tools/commit/5dd8665a5b6fde6aec025985ad4112856dec0c23))
+* normalize gitignore paths on Windows and preserve repo leading dots ([47788ac](https://github.com/camaradesuk/git-worktree-tools/commit/47788acdcc45f7893d634bfb2a9d4ad5b5086802))
+* normalize gitignore paths on Windows and preserve repo leading dots ([2287f37](https://github.com/camaradesuk/git-worktree-tools/commit/2287f37b7a31cfefae96709384f905bd37425b2b))
+* normalize gitignore paths on Windows and preserve repo leading dots ([7c6745e](https://github.com/camaradesuk/git-worktree-tools/commit/7c6745e0760369a19abdfaea634c5d490f7749ef))
+* pass branchName to generateWorktreePath at all call sites ([52fc856](https://github.com/camaradesuk/git-worktree-tools/commit/52fc856093f8d132e10edc81a6716406a1876737))
+
+
+### Features
+
+* **07-01:** migrate prs/command.ts to UI primitives and update tests ([6477ed6](https://github.com/camaradesuk/git-worktree-tools/commit/6477ed69a999a97ff2b70f456f122ee1f735d6d6))
+* **07-01:** wire logger and UI primitives into wtstate.ts and prs.ts ([4553382](https://github.com/camaradesuk/git-worktree-tools/commit/45533827a62262adffd26c0cb4061802b96f87e7))
+* **07-02:** add setJsonMode and UI primitives to wt/config.ts ([bb47562](https://github.com/camaradesuk/git-worktree-tools/commit/bb47562defeca2e728d6b954112c19719b4251e0))
+* **08-01:** wire setJsonMode into wt/prs.ts handler (INT-A gap closure) ([087f84d](https://github.com/camaradesuk/git-worktree-tools/commit/087f84d246b99fc748df055b684604bb847b8901))
+* add unified extractPrNumber with pattern-based extraction ([3aab3fc](https://github.com/camaradesuk/git-worktree-tools/commit/3aab3fc742424437fe14e3e09b877f8b303e81c1))
+* add worktree parent auto-setup with gitignore management ([badb1ea](https://github.com/camaradesuk/git-worktree-tools/commit/badb1eaa7ef9e1486240f833889292fdad10e302))
+* integrate worktree parent auto-setup into newpr and API ([b28625d](https://github.com/camaradesuk/git-worktree-tools/commit/b28625dcb1db13b546f33ff055175104169e9396))
+
 # [1.12.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.11.0...v1.12.0) (2026-03-08)
 
 
