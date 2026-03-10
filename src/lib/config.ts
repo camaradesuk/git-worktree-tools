@@ -734,6 +734,10 @@ export function generateWorktreePath(
 ): string {
   let pattern = config.worktreePattern;
 
+  // Track whether pattern starts with {repo} to avoid stripping legitimate
+  // leading separators that originate from the repo name (e.g. ".dotfiles")
+  const patternStartsWithRepo = pattern.startsWith('{repo}');
+
   // Replace placeholders
   pattern = pattern.replace('{repo}', repoName);
   pattern = pattern.replace('{number}', String(prNumber));
@@ -754,8 +758,11 @@ export function generateWorktreePath(
   // Clean up separator artifacts from placeholder replacement
   // Remove doubled separators: pr123..foo → pr123.foo
   pattern = pattern.replace(/([.\-_]){2,}/g, '$1');
-  // Remove leading separators: .pr123 → pr123
-  pattern = pattern.replace(/^[.\-_]+/, '');
+  // Remove leading separators (.pr123 → pr123), but only when the pattern did not
+  // start with {repo} — a repo name like ".dotfiles" has a legitimate leading dot
+  if (!patternStartsWithRepo) {
+    pattern = pattern.replace(/^[.\-_]+/, '');
+  }
   // Remove trailing separators: pr123. → pr123
   pattern = pattern.replace(/[.\-_]+$/, '');
 

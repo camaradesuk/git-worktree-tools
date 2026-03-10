@@ -48,6 +48,19 @@ describe('ensureWorktreeParentDir', () => {
     expect(result.declined).toBe(false);
   });
 
+  it('should skip setup when parent dir equals repo root (worktreeParent: ".")', async () => {
+    const result = await ensureWorktreeParentDir({
+      resolvedParentDir: tmpDir,
+      repoRoot: tmpDir,
+      interactive: false,
+    });
+
+    expect(result.created).toBe(false);
+    expect(result.gitignoreUpdated).toBe(false);
+    expect(result.declined).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, '.gitignore'))).toBe(false);
+  });
+
   it('should skip creation when directory already exists', async () => {
     const worktreeDir = path.join(tmpDir, '.worktrees');
     fs.mkdirSync(worktreeDir);

@@ -236,6 +236,11 @@ describe('config', () => {
       expect(path.basename(result)).toBe('pr123');
     });
 
+    it('should preserve leading dot in repo name (e.g. .dotfiles)', () => {
+      const result = generateWorktreePath(config, '/home/user/repos/.dotfiles', '.dotfiles', 42);
+      expect(path.basename(result)).toBe('.dotfiles.pr42');
+    });
+
     it('should clean up trailing separators with dashes and underscores', () => {
       const customConfig = {
         ...config,

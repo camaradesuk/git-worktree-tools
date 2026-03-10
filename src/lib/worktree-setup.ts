@@ -43,10 +43,11 @@ function isInsideRepo(dirPath: string, repoRoot: string): boolean {
 }
 
 /**
- * Get the relative path from repo root for gitignore entry
+ * Get the relative path from repo root for gitignore entry.
+ * Always uses forward slashes regardless of platform (.gitignore standard).
  */
 function getGitignoreEntry(dirPath: string, repoRoot: string): string {
-  return path.relative(repoRoot, dirPath);
+  return path.relative(repoRoot, dirPath).replace(/\\/g, '/');
 }
 
 /**
@@ -102,6 +103,12 @@ export async function ensureWorktreeParentDir(
   const dirExists = fs.existsSync(resolvedParentDir);
   const gitignorePath = path.join(repoRoot, '.gitignore');
   const gitignoreEntry = getGitignoreEntry(resolvedParentDir, repoRoot);
+
+  // If parent dir IS the repo root, relative path is empty — nothing to gitignore
+  if (!gitignoreEntry) {
+    return result;
+  }
+
   const alreadyIgnored = gitignoreContains(gitignorePath, gitignoreEntry);
 
   // Nothing to do
