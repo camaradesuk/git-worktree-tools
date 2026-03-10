@@ -138,3 +138,14 @@ None - no external service configuration required.
 
 _Phase: 08-json-mode-gap-closure_
 _Completed: 2026-03-10_
+
+## Self-Check: PASSED
+
+- FOUND: `.planning/phases/08-json-mode-gap-closure/08-01-SUMMARY.md`
+- FOUND: `src/cli/wt/prs.ts` (setJsonMode import + handler call at line 11 and 93)
+- FOUND: `src/cli/newpr.ts` (21 print() calls replacing console.log)
+- FOUND: commit `4a01538` (test: RED for Task 1)
+- FOUND: commit `087f84d` (feat: GREEN for Task 1)
+- FOUND: commit `4addf6f` (test: RED for Task 2)
+- FOUND: commit `7c6745e` (feat: GREEN for Task 2 — correct content, unexpected message)
+- FOUND: commit `2287f37` (docs: planning files — correct content, unexpected message)
