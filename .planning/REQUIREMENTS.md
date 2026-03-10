@@ -28,7 +28,7 @@
 
 ### LLM Ergonomics
 
-- [ ] **LLM-01**: Every `wt` subcommand outputs valid `CommandResult<T>` JSON when `--json` is passed; no code paths exit without JSON output in JSON mode
+- [x] **LLM-01**: Every `wt` subcommand outputs valid `CommandResult<T>` JSON when `--json` is passed; no code paths exit without JSON output in JSON mode
 - [x] **LLM-02**: `wt --help` and all subcommand `--help` text is accurate, complete, and current (no stale flags, no missing subcommands)
 - [x] **LLM-03**: MCP server tool descriptions and input schemas in `src/mcp/server.ts` are fully documented and annotated
 - [x] **LLM-04**: `wt completion` generates working shell completions for all subcommands and flags (bash/zsh/fish)
@@ -37,7 +37,7 @@
 
 - [x] **UNI-01**: `newpr`, `cleanpr`, `lswt`, `wtlink` binaries delegate to corresponding `wt` subcommands and print a deprecation notice
 - [x] **UNI-02**: `wt` subcommands call library functions directly rather than spawning child processes via `runSubcommand()`
-- [ ] **UNI-03**: `--verbose`, `--quiet`, `--json`, and `--no-color` flags work consistently and are available across all `wt` subcommands
+- [x] **UNI-03**: `--verbose`, `--quiet`, `--json`, and `--no-color` flags work consistently and are available across all `wt` subcommands
 - [x] **UNI-04**: README and all help text present `wt` as the canonical entry point; legacy commands documented as deprecated aliases
 
 ## v2 Requirements

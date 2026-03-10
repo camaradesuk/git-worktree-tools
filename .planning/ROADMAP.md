@@ -144,7 +144,7 @@ Plans:
 
 Plans:
 
-- [ ] 08-01-PLAN.md — Add `setJsonMode(!!argv.json)` to `wt/prs.ts` handler; replace bare `console.log` in `newpr.ts handleScenario()` and its four helper functions with `print()` from `src/lib/ui/index.js`
+- [x] 08-01-PLAN.md — Add `setJsonMode(!!argv.json)` to `wt/prs.ts` handler; replace bare `console.log` in `newpr.ts handleScenario()` and its four helper functions with `print()` from `src/lib/ui/index.js`
 
 ## Progress
 
@@ -159,4 +159,4 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7 → 8
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
 | 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
 | 7. Legacy CLI Wiring Completeness | 2/2            | ✓ Complete | 2026-03-09 |
-| 8. JSON Mode Gap Closure          | 0/1            | Pending    |            |
+| 8. JSON Mode Gap Closure          | 1/1            | ✓ Complete | 2026-03-10 |

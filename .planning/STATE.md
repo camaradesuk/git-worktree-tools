@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: '2026-03-09T16:00:14.661Z'
+status: active
+last_updated: '2026-03-10T00:38:00.000Z'
 progress:
-  total_phases: 7
-  completed_phases: 6
-  total_plans: 19
-  completed_plans: 19
+  total_phases: 8
+  completed_phases: 7
+  total_plans: 20
+  completed_plans: 20
 ---
 
 # Project State
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-18)
 
 **Core value:** Every `wt` subcommand behaves consistently, predictably, and leaves a clear audit trail — so developers trust the tool and can debug it when something goes wrong.
-**Current focus:** Phase 7 complete -- all 7 integration gaps closed across 2 plans.
+**Current focus:** Phase 8 complete -- JSON mode gap closure (INT-A and INT-B) done in 1 plan.
 
 ## Current Position
 
-Phase: 7 of 7 (Legacy CLI Wiring Completeness)
-Plan: 2 of 2 in current phase
-Status: Phase Complete -- all integration gaps closed (INT-01 through INT-07)
-Last activity: 2026-03-09 -- Plan 07-02 executed (wt/config.ts setJsonMode + UI migration)
+Phase: 8 of 8 (JSON Mode Gap Closure)
+Plan: 1 of 1 in current phase
+Status: Phase Complete -- LLM-01 and UNI-03 satisfied (INT-A and INT-B closed)
+Last activity: 2026-03-10 -- Plan 08-01 executed (setJsonMode in wt/prs.ts + console.log → print() in newpr.ts)
 
 Progress: [██████████] 100%
 
@@ -47,11 +47,12 @@ Progress: [██████████] 100%
 | 04-json-output-and-llm-ergonomics | 4/4   | 70min  | 18min    |
 | 05-in-process-delegation          | 4/4   | 74min  | 19min    |
 | 07-legacy-cli-wiring-completeness | 2/2   | 117min | 59min    |
+| 08-json-mode-gap-closure          | 1/1   | 33min  | 33min    |
 
 **Recent Trend:**
 
-- Last 5 plans: 05-03 (18min), 05-04 (15min), 07-01 (92min), 07-02 (25min)
-- Trend: 07-02 fast (Task 1 already done by 07-01, only wt/config.ts migration needed)
+- Last 5 plans: 05-04 (15min), 07-01 (92min), 07-02 (25min), 08-01 (33min)
+- Trend: 08-01 efficient (2 tasks, TDD cycle, all tests pass)
 
 _Updated after each plan completion_
 
@@ -126,6 +127,11 @@ Recent decisions affecting current work:
 - [Phase 07-02]: Used vi.clearAllMocks instead of vi.resetAllMocks in wtconfig.test.ts to preserve mock implementations
 - [Phase 07-02]: UI mock pass-through pattern: vi.fn((msg) => console.log(msg)) bridges UI primitives to console spies for legacy test assertions
 
+- [Phase 08-01]: isJsonMode() used in prs.test.ts to assert module state (not mock spy) — tests real mutation behavior
+- [Phase 08-01]: afterEach setJsonMode(false) in both test files prevents module-level flag leaking between tests
+- [Phase 08-01]: JSON mode tests for newpr.ts use runCli(['desc', '--json']) pattern — avoids static import conflict with vi.resetModules() in afterEach
+- [Phase 08-01]: 21 bare console.log calls replaced with print() across 5 functions in newpr.ts; 4 explicit JSON output console.log calls preserved
+
 ### Pending Todos
 
 None yet.
@@ -139,6 +145,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09
-Stopped at: Completed 07-02-PLAN.md -- Phase 7 complete
-Resume file: .planning/phases/07-legacy-cli-wiring-completeness/07-02-SUMMARY.md
+Last session: 2026-03-10
+Stopped at: Completed 08-01-PLAN.md -- Phase 8 complete (LLM-01 and UNI-03 satisfied)
+Resume file: .planning/phases/08-json-mode-gap-closure/08-01-SUMMARY.md
