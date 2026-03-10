@@ -3,7 +3,6 @@
   "baseBranch": "main",
   "draftPr": false,
   "worktreePattern": "{repo}.pr{number}",
-  "worktreeParent": "..",
   "branchPrefix": "feat",
   "sharedRepos": [],
   "syncPatterns": ["node_modules"],
