@@ -15,6 +15,7 @@ import {
 } from '../../lib/lswt/index.js';
 import * as git from '../../lib/git.js';
 import * as github from '../../lib/github.js';
+import { loadConfig } from '../../lib/config.js';
 import {
   setJsonMode,
   printStatus,
@@ -122,6 +123,12 @@ export const listCommand: CommandModule<object, ListArgs> = {
     }
 
     try {
+      // Load config for worktree pattern
+      const config = loadConfig(repoRoot);
+
+      // Pass worktreePattern through to extractPrNumber
+      options.worktreePattern = config.worktreePattern;
+
       // Gather worktree info
       const deps = createDefaultDeps();
       const worktrees = await gatherWorktreeInfo(repoRoot, options, deps);

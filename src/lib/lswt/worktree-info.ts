@@ -7,7 +7,8 @@ import * as git from '../git.js';
 import * as github from '../github.js';
 import type { Worktree } from '../git.js';
 import type { ListOptions, WorktreeDisplay } from './types.js';
-import { extractPrNumber, isMainWorktree, sortWorktrees } from './formatters.js';
+import { isMainWorktree, sortWorktrees } from './formatters.js';
+import { extractPrNumber } from '../worktree-utils.js';
 
 /**
  * PR info returned by dependency
@@ -52,7 +53,7 @@ export async function gatherWorktreeInfo(
 
   for (const wt of worktrees) {
     const name = path.basename(wt.path);
-    const prNumber = extractPrNumber(wt.path);
+    const prNumber = extractPrNumber(wt.path, { worktreePattern: options.worktreePattern });
     const isMain = isMainWorktree(wt.path, repoRoot);
     const hasChanges = deps.hasUncommittedChanges(wt.path);
 

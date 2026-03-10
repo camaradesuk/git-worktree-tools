@@ -8,6 +8,7 @@
 import type { CommandModule } from 'yargs';
 import { runPrsCommand } from '../../lib/prs/command.js';
 import type { PrsCommandOptions } from '../../lib/prs/types.js';
+import { setJsonMode } from '../../lib/ui/index.js';
 
 interface PrsArgs {
   state?: 'open' | 'closed' | 'merged' | 'all';
@@ -89,6 +90,7 @@ export const prsCommand: CommandModule<object, PrsArgs> = {
       .example('$0 prs --json', 'JSON output for scripting');
   },
   handler: async (argv) => {
+    setJsonMode(!!argv.json);
     const options: PrsCommandOptions = {
       state: (argv.state as 'open' | 'closed' | 'merged' | 'all') || 'open',
       author: argv.author,

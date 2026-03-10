@@ -18,6 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Interactive Menu Reliability** - Fix the broken `wt prs` code path, non-existent `wtlink` subcommand references, and all exit paths that fail to restore terminal state
 - [x] **Phase 4: JSON Output and LLM Ergonomics** - Audit and complete `--json` coverage for all subcommands; update help text and MCP tool annotations
 - [x] **Phase 5: In-Process Delegation** - Replace `runSubcommand()` subprocess spawning with direct library function calls in all `wt` subcommand handlers
+- [x] **Phase 7: Legacy CLI Wiring Completeness** - Wire `initializeLogger()` and `printDeprecationNotice()` into deprecated legacy CLIs to close audit integration gaps (completed 2026-03-09)
 
 ## Phase Details
 
@@ -120,10 +121,35 @@ Plans:
 - [x] 05-03-PLAN.md — Extract runNewprHandler; migrate wt/new.ts and wt/link.ts to direct library calls
 - [x] 05-04-PLAN.md — Deprecation notices on all legacy CLIs; migrate interactive menu to direct calls; update README
 
+### Phase 7: Legacy CLI Wiring Completeness
+
+**Goal:** Deprecated legacy CLIs (`wtstate`, `wtconfig`, `prs`) call `initializeLogger()` and `printDeprecationNotice()` consistently — closing all 7 integration gaps from the v1.0 audit
+**Depends on**: Phase 5
+**Requirements:** LOG-01, LOG-04, UNI-01
+**Gap Closure:** Closes INT-01, INT-02, INT-03, INT-04, INT-05, INT-06, INT-07 from v1.0 audit
+**Plans:** 2/2 plans complete
+
+Plans:
+
+- [x] 07-01-PLAN.md — Wire logger + deprecation into wtstate.ts and prs.ts; migrate UI primitives in wtstate.ts, prs.ts, prs/command.ts
+- [x] 07-02-PLAN.md — Wire logger into wtconfig.ts; add setJsonMode to wt/config.ts; migrate ~160 console calls to UI primitives
+
+### Phase 8: JSON Mode Gap Closure
+
+**Goal:** Close the two JSON-mode code paths missed during Phase 4 verification — `wt prs --json` (missing `setJsonMode` call) and `wt new --json` interactive mode (bare `console.log` in `handleScenario()`) — so every `wt` subcommand produces clean JSON output with no mixed stdout
+**Depends on**: Phase 7
+**Requirements:** LLM-01, UNI-03
+**Gap Closure:** Closes INT-A, INT-B from v1.0 audit; fixes broken `wt prs --json` and `wt new --json` flows
+**Plans:** 1 plan
+
+Plans:
+
+- [x] 08-01-PLAN.md — Add `setJsonMode(!!argv.json)` to `wt/prs.ts` handler; replace bare `console.log` in `newpr.ts handleScenario()` and its four helper functions with `print()` from `src/lib/ui/index.js`
+
 ## Progress
 
 **Execution Order:**
-Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
+Phases execute in dependency order: 1 → 2 → 3 → 4 → 5 → 7 → 8
 
 | Phase                             | Plans Complete | Status     | Completed  |
 | --------------------------------- | -------------- | ---------- | ---------- |
@@ -132,3 +158,5 @@ Phases execute in dependency order: 1 → 2 → 3 → 4 → 5
 | 3. Interactive Menu Reliability   | 3/3            | ✓ Complete | 2026-02-18 |
 | 4. JSON Output and LLM Ergonomics | 4/4            | ✓ Complete | 2026-02-18 |
 | 5. In-Process Delegation          | 4/4            | ✓ Complete | 2026-02-19 |
+| 7. Legacy CLI Wiring Completeness | 2/2            | ✓ Complete | 2026-03-09 |
+| 8. JSON Mode Gap Closure          | 1/1            | ✓ Complete | 2026-03-10 |

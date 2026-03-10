@@ -20,13 +20,15 @@ export { parseArgs, getHelpText } from './args.js';
 
 // Formatters
 export {
-  extractPrNumber,
   isMainWorktree,
   formatTypeLabel,
   sortWorktrees,
   getDisplayPath,
   formatJsonOutput,
 } from './formatters.js';
+
+// Shared worktree utilities
+export { extractPrNumber, extractPrNumberAsync } from '../worktree-utils.js';
 
 // Worktree info gathering
 export type { GatherDeps, PrInfoResult } from './worktree-info.js';

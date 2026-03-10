@@ -50,6 +50,11 @@ vi.mock('./interactive.js', () => ({
   })),
 }));
 
+vi.mock('../ui/index.js', () => ({
+  printError: vi.fn(),
+  print: vi.fn(),
+}));
+
 // Import mocked modules for assertions
 import * as git from '../git.js';
 import * as github from '../github.js';
@@ -57,6 +62,7 @@ import * as config from '../config.js';
 import * as prsData from './data.js';
 import * as formatters from './formatters.js';
 import { runPrInteractiveMode, createDefaultPrInteractiveDeps } from './interactive.js';
+import { printError, print } from '../ui/index.js';
 
 const mockGetRepoRoot = vi.mocked(git.getRepoRoot);
 const mockIsGhInstalled = vi.mocked(github.isGhInstalled);
@@ -216,7 +222,7 @@ describe('prs command module', () => {
   });
 
   describe('non-interactive mode outputs table', () => {
-    it('should call formatters and NOT runPrInteractiveMode when non-TTY', async () => {
+    it('should call formatters via print() and NOT runPrInteractiveMode when non-TTY', async () => {
       setupPassingPrereqs();
 
       await runPrsCommand(createOptions({ noInteractive: true }));
@@ -225,6 +231,10 @@ describe('prs command module', () => {
       expect(mockFormatPrSummary).toHaveBeenCalled();
       expect(mockFormatPrTable).toHaveBeenCalled();
       expect(mockRunPrInteractiveMode).not.toHaveBeenCalled();
+      // Verify table output uses print() (JSON-mode gated), not console.log
+      expect(vi.mocked(print)).toHaveBeenCalledWith('PR List Header');
+      expect(vi.mocked(print)).toHaveBeenCalledWith('2 PRs found');
+      expect(vi.mocked(print)).toHaveBeenCalledWith('PR Table');
     });
 
     it('should call formatters when noInteractive is set even if TTY', async () => {
@@ -351,13 +361,17 @@ describe('prs command module', () => {
   });
 
   describe('error handling - not a git repo', () => {
-    it('should exit with code 1 in non-json mode', async () => {
+    it('should use printError and exit with code 1 in non-json mode', async () => {
       mockGetRepoRoot.mockImplementation(() => {
         throw new Error('Not in a git repository');
       });
 
       await expect(runPrsCommand(createOptions())).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Not in a git repository',
+        hint: 'Please run this command from within a git repository.',
+      });
     });
 
     it('should output JSON error and exit in json mode', async () => {
@@ -373,24 +387,32 @@ describe('prs command module', () => {
       expect(output.error.code).toBe('NOT_GIT_REPO');
     });
 
-    it('should exit when gh is not installed', async () => {
+    it('should use printError when gh is not installed', async () => {
       mockGetRepoRoot.mockReturnValue('/test/repo');
       mockIsGhInstalled.mockReturnValue(false);
 
       await expect(runPrsCommand(createOptions())).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'GitHub CLI (gh) is not installed',
+        hint: 'Install it from: https://cli.github.com/',
+      });
     });
 
-    it('should exit when not authenticated', async () => {
+    it('should use printError when not authenticated', async () => {
       mockGetRepoRoot.mockReturnValue('/test/repo');
       mockIsGhInstalled.mockReturnValue(true);
       mockIsAuthenticated.mockReturnValue(false);
 
       await expect(runPrsCommand(createOptions())).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Not authenticated with GitHub CLI',
+        hint: 'Run: gh auth login',
+      });
     });
 
-    it('should exit when fetchPrsWithWorktrees throws', async () => {
+    it('should use printError when fetchPrsWithWorktrees throws', async () => {
       mockGetRepoRoot.mockReturnValue('/test/repo');
       mockIsGhInstalled.mockReturnValue(true);
       mockIsAuthenticated.mockReturnValue(true);
@@ -410,6 +432,10 @@ describe('prs command module', () => {
 
       await expect(runPrsCommand(createOptions())).rejects.toThrow(ExitError);
       expect(process.exit).toHaveBeenCalledWith(1);
+      expect(vi.mocked(printError)).toHaveBeenCalledWith({
+        title: 'Failed to fetch PRs from GitHub',
+        detail: 'API rate limit exceeded',
+      });
     });
   });
 

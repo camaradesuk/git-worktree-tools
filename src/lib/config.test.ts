@@ -191,7 +191,83 @@ describe('config', () => {
         'myproject',
         99
       );
-      expect(normalizePath(result)).toBe('/home/user/repos/myproject/.worktrees/pr99.');
+      expect(normalizePath(result)).toBe('/home/user/repos/myproject/.worktrees/pr99');
+    });
+
+    it('should clean up trailing separators when branchName is absent', () => {
+      const customConfig = {
+        ...config,
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        123
+      );
+      expect(path.basename(result)).toBe('pr123');
+    });
+
+    it('should clean up doubled separators', () => {
+      const customConfig = {
+        ...config,
+        worktreePattern: '{repo}..pr{number}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        123
+      );
+      expect(path.basename(result)).toBe('myproject.pr123');
+    });
+
+    it('should clean up leading separators', () => {
+      const customConfig = {
+        ...config,
+        worktreePattern: '.pr{number}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        123
+      );
+      expect(path.basename(result)).toBe('pr123');
+    });
+
+    it('should preserve leading dot in repo name (e.g. .dotfiles)', () => {
+      const result = generateWorktreePath(config, '/home/user/repos/.dotfiles', '.dotfiles', 42);
+      expect(path.basename(result)).toBe('.dotfiles.pr42');
+    });
+
+    it('should clean up trailing separators with dashes and underscores', () => {
+      const customConfig = {
+        ...config,
+        worktreePattern: 'pr{number}-{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        123
+      );
+      expect(path.basename(result)).toBe('pr123');
+    });
+
+    it('should clean up multiple doubled separators', () => {
+      const customConfig = {
+        ...config,
+        worktreePattern: '{repo}--pr{number}..{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        123,
+        'feat/my-feature'
+      );
+      expect(path.basename(result)).toBe('myproject-pr123.my-feature');
     });
   });
 

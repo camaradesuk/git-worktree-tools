@@ -26,6 +26,7 @@ import {
   getErrorSuggestion,
 } from '../lib/json-output.js';
 import { printStatus, printDim, printError, errorToDisplay, setJsonMode } from '../lib/ui/index.js';
+import { loadConfig } from '../lib/config.js';
 
 /**
  * Check if --json flag is present in args (for early error handling)
@@ -99,6 +100,10 @@ async function main(): Promise<void> {
     }
     process.exit(1);
   }
+
+  // Load config for worktree pattern
+  const config = loadConfig(repoRoot);
+  options.worktreePattern = config.worktreePattern;
 
   // Gather worktree info
   const deps = createDefaultDeps();

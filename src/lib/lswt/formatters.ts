@@ -6,24 +6,6 @@ import * as path from 'path';
 import type { WorktreeDisplay, TypeLabel } from './types.js';
 
 /**
- * Extract PR number from worktree path - pure function
- */
-export function extractPrNumber(worktreePath: string): number | null {
-  const name = path.basename(worktreePath);
-
-  const patterns = [/\.pr(\d+)$/, /\.pr-(\d+)$/, /-pr(\d+)$/, /_pr(\d+)$/];
-
-  for (const p of patterns) {
-    const match = name.match(p);
-    if (match) {
-      return parseInt(match[1], 10);
-    }
-  }
-
-  return null;
-}
-
-/**
  * Check if worktree path matches main worktree - pure function
  */
 export function isMainWorktree(worktreePath: string, repoRoot: string): boolean {

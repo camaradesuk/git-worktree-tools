@@ -24,6 +24,7 @@ import {
   type ResolvedConfig,
 } from '../lib/config.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
+import { ensureWorktreeParentDir } from '../lib/worktree-setup.js';
 import {
   parseArgs,
   getHelpText,
@@ -63,6 +64,7 @@ import {
   printError,
   errorToDisplay,
   setJsonMode,
+  print,
 } from '../lib/ui/index.js';
 
 /**
@@ -109,12 +111,12 @@ function checkPrerequisites(): void {
 function showLocalCommits(baseBranch: string, cwd?: string): void {
   const commits = git.getCommitsAhead(baseBranch, cwd);
   if (commits.length > 0) {
-    console.log();
+    print('');
     for (const commit of commits.slice(0, 10)) {
-      console.log(`  ${commit}`);
+      print(`  ${commit}`);
     }
     if (commits.length > 10) {
-      console.log(`  ... and ${commits.length - 10} more commits`);
+      print(`  ... and ${commits.length - 10} more commits`);
     }
   }
 }
@@ -125,8 +127,8 @@ function showLocalCommits(baseBranch: string, cwd?: string): void {
 function showUncommittedChanges(cwd?: string): void {
   const status = git.getStatusOutput(cwd);
   if (status) {
-    console.log();
-    console.log(status);
+    print('');
+    print(status);
   }
 }
 
@@ -136,10 +138,10 @@ function showUncommittedChanges(cwd?: string): void {
 function showStagedChanges(cwd?: string): void {
   const files = git.getStagedFiles(cwd);
   if (files.length > 0) {
-    console.log();
-    console.log('Staged:');
+    print('');
+    print('Staged:');
     for (const file of files) {
-      console.log(`   ${file}`);
+      print(`   ${file}`);
     }
   }
 }
@@ -150,10 +152,10 @@ function showStagedChanges(cwd?: string): void {
 function showUnstagedChanges(cwd?: string): void {
   const files = git.getUnstagedFiles(cwd);
   if (files.length > 0) {
-    console.log();
-    console.log('Unstaged:');
+    print('');
+    print('Unstaged:');
     for (const file of files) {
-      console.log(` ${file}`);
+      print(` ${file}`);
     }
   }
 }
@@ -179,8 +181,8 @@ async function handleScenario(
     }
 
     printStatus('warning', 'You are in a PR worktree, not the main worktree.');
-    console.log();
-    console.log('Creating a new PR is best done from the main worktree.');
+    print('');
+    print('Creating a new PR is best done from the main worktree.');
 
     const choice = await promptChoiceIndex('How would you like to proceed?', [
       "Continue anyway (create PR from this worktree's state)",
@@ -239,8 +241,8 @@ async function handleScenario(
   }
 
   if (context.subMessage) {
-    console.log();
-    console.log(context.subMessage);
+    print('');
+    print(context.subMessage);
   }
 
   // Show relevant changes based on scenario
@@ -254,17 +256,17 @@ async function handleScenario(
   } else if (scenario === 'main_clean_ahead' || scenario === 'branch_divergent') {
     showLocalCommits(baseBranch);
   } else if (scenario === 'main_changes_ahead') {
-    console.log();
-    console.log('Local commits (not pushed):');
+    print('');
+    print('Local commits (not pushed):');
     showLocalCommits(baseBranch);
-    console.log();
-    console.log('Uncommitted changes:');
+    print('');
+    print('Uncommitted changes:');
     showUncommittedChanges();
   } else if (scenario === 'branch_with_changes') {
     showUncommittedChanges();
     if (state.localCommits.length > 0) {
-      console.log();
-      console.log('Branch also has commits not in main:');
+      print('');
+      print('Branch also has commits not in main:');
       showLocalCommits(baseBranch);
     }
   }
@@ -564,7 +566,17 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   printStatus('info', `PR branch: ${pr.headBranch}`);
 
-  const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber);
+  const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
+
+  // Auto-setup worktree parent directory
+  const setupResult = await ensureWorktreeParentDir({
+    resolvedParentDir: path.dirname(worktreePath),
+    repoRoot,
+    interactive: !options.json && !options.nonInteractive,
+  });
+  if (setupResult.declined) {
+    exitWithError('Worktree directory setup declined.', ErrorCode.USER_CANCELLED, options.json);
+  }
 
   if (fs.existsSync(worktreePath)) {
     exitWithError(
@@ -755,7 +767,17 @@ PR created from existing branch: \`${branchName}\`
     prUrl: pr.url,
   });
 
-  const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+  const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+
+  // Auto-setup worktree parent directory
+  const setupResult = await ensureWorktreeParentDir({
+    resolvedParentDir: path.dirname(worktreePath),
+    repoRoot,
+    interactive: !options.json && !options.nonInteractive,
+  });
+  if (setupResult.declined) {
+    exitWithError('Worktree directory setup declined.', ErrorCode.USER_CANCELLED, options.json);
+  }
 
   // Use spinner for worktree creation
   if (options.json) {
@@ -1121,7 +1143,17 @@ ${description}
     // Run post-pr hook
     await hookRunner.runHook('post-pr');
 
-    const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number);
+    const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+
+    // Auto-setup worktree parent directory
+    const worktreeSetupResult = await ensureWorktreeParentDir({
+      resolvedParentDir: path.dirname(worktreePath),
+      repoRoot,
+      interactive: !options.json && !options.nonInteractive,
+    });
+    if (worktreeSetupResult.declined) {
+      exitWithError('Worktree directory setup declined.', ErrorCode.USER_CANCELLED, options.json);
+    }
 
     // Update context with worktree path
     hookRunner.updateContext({ worktreePath });

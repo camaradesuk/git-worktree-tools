@@ -15,6 +15,8 @@ export interface ListOptions {
   quiet?: boolean;
   /** Disable colored output (--no-color flag) */
   noColor?: boolean;
+  /** Worktree naming pattern for PR number extraction */
+  worktreePattern?: string;
 }
 
 /**

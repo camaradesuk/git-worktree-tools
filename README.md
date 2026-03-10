@@ -357,20 +357,20 @@ wt init --local    # Personal repo overrides
 
 ### Configuration Options
 
-| Option            | Type     | Default               | Description                                 |
-| ----------------- | -------- | --------------------- | ------------------------------------------- |
-| `baseBranch`      | string   | `"main"`              | Base branch for new PRs                     |
-| `draftPr`         | boolean  | `false`               | Create PRs as drafts by default             |
-| `worktreePattern` | string   | `"{repo}.pr{number}"` | Worktree directory naming pattern           |
-| `worktreeParent`  | string   | `".."`                | Parent directory for worktrees              |
-| `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names      |
-| `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for  |
-| `preferredEditor` | string   | `"vscode"`            | Editor: `"vscode"`, `"cursor"`, or `"auto"` |
-| `syncPatterns`    | string[] | `[]`                  | Patterns to sync between worktrees          |
-| `previewLabel`    | string   | `"preview"`           | Label to highlight in PR browser            |
-| `ai`              | object   | `{}`                  | AI content generation settings              |
-| `hooks`           | object   | `{}`                  | Lifecycle hook commands                     |
-| `logging`         | object   | `{}`                  | Logging configuration                       |
+| Option            | Type     | Default               | Description                                                                                                                      |
+| ----------------- | -------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `baseBranch`      | string   | `"main"`              | Base branch for new PRs                                                                                                          |
+| `draftPr`         | boolean  | `false`               | Create PRs as drafts by default                                                                                                  |
+| `worktreePattern` | string   | `"{repo}.pr{number}"` | Naming pattern. Placeholders: `{repo}`, `{number}`, `{branch}`, `{slug}`. Doubled/trailing separators are cleaned automatically. |
+| `worktreeParent`  | string   | `".."`                | Parent directory for worktrees. If inside the repo, the directory is auto-created and added to `.gitignore`.                     |
+| `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names                                                                                           |
+| `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for                                                                                       |
+| `preferredEditor` | string   | `"vscode"`            | Editor: `"vscode"`, `"cursor"`, or `"auto"`                                                                                      |
+| `syncPatterns`    | string[] | `[]`                  | Patterns to sync between worktrees                                                                                               |
+| `previewLabel`    | string   | `"preview"`           | Label to highlight in PR browser                                                                                                 |
+| `ai`              | object   | `{}`                  | AI content generation settings                                                                                                   |
+| `hooks`           | object   | `{}`                  | Lifecycle hook commands                                                                                                          |
+| `logging`         | object   | `{}`                  | Logging configuration                                                                                                            |
 
 ### AI Content Generation
 

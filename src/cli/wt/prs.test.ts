@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { PrDisplayItem } from '../../lib/prs/types.js';
+import { setJsonMode, isJsonMode } from '../../lib/ui/output.js';
 
 // Mock all external dependencies before importing the module
 vi.mock('../../lib/git.js', () => ({
@@ -113,6 +114,8 @@ describe('wt prs command', () => {
     mockConsoleLog.mockRestore();
     mockConsoleError.mockRestore();
     mockProcessExit.mockRestore();
+    // Reset module-level jsonMode flag to prevent state leaking between tests
+    setJsonMode(false);
   });
 
   describe('command metadata', () => {
@@ -313,6 +316,28 @@ describe('wt prs command', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await prsCommand.handler(defaultArgv as any);
     }
+
+    it('should call setJsonMode(true) when json=true', async () => {
+      // Verify jsonMode starts as false
+      expect(isJsonMode()).toBe(false);
+
+      await runHandler({ json: true });
+
+      // After handler runs, jsonMode should have been set to true
+      // (it remains true until afterEach resets it)
+      expect(isJsonMode()).toBe(true);
+    });
+
+    it('should call setJsonMode(false) when json=false', async () => {
+      // Set jsonMode to true first to verify it gets explicitly set to false
+      setJsonMode(true);
+      expect(isJsonMode()).toBe(true);
+
+      await runHandler({ json: false });
+
+      // Handler should have called setJsonMode(false)
+      expect(isJsonMode()).toBe(false);
+    });
 
     it('should check prerequisites', async () => {
       await runHandler();

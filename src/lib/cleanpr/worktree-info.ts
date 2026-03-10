@@ -2,11 +2,11 @@
  * cleanpr worktree-info - gather worktree information with dependency injection
  */
 
-import * as path from 'path';
 import * as git from '../git.js';
 import * as github from '../github.js';
 import type { Worktree } from '../git.js';
 import type { PrState, WorktreeInfo } from './types.js';
+import { extractPrNumber } from '../worktree-utils.js';
 
 /**
  * Dependencies interface for testing
@@ -15,37 +15,6 @@ export interface GatherDeps {
   listWorktrees: (cwd?: string) => Worktree[];
   hasUncommittedChanges: (worktreePath: string) => boolean;
   getPrState: (prNumber: number) => Promise<PrState>;
-}
-
-/**
- * Extract PR number from worktree path - pure function
- */
-export function extractPrNumber(worktreePath: string, worktreePattern?: string): number | null {
-  const name = path.basename(worktreePath);
-
-  // Try pattern-based extraction if pattern provided
-  if (worktreePattern?.includes('{number}')) {
-    const regexStr = worktreePattern
-      .replace('{repo}', '.*')
-      .replace('{number}', '(\\d+)')
-      .replace('.', '\\.');
-    const match = name.match(new RegExp(regexStr));
-    if (match) {
-      return parseInt(match[1], 10);
-    }
-  }
-
-  // Fallback: try common patterns
-  const patterns = [/\.pr(\d+)$/, /\.pr-(\d+)$/, /-pr(\d+)$/, /_pr(\d+)$/];
-
-  for (const p of patterns) {
-    const match = name.match(p);
-    if (match) {
-      return parseInt(match[1], 10);
-    }
-  }
-
-  return null;
 }
 
 /**
@@ -61,7 +30,7 @@ export async function gatherPrWorktreeInfo(
   const result: WorktreeInfo[] = [];
 
   for (const wt of worktrees) {
-    const prNumber = extractPrNumber(wt.path, worktreePattern);
+    const prNumber = extractPrNumber(wt.path, { worktreePattern });
 
     // Skip non-PR worktrees
     if (prNumber === null) {
