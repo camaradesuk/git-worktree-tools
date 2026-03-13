@@ -142,7 +142,7 @@ export interface AIProvider {
  * AI Provider configuration from .worktreerc
  */
 export interface AIConfig {
-  /** Provider to use: 'auto' | 'claude' | 'gemini' | 'openai' | 'ollama' | 'script' | 'none' */
+  /** Provider to use: 'auto' | 'claude' | 'gemini' | 'gemini-api' | 'openai' | 'ollama' | 'script' | 'none' */
   provider?: AIProviderName;
   /** Fallback provider if primary fails */
   fallback?: AIProviderName;
@@ -211,6 +211,7 @@ export type AIProviderName =
   | 'auto'
   | 'claude'
   | 'gemini'
+  | 'gemini-api'
   | 'openai'
   | 'ollama'
   | 'script'

@@ -1,12 +1,20 @@
 {
-  "mode": "interactive",
-  "depth": "comprehensive",
+  "mode": "yolo",
   "parallelization": true,
   "commit_docs": true,
   "model_profile": "quality",
   "workflow": {
     "research": true,
     "plan_check": true,
-    "verifier": true
-  }
+    "verifier": true,
+    "auto_advance": true,
+    "_auto_chain_active": true
+  },
+  "model_overrides": {
+    "gsd-verifier": "opus",
+    "gsd-plan-checker": "opus",
+    "gsd-research-synthesizer": "opus",
+    "gsd-integration-checker": "opus"
+  },
+  "granularity": "fine"
 }
