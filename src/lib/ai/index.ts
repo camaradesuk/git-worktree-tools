@@ -49,6 +49,7 @@ export {
 
 // Provider implementations
 export { FallbackProvider } from './fallback-provider.js';
+export { GeminiAPIProvider } from './gemini-api-provider.js';
 export {
   ClaudeProvider,
   GeminiProvider,
