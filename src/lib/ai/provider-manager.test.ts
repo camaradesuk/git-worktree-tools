@@ -28,11 +28,20 @@ vi.mock('./cli-provider.js', () => {
   };
 });
 
+vi.mock('./gemini-api-provider.js', () => {
+  const MockClass = vi.fn() as ReturnType<typeof vi.fn> & {
+    checkAvailability: ReturnType<typeof vi.fn>;
+  };
+  MockClass.checkAvailability = vi.fn().mockResolvedValue(true);
+  return { GeminiAPIProvider: MockClass };
+});
+
 vi.mock('./fallback-provider.js', () => ({
   FallbackProvider: vi.fn(),
 }));
 
 import { ClaudeProvider, GeminiProvider, OllamaProvider, OpenAIProvider } from './cli-provider.js';
+import { GeminiAPIProvider } from './gemini-api-provider.js';
 import { FallbackProvider } from './fallback-provider.js';
 
 describe('provider-manager', () => {
@@ -65,6 +74,9 @@ describe('provider-manager', () => {
     // Reset module state
     vi.resetModules();
     // Reset static checkAvailability mocks to default (return true)
+    (
+      GeminiAPIProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }
+    ).checkAvailability = vi.fn().mockResolvedValue(true);
     (
       ClaudeProvider as unknown as { checkAvailability: ReturnType<typeof vi.fn> }
     ).checkAvailability = vi.fn().mockResolvedValue(true);
@@ -114,20 +126,20 @@ describe('provider-manager', () => {
 
     describe('initialize', () => {
       it('initializes with auto provider detection', async () => {
-        const claudeProvider = mockProvider('claude', true);
-        vi.mocked(ClaudeProvider).mockImplementation(
-          () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
+        const geminiApiProvider = mockProvider('gemini-api', true);
+        vi.mocked(GeminiAPIProvider).mockImplementation(
+          () => geminiApiProvider as unknown as InstanceType<typeof GeminiAPIProvider>
         );
 
         const manager = new AIProviderManager({ config: { provider: 'auto' } });
         await manager.initialize();
 
         const providerName = await manager.getActiveProviderName();
-        expect(providerName).toBe('claude');
+        expect(providerName).toBe('gemini-api');
       });
 
       it('skips unavailable providers during auto-detection', async () => {
-        const claudeProvider = mockProvider('claude', false);
+        const claudeProvider = mockProvider('claude', true);
         const geminiProvider = mockProvider('gemini', true);
         vi.mocked(ClaudeProvider).mockImplementation(
           () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
@@ -135,7 +147,10 @@ describe('provider-manager', () => {
         vi.mocked(GeminiProvider).mockImplementation(
           () => geminiProvider as unknown as InstanceType<typeof GeminiProvider>
         );
-        // Mock static checkAvailability for lazy initialization
+        // Make gemini-api unavailable so auto-detection skips to claude
+        (
+          GeminiAPIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
         (
           ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
         ).checkAvailability = vi.fn().mockResolvedValue(false);

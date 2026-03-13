@@ -14,6 +14,7 @@ import {
   OpenAIProvider,
   ScriptProvider,
 } from './cli-provider.js';
+import { GeminiAPIProvider } from './gemini-api-provider.js';
 
 /**
  * Provider manager configuration
@@ -77,6 +78,9 @@ export class AIProviderManager {
       case 'claude':
         return this.createClaudeProvider();
 
+      case 'gemini-api':
+        return this.createGeminiAPIProvider();
+
       case 'gemini':
         return this.createGeminiProvider();
 
@@ -103,6 +107,11 @@ export class AIProviderManager {
    */
   private getLazyProviderFactories(): LazyProviderFactory[] {
     return [
+      {
+        name: 'gemini-api',
+        checkAvailability: () => GeminiAPIProvider.checkAvailability(),
+        create: () => new GeminiAPIProvider(this.config.gemini?.model),
+      },
       {
         name: 'claude',
         checkAvailability: () => ClaudeProvider.checkAvailability(),
@@ -157,6 +166,11 @@ export class AIProviderManager {
     }
 
     return null;
+  }
+
+  private async createGeminiAPIProvider(): Promise<AIProvider | null> {
+    const factory = this.getLazyProviderFactories().find((f) => f.name === 'gemini-api')!;
+    return (await this.isProviderAvailable(factory)) ? factory.create() : null;
   }
 
   private async createClaudeProvider(): Promise<AIProvider | null> {

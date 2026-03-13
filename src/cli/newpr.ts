@@ -731,10 +731,6 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
     commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
   });
 
-  if (prContent.aiGenerated) {
-    printStatus('info', '✨ AI-generated PR content');
-  }
-
   const defaultBody = `## Summary
 
 PR created from existing branch: \`${branchName}\`
@@ -1104,10 +1100,6 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
       changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
       commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
     });
-
-    if (prContent.aiGenerated) {
-      printStatus('info', '✨ AI-generated PR content');
-    }
 
     const defaultBody = `## Summary
 

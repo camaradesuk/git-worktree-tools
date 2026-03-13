@@ -26,6 +26,7 @@ import {
   type ConfigSource,
 } from './global-config.js';
 import { logger } from './logger.js';
+import { printStatus } from './ui/index.js';
 
 /**
  * Hook execution defaults configuration
@@ -913,6 +914,7 @@ export async function generatePRContentAsync(
       let title = context.description;
       let description = '';
       let anyGenerated = false;
+      let providerName = 'ai';
 
       // Generate title if enabled
       if (config.ai.prTitle) {
@@ -920,6 +922,7 @@ export async function generatePRContentAsync(
         if (titleResult.success && titleResult.content) {
           title = titleResult.content;
           anyGenerated = true;
+          providerName = titleResult.provider;
         }
       }
 
@@ -929,18 +932,18 @@ export async function generatePRContentAsync(
         if (descResult.success && descResult.content) {
           description = descResult.content;
           anyGenerated = true;
+          providerName = descResult.provider;
         }
       }
 
       if (anyGenerated) {
+        printStatus('info', `\u2728 AI-generated PR content (${providerName})`);
         return { title, description, aiGenerated: true };
       }
     } catch (error) {
-      // Fall through to defaults on error
-      logger.debug(
-        'AI PR content generation failed, using defaults: %s',
-        error instanceof Error ? error.message : String(error)
-      );
+      // Fall through to defaults on error, but make the failure visible
+      const reason = error instanceof Error ? error.message : String(error);
+      printStatus('warning', `\u26A0 AI generation failed: ${reason}`);
     }
   }
 
