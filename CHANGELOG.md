@@ -1,3 +1,11 @@
+# [1.14.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.13.0...v1.14.0) (2026-03-14)
+
+
+### Features
+
+* **quick-1:** implement GeminiAPIProvider with direct REST API calls ([031d334](https://github.com/camaradesuk/git-worktree-tools/commit/031d334aefd01f4cdd7e80b28b50da55bef1cb7c))
+* **quick-1:** wire GeminiAPIProvider into manager, add error visibility, clean up newpr ([ede6941](https://github.com/camaradesuk/git-worktree-tools/commit/ede6941cc7c14c2c28dc551863c9b2b57a619e93))
+
 # [1.13.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.12.0...v1.13.0) (2026-03-10)
 
 
