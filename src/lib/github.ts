@@ -318,7 +318,7 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
 
   args.push('--title', options.title);
 
-  if (options.body) {
+  if (options.body !== undefined) {
     args.push('--body', options.body);
   }
 

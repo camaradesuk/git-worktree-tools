@@ -129,6 +129,12 @@ export async function resolvePRContent({
     generated = await generate(config, context);
   }
 
+  // AI was never attempted because it is disabled (--skip-ai or
+  // ai.provider === 'none'). Record *why*, distinguishing the case where
+  // --force-ai was also supplied and had no effect, so aiError is never
+  // silently null on a skip path (spec §3.3 / docs/AI-TOOLING.md).
+  const aiSkippedReason = aiDisabled ? describeAiSkipReason(overrides) : null;
+
   const aiTitle = generated?.aiGenerated && generated.title ? generated.title : undefined;
   const aiBody =
     generated?.aiGenerated && generated.description ? generated.description : undefined;
@@ -165,8 +171,31 @@ export async function resolvePRContent({
     titleSource,
     bodySource,
     aiProvider: aiContributed ? (generated?.provider ?? null) : null,
-    aiError: generated?.error ?? null,
+    aiError: generated?.error ?? aiSkippedReason,
   };
+}
+
+/**
+ * Explain why AI generation was not attempted at all.
+ *
+ * Only called when AI is disabled (--skip-ai or ai.provider === 'none');
+ * distinguishes --force-ai being present-but-ineffective from a plain skip,
+ * per docs/AI-TOOLING.md's guidance to "check aiError for why generation
+ * didn't run".
+ */
+function describeAiSkipReason(overrides: ContentOverrides): string {
+  const forceAiIneffective = overrides.forceAi === true;
+
+  if (overrides.skipAi === true) {
+    return forceAiIneffective
+      ? 'AI skipped (--skip-ai overrides --force-ai)'
+      : 'AI skipped (--skip-ai)';
+  }
+
+  // Otherwise disabled via config: ai.provider === 'none'.
+  return forceAiIneffective
+    ? "AI disabled (ai.provider = 'none'); --force-ai had no effect"
+    : "AI disabled (ai.provider = 'none')";
 }
 
 /** Return the first defined candidate with its source, else the fallback. */

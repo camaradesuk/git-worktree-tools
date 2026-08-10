@@ -8,7 +8,7 @@ import {
   CONFIG_FILE_NAMES,
   LogLevel,
 } from './constants.js';
-import type { AIConfig, BranchContext, PRContext } from './ai/types.js';
+import type { AIConfig, AIGenerationResult, BranchContext, PRContext } from './ai/types.js';
 import { DEFAULT_AI_CONFIG } from './ai/types.js';
 import type { HooksConfig } from './hooks/types.js';
 import { gatherRepoDocumentation } from './ai/repo-docs.js';
@@ -921,10 +921,12 @@ export async function generatePRContentAsync(
       let description = '';
       let anyGenerated = false;
       let providerName = 'ai';
+      let titleResult: AIGenerationResult | undefined;
+      let descResult: AIGenerationResult | undefined;
 
       // Generate title if enabled
       if (config.ai.prTitle) {
-        const titleResult = await service.generatePRTitle(prContext);
+        titleResult = await service.generatePRTitle(prContext);
         if (titleResult.success && titleResult.content) {
           title = titleResult.content;
           anyGenerated = true;
@@ -934,7 +936,7 @@ export async function generatePRContentAsync(
 
       // Generate description if enabled
       if (config.ai.prDescription) {
-        const descResult = await service.generatePRDescription(prContext);
+        descResult = await service.generatePRDescription(prContext);
         if (descResult.success && descResult.content) {
           description = descResult.content;
           anyGenerated = true;
@@ -947,11 +949,31 @@ export async function generatePRContentAsync(
         return { title, description, aiGenerated: true, provider: providerName };
       }
 
-      // A provider was attempted but produced nothing. Previously this
-      // returned defaultResult with no diagnostic at all.
+      // A provider was attempted but produced nothing. Build the diagnostic
+      // from the real result(s) rather than the last-assigned providerName
+      // (which is never reassigned on failure, so it would still read the
+      // 'ai' placeholder and hide the actual provider/error).
+      const failureReasons: string[] = [];
+      if (titleResult) {
+        failureReasons.push(
+          `title via '${titleResult.provider}': ${titleResult.error ?? 'returned no content'}`
+        );
+      }
+      if (descResult) {
+        failureReasons.push(
+          `description via '${descResult.provider}': ${descResult.error ?? 'returned no content'}`
+        );
+      }
+      const reason =
+        failureReasons.length > 0
+          ? `AI generation produced no content (${failureReasons.join('; ')})`
+          : 'AI generation produced no content';
+
+      printStatus('warning', `\u26a0 AI generation failed: ${reason}`);
+
       return {
         ...defaultResult,
-        error: `AI provider '${providerName}' returned no content`,
+        error: reason,
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

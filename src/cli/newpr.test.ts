@@ -466,8 +466,13 @@ describe('cli/newpr', () => {
       const parsed = JSON.parse(jsonOutput![0] as string);
       expect(parsed.data.titleSource).toBe('flag');
       expect(parsed.data.bodySource).toBe('template');
+      // titleSource and bodySource MUST differ, so a swap between them (or a
+      // dropped field) is caught by the assertions above.
+      expect(parsed.data.titleSource).not.toBe(parsed.data.bodySource);
       expect(parsed.data.aiProvider).toBeNull();
-      expect(parsed.data.aiError).toBeNull();
+      // AI was disabled by defaultConfig's ai.provider: 'none', not by an
+      // explicit --skip-ai/--force-ai on this call.
+      expect(parsed.data.aiError).toBe("AI disabled (ai.provider = 'none')");
     });
   });
 
@@ -637,8 +642,13 @@ describe('cli/newpr', () => {
       const parsed = JSON.parse(jsonOutput![0] as string);
       expect(parsed.data.titleSource).toBe('flag');
       expect(parsed.data.bodySource).toBe('template');
+      // titleSource and bodySource MUST differ, so a swap between them (or a
+      // dropped field) is caught by the assertions above.
+      expect(parsed.data.titleSource).not.toBe(parsed.data.bodySource);
       expect(parsed.data.aiProvider).toBeNull();
-      expect(parsed.data.aiError).toBeNull();
+      // AI was disabled by defaultConfig's ai.provider: 'none', not by an
+      // explicit --skip-ai/--force-ai on this call.
+      expect(parsed.data.aiError).toBe("AI disabled (ai.provider = 'none')");
     });
 
     it('shows helpful error when checkout fails due to conflicting changes', async () => {

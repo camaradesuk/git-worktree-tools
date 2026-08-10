@@ -147,7 +147,7 @@ describe('resolvePRContent', () => {
     expect(result.aiError).toBe("AI provider 'gemini-api' returned no content");
   });
 
-  it('skips AI entirely with skipAi, using flags then template', async () => {
+  it('skips AI entirely with skipAi, using flags then template, and reports why in aiError', async () => {
     const result = await resolvePRContent({
       config: configWithAi('auto'),
       context: CONTEXT,
@@ -160,10 +160,12 @@ describe('resolvePRContent', () => {
     expect(result.titleSource).toBe('flag');
     expect(result.body).toBe(TEMPLATE);
     expect(result.bodySource).toBe('template');
-    expect(result.aiError).toBeNull();
+    // aiError must be non-null on every skip path (docs/AI-TOOLING.md tells
+    // agents to check it for why generation didn't run).
+    expect(result.aiError).toBe('AI skipped (--skip-ai)');
   });
 
-  it('skips AI when the configured provider is none', async () => {
+  it('skips AI when the configured provider is none, and reports why in aiError', async () => {
     const result = await resolvePRContent({
       config: configWithAi('none'),
       context: CONTEXT,
@@ -174,6 +176,33 @@ describe('resolvePRContent', () => {
 
     expect(result.titleSource).toBe('template');
     expect(result.bodySource).toBe('template');
+    expect(result.aiError).toBe("AI disabled (ai.provider = 'none')");
+  });
+
+  it('reports that --skip-ai wins over --force-ai in aiError, when both are given', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { skipAi: true, forceAi: true, title: 'flag title' },
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.titleSource).toBe('flag');
+    expect(result.aiError).toBe('AI skipped (--skip-ai overrides --force-ai)');
+  });
+
+  it('reports that --force-ai had no effect when ai.provider is none, in aiError', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('none'),
+      context: CONTEXT,
+      overrides: { forceAi: true, title: 'flag title' },
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.titleSource).toBe('flag');
+    expect(result.aiError).toBe("AI disabled (ai.provider = 'none'); --force-ai had no effect");
   });
 
   it('lets AI win over flags when forceAi is set', async () => {

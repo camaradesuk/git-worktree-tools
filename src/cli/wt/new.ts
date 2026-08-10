@@ -193,12 +193,25 @@ export const newCommand: CommandModule<object, NewArgs> = {
       process.exit(1);
     }
 
-    // Validate --body/--body-file before any git mutation happens. The
-    // authoritative read still happens later inside resolvePRContent (via
-    // runNewprHandler); this is a fail-fast check so a simple typo doesn't
-    // leave the repo mid-mutation (branch pushed, no PR, stash unpopped).
+    // Validate --title/--body/--body-file before any git mutation happens.
+    // The authoritative body read still happens later inside
+    // resolvePRContent (via runNewprHandler); this is a fail-fast check so a
+    // simple typo doesn't leave the repo mid-mutation (branch pushed, no PR,
+    // stash unpopped). It also rejects empty/whitespace-only values: an
+    // empty --title or --body/--body-file silently corrupts the underlying
+    // `gh pr create` invocation (an empty argument is emitted unquoted and
+    // swallows the next flag), so an agent must learn its content did not
+    // land rather than have `gh` misparse the command.
     try {
-      readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
+      if (argv.title !== undefined && argv.title.trim() === '') {
+        throw new PRContentError('--title must not be empty or whitespace-only.');
+      }
+
+      const resolvedBody = readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
+      if (resolvedBody !== undefined && resolvedBody.trim() === '') {
+        const flagName = argv.body !== undefined ? '--body' : '--body-file';
+        throw new PRContentError(`${flagName} must not be empty or whitespace-only.`);
+      }
     } catch (error) {
       if (error instanceof PRContentError) {
         const useJson = !!argv.json;

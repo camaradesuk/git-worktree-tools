@@ -251,10 +251,16 @@ wt new "add dark mode" \
   --non-interactive --action=empty_commit --json
 ```
 
+**These flags are `wt new` only.** The deprecated standalone `newpr` binary does not accept
+`--title`/`--body`/`--body-file`/`--force-ai`/`--skip-ai` — its argument parser rejects them
+with `Unknown option`. Use `wt new` for anything in this section.
+
 `--body-file` is strongly preferred over `--body` for anything multi-line: PR bodies contain
 backticks, quotes, and `$`, all of which are hazardous through shell quoting. `--body-file`
 is read and validated before any git mutation happens — an unreadable path fails fast with
-`INVALID_ARGUMENT` rather than partway through worktree creation.
+`INVALID_ARGUMENT` rather than partway through worktree creation. An empty or whitespace-only
+`--title`, `--body`, or `--body-file` is likewise rejected with `INVALID_ARGUMENT` before any
+git mutation happens, rather than being silently dropped from the `gh pr create` invocation.
 
 **Precedence**, applied independently to the title and the body:
 
@@ -265,10 +271,15 @@ is read and validated before any git mutation happens — an unreadable path fai
 | `--skip-ai`  | `flag` → template      |
 
 Supplying both `--title` and a body flag (`--body` or `--body-file`) without `--force-ai`
-makes **no LLM call at all**.
+makes **no LLM call at all**. If both `--force-ai` and `--skip-ai` are given together,
+**`--skip-ai` wins** — AI is not invoked.
 
-**Verifying your content was used.** The `newpr`/`wt new` JSON envelope reports the origin
-of each field:
+`--pr` mode (`wt new --pr <number>`, attaching a worktree to an existing PR) **ignores**
+`--title`, `--body`, and `--body-file` entirely: no PR is created in that mode, so there is
+no content to supply.
+
+**Verifying your content was used.** The `wt new` JSON envelope reports the origin of each
+field:
 
 ```jsonc
 {
@@ -277,14 +288,19 @@ of each field:
     "titleSource": "flag", // "flag" | "ai" | "template"
     "bodySource": "flag",
     "aiProvider": null, // provider that generated content, else null
-    "aiError": null, // why generation produced nothing, else null
+    "aiError": null, // why generation was skipped or failed, else null
   },
 }
 ```
 
 Assert `titleSource === "flag"` and `bodySource === "flag"` to confirm your content landed.
-A `"template"` value means the field fell back to the built-in stub; check `aiError` for why
-generation didn't run or didn't produce content.
+A `"template"` value means the field fell back to the built-in default: for the body, that is
+a literal boilerplate stub (`## Summary\n\n...`); for the title, it's your own `description`
+argument verbatim, or a branch-derived title in `--branch` mode — not a canned stub. Whenever
+AI did not contribute (`aiProvider` is `null`), check `aiError`: it is non-null on every path
+where generation was skipped (e.g. `"AI skipped (--skip-ai)"`, `"AI disabled (ai.provider =
+'none')"`, or `"AI disabled (ai.provider = 'none'); --force-ai had no effect"`) or failed
+outright (e.g. `"AI generation produced no content (title via 'gemini-api': API key invalid)"`).
 
 **Errors.** Passing both `--body` and `--body-file` fails with `INVALID_ARGUMENT` and the
 message `--body and --body-file are mutually exclusive; pass only one.`. A `--body-file` that

@@ -374,6 +374,52 @@ describe('github', () => {
         'Failed to parse PR creation response'
       );
     });
+
+    it('still emits --body when body is an explicit empty string (options.body !== undefined, not truthy check)', () => {
+      mockExecSync.mockReturnValueOnce('https://github.com/org/repo/pull/45\n').mockReturnValueOnce(
+        JSON.stringify({
+          number: 45,
+          title: 'Empty body PR',
+          state: 'OPEN',
+          url: 'https://github.com/org/repo/pull/45',
+          headRefName: 'feature/empty-body',
+          baseRefName: 'main',
+          isDraft: false,
+        })
+      );
+
+      github.createPr({ title: 'Empty body PR', body: '', head: 'feature/empty-body' });
+
+      // Before the fix, `if (options.body)` was falsy for '' and silently
+      // dropped --body from the command entirely.
+      expect(mockExecSync).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('--body'),
+        expect.any(Object)
+      );
+    });
+
+    it('omits --body entirely when body is undefined', () => {
+      mockExecSync.mockReturnValueOnce('https://github.com/org/repo/pull/46\n').mockReturnValueOnce(
+        JSON.stringify({
+          number: 46,
+          title: 'No body PR',
+          state: 'OPEN',
+          url: 'https://github.com/org/repo/pull/46',
+          headRefName: 'feature/no-body',
+          baseRefName: 'main',
+          isDraft: false,
+        })
+      );
+
+      github.createPr({ title: 'No body PR', head: 'feature/no-body' });
+
+      expect(mockExecSync).toHaveBeenNthCalledWith(
+        1,
+        expect.not.stringContaining('--body'),
+        expect.any(Object)
+      );
+    });
   });
 
   describe('getPr', () => {

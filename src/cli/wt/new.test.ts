@@ -112,4 +112,57 @@ describe('wt new content flags', () => {
     expect(parsed.error.code).toBe('INVALID_ARGUMENT');
     expect(parsed.error.message).toContain('--body and --body-file are mutually exclusive');
   });
+
+  it('rejects an empty --title before any git mutation runs', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = newCommand.handler as any;
+
+    await expect(handler({ base: 'main', title: '   ' })).rejects.toThrow('process.exit(1)');
+
+    expect(runNewprHandler).not.toHaveBeenCalled();
+    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(printError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('--title must not be empty or whitespace-only'),
+      })
+    );
+  });
+
+  it('rejects an empty --body before any git mutation runs', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = newCommand.handler as any;
+
+    await expect(handler({ base: 'main', body: '' })).rejects.toThrow('process.exit(1)');
+
+    expect(runNewprHandler).not.toHaveBeenCalled();
+    expect(mockExit).toHaveBeenCalledWith(1);
+    expect(printError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('--body must not be empty or whitespace-only'),
+      })
+    );
+  });
+
+  it('rejects a whitespace-only --body-file before any git mutation runs, with a JSON error when --json is set', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = newCommand.handler as any;
+
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-new-test-'));
+    const bodyFilePath = path.join(tmpDir, 'body.md');
+    fs.writeFileSync(bodyFilePath, '   \n  ');
+    try {
+      await expect(
+        handler({ base: 'main', 'body-file': bodyFilePath, json: true })
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(runNewprHandler).not.toHaveBeenCalled();
+      const [output] = mockConsoleLog.mock.calls[0];
+      const parsed = JSON.parse(output as string);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error.code).toBe('INVALID_ARGUMENT');
+      expect(parsed.error.message).toContain('--body-file must not be empty or whitespace-only');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
