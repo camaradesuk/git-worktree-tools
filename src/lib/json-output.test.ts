@@ -336,17 +336,21 @@ describe('json-output', () => {
 
 describe('NewprResultData provenance', () => {
   it('carries content provenance through a success envelope', () => {
-    const result = createSuccessResult('newpr', {
+    // Typed against NewprResultData itself, not an untyped literal: a shape
+    // change to the interface (renamed/removed field) is a compile error
+    // here, not just a runtime assertion mismatch.
+    const data: NewprResultData = {
       prNumber: 22,
       prUrl: 'https://github.com/o/r/pull/22',
       branch: 'feat/x',
       worktreePath: '/tmp/wt',
       draft: true,
-      titleSource: 'flag' as const,
-      bodySource: 'ai' as const,
+      titleSource: 'flag',
+      bodySource: 'ai',
       aiProvider: 'codex',
       aiError: null,
-    });
+    };
+    const result = createSuccessResult('newpr', data);
 
     const parsed = JSON.parse(formatJsonResult(result));
     expect(parsed.data.titleSource).toBe('flag');

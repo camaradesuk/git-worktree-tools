@@ -161,6 +161,14 @@ vi.mock('../../lib/errors.js', () => ({
       this.issues = issues;
     }
   },
+  // Required by src/lib/newpr/pr-content.ts (imported transitively via
+  // wt/new.ts's readBodyOverride import) — PRContentError extends this.
+  WorktreeToolsError: class WorktreeToolsError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'WorktreeToolsError';
+    }
+  },
 }));
 
 // Mock git module for list/state/clean/link handlers

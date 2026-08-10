@@ -425,6 +425,50 @@ describe('cli/newpr', () => {
         expect.stringContaining('PR #789 already exists')
       );
     });
+
+    it('reports per-field content provenance in --json output (regression: catches swapped/dropped fields)', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'branch',
+          branchName: 'my-feature',
+          ...defaultOptions,
+          json: true,
+          title: 'Custom Title', // flag-supplied title, template-supplied body:
+          // titleSource and bodySource MUST differ, so a swap between them
+          // (or a dropped field) is observable in the JSON output below.
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 456 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr456');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await runCli(['--branch', 'my-feature', '--title', 'Custom Title', '--json']);
+
+      // The title flag won on title, and there was no body flag/AI so body
+      // fell back to the template. These MUST differ for the test to be
+      // able to catch a swap.
+      expect(github.createPr).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Custom Title' })
+      );
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": true')
+      );
+      expect(jsonOutput).toBeDefined();
+      const parsed = JSON.parse(jsonOutput![0] as string);
+      expect(parsed.data.titleSource).toBe('flag');
+      expect(parsed.data.bodySource).toBe('template');
+      expect(parsed.data.aiProvider).toBeNull();
+      expect(parsed.data.aiError).toBeNull();
+    });
   });
 
   describe('new feature mode', () => {

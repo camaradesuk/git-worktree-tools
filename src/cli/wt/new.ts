@@ -9,6 +9,7 @@ import { runNewprHandler } from '../newpr.js';
 import type { Options } from '../../lib/newpr/index.js';
 import { setJsonMode, printError } from '../../lib/ui/index.js';
 import { createErrorResult, formatJsonResult, ErrorCode } from '../../lib/json-output.js';
+import { readBodyOverride, PRContentError } from '../../lib/newpr/pr-content.js';
 
 interface NewArgs {
   description?: string;
@@ -190,6 +191,27 @@ export const newCommand: CommandModule<object, NewArgs> = {
         printError({ title: 'PR number must be a positive integer' });
       }
       process.exit(1);
+    }
+
+    // Validate --body/--body-file before any git mutation happens. The
+    // authoritative read still happens later inside resolvePRContent (via
+    // runNewprHandler); this is a fail-fast check so a simple typo doesn't
+    // leave the repo mid-mutation (branch pushed, no PR, stash unpopped).
+    try {
+      readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
+    } catch (error) {
+      if (error instanceof PRContentError) {
+        const useJson = !!argv.json;
+        if (useJson) {
+          console.log(
+            formatJsonResult(createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message))
+          );
+        } else {
+          printError({ title: error.message });
+        }
+        process.exit(1);
+      }
+      throw error;
     }
 
     // Determine mode from argv
