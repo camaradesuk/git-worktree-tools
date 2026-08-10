@@ -15,8 +15,19 @@
 - Test framework is vitest with tests colocated as `*.test.ts` beside the source file.
 - Coverage thresholds are 80% statements/branches/functions/lines over `src/lib/**` and `src/cli/**`. Per `CLAUDE.md`: never exclude a file from coverage to make a check pass — write real tests, mocking interactive and external pieces.
 - **Do not name any new flag with a `--no-` prefix.** yargs boolean-negation collides with `.strict()` in this CLI, which is why `--no-hooks`, `--no-wtlink`, and `--no-plan` are currently rejected as `Unknown argument`. The new skip flag is `--skip-ai`.
-- The pre-commit hook runs `pnpm exec prettier --check .` across the **whole repo**, and 13 files were already unformatted on `main` before this work. Until that is fixed separately, commits need `--no-verify`. **Always run `pnpm exec prettier --write` on the files you touched** so your own changes are clean.
+- **Commit normally — do NOT use `--no-verify`.** The 13 pre-existing unformatted files were fixed in commit `d38f622`, so the pre-commit hook (`tsc --noEmit`, repo-wide `prettier --check .`, then lint-staged) now passes. **Always run `pnpm exec prettier --write` on the files you touched** before committing, so the repo-wide check stays green.
 - Existing behaviour must be preserved when none of the new flags are passed.
+- **Known-failing test baseline on this machine: 14 tests across 4 files.** These fail on pristine `HEAD` too — they are NOT your responsibility and must NOT be "fixed":
+  - `src/lib/config.test.ts` — 4 failures
+  - `src/lib/prs/actions.test.ts` — 1 failure
+  - `src/e2e/newpr-full-flow.e2e.test.ts` — 6 failures
+  - `src/e2e/newpr/scenarios.e2e.test.ts` — 3 failures
+
+  **Cause:** the suite is not hermetic — `loadConfig` reads the developer's real global config at `~/.config/git-worktree-tools/config.json`, which on this machine sets `ai.provider: "claude"`, `worktreePattern: "pr{number}.{slug}"`, and `worktreeParent: ".worktrees"`. Tests asserting built-in defaults therefore see the developer's values. CI has no global config, so it passes there.
+
+  **Your task succeeds if it introduces no NEW failures beyond these 14.** Compare against the baseline; do not report the baseline as your own failure.
+
+- **`pnpm run build` must be run before any e2e test**, because the e2e suite executes the compiled CLI from `dist/`. Without it, ~170 e2e tests fail spuriously.
 
 ---
 
@@ -217,7 +228,7 @@ Expected: PASS, 6 tests.
 ```bash
 pnpm exec prettier --write src/lib/newpr/pr-content.ts src/lib/newpr/pr-content.test.ts
 git add src/lib/newpr/pr-content.ts src/lib/newpr/pr-content.test.ts
-git commit --no-verify -m "feat(newpr): add PR content override reading and validation"
+git commit -m "feat(newpr): add PR content override reading and validation"
 ```
 
 ---
@@ -623,7 +634,7 @@ Expected: PASS and no type errors. `PRGenerationResult` gained only optional fie
 ```bash
 pnpm exec prettier --write src/lib/newpr/pr-content.ts src/lib/newpr/pr-content.test.ts src/lib/config.ts
 git add src/lib/newpr/pr-content.ts src/lib/newpr/pr-content.test.ts src/lib/config.ts
-git commit --no-verify -m "feat(newpr): resolve PR content by per-field precedence with provenance"
+git commit -m "feat(newpr): resolve PR content by per-field precedence with provenance"
 ```
 
 ---
@@ -793,7 +804,7 @@ Expected: all four flags listed. This also confirms none of them trips the `.str
 ```bash
 pnpm exec prettier --write src/cli/wt/new.ts src/cli/wt/new.test.ts src/lib/newpr/types.ts
 git add src/cli/wt/new.ts src/cli/wt/new.test.ts src/lib/newpr/types.ts
-git commit --no-verify -m "feat(wt): add --title/--body/--body-file/--force-ai/--skip-ai to wt new"
+git commit -m "feat(wt): add --title/--body/--body-file/--force-ai/--skip-ai to wt new"
 ```
 
 ---
@@ -1048,7 +1059,7 @@ Expected: PASS with no type errors.
 ```bash
 pnpm exec prettier --write src/cli/newpr.ts src/lib/json-output.ts src/lib/json-output.test.ts
 git add src/cli/newpr.ts src/lib/json-output.ts src/lib/json-output.test.ts
-git commit --no-verify -m "feat(newpr): use caller-supplied PR content and report provenance in JSON"
+git commit -m "feat(newpr): use caller-supplied PR content and report provenance in JSON"
 ```
 
 ---
@@ -1210,7 +1221,7 @@ Expected: every flag documented in Steps 1-2 appears, with matching descriptions
 ```bash
 pnpm exec prettier --write docs/AI-TOOLING.md README.md
 git add docs/AI-TOOLING.md README.md
-git commit --no-verify -m "docs: document agent-supplied PR content flags"
+git commit -m "docs: document agent-supplied PR content flags"
 ```
 
 ---
@@ -1222,6 +1233,8 @@ git commit --no-verify -m "docs: document agent-supplied PR content flags"
 - Modify: `/home/chris/.claude/skills/start-work/SKILL.md`
 
 **Note:** This file lives outside the repository and is **not** part of PR #22. Commit it separately if that directory is version-controlled; otherwise just edit in place.
+
+**Version-gap caveat (required).** The flags this skill starts passing only exist in the `wt` built from this branch. The globally installed `wt` (currently 1.14.0) rejects unknown arguments under yargs `.strict()`, so until the new version is published and installed globally, `start-work` would fail against the old binary. The skill text must therefore state: the flags require `@camaradesuk/git-worktree-tools` newer than 1.14.0, and the provenance check in Step 3 is what surfaces a mismatch — if `wt` is too old the call fails with `INVALID_ARGUMENT: Unknown argument: title`, which the skill must report rather than swallow.
 
 **Interfaces:**
 
