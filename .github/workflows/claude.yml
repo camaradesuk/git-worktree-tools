@@ -6,7 +6,14 @@ on:
   pull_request_review_comment:
     types: [created]
   issues:
-    types: [opened, assigned]
+    # `assigned` is deliberately absent (the upstream template and the other
+    # camaradesuk repos include it). Because the job condition requires
+    # `@claude` in the issue body or title, `assigned` can never start a *new*
+    # request — assignment without a mention is filtered out, and assignment of
+    # an issue that does mention Claude just re-runs a request already handled
+    # on `opened`. Its only effect is duplicate, quota-burning invocations
+    # whenever an old issue is assigned or reassigned.
+    types: [opened]
   pull_request_review:
     types: [submitted]
 
