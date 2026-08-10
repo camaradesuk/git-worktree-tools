@@ -297,10 +297,15 @@ Assert `titleSource === "flag"` and `bodySource === "flag"` to confirm your cont
 A `"template"` value means the field fell back to the built-in default: for the body, that is
 a literal boilerplate stub (`## Summary\n\n...`); for the title, it's your own `description`
 argument verbatim, or a branch-derived title in `--branch` mode — not a canned stub. Whenever
-AI did not contribute (`aiProvider` is `null`), check `aiError`: it is non-null on every path
-where generation was skipped (e.g. `"AI skipped (--skip-ai)"`, `"AI disabled (ai.provider =
-'none')"`, or `"AI disabled (ai.provider = 'none'); --force-ai had no effect"`) or failed
-outright (e.g. `"AI generation produced no content (title via 'gemini-api': API key invalid)"`).
+AI did not contribute (`aiProvider` is `null`), check `aiError`. It is non-null when generation
+was **disabled** (e.g. `"AI skipped (--skip-ai)"`, `"AI disabled (ai.provider = 'none')"`, or
+`"AI disabled (ai.provider = 'none'); --force-ai had no effect"`) or when it ran and **failed**
+(e.g. `"AI generation produced no content (title via 'gemini-api': API key invalid)"`).
+
+`aiError` is `null` when generation was simply **not needed** — you supplied both `--title` and
+a body flag without `--force-ai`, so no LLM call was made. In that case both `aiProvider` and
+`aiError` are `null` and both source fields read `"flag"`, which is the success case, not a
+failure to diagnose.
 
 **Errors.** Passing both `--body` and `--body-file` fails with `INVALID_ARGUMENT` and the
 message `--body and --body-file are mutually exclusive; pass only one.`. A `--body-file` that
