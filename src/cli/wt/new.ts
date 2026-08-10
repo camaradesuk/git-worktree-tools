@@ -30,6 +30,11 @@ interface NewArgs {
   verbose?: number | boolean;
   quiet?: boolean;
   noColor?: boolean;
+  title?: string;
+  body?: string;
+  'body-file'?: string;
+  'force-ai'?: boolean;
+  'skip-ai'?: boolean;
 }
 
 export const newCommand: CommandModule<object, NewArgs> = {
@@ -132,6 +137,32 @@ export const newCommand: CommandModule<object, NewArgs> = {
           'branch_from_detached',
         ],
       })
+      .option('title', {
+        type: 'string',
+        description: 'Exact PR title (skips AI title generation)',
+      })
+      .option('body', {
+        type: 'string',
+        description: 'Exact PR body (skips AI description generation)',
+      })
+      .option('body-file', {
+        type: 'string',
+        description: 'Read the PR body from a file (preferred for multi-line markdown)',
+      })
+      .option('force-ai', {
+        type: 'boolean',
+        description: 'Run AI generation even when --title/--body are supplied',
+        default: false,
+      })
+      .option('skip-ai', {
+        type: 'boolean',
+        description: 'Skip AI generation entirely for this invocation',
+        default: false,
+      })
+      .example(
+        '$0 new "Add dark mode" --title "feat: dark mode" --body-file /tmp/body.md',
+        'Supply exact PR content'
+      )
       .example('$0 new "Add dark mode"', 'Create a new PR')
       .example('$0 n "Fix bug #123"', 'Short alias')
       .example('$0 new --pr 42', 'Create worktree for existing PR #42')
@@ -195,6 +226,11 @@ export const newCommand: CommandModule<object, NewArgs> = {
       nonInteractive: !!argv['non-interactive'],
       action: argv.action as Options['action'],
       noHooks: !!argv['no-hooks'],
+      title: argv.title,
+      body: argv.body,
+      bodyFile: argv['body-file'],
+      forceAi: !!argv['force-ai'],
+      skipAi: !!argv['skip-ai'],
       confirmHooks: !!argv['confirm-hooks'],
       generatePlan: argv.plan,
       noPlan: argv['no-plan'],
