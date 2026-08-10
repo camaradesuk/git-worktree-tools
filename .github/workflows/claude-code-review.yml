@@ -1,0 +1,192 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+jobs:
+  claude-review:
+    # Fork PRs do not receive repository secrets, so skip rather than turning
+    # external-contributor PR checks red. This repository is public, so fork
+    # PRs are expected.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Let the review agent inspect CI status without falling back to a
+          # blocked GitHub API command.
+          additional_permissions: |
+            actions: read
+
+          # Sticky progress comment on the PR so it's obvious the review is
+          # running and what stage it's at.
+          track_progress: true
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are reviewing this PR and producing comments only. You MUST NOT
+            modify files, create files, commit, push, or call any write API
+            (GitHub REST contents, GraphQL createCommitOnBranch, `gh pr edit`,
+            `gh pr merge`, etc.). Your only output channels are:
+              - `mcp__github_inline_comment__create_inline_comment` for
+                line-specific findings
+              - a single `gh pr comment` at the end for the overall summary
+            If a fix is warranted, put the suggested code inside a
+            ```suggestion fenced block in the comment so the PR author can
+            apply it with one click. Never write the file yourself.
+
+            Review this pull request. The repository is
+            `@camaradesuk/git-worktree-tools`: a published npm package of
+            cross-platform TypeScript CLIs (`wt`, `newpr`, `cleanpr`, `lswt`,
+            `wtlink`, `wtstate`, `wtconfig`) plus an MCP server, which automate
+            git worktree / pull-request workflows by shelling out to `git` and
+            the GitHub `gh` CLI. It is ESM-only, built with `tsc`, tested with
+            vitest, managed with pnpm, and released automatically by
+            semantic-release from conventional commits on `main`. Read the
+            repo's `CLAUDE.md` — it documents the project layout, the ten
+            `newpr` git-state scenarios, and the testing policy.
+
+            Focus areas, in priority order:
+
+            1. **Correctness** — Logic errors, edge cases, off-by-one,
+               unhandled error paths, and unawaited promises. Question whether
+               the change does what its title/description claims. Pay special
+               attention to the `newpr` git-state matrix (10 scenarios
+               documented in `CLAUDE.md`): a change to state detection or
+               branch/worktree selection should say which scenarios it affects
+               and be covered by tests for each.
+            2. **Cross-platform correctness** — This package must work on
+               Windows, macOS, and Linux with no bash/WSL dependency, and CI
+               runs a real Windows/macOS/Linux matrix. Flag: string
+               concatenation of paths instead of `path.join`/`path.resolve`,
+               hard-coded `/` separators or POSIX-only paths, assumptions about
+               `$HOME`/`%USERPROFILE%`, `\n` line-ending assumptions when
+               parsing command output, shelling out via `sh -c`/`bash -c`,
+               reliance on POSIX-only binaries, case-sensitive path comparison,
+               and file-locking or `rm -rf` semantics that differ on Windows.
+            3. **Safety of destructive operations** — These tools delete
+               worktrees, delete branches, reset, stash, and force-push on the
+               user's behalf. Flag any new or widened destructive path that
+               lacks a confirmation prompt, a `--yes`/`--dry-run` escape hatch,
+               a merged-state check, or a guard against operating on the
+               primary checkout / the default branch. Losing uncommitted user
+               work is the worst failure this package can have.
+            4. **Subprocess and injection safety** — `git` and `gh` are invoked
+               with user-controlled input (branch names, slugs, PR titles, AI
+               provider output, config values). Prefer argument arrays over
+               shell strings; flag any interpolation into a shell command,
+               unvalidated branch/slug characters, or unchecked exit codes and
+               stderr. Flag anywhere a token, `GH_TOKEN`, or AI provider API key
+               could be logged or embedded in an error message.
+            5. **Pattern consistency & reuse** — Before endorsing or proposing
+               a fix, check how the codebase already solves this class of
+               problem: shared helpers live in `src/lib/` (`git.ts`,
+               `github.ts`, `prompts.ts`, `config.ts`, `colors.ts`,
+               `state-detection.ts`, `errors.ts`, `constants.ts`). New code
+               should use the existing wrapper rather than calling
+               `execFile`/`console.log`/raw ANSI codes directly, and new
+               defaults belong in `constants.ts` rather than inline literals.
+               Flag any new code that solves an already-solved problem
+               differently without a stated reason, and when the same ad-hoc
+               shape appears a second or third time, recommend extracting it
+               into one shared abstraction, naming the concrete call sites that
+               would consolidate onto it. Consistency is the tiebreaker: many
+               bespoke solutions cost more over time than one
+               imperfect-but-uniform pattern.
+            6. **Conventions enforced by code, not memory** — When a pattern or
+               convention matters, ask how it is *mechanically* enforced. Prefer
+               guards that live in code and fail deterministically: types that
+               make incorrect usage unrepresentable, ESLint rules, unit tests
+               asserting the invariant, schema validation, or a CI check.
+               This repo's exemplars of the standard: the strict `tsc` build,
+               the ESLint + Prettier `ci:lint` gate, the cross-platform CI
+               matrix, and the JSON schema for `.worktreerc`. If this PR
+               establishes or relies on a convention with no mechanical guard —
+               a new `.worktreerc` key with no schema entry, a new CLI flag with
+               no test — recommend the cheapest guard that would catch
+               violations automatically. Reviewer memory, human or AI, is the
+               fallback of last resort, not the enforcement plan.
+            7. **Testing** — Do new tests exercise behaviour, or just hit lines
+               for coverage? Are critical branches missing? `CLAUDE.md` is
+               explicit that files must never be excluded from coverage to make
+               a coverage check pass — interactive TUI/prompt code, CLI entry
+               points, and code depending on `git`/`gh` must be tested by
+               mocking those dependencies. Flag any coverage-config exclusion
+               added in this PR, and flag destructive code paths that are only
+               covered by the happy path.
+            8. **Public API and release impact** — `bin` entries, exported
+               symbols in `src/index.ts`, CLI flags, and the `.worktreerc`
+               schema are the package's public surface; this is a published npm
+               package consumed by other repos. Flag breaking changes to any of
+               them, and check the commit messages: semantic-release derives the
+               version from conventional commits, so a breaking change needs
+               `BREAKING CHANGE:`/`!` and a new feature needs `feat:`, or the
+               release will be wrong. Flag missing README/`CLAUDE.md` updates
+               when user-facing behaviour changes.
+            9. **Engineering quality & maintainability** — Enforce TypeScript
+               and Node best practices. Flag `any`, unsafe casts, and swallowed
+               errors; prefer discriminated unions and the existing custom error
+               classes in `errors.ts` over stringly-typed control flow. Prefer
+               declarative/data-driven shapes over long imperative branch chains
+               where they make behaviour easier to inspect and test (the
+               state-detection table is the model). Apply SOLID judgement:
+               flag mixed responsibilities, duplicated parsing/validation,
+               business logic embedded in a CLI entry point where it can't be
+               unit-tested, and abstractions that obscure the workflow. Prefer
+               PRs that leave the codebase easier to reason about by removing
+               dead code, naming concepts consistently, and reducing entropy.
+
+            Output rules:
+            - Use `mcp__github_inline_comment__create_inline_comment` for every
+              line-specific finding. Quote `file:line` and explain the issue
+              concisely. When a fix is obvious, embed a ```suggestion block
+              inside the comment so the author can one-click apply it.
+            - Use `gh pr comment` ONCE at the end for the overall summary: top 3
+              things to address, plus an explicit verdict (approve / request
+              changes / comment only).
+            - Never write to the repository. Do not create, edit, or push files;
+              do not call any `gh api` endpoint that mutates state. Findings
+              travel as comments and suggestions only — the PR author applies
+              them.
+            - When you recommend a fix, state whether it FOLLOWS an existing
+              pattern (name the file/type/helper) or ESTABLISHES a new one
+              (justify why no existing pattern fits, and where it should be
+              enforced or reused next).
+            - Be terse. Skip praise unless it flags something the author clearly
+              got right under hard constraints. Do not restate what the PR
+              already says.
+
+          # --model: pin to Sonnet. Opus burns plan quota far faster per turn;
+          #   Sonnet is the better cost/quality default for PR review. Pinned
+          #   explicitly so we don't drift if the action changes its default.
+          # --allowedTools: positive allowlist for a comment-only review. `gh
+          #   api` is deliberately absent — it permits
+          #   `gh api -X PUT /repos/.../contents/...`, which creates
+          #   `claude[bot]`-authored commits and derails the ship flow. The
+          #   inline-comment MCP tool plus `gh pr comment` cover every output
+          #   path the prompt asks for; the read-only `gh pr diff/view/list`
+          #   entries stay so the review can inspect the diff and prior PRs.
+          claude_args: |
+            --model claude-sonnet-4-6
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"
+            --disallowedTools "Edit,Write,NotebookEdit,Bash(gh api:*),Bash(git:*),Bash(gh pr edit:*),Bash(gh pr merge:*),Bash(gh pr review:*)"
