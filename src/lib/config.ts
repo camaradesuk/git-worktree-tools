@@ -870,6 +870,10 @@ export interface PRGenerationResult {
   title: string;
   description: string;
   aiGenerated: boolean;
+  /** Provider that generated content, or null when AI did not contribute. */
+  provider?: string | null;
+  /** Why generation produced nothing, or null when not attempted / successful. */
+  error?: string | null;
 }
 
 /**
@@ -885,6 +889,8 @@ export async function generatePRContentAsync(
     title: context.description,
     description: '',
     aiGenerated: false,
+    provider: null,
+    error: null,
   };
 
   // If AI is enabled for PR content, try to use it
@@ -940,10 +946,17 @@ export async function generatePRContentAsync(
         printStatus('info', `\u2728 AI-generated PR content (${providerName})`);
         return { title, description, aiGenerated: true };
       }
+
+      // A provider was attempted but produced nothing. Previously this
+      // returned defaultResult with no diagnostic at all.
+      return {
+        ...defaultResult,
+        error: `AI provider '${providerName}' returned no content`,
+      };
     } catch (error) {
-      // Fall through to defaults on error, but make the failure visible
       const reason = error instanceof Error ? error.message : String(error);
       printStatus('warning', `\u26A0 AI generation failed: ${reason}`);
+      return { ...defaultResult, error: reason };
     }
   }
 

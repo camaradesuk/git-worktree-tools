@@ -76,3 +76,109 @@ export function readBodyOverride(overrides: ContentOverrides): string | undefine
 
   return undefined;
 }
+
+import { generatePRContentAsync } from '../config.js';
+import type { ResolvedConfig, PRGenerationContext, PRGenerationResult } from '../config.js';
+
+/** Signature of the AI generation call, injectable for testing. */
+export type GenerateFn = (
+  config: ResolvedConfig,
+  context: PRGenerationContext
+) => Promise<PRGenerationResult>;
+
+export interface ResolvePRContentParams {
+  config: ResolvedConfig;
+  context: PRGenerationContext;
+  overrides: ContentOverrides;
+  /** Template body used when neither a flag nor AI supplies one. */
+  defaultBody: string;
+  /** Override the generation call (tests only). */
+  generate?: GenerateFn;
+}
+
+/**
+ * Resolve the final PR title and body.
+ *
+ * Precedence is applied independently per field:
+ *   default     flag -> AI -> template
+ *   --force-ai  AI -> flag -> template
+ *   --skip-ai   flag -> template
+ *
+ * AI is only invoked when it could actually change the outcome, so supplying
+ * both --title and --body (without --force-ai) makes no LLM call.
+ */
+export async function resolvePRContent({
+  config,
+  context,
+  overrides,
+  defaultBody,
+  generate = generatePRContentAsync,
+}: ResolvePRContentParams): Promise<ResolvedPRContent> {
+  const titleOverride = overrides.title;
+  const bodyOverride = readBodyOverride(overrides);
+
+  const hasTitleFlag = titleOverride !== undefined;
+  const hasBodyFlag = bodyOverride !== undefined;
+
+  const aiDisabled = overrides.skipAi === true || config.ai?.provider === 'none';
+  const forceAi = overrides.forceAi === true;
+  const needsAi = !aiDisabled && (forceAi || !hasTitleFlag || !hasBodyFlag);
+
+  let generated: PRGenerationResult | null = null;
+  if (needsAi) {
+    generated = await generate(config, context);
+  }
+
+  const aiTitle = generated?.aiGenerated && generated.title ? generated.title : undefined;
+  const aiBody =
+    generated?.aiGenerated && generated.description ? generated.description : undefined;
+
+  // Ordered candidate lists differ only in whether AI outranks flags.
+  const titleCandidates: Array<[string | undefined, ContentSource]> = forceAi
+    ? [
+        [aiTitle, 'ai'],
+        [titleOverride, 'flag'],
+      ]
+    : [
+        [titleOverride, 'flag'],
+        [aiTitle, 'ai'],
+      ];
+
+  const bodyCandidates: Array<[string | undefined, ContentSource]> = forceAi
+    ? [
+        [aiBody, 'ai'],
+        [bodyOverride, 'flag'],
+      ]
+    : [
+        [bodyOverride, 'flag'],
+        [aiBody, 'ai'],
+      ];
+
+  const [title, titleSource] = pick(titleCandidates, context.description, 'template');
+  const [body, bodySource] = pick(bodyCandidates, defaultBody, 'template');
+
+  const aiContributed = titleSource === 'ai' || bodySource === 'ai';
+
+  return {
+    title,
+    body,
+    titleSource,
+    bodySource,
+    aiProvider: aiContributed ? (generated?.provider ?? null) : null,
+    aiError: generated?.error ?? null,
+  };
+}
+
+/** Return the first defined candidate with its source, else the fallback. */
+function pick(
+  candidates: Array<[string | undefined, ContentSource]>,
+  fallback: string,
+  fallbackSource: ContentSource
+): [string, ContentSource] {
+  for (const [value, source] of candidates) {
+    if (value !== undefined) {
+      return [value, source];
+    }
+  }
+  return [fallback, fallbackSource];
+}

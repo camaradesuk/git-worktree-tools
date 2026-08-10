@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { readBodyOverride, PRContentError } from './pr-content.js';
+import { readBodyOverride, resolvePRContent, PRContentError } from './pr-content.js';
+import type { ResolvedConfig, PRGenerationResult, PRGenerationContext } from '../config.js';
 
 describe('readBodyOverride', () => {
   let tmpDir: string;
@@ -44,5 +45,196 @@ describe('readBodyOverride', () => {
 
   it('accepts an empty inline body as an intentional empty override', () => {
     expect(readBodyOverride({ body: '' })).toBe('');
+  });
+});
+
+const CONTEXT: PRGenerationContext = {
+  description: 'add dark mode',
+  branchName: 'feat/dark-mode',
+  baseBranch: 'main',
+  changedFiles: [],
+  commitMessages: [],
+};
+
+const TEMPLATE = '## Summary\n\nadd dark mode\n';
+
+/** Minimal config stub; only the `ai` branch is read by resolvePRContent. */
+function configWithAi(provider: string): ResolvedConfig {
+  return { ai: { provider } } as unknown as ResolvedConfig;
+}
+
+/** A generate() that must never be called. */
+const neverGenerate = async (): Promise<PRGenerationResult> => {
+  throw new Error('generate() should not have been called');
+};
+
+function generatorReturning(result: Partial<PRGenerationResult>) {
+  const calls: number[] = [];
+  const fn = async (): Promise<PRGenerationResult> => {
+    calls.push(1);
+    return {
+      title: '',
+      description: '',
+      aiGenerated: false,
+      provider: null,
+      error: null,
+      ...result,
+    };
+  };
+  return { fn, calls };
+}
+
+describe('resolvePRContent', () => {
+  it('uses both flags verbatim and never calls AI', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'feat: dark mode', body: 'real body' },
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.title).toBe('feat: dark mode');
+    expect(result.body).toBe('real body');
+    expect(result.titleSource).toBe('flag');
+    expect(result.bodySource).toBe('flag');
+    expect(result.aiProvider).toBeNull();
+    expect(result.aiError).toBeNull();
+  });
+
+  it('fills only the missing field from AI when just --title is given', async () => {
+    const { fn, calls } = generatorReturning({
+      title: 'ai title',
+      description: 'ai body',
+      aiGenerated: true,
+      provider: 'codex',
+    });
+
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'flag title' },
+      defaultBody: TEMPLATE,
+      generate: fn,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(result.title).toBe('flag title');
+    expect(result.titleSource).toBe('flag');
+    expect(result.body).toBe('ai body');
+    expect(result.bodySource).toBe('ai');
+    expect(result.aiProvider).toBe('codex');
+  });
+
+  it('falls back to the template when AI produces nothing', async () => {
+    const { fn } = generatorReturning({
+      aiGenerated: false,
+      error: "AI provider 'gemini-api' returned no content",
+    });
+
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: {},
+      defaultBody: TEMPLATE,
+      generate: fn,
+    });
+
+    expect(result.title).toBe('add dark mode');
+    expect(result.titleSource).toBe('template');
+    expect(result.body).toBe(TEMPLATE);
+    expect(result.bodySource).toBe('template');
+    expect(result.aiError).toBe("AI provider 'gemini-api' returned no content");
+  });
+
+  it('skips AI entirely with skipAi, using flags then template', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { skipAi: true, title: 'flag title' },
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.title).toBe('flag title');
+    expect(result.titleSource).toBe('flag');
+    expect(result.body).toBe(TEMPLATE);
+    expect(result.bodySource).toBe('template');
+    expect(result.aiError).toBeNull();
+  });
+
+  it('skips AI when the configured provider is none', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('none'),
+      context: CONTEXT,
+      overrides: {},
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.titleSource).toBe('template');
+    expect(result.bodySource).toBe('template');
+  });
+
+  it('lets AI win over flags when forceAi is set', async () => {
+    const { fn, calls } = generatorReturning({
+      title: 'ai title',
+      description: 'ai body',
+      aiGenerated: true,
+      provider: 'claude',
+    });
+
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'flag title', body: 'flag body', forceAi: true },
+      defaultBody: TEMPLATE,
+      generate: fn,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(result.title).toBe('ai title');
+    expect(result.titleSource).toBe('ai');
+    expect(result.body).toBe('ai body');
+    expect(result.bodySource).toBe('ai');
+  });
+
+  it('falls back from AI to flags when forceAi generation fails', async () => {
+    const { fn } = generatorReturning({ aiGenerated: false, error: 'timeout' });
+
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'flag title', body: 'flag body', forceAi: true },
+      defaultBody: TEMPLATE,
+      generate: fn,
+    });
+
+    expect(result.title).toBe('flag title');
+    expect(result.titleSource).toBe('flag');
+    expect(result.body).toBe('flag body');
+    expect(result.bodySource).toBe('flag');
+    expect(result.aiError).toBe('timeout');
+  });
+
+  it('reads the body from bodyFile', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-content-resolve-'));
+    const file = path.join(dir, 'body.md');
+    fs.writeFileSync(file, 'from file');
+
+    try {
+      const result = await resolvePRContent({
+        config: configWithAi('none'),
+        context: CONTEXT,
+        overrides: { bodyFile: file },
+        defaultBody: TEMPLATE,
+        generate: neverGenerate,
+      });
+
+      expect(result.body).toBe('from file');
+      expect(result.bodySource).toBe('flag');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
