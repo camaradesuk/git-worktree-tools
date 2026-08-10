@@ -944,7 +944,7 @@ export async function generatePRContentAsync(
 
       if (anyGenerated) {
         printStatus('info', `\u2728 AI-generated PR content (${providerName})`);
-        return { title, description, aiGenerated: true };
+        return { title, description, aiGenerated: true, provider: providerName };
       }
 
       // A provider was attempted but produced nothing. Previously this

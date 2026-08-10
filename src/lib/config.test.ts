@@ -753,6 +753,45 @@ describe('config', () => {
       expect(result.aiGenerated).toBe(true);
     });
 
+    it('should report the provider name on successful AI generation', async () => {
+      const mockService = {
+        generatePRTitle: vi.fn().mockResolvedValue({
+          success: true,
+          content: 'AI Title',
+          provider: 'codex',
+        }),
+        generatePRDescription: vi.fn().mockResolvedValue({
+          success: true,
+          content: 'AI Description',
+          provider: 'codex',
+        }),
+      };
+
+      vi.doMock('./ai/index.js', () => ({
+        createAIGenerationService: () => mockService,
+      }));
+
+      const { generatePRContentAsync: asyncFn } = await import('./config.js');
+
+      const config = {
+        ...getDefaultConfig(),
+        ai: {
+          ...getDefaultConfig().ai,
+          provider: 'claude' as const,
+          prTitle: true,
+          prDescription: true,
+        },
+      };
+
+      const result = await asyncFn(config, {
+        description: 'Original',
+        branchName: 'feat/test',
+      });
+
+      expect(result.aiGenerated).toBe(true);
+      expect(result.provider).toBe('codex');
+    });
+
     it('should return defaults when AI throws error', async () => {
       vi.doMock('./ai/index.js', () => ({
         createAIGenerationService: () => {
