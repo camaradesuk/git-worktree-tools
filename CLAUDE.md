@@ -34,6 +34,9 @@
 - [x] CI/CD workflows:
   - `.github/workflows/ci.yml` - Cross-platform testing (Ubuntu/macOS/Windows, Node 18/20/22)
   - `.github/workflows/release.yml` - npm publish on version tags
+  - `.github/workflows/claude.yml` - `@claude` mentions on issues/PRs (maintainers only)
+  - `.github/workflows/claude-code-review.yml` - Automatic Claude review on every PR
+  - `.github/workflows/self-approve.yml` - `/approve` and `/unapprove` comment commands (admins only)
 
 ### Pending: npm Publishing
 
@@ -71,7 +74,10 @@ To publish to npm, the user needs to:
 git-worktree-tools/
 ├── .github/workflows/
 │   ├── ci.yml              # Cross-platform CI
-│   └── release.yml         # npm publish workflow
+│   ├── release.yml         # npm publish workflow
+│   ├── claude.yml          # @claude mention handler
+│   ├── claude-code-review.yml  # Automatic PR review
+│   └── self-approve.yml    # /approve + /unapprove commands
 ├── docs/
 │   └── PLAN.md             # Detailed implementation plan
 ├── src/
