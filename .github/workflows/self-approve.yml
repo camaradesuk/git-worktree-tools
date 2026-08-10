@@ -1,0 +1,60 @@
+name: Self-approve PR
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  approve:
+    if: |
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/approve')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Approve PR (admin only)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          USER: ${{ github.event.comment.user.login }}
+          PR_URL: ${{ github.event.issue.pull_request.html_url }}
+        run: |
+          PERMISSION=$(gh api "repos/$REPO/collaborators/$USER/permission" --jq '.permission')
+          if [ "$PERMISSION" != "admin" ]; then
+            echo "User $USER has permission '$PERMISSION'; /approve requires admin. Skipping."
+            exit 0
+          fi
+          gh pr review "$PR_URL" --approve --body "Approved by repository admin via /approve command."
+
+  unapprove:
+    if: |
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/unapprove')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Dismiss bot-authored approvals (admin only)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          USER: ${{ github.event.comment.user.login }}
+          PR: ${{ github.event.issue.number }}
+        run: |
+          PERMISSION=$(gh api "repos/$REPO/collaborators/$USER/permission" --jq '.permission')
+          if [ "$PERMISSION" != "admin" ]; then
+            echo "User $USER has permission '$PERMISSION'; /unapprove requires admin. Skipping."
+            exit 0
+          fi
+          REVIEWS=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" \
+            --jq '.[] | select(.state == "APPROVED" and .user.login == "github-actions[bot]") | .id')
+          if [ -z "$REVIEWS" ]; then
+            echo "No bot-authored approvals to dismiss."
+            exit 0
+          fi
+          for ID in $REVIEWS; do
+            echo "Dismissing review $ID"
+            gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$ID/dismissals" \
+              -f message="Approval dismissed by repository admin via /unapprove command."
+          done
