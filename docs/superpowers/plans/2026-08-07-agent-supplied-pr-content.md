@@ -276,7 +276,18 @@ const defaultResult: PRGenerationResult = {
 };
 ```
 
-Then, immediately after the `if (anyGenerated) { ... }` block and before the `catch`, add:
+Set the provider on the **success** return inside the `if (anyGenerated)` block — `providerName` is
+already computed there for the status message, and dropping it leaves `aiProvider` reporting `null`
+on every successful generation, which defeats the provenance this task exists to deliver:
+
+```typescript
+if (anyGenerated) {
+  printStatus('info', `✨ AI-generated PR content (${providerName})`);
+  return { title, description, aiGenerated: true, provider: providerName };
+}
+```
+
+Then, immediately after that `if (anyGenerated) { ... }` block and before the `catch`, add:
 
 ```typescript
 // A provider was attempted but produced nothing. Previously this
@@ -296,6 +307,11 @@ and in the existing `catch` block (line 943), replace `// Fall through to defaul
       return { ...defaultResult, error: reason };
     }
 ```
+
+Add a regression test for the provider field in `src/lib/config.test.ts`, beside the existing
+`generatePRContentAsync` AI tests: assert that on successful generation the returned `provider`
+equals the provider name the mocked AI service reported. Without it, nothing in the suite catches
+a dropped `provider` — the `resolvePRContent` tests inject the field explicitly and cannot detect it.
 
 - [ ] **Step 2: Write the failing tests**
 
