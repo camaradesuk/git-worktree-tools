@@ -153,7 +153,9 @@ import { printWorktreeTable } from '../lib/ui/table.js';
 ```typescript
 // src/cli/newpr.ts (after adding logger init)
 import { initializeLogger } from '../lib/logger.js';
-initializeLogger({/* read from process.argv */});
+initializeLogger({
+  /* read from process.argv */
+});
 
 // src/lib/newpr/actions.ts (diagnostic logging)
 import { logger } from '../logger.js';

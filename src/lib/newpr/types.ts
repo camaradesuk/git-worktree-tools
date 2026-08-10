@@ -101,7 +101,9 @@ export interface StateAction {
  * Parse result - discriminated union for parseArgs
  */
 export type ParseResult =
-  { kind: 'success'; options: Options } | { kind: 'help' } | { kind: 'error'; message: string };
+  | { kind: 'success'; options: Options }
+  | { kind: 'help' }
+  | { kind: 'error'; message: string };
 
 /**
  * Action execution result

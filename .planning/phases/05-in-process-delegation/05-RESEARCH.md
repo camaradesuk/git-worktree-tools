@@ -165,12 +165,12 @@ function printDeprecationNotice(): void {
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
+| Problem                            | Don't Build                        | Use Instead                                                                         | Why                                         |
 | ---------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------ |
-| TTY detection for interactive mode | Custom TTY check | Existing pattern from `lswt.ts` lines 168-170 | The `options.interactive === true           |     | (options.interactive === undefined && process.stdout.isTTY && !options.json)` logic is already correct |
-| Deprecation notice formatting | Custom formatting | Consistent pattern with ANSI yellow `[DEPRECATED]` prefix + env var suppression | Other tools use this convention |
-| Flag propagation | Manual env var + args construction | Direct typed argv object | This is the entire point of the refactoring |
-| JSON error output | New error handler | Existing `createErrorResult()` + `formatJsonResult()` from `src/lib/json-output.ts` | Already standardized in Phase 4 |
+| TTY detection for interactive mode | Custom TTY check                   | Existing pattern from `lswt.ts` lines 168-170                                       | The `options.interactive === true           |     | (options.interactive === undefined && process.stdout.isTTY && !options.json)` logic is already correct |
+| Deprecation notice formatting      | Custom formatting                  | Consistent pattern with ANSI yellow `[DEPRECATED]` prefix + env var suppression     | Other tools use this convention             |
+| Flag propagation                   | Manual env var + args construction | Direct typed argv object                                                            | This is the entire point of the refactoring |
+| JSON error output                  | New error handler                  | Existing `createErrorResult()` + `formatJsonResult()` from `src/lib/json-output.ts` | Already standardized in Phase 4             |
 
 **Key insight:** The library functions already exist and are well-tested. The refactoring is about removing the indirection layer (`runSubcommand`), not creating new abstractions.
 

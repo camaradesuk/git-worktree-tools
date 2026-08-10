@@ -244,7 +244,8 @@ describe('wt prs command', () => {
       callBuilder(mockYargs);
 
       const jsonCall = mockYargs.option.mock.calls.find((call: unknown[]) => call[0] === 'json') as
-        [string, Record<string, unknown>] | undefined;
+        | [string, Record<string, unknown>]
+        | undefined;
       expect(jsonCall).toBeDefined();
       expect(jsonCall![1].type).toBe('boolean');
       expect(jsonCall![1].default).toBe(false);

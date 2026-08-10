@@ -25,12 +25,12 @@ The existing stack is the primary input. Research focuses on: what to keep, what
 
 ### Core Technologies — Keep All Existing
 
-| Technology | Pin To | Purpose | Constraint |
+| Technology  | Pin To    | Purpose                                                             | Constraint                                                                                              |
 | ----------- | --------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --- | -------- | --- | ------------------------------------------------------------------------------------------------ |
-| TypeScript | ^5.3.0 | Type safety across CLI | No change needed |
-| Node.js ESM | (runtime) | Module system | Package is `"type": "module"` — all deps must be ESM-compatible |
-| yargs | ^17.7.2 | Argument parsing | **Do NOT upgrade to v18**: yargs 18 dropped Node 18/19 (requires ^20.19.0 | | ^22.12.0 | | >=23). Our package.json says `"node": ">=18"`. Yargs 17.7.2 is stable and last updated May 2025. |
-| inquirer | ^9.3.7 | Interactive confirmation prompts, list selection in automated flows | Keep v9 series. ESM, Node >=18. Updated Feb 2026 at v13.2.5 — consider upgrading to ^13.x after testing |
+| TypeScript  | ^5.3.0    | Type safety across CLI                                              | No change needed                                                                                        |
+| Node.js ESM | (runtime) | Module system                                                       | Package is `"type": "module"` — all deps must be ESM-compatible                                         |
+| yargs       | ^17.7.2   | Argument parsing                                                    | **Do NOT upgrade to v18**: yargs 18 dropped Node 18/19 (requires ^20.19.0                               |     | ^22.12.0 |     | >=23). Our package.json says `"node": ">=18"`. Yargs 17.7.2 is stable and last updated May 2025. |
+| inquirer    | ^9.3.7    | Interactive confirmation prompts, list selection in automated flows | Keep v9 series. ESM, Node >=18. Updated Feb 2026 at v13.2.5 — consider upgrading to ^13.x after testing |
 
 ### New Libraries to Add
 
@@ -146,14 +146,14 @@ npm install -D vitest@^3 @vitest/coverage-v8@^3
 
 ## What NOT to Use
 
-| Avoid | Why | Use Instead |
+| Avoid                                   | Why                                                                                                                             | Use Instead                                                        |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------- | --- | ---------------------------------------- | ----------------------- |
-| `ora@^9.x` | Requires Node >=20, breaks Node 18 support. Our package.json says `>=18`. | `ora@^8.1.1` |
-| `listr2@^9.x` or `^10.x` | v9 requires Node >=20, v10 requires Node >=22 | `listr2@^8.2.5` if needed, or just `ora@^8` |
-| `yargs@^18` | Requires `^20.19.0                                                                                                              |                                                                    | ^22.12.0 |     | >=23` — silently breaks Node 18/19 users | Stay on `yargs@^17.7.2` |
-| `ink@^6` | React 19 peer dep, JSX transform, significant complexity for a git tool | Custom rendering with ANSI codes (already done) |
-| `chalk` | Already have custom `colors.ts` that respects NO_COLOR and isTTY. Adding chalk is a duplicate dep. | Keep `src/lib/colors.ts` |
-| `winston-daily-rotate-file` | CJS, last meaningful update Feb 2024, tied to Winston's CJS architecture | consola with a file reporter |
+| `ora@^9.x`                              | Requires Node >=20, breaks Node 18 support. Our package.json says `>=18`.                                                       | `ora@^8.1.1`                                                       |
+| `listr2@^9.x` or `^10.x`                | v9 requires Node >=20, v10 requires Node >=22                                                                                   | `listr2@^8.2.5` if needed, or just `ora@^8`                        |
+| `yargs@^18`                             | Requires `^20.19.0                                                                                                              |                                                                    | ^22.12.0 |     | >=23` — silently breaks Node 18/19 users | Stay on `yargs@^17.7.2` |
+| `ink@^6`                                | React 19 peer dep, JSX transform, significant complexity for a git tool                                                         | Custom rendering with ANSI codes (already done)                    |
+| `chalk`                                 | Already have custom `colors.ts` that respects NO_COLOR and isTTY. Adding chalk is a duplicate dep.                              | Keep `src/lib/colors.ts`                                           |
+| `winston-daily-rotate-file`             | CJS, last meaningful update Feb 2024, tied to Winston's CJS architecture                                                        | consola with a file reporter                                       |
 | `@clack/prompts` for replacing inquirer | Inquirer v9–v13 is well-maintained (updated Feb 2026). Migration cost would be rewriting 7 source files for no functional gain. | Keep inquirer, consider @inquirer/prompts migration post-milestone |
 
 ---

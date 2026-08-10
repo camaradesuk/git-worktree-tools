@@ -95,7 +95,9 @@ const tool: Tool = {
     idempotentHint: true,
     openWorldHint: false,
   },
-  inputSchema: {/* ... */},
+  inputSchema: {
+    /* ... */
+  },
   // outputSchema is available on Tool type in SDK v1.25.1
 };
 ```
@@ -267,12 +269,16 @@ console.log(JSON.stringify(output, null, 2));
 // AFTER:
 interface PrsResultData {
   total: number;
-  filters: {/* ... */};
+  filters: {
+    /* ... */
+  };
   prs: PrDisplayItem[];
 }
 const result = createSuccessResult<PrsResultData>('prs', {
   total: filteredPrs.length,
-  filters: {/* ... */},
+  filters: {
+    /* ... */
+  },
   prs: filteredPrs,
 });
 console.log(formatJsonResult(result));
