@@ -20,10 +20,14 @@ import {
   loadConfig,
   generateBranchNameAsync,
   generateWorktreePath,
-  generatePRContentAsync,
   type ResolvedConfig,
 } from '../lib/config.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
+import {
+  resolvePRContent,
+  PRContentError,
+  type ResolvedPRContent,
+} from '../lib/newpr/pr-content.js';
 import { ensureWorktreeParentDir } from '../lib/worktree-setup.js';
 import {
   parseArgs,
@@ -390,7 +394,15 @@ function printSummary(
   worktreePath: string,
   prUrl: string,
   options: Options,
-  extra?: { draft?: boolean; scenario?: string; actionTaken?: string }
+  extra?: {
+    draft?: boolean;
+    scenario?: string;
+    actionTaken?: string;
+    titleSource?: 'flag' | 'ai' | 'template';
+    bodySource?: 'flag' | 'ai' | 'template';
+    aiProvider?: string | null;
+    aiError?: string | null;
+  }
 ): void {
   if (options.json) {
     const data: NewprResultData = {
@@ -401,6 +413,10 @@ function printSummary(
       draft: extra?.draft ?? options.draft,
       scenario: extra?.scenario,
       actionTaken: extra?.actionTaken,
+      titleSource: extra?.titleSource,
+      bodySource: extra?.bodySource,
+      aiProvider: extra?.aiProvider ?? null,
+      aiError: extra?.aiError ?? null,
     };
     console.log(formatJsonResult(createSuccessResult('newpr', data)));
     return;
@@ -722,15 +738,6 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
-  // Generate AI-enhanced PR content if enabled
-  const prContent = await generatePRContentAsync(config, {
-    description: descriptionFromBranch,
-    branchName,
-    baseBranch: options.baseBranch,
-    changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
-    commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
-  });
-
   const defaultBody = `## Summary
 
 PR created from existing branch: \`${branchName}\`
@@ -746,9 +753,36 @@ PR created from existing branch: \`${branchName}\`
 ---
 🤖 PR created with \`newpr --branch\``;
 
+  let prContent: ResolvedPRContent;
+  try {
+    prContent = await resolvePRContent({
+      config,
+      context: {
+        description: descriptionFromBranch,
+        branchName,
+        baseBranch: options.baseBranch,
+        changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
+        commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
+      },
+      overrides: {
+        title: options.title,
+        body: options.body,
+        bodyFile: options.bodyFile,
+        forceAi: options.forceAi,
+        skipAi: options.skipAi,
+      },
+      defaultBody,
+    });
+  } catch (error) {
+    if (error instanceof PRContentError) {
+      exitWithError(error.message, ErrorCode.INVALID_ARGUMENT, options.json);
+    }
+    throw error;
+  }
+
   const pr = github.createPr({
     title: prContent.title,
-    body: prContent.description || defaultBody,
+    body: prContent.body,
     base: options.baseBranch,
     head: branchName,
     draft: options.draft,
@@ -816,7 +850,12 @@ PR created from existing branch: \`${branchName}\`
   );
 
   setAuditContext({ prNumber: pr.number, worktreePath, gitBranch: branchName });
-  printSummary(pr.number, branchName, worktreePath, pr.url, options);
+  printSummary(pr.number, branchName, worktreePath, pr.url, options, {
+    titleSource: prContent.titleSource,
+    bodySource: prContent.bodySource,
+    aiProvider: prContent.aiProvider,
+    aiError: prContent.aiError,
+  });
 }
 
 /**
@@ -1091,16 +1130,6 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     printStatus('info', 'Creating pull request...');
 
-    // Generate AI-enhanced PR content if enabled
-    // Use origin/baseBranch to compare against remote, not potentially stale local branch
-    const prContent = await generatePRContentAsync(config, {
-      description,
-      branchName,
-      baseBranch: options.baseBranch,
-      changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
-      commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
-    });
-
     const defaultBody = `## Summary
 
 ${description}
@@ -1116,9 +1145,37 @@ ${description}
 ---
 🤖 PR created with \`newpr\``;
 
+    // Use origin/baseBranch to compare against remote, not potentially stale local branch
+    let prContent: ResolvedPRContent;
+    try {
+      prContent = await resolvePRContent({
+        config,
+        context: {
+          description,
+          branchName,
+          baseBranch: options.baseBranch,
+          changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
+          commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
+        },
+        overrides: {
+          title: options.title,
+          body: options.body,
+          bodyFile: options.bodyFile,
+          forceAi: options.forceAi,
+          skipAi: options.skipAi,
+        },
+        defaultBody,
+      });
+    } catch (error) {
+      if (error instanceof PRContentError) {
+        exitWithError(error.message, ErrorCode.INVALID_ARGUMENT, options.json);
+      }
+      throw error;
+    }
+
     const pr = github.createPr({
       title: prContent.title,
-      body: prContent.description || defaultBody,
+      body: prContent.body,
       base: options.baseBranch,
       head: branchName,
       draft: options.draft,
@@ -1197,6 +1254,10 @@ ${description}
     printSummary(pr.number, branchName, worktreePath, pr.url, options, {
       scenario,
       actionTaken: action.action,
+      titleSource: prContent.titleSource,
+      bodySource: prContent.bodySource,
+      aiProvider: prContent.aiProvider,
+      aiError: prContent.aiError,
     });
   } catch (error) {
     // Run cleanup hook

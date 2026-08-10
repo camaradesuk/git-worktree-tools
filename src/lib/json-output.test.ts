@@ -333,3 +333,25 @@ describe('json-output', () => {
     });
   });
 });
+
+describe('NewprResultData provenance', () => {
+  it('carries content provenance through a success envelope', () => {
+    const result = createSuccessResult('newpr', {
+      prNumber: 22,
+      prUrl: 'https://github.com/o/r/pull/22',
+      branch: 'feat/x',
+      worktreePath: '/tmp/wt',
+      draft: true,
+      titleSource: 'flag' as const,
+      bodySource: 'ai' as const,
+      aiProvider: 'codex',
+      aiError: null,
+    });
+
+    const parsed = JSON.parse(formatJsonResult(result));
+    expect(parsed.data.titleSource).toBe('flag');
+    expect(parsed.data.bodySource).toBe('ai');
+    expect(parsed.data.aiProvider).toBe('codex');
+    expect(parsed.data.aiError).toBeNull();
+  });
+});
