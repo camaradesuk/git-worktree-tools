@@ -115,6 +115,21 @@ wt new --draft "WIP feature"
 wt new --install --code      # Install deps and open editor
 ```
 
+**Supplying PR content**: Pass exact title/body instead of generating them (see [AI Content
+Generation](#ai-content-generation)):
+
+| Flag                 | Description                                                      |
+| -------------------- | ---------------------------------------------------------------- |
+| `--title <string>`   | Exact PR title (skips AI title generation)                       |
+| `--body <string>`    | Exact PR body (skips AI description generation)                  |
+| `--body-file <path>` | Read the PR body from a file (preferred for multi-line markdown) |
+| `--force-ai`         | Run AI generation even when `--title`/`--body` are supplied      |
+| `--skip-ai`          | Skip AI generation entirely for this invocation                  |
+
+```bash
+wt new "add dark mode" --title "feat: dark mode" --body-file ./pr-body.md
+```
+
 **Smart State Handling**: The tool detects your current git state and offers appropriate options:
 
 - Uncommitted changes? Choose to commit, stash, or leave them

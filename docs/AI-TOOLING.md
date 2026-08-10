@@ -7,6 +7,7 @@ This guide documents all features that enable AI agents (Claude Code, Gemini CLI
 - [Quick Start for AI Agents](#quick-start-for-ai-agents)
 - [Non-Interactive Mode](#non-interactive-mode)
 - [JSON Output Mode](#json-output-mode)
+- [Supplying PR content directly](#supplying-pr-content-directly)
 - [State Query Command (wtstate)](#state-query-command-wtstate)
 - [Action Selection (--action flag)](#action-selection---action-flag)
 - [Structured Error Codes](#structured-error-codes)
@@ -236,6 +237,64 @@ interface CommandResult<T> {
   }
 }
 ```
+
+### Supplying PR content directly
+
+An agent driving `wt` usually has far better context for the PR title and body than the
+tool can reconstruct — it holds the conversation that produced the work. Pass that content
+in rather than relying on generation:
+
+```bash
+wt new "add dark mode" \
+  --title "feat: add dark mode toggle to settings" \
+  --body-file /tmp/pr-body.md \
+  --non-interactive --action=empty_commit --json
+```
+
+`--body-file` is strongly preferred over `--body` for anything multi-line: PR bodies contain
+backticks, quotes, and `$`, all of which are hazardous through shell quoting. `--body-file`
+is read and validated before any git mutation happens — an unreadable path fails fast with
+`INVALID_ARGUMENT` rather than partway through worktree creation.
+
+**Precedence**, applied independently to the title and the body:
+
+| Flags        | Order                  |
+| ------------ | ---------------------- |
+| _(default)_  | `flag` → AI → template |
+| `--force-ai` | AI → `flag` → template |
+| `--skip-ai`  | `flag` → template      |
+
+Supplying both `--title` and a body flag (`--body` or `--body-file`) without `--force-ai`
+makes **no LLM call at all**.
+
+**Verifying your content was used.** The `newpr`/`wt new` JSON envelope reports the origin
+of each field:
+
+```jsonc
+{
+  "data": {
+    "prNumber": 42,
+    "titleSource": "flag", // "flag" | "ai" | "template"
+    "bodySource": "flag",
+    "aiProvider": null, // provider that generated content, else null
+    "aiError": null, // why generation produced nothing, else null
+  },
+}
+```
+
+Assert `titleSource === "flag"` and `bodySource === "flag"` to confirm your content landed.
+A `"template"` value means the field fell back to the built-in stub; check `aiError` for why
+generation didn't run or didn't produce content.
+
+**Errors.** Passing both `--body` and `--body-file` fails with `INVALID_ARGUMENT` and the
+message `--body and --body-file are mutually exclusive; pass only one.`. A `--body-file` that
+cannot be read fails with `INVALID_ARGUMENT` and a message of the form
+`Could not read --body-file '<path>': ENOENT: no such file or directory, open '<path>'`. Both
+are rejected before any git mutation — no branch is created, committed, or pushed.
+
+**Flag naming note.** There is no `--no-ai` flag. This CLI enables yargs `.strict()` mode,
+which conflicts with yargs' automatic `--no-*` boolean negation, so any `--no-*` flag not
+explicitly declared is rejected as an unknown argument. Use `--skip-ai` instead.
 
 ---
 
