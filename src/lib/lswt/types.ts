@@ -108,9 +108,7 @@ export interface EnvironmentInfo {
  * Result from argument parsing - discriminated union for pure function
  */
 export type ParseResult =
-  | { kind: 'success'; options: ListOptions }
-  | { kind: 'help' }
-  | { kind: 'error'; message: string };
+  { kind: 'success'; options: ListOptions } | { kind: 'help' } | { kind: 'error'; message: string };
 
 /**
  * Type label with color name for CLI to apply

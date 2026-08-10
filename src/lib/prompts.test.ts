@@ -680,8 +680,7 @@ describe('prompts', () => {
 
       it('navigates down with arrow key', async () => {
         let keypressHandler:
-          | ((str: string, key: { name?: string; ctrl?: boolean }) => void)
-          | null = null;
+          ((str: string, key: { name?: string; ctrl?: boolean }) => void) | null = null;
 
         mockStdinOn.mockImplementation(
           (

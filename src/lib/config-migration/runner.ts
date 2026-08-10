@@ -319,8 +319,7 @@ export async function runMigration(
             try {
               const legacyData = parseLegacyWtlinkrc(action.filePath);
               const existingWtlink = config.wtlink as
-                | { enabled?: string[]; disabled?: string[] }
-                | undefined;
+                { enabled?: string[]; disabled?: string[] } | undefined;
               const merged = mergeWtlinkConfigs(existingWtlink, legacyData);
 
               config.wtlink = {

@@ -129,14 +129,7 @@ function createCleanupDeps(repoRoot: string): CleanupDeps {
 // ============================================================================
 
 type MainMenuAction =
-  | 'list'
-  | 'browse-prs'
-  | 'new-pr'
-  | 'clean'
-  | 'link'
-  | 'state'
-  | 'config'
-  | 'exit';
+  'list' | 'browse-prs' | 'new-pr' | 'clean' | 'link' | 'state' | 'config' | 'exit';
 
 const mainMenuOptions: PromptOption<MainMenuAction>[] = [
   {

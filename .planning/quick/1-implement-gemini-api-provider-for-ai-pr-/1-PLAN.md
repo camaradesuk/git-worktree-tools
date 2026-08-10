@@ -84,14 +84,7 @@ From src/lib/ai/types.ts:
 
 ```typescript
 export type AIProviderName =
-  | 'auto'
-  | 'claude'
-  | 'gemini'
-  | 'openai'
-  | 'ollama'
-  | 'script'
-  | 'fallback'
-  | 'none';
+  'auto' | 'claude' | 'gemini' | 'openai' | 'ollama' | 'script' | 'fallback' | 'none';
 export interface AIGenerationResult {
   success: boolean;
   content?: string;
