@@ -574,6 +574,73 @@ describe('cli/newpr', () => {
       expect(mockProcessExit).toHaveBeenCalledWith(1);
     });
 
+    it('reports per-field content provenance in --json output for new-PR mode (regression: catches swapped/dropped fields at the modeNewFeature call site)', async () => {
+      // This is the primary user-facing path (`wt new "<description>"
+      // --title ... --non-interactive --action=empty_commit --json`), so it
+      // gets its own coverage distinct from the --branch-mode test above,
+      // which only ever reaches the other printSummary call site.
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'Add new feature',
+          ...defaultOptions,
+          json: true,
+          title: 'Custom Title', // flag-supplied title, template-supplied body:
+          // titleSource and bodySource MUST differ, so a swap between them
+          // (or a dropped field) is observable in the JSON output below.
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1); // 1-based index
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Add new feature', '--title', 'Custom Title', '--json']);
+
+      // Title flag won on title; there was no body flag/AI so body fell
+      // back to the template. These MUST differ for the test to be able to
+      // catch a swap.
+      expect(github.createPr).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Custom Title' })
+      );
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": true')
+      );
+      expect(jsonOutput).toBeDefined();
+      const parsed = JSON.parse(jsonOutput![0] as string);
+      expect(parsed.data.titleSource).toBe('flag');
+      expect(parsed.data.bodySource).toBe('template');
+      expect(parsed.data.aiProvider).toBeNull();
+      expect(parsed.data.aiError).toBeNull();
+    });
+
     it('shows helpful error when checkout fails due to conflicting changes', async () => {
       vi.mocked(newpr.parseArgs).mockReturnValue({
         kind: 'success',
