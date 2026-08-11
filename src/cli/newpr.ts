@@ -23,6 +23,7 @@ import {
   generatePRContentAsync,
   type ResolvedConfig,
 } from '../lib/config.js';
+import type { AIConfig } from '../lib/ai/types.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
 import { ensureWorktreeParentDir } from '../lib/worktree-setup.js';
 import {
@@ -78,6 +79,30 @@ class NonInteractiveError extends Error {
     super(message);
     this.name = 'NonInteractiveError';
   }
+}
+
+/**
+ * Load config for a run, applying invocation-level AI overrides from CLI
+ * flags (--ai-provider/--ai-timeout on `wt new`). CLI flags are the
+ * highest tier — they beat GWT_AI_* env vars, which loadConfig() has
+ * already applied as part of loadConfigWithValidation().
+ *
+ * This is the single chokepoint all `newpr` mode handlers load config
+ * through, so every call site gets CLI-flag override support uniformly.
+ */
+export function loadConfigForRun(repoRoot: string, options: Options): ResolvedConfig {
+  const config = loadConfig(repoRoot);
+  if (!options.aiProvider && options.aiTimeout === undefined) {
+    return config;
+  }
+  return {
+    ...config,
+    ai: {
+      ...config.ai,
+      ...(options.aiProvider ? { provider: options.aiProvider as AIConfig['provider'] } : {}),
+      ...(options.aiTimeout !== undefined ? { timeout: options.aiTimeout } : {}),
+    },
+  };
 }
 
 /**
@@ -537,7 +562,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
 
   // Initialize hook runner for post-worktree hook
   const hookRunner = createHookRunner(
@@ -661,7 +686,7 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
 
   // Initialize hook runner for post-worktree hook
   const hookRunner = createHookRunner(
@@ -825,7 +850,7 @@ PR created from existing branch: \`${branchName}\`
 async function modeNewFeature(description: string, options: Options): Promise<void> {
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
   const branchName = await generateBranchNameAsync(config, description, repoName);
 
   // Initialize hook runner (disabled if --no-hooks flag is set)
@@ -1249,7 +1274,7 @@ export async function runNewprHandler(options: Options): Promise<void> {
   // Apply config.draftPr if user didn't explicitly set --draft or --ready
   try {
     const repoRoot = git.getRepoRoot();
-    const config = loadConfig(repoRoot);
+    const config = loadConfigForRun(repoRoot, options);
     if (!options.draftExplicitlySet && config.draftPr !== undefined) {
       options.draft = config.draftPr;
     }

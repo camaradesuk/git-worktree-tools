@@ -13,6 +13,8 @@ import { runConfigEditor, quickEditConfig } from '../../lib/config-editor.js';
 import { loadConfigWithValidation, getConfigPath, getDefaultConfig } from '../../lib/config.js';
 import { formatValidationErrors } from '../../lib/config-validation.js';
 import { getSchemaUrl } from '../../lib/global-config.js';
+import { resolveConfigProvenance } from '../../lib/config-provenance.js';
+import { envOverrideSourceMap } from '../../lib/config-env.js';
 import * as colors from '../../lib/colors.js';
 import {
   getConfigSource,
@@ -168,21 +170,65 @@ async function handleInteractive(): Promise<void> {
 }
 
 /**
+ * Keys reported with per-key provenance in `wt config show --json`. Kept
+ * smaller than the full schema — these are the settings most likely to
+ * prompt a "which file did this come from?" question.
+ */
+const PROVENANCE_KEYS = [
+  'baseBranch',
+  'draftPr',
+  'branchPrefix',
+  'worktreePattern',
+  'worktreeParent',
+  'preferredEditor',
+  'sharedRepos',
+  'ai.provider',
+  'ai.fallback',
+  'ai.providerPriority',
+  'ai.timeout',
+  'ai.branchName',
+  'ai.prTitle',
+  'ai.prDescription',
+  'ai.commitMessage',
+  'ai.planDocument',
+];
+
+/**
  * Handle show subcommand - display current configuration
+ *
+ * The JSON branch resolves via loadConfigWithValidation (the same resolver
+ * newpr/AI/generateWorktreePath use: defaults <- global <- repo <- local <-
+ * env, with a local tier and the correct global path). The human-readable
+ * branch below intentionally still uses wtconfig/config-manager.ts's
+ * loadMergedConfig/getConfigSource (global path ~/.worktreerc, no local
+ * tier) — unifying it is a separate, larger change, out of scope here.
+ * Wiring provenance to the wrong resolver would confidently report
+ * falsehoods about which file set which value.
  */
 function handleShow(json: boolean): void {
   const repoRoot = getRepoRoot();
-  const source = getConfigSource(repoRoot ?? undefined);
-  const config = loadMergedConfig(repoRoot ?? undefined);
   if (json) {
+    const { config, sources } = loadConfigWithValidation(repoRoot ?? undefined, {
+      warnOnErrors: false,
+    });
+    const provenance = resolveConfigProvenance(
+      PROVENANCE_KEYS,
+      config as unknown as Record<string, unknown>,
+      sources,
+      {},
+      envOverrideSourceMap()
+    );
     const result = createSuccessResult('wtconfig', {
       subcommand: 'show',
-      source: source.type === 'none' ? null : source.path,
+      source: sources.length > 0 ? sources[sources.length - 1].path : null,
       config,
+      provenance,
     });
     console.log(formatJsonResult(result));
     return;
   }
+  const source = getConfigSource(repoRoot ?? undefined);
+  const config = loadMergedConfig(repoRoot ?? undefined);
   const defaults = getDefaultConfig();
   printStatus('info', 'Current Configuration');
   print('');

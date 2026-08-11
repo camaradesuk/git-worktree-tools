@@ -321,6 +321,45 @@ git-worktree-tools uses a three-tier configuration system:
 
 **Merge order:** defaults ← global ← repo ← local
 
+### Config Override Chain
+
+The file-tier merge order above is the base of a longer chain. Full override
+chain, highest priority first:
+
+```
+--ai-provider / --ai-timeout (wt new flags)
+  > GWT_AI_* environment variables
+  > .worktreerc.local
+  > .worktreerc
+  > global config.json
+  > built-in default
+```
+
+The CLI flags only exist on `wt new` and only override `ai.provider` /
+`ai.timeout` for that one invocation. The `GWT_AI_*` environment variables
+apply to every command and every `ai.*` setting they cover.
+
+#### AI Environment Variable Overrides
+
+| Variable          | Overrides                       | Valid values                                                                                                                                                                                                |
+| ----------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GWT_AI_PROVIDER` | `ai.provider`                   | `auto`, `claude`, `gemini`, `gemini-api`, `openai`, `ollama`, `script`, `fallback`, `none`                                                                                                                  |
+| `GWT_AI_PRIORITY` | `ai.providerPriority`           | Comma-separated list of **concrete** providers only: `claude`, `gemini`, `gemini-api`, `openai`, `ollama`, `script` (not `auto`/`fallback`/`none` — meaningless as one entry among several to try in order) |
+| `GWT_NO_AI`       | `ai.provider` (forces `"none"`) | `1`, `true`, `0`, `false`. When truthy, beats `GWT_AI_PROVIDER` if both are set.                                                                                                                            |
+| `GWT_AI_TIMEOUT`  | `ai.timeout` (milliseconds)     | A positive integer                                                                                                                                                                                          |
+
+An invalid value fails fast, naming the offending variable — e.g.
+`Invalid GWT_AI_PROVIDER: "bogus" — must be one of: auto, claude, gemini, ...`
+— and exits with a non-zero code on every `wt` command (`error.code:
+"INVALID_CONFIG"` with `--json`), rather than silently falling back to a
+default.
+
+`wt config show --json` reports per-key `provenance`: for each of a curated
+set of settings, which tier resolved it (`flag`, `env`, `local`, `repo`,
+`global`, or `default`) and its `source` (a file path, env var name, or flag
+name). See [`docs/AI-TOOLING.md`](docs/AI-TOOLING.md#config-overrides-for-agent-callers)
+for a worked example and the full env var validation rules.
+
 ### Creating Configuration
 
 ```bash
@@ -388,7 +427,7 @@ Enable AI-powered content generation for branch names and PR descriptions:
 }
 ```
 
-**Providers:** `"auto"` (detects available tools), `"claude"`, `"gemini"`, `"openai"`, `"ollama"`, `"none"`
+**Providers:** `"auto"` (detects available tools), `"claude"`, `"gemini"`, `"gemini-api"`, `"openai"`, `"ollama"`, `"none"`
 
 ### Lifecycle Hooks
 

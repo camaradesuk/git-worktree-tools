@@ -106,9 +106,15 @@ interface ConfigCategory {
 }
 
 /**
- * Define all config categories and properties
+ * Define all config categories and properties.
+ *
+ * Exported so schema-coverage.test.ts / config-validation.test.ts can assert
+ * the ai.provider and ai.fallback enum pickers stay in sync with
+ * VALID_AI_PROVIDERS — this closed enum is otherwise the only place a
+ * provider becomes unreachable through `wt config edit` even after it's
+ * valid everywhere else (see the gemini-api regression this guards against).
  */
-const CONFIG_CATEGORIES: ConfigCategory[] = [
+export const CONFIG_CATEGORIES: ConfigCategory[] = [
   {
     key: 'basic',
     label: 'Basic Settings',
@@ -190,7 +196,16 @@ const CONFIG_CATEGORIES: ConfigCategory[] = [
         label: 'Provider',
         description: 'AI provider to use',
         type: 'enum',
-        enumValues: ['auto', 'claude', 'gemini', 'openai', 'ollama', 'script', 'none'],
+        enumValues: [
+          'auto',
+          'claude',
+          'gemini',
+          'gemini-api',
+          'openai',
+          'ollama',
+          'script',
+          'none',
+        ],
         defaultValue: 'none',
       },
       {
@@ -198,7 +213,16 @@ const CONFIG_CATEGORIES: ConfigCategory[] = [
         label: 'Fallback Provider',
         description: 'Fallback if primary fails',
         type: 'enum',
-        enumValues: ['auto', 'claude', 'gemini', 'openai', 'ollama', 'script', 'none'],
+        enumValues: [
+          'auto',
+          'claude',
+          'gemini',
+          'gemini-api',
+          'openai',
+          'ollama',
+          'script',
+          'none',
+        ],
         defaultValue: undefined,
       },
       {

@@ -166,6 +166,16 @@ describe('wt config command', () => {
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+    // Default return so handleShow's JSON branch (which destructures
+    // {config, sources}) doesn't throw in tests that don't set up their own
+    // loadConfigWithValidation mock. Tests needing specific sources/config
+    // override this with their own mockReturnValue.
+    (config.loadConfigWithValidation as Mock).mockReturnValue({
+      config: { baseBranch: 'main' },
+      configPath: null,
+      validation: null,
+      sources: [],
+    });
   });
 
   afterEach(() => {
@@ -328,6 +338,79 @@ describe('wt config command', () => {
         expect.objectContaining({ subcommand: 'show' })
       );
       expect(formatJsonResult).toHaveBeenCalled();
+    });
+
+    it('resolves the JSON branch via loadConfigWithValidation, not wtconfig/config-manager', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+
+      await configCommand.handler(createArgv({ subcommand: 'show', json: true }));
+
+      // This is the disconnected-systems bug fix: the JSON branch must read
+      // through loadConfigWithValidation (defaults<-global<-repo<-local,
+      // ~/.config/git-worktree-tools/config.json) rather than
+      // wtconfig/config-manager's loadMergedConfig (no local tier,
+      // ~/.worktreerc) — provenance wired to the wrong resolver would be a
+      // lie about which file set which value.
+      expect(config.loadConfigWithValidation).toHaveBeenCalledWith('/repo', {
+        warnOnErrors: false,
+      });
+    });
+
+    it('reports per-key provenance in JSON output: global source for worktreeParent, repo source for worktreePattern', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (config.loadConfigWithValidation as Mock).mockReturnValue({
+        config: {
+          worktreeParent: '.worktrees',
+          worktreePattern: '{repo}.pr{number}',
+        },
+        configPath: '/repo/.worktreerc',
+        validation: null,
+        sources: [
+          {
+            path: '/home/user/.config/git-worktree-tools/config.json',
+            level: 'global',
+            config: { worktreeParent: '.worktrees', worktreePattern: 'pr{number}.{slug}' },
+            validation: null,
+          },
+          {
+            path: '/repo/.worktreerc',
+            level: 'repo',
+            config: { worktreePattern: '{repo}.pr{number}' },
+            validation: null,
+          },
+        ],
+      });
+
+      await configCommand.handler(createArgv({ subcommand: 'show', json: true }));
+
+      const call = (createSuccessResult as Mock).mock.calls[0];
+      const data = call[1];
+      expect(data.provenance.worktreeParent).toEqual(expect.objectContaining({ tier: 'global' }));
+      expect(data.provenance.worktreePattern).toEqual(expect.objectContaining({ tier: 'repo' }));
+    });
+
+    it('reports env-var provenance for ai.provider when GWT_AI_PROVIDER is set', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (config.loadConfigWithValidation as Mock).mockReturnValue({
+        config: { ai: { provider: 'ollama' } },
+        configPath: null,
+        validation: null,
+        sources: [],
+      });
+      process.env.GWT_AI_PROVIDER = 'ollama';
+      try {
+        await configCommand.handler(createArgv({ subcommand: 'show', json: true }));
+
+        const call = (createSuccessResult as Mock).mock.calls[0];
+        const data = call[1];
+        expect(data.provenance['ai.provider']).toEqual({
+          value: 'ollama',
+          tier: 'env',
+          source: 'GWT_AI_PROVIDER',
+        });
+      } finally {
+        delete process.env.GWT_AI_PROVIDER;
+      }
     });
   });
 

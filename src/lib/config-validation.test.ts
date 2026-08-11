@@ -451,6 +451,86 @@ describe('validateConfig', () => {
   });
 });
 
+describe('ai provider/key allow-list (drift regression)', () => {
+  it('accepts gemini-api as ai.provider', () => {
+    expect(validateConfig({ ai: { provider: 'gemini-api' } }).valid).toBe(true);
+  });
+
+  it('accepts gemini-api as ai.fallback', () => {
+    expect(validateConfig({ ai: { provider: 'auto', fallback: 'gemini-api' } }).valid).toBe(true);
+  });
+
+  it('accepts ai.planPath and ai.planPathMode (documented AIConfig fields)', () => {
+    const result = validateConfig({
+      ai: { planPath: 'PLAN-{prNumber}-{slug}.md', planPathMode: 'prompt' },
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('accepts ai.providerPriority as an array of valid provider names', () => {
+    const result = validateConfig({ ai: { providerPriority: ['openai', 'claude', 'ollama'] } });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('rejects ai.providerPriority with an invalid provider name', () => {
+    const result = validateConfig({ ai: { providerPriority: ['openai', 'bogus'] } });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(expect.objectContaining({ path: 'ai.providerPriority' }));
+  });
+
+  it('rejects ai.providerPriority when not an array', () => {
+    const result = validateConfig({ ai: { providerPriority: 'openai' } });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(expect.objectContaining({ path: 'ai.providerPriority' }));
+  });
+
+  // Meta-values ('auto'/'fallback'/'none') are meaningless as one entry
+  // among several to try in priority order — GWT_AI_PRIORITY (config-env.ts)
+  // already rejects them; file config must agree, or the same semantic
+  // field would validate differently depending on which tier set it.
+  it.each(['auto', 'fallback', 'none'])(
+    'rejects "%s" as a meta-value inside ai.providerPriority',
+    (metaValue) => {
+      const result = validateConfig({ ai: { providerPriority: ['claude', metaValue] } });
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({ path: 'ai.providerPriority' })
+      );
+    }
+  );
+
+  // ai.provider / ai.fallback themselves are unaffected by the
+  // providerPriority restriction — 'auto'/'none'/'fallback' remain valid
+  // there (they mean something as a single top-level selection).
+  it.each(['auto', 'fallback', 'none'])(
+    'still accepts "%s" as ai.provider (meta-value restriction is providerPriority-only)',
+    (metaValue) => {
+      expect(validateConfig({ ai: { provider: metaValue } }).valid).toBe(true);
+    }
+  );
+
+  it.each(['auto', 'fallback', 'none'])(
+    'still accepts "%s" as ai.fallback (meta-value restriction is providerPriority-only)',
+    (metaValue) => {
+      expect(validateConfig({ ai: { provider: 'claude', fallback: metaValue } }).valid).toBe(true);
+    }
+  );
+
+  it('accepts a positive ai.timeout', () => {
+    const result = validateConfig({ ai: { timeout: 15000 } });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('rejects a non-positive ai.timeout', () => {
+    expect(validateConfig({ ai: { timeout: 0 } }).valid).toBe(false);
+    expect(validateConfig({ ai: { timeout: -5 } }).valid).toBe(false);
+    expect(validateConfig({ ai: { timeout: 'soon' as unknown as number } }).valid).toBe(false);
+  });
+});
+
 describe('formatValidationErrors', () => {
   it('should return empty string for no errors', () => {
     expect(formatValidationErrors([])).toBe('');

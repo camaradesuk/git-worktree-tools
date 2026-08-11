@@ -52,6 +52,12 @@ export interface Options {
   quiet?: boolean;
   /** Disable colored output (--no-color flag) */
   noColor?: boolean;
+
+  // AI config overrides (highest-priority tier: beats GWT_AI_* env vars)
+  /** Override ai.provider for this run (--ai-provider flag) */
+  aiProvider?: string;
+  /** Override ai.timeout (ms) for this run (--ai-timeout flag) */
+  aiTimeout?: number;
 }
 
 /**

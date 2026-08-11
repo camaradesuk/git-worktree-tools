@@ -17,6 +17,7 @@ import {
   formatValidationErrors,
   type ValidationResult,
 } from './config-validation.js';
+import { readEnvOverrides, applyEnvOverrides } from './config-env.js';
 import {
   loadGlobalConfig,
   findRepoConfigFile,
@@ -404,6 +405,8 @@ export interface LoadConfigOptions {
   validate?: boolean;
   /** Whether to warn on validation errors (default: true) */
   warnOnErrors?: boolean;
+  /** Environment to read GWT_AI_* overrides from. Defaults to process.env; override in tests. */
+  env?: NodeJS.ProcessEnv;
 }
 
 /**
@@ -539,6 +542,13 @@ export function loadConfigWithValidation(
   for (const source of sources) {
     merged = mergeConfigs(merged, source.config);
   }
+
+  // Apply environment-variable overrides — beats every file tier, is beaten
+  // by CLI flags (applied one tier higher at the call site). Throws
+  // ConfigurationError (→ INVALID_CONFIG) for an invalid value; never falls
+  // back silently.
+  const envOverrides = readEnvOverrides(options.env ?? process.env);
+  merged = applyEnvOverrides(merged, envOverrides);
 
   // Determine primary config path (highest priority loaded)
   const primarySource = sources.length > 0 ? sources[sources.length - 1] : null;
