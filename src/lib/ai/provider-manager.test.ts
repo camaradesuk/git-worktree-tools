@@ -125,44 +125,51 @@ describe('provider-manager', () => {
     });
 
     describe('initialize', () => {
-      it('initializes with auto provider detection', async () => {
-        const geminiApiProvider = mockProvider('gemini-api', true);
-        vi.mocked(GeminiAPIProvider).mockImplementation(
-          () => geminiApiProvider as unknown as InstanceType<typeof GeminiAPIProvider>
+      it('auto mode picks codex (config key "openai") first by default', async () => {
+        const codexProvider = mockProvider('codex', true);
+        vi.mocked(OpenAIProvider).mockImplementation(
+          () => codexProvider as unknown as InstanceType<typeof OpenAIProvider>
         );
 
         const manager = new AIProviderManager({ config: { provider: 'auto' } });
         await manager.initialize();
 
-        const providerName = await manager.getActiveProviderName();
-        expect(providerName).toBe('gemini-api');
+        expect(await manager.getActiveProviderName()).toBe('codex');
       });
 
-      it('skips unavailable providers during auto-detection', async () => {
-        const claudeProvider = mockProvider('claude', true);
-        const geminiProvider = mockProvider('gemini', true);
-        vi.mocked(ClaudeProvider).mockImplementation(
-          () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
+      it('auto mode falls through to ollama when codex, claude and gemini-api are unavailable', async () => {
+        const ollamaProvider = mockProvider('ollama', true);
+        vi.mocked(OllamaProvider).mockImplementation(
+          () => ollamaProvider as unknown as InstanceType<typeof OllamaProvider>
         );
-        vi.mocked(GeminiProvider).mockImplementation(
-          () => geminiProvider as unknown as InstanceType<typeof GeminiProvider>
-        );
-        // Make gemini-api unavailable so auto-detection skips to claude
         (
-          GeminiAPIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+          OpenAIProvider as unknown as { checkAvailability: () => Promise<boolean> }
         ).checkAvailability = vi.fn().mockResolvedValue(false);
         (
           ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
         ).checkAvailability = vi.fn().mockResolvedValue(false);
         (
-          GeminiProvider as unknown as { checkAvailability: () => Promise<boolean> }
-        ).checkAvailability = vi.fn().mockResolvedValue(true);
+          GeminiAPIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
 
         const manager = new AIProviderManager({ config: { provider: 'auto' } });
         await manager.initialize();
 
-        const providerName = await manager.getActiveProviderName();
-        expect(providerName).toBe('gemini');
+        expect(await manager.getActiveProviderName()).toBe('ollama');
+      });
+
+      it('respects a custom ai.providerPriority order', async () => {
+        const ollamaProvider = mockProvider('ollama', true);
+        vi.mocked(OllamaProvider).mockImplementation(
+          () => ollamaProvider as unknown as InstanceType<typeof OllamaProvider>
+        );
+
+        const manager = new AIProviderManager({
+          config: { provider: 'auto', providerPriority: ['ollama', 'claude'] },
+        });
+        await manager.initialize();
+
+        expect(await manager.getActiveProviderName()).toBe('ollama');
       });
 
       it('initializes specific provider when configured', async () => {
@@ -208,6 +215,218 @@ describe('provider-manager', () => {
         await manager.initialize();
 
         expect(ClaudeProvider).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('auto-mode fallthrough on failure', () => {
+      it('advances past a provider that is available but returns success:false', async () => {
+        const codexProvider = mockProvider('codex', true, {
+          success: false,
+          error: 'Codex CLI error: exit 1',
+          provider: 'codex',
+        });
+        const claudeProvider = mockProvider('claude', true, {
+          success: true,
+          content: 'feat/from-claude',
+          provider: 'claude',
+        });
+        vi.mocked(OpenAIProvider).mockImplementation(
+          () => codexProvider as unknown as InstanceType<typeof OpenAIProvider>
+        );
+        vi.mocked(ClaudeProvider).mockImplementation(
+          () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
+        );
+
+        const manager = new AIProviderManager({ config: { provider: 'auto' } });
+        const result = await manager.generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.content).toBe('feat/from-claude');
+        expect(codexProvider.generateBranchName).toHaveBeenCalled();
+        expect(claudeProvider.generateBranchName).toHaveBeenCalled();
+      });
+
+      it('walks the FULL chain, not just primary+1', async () => {
+        const codexProvider = mockProvider('codex', true, {
+          success: false,
+          error: 'e1',
+          provider: 'codex',
+        });
+        const claudeProvider = mockProvider('claude', true, {
+          success: false,
+          error: 'e2',
+          provider: 'claude',
+        });
+        const geminiApiProvider = mockProvider('gemini-api', true, {
+          success: true,
+          content: 'feat/from-gemini-api',
+          provider: 'gemini-api',
+        });
+        vi.mocked(OpenAIProvider).mockImplementation(
+          () => codexProvider as unknown as InstanceType<typeof OpenAIProvider>
+        );
+        vi.mocked(ClaudeProvider).mockImplementation(
+          () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
+        );
+        vi.mocked(GeminiAPIProvider).mockImplementation(
+          () => geminiApiProvider as unknown as InstanceType<typeof GeminiAPIProvider>
+        );
+
+        const manager = new AIProviderManager({ config: { provider: 'auto' } });
+        const result = await manager.generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        expect(result.content).toBe('feat/from-gemini-api');
+      });
+
+      it('reports the LAST failure when every candidate fails', async () => {
+        const codexProvider = mockProvider('codex', true, {
+          success: false,
+          error: 'codex broke',
+          provider: 'codex',
+        });
+        const claudeProvider = mockProvider('claude', true, {
+          success: false,
+          error: 'claude broke',
+          provider: 'claude',
+        });
+        vi.mocked(OpenAIProvider).mockImplementation(
+          () => codexProvider as unknown as InstanceType<typeof OpenAIProvider>
+        );
+        vi.mocked(ClaudeProvider).mockImplementation(
+          () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
+        );
+        (
+          GeminiAPIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          OllamaProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+
+        const manager = new AIProviderManager({ config: { provider: 'auto' } });
+        const result = await manager.generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('claude broke');
+        expect(result.provider).toBe('claude');
+      });
+
+      it('preserves explicit-fallback behaviour for non-auto provider + fallback config', async () => {
+        const claudeProvider = mockProvider('claude', true, {
+          success: false,
+          error: 'API error',
+          provider: 'claude',
+        });
+        const geminiProvider = mockProvider('gemini', true, {
+          success: true,
+          content: 'fallback-branch',
+          provider: 'gemini',
+        });
+        vi.mocked(ClaudeProvider).mockImplementation(
+          () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
+        );
+        vi.mocked(GeminiProvider).mockImplementation(
+          () => geminiProvider as unknown as InstanceType<typeof GeminiProvider>
+        );
+
+        const manager = new AIProviderManager({
+          config: { provider: 'claude', fallback: 'gemini' },
+        });
+        const result = await manager.generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.content).toBe('fallback-branch');
+      });
+    });
+
+    describe('table-driven auto selection', () => {
+      const CASES: Array<{
+        name: string;
+        available: Record<'openai' | 'claude' | 'gemini-api' | 'ollama', boolean>;
+        expectedWinner: string | null;
+      }> = [
+        {
+          name: 'all available -> codex wins',
+          available: { openai: true, claude: true, 'gemini-api': true, ollama: true },
+          expectedWinner: 'codex',
+        },
+        {
+          name: 'codex down -> claude wins',
+          available: { openai: false, claude: true, 'gemini-api': true, ollama: true },
+          expectedWinner: 'claude',
+        },
+        {
+          name: 'codex+claude down -> gemini-api wins',
+          available: { openai: false, claude: false, 'gemini-api': true, ollama: true },
+          expectedWinner: 'gemini-api',
+        },
+        {
+          name: 'only ollama available -> ollama wins',
+          available: { openai: false, claude: false, 'gemini-api': false, ollama: true },
+          expectedWinner: 'ollama',
+        },
+        {
+          name: 'nothing available -> no winner',
+          available: { openai: false, claude: false, 'gemini-api': false, ollama: false },
+          expectedWinner: null,
+        },
+      ];
+
+      it.each(CASES)('$name', async ({ available, expectedWinner }) => {
+        (
+          OpenAIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(available.openai);
+        (
+          ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(available.claude);
+        (
+          GeminiAPIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(available['gemini-api']);
+        (
+          OllamaProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(available.ollama);
+
+        if (available.openai) {
+          vi.mocked(OpenAIProvider).mockImplementation(
+            () => mockProvider('codex', true) as unknown as InstanceType<typeof OpenAIProvider>
+          );
+        }
+        if (available.claude) {
+          vi.mocked(ClaudeProvider).mockImplementation(
+            () => mockProvider('claude', true) as unknown as InstanceType<typeof ClaudeProvider>
+          );
+        }
+        if (available['gemini-api']) {
+          vi.mocked(GeminiAPIProvider).mockImplementation(
+            () =>
+              mockProvider('gemini-api', true) as unknown as InstanceType<typeof GeminiAPIProvider>
+          );
+        }
+        if (available.ollama) {
+          vi.mocked(OllamaProvider).mockImplementation(
+            () => mockProvider('ollama', true) as unknown as InstanceType<typeof OllamaProvider>
+          );
+        }
+
+        const manager = new AIProviderManager({ config: { provider: 'auto' } });
+        await manager.initialize();
+        const winner = expectedWinner === null ? 'fallback' : await manager.getActiveProviderName();
+        expect(winner).toBe(expectedWinner ?? 'fallback');
       });
     });
 

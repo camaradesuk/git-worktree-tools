@@ -5,7 +5,8 @@
  */
 
 import type { AIProvider, AIConfig, AIProviderName, AIGenerationResult } from './types.js';
-import { DEFAULT_AI_CONFIG } from './types.js';
+import { DEFAULT_AI_CONFIG, DEFAULT_AI_PROVIDER_PRIORITY } from './types.js';
+import { resolveProviderModel, resolveProviderTimeout } from './config-resolvers.js';
 import { FallbackProvider } from './fallback-provider.js';
 import {
   ClaudeProvider,
@@ -47,9 +48,37 @@ export class AIProviderManager {
   private initialized = false;
   /** Cache of availability check results to avoid re-checking */
   private availabilityCache: Map<string, boolean> = new Map();
+  /**
+   * Every AVAILABLE provider in `auto` priority order. In explicit-provider
+   * mode this holds just the resolved primary (or is empty).
+   */
+  private autoChain: AIProvider[] = [];
 
   constructor(options: ProviderManagerOptions = {}) {
     this.config = { ...DEFAULT_AI_CONFIG, ...options.config };
+  }
+
+  /**
+   * Factories in the order `auto` should try them: config override, else the
+   * subscription-first default (`DEFAULT_AI_PROVIDER_PRIORITY`).
+   */
+  private orderedFactoriesForAuto(): LazyProviderFactory[] {
+    const priority = this.config.providerPriority ?? DEFAULT_AI_PROVIDER_PRIORITY;
+    const byName = new Map(this.getLazyProviderFactories().map((f) => [f.name, f]));
+    return priority
+      .map((name) => byName.get(name))
+      .filter((f): f is LazyProviderFactory => Boolean(f));
+  }
+
+  /** Every AVAILABLE provider in priority order. Lazy: nothing unavailable is constructed. */
+  private async buildAutoChain(): Promise<AIProvider[]> {
+    const chain: AIProvider[] = [];
+    for (const factory of this.orderedFactoriesForAuto()) {
+      if (await this.isProviderAvailable(factory)) {
+        chain.push(factory.create());
+      }
+    }
+    return chain;
   }
 
   /**
@@ -58,7 +87,13 @@ export class AIProviderManager {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    this.primaryProvider = await this.resolveProvider(this.config.provider ?? 'auto');
+    if ((this.config.provider ?? 'auto') === 'auto') {
+      this.autoChain = await this.buildAutoChain();
+      this.primaryProvider = this.autoChain[0] ?? null;
+    } else {
+      this.primaryProvider = await this.resolveProvider(this.config.provider ?? 'auto');
+      this.autoChain = this.primaryProvider ? [this.primaryProvider] : [];
+    }
 
     if (this.config.fallback && this.config.fallback !== 'none') {
       this.fallbackProvider = await this.resolveProvider(this.config.fallback);
@@ -110,27 +145,48 @@ export class AIProviderManager {
       {
         name: 'gemini-api',
         checkAvailability: () => GeminiAPIProvider.checkAvailability(),
-        create: () => new GeminiAPIProvider(this.config.gemini?.model),
+        create: () =>
+          new GeminiAPIProvider(
+            resolveProviderModel(this.config, 'gemini-api'),
+            resolveProviderTimeout(this.config, 'gemini-api')
+          ),
       },
       {
         name: 'claude',
         checkAvailability: () => ClaudeProvider.checkAvailability(),
-        create: () => new ClaudeProvider(this.config.claude?.model),
+        create: () =>
+          new ClaudeProvider(
+            resolveProviderModel(this.config, 'claude'),
+            resolveProviderTimeout(this.config, 'claude')
+          ),
       },
       {
         name: 'gemini',
         checkAvailability: () => GeminiProvider.checkAvailability(),
-        create: () => new GeminiProvider(this.config.gemini?.model),
+        create: () =>
+          new GeminiProvider(
+            resolveProviderModel(this.config, 'gemini'),
+            resolveProviderTimeout(this.config, 'gemini')
+          ),
       },
       {
         name: 'ollama',
         checkAvailability: () => OllamaProvider.checkAvailability(this.config.ollama?.host),
-        create: () => new OllamaProvider(this.config.ollama?.model, this.config.ollama?.host),
+        create: () =>
+          new OllamaProvider(
+            resolveProviderModel(this.config, 'ollama') ?? this.config.ollama?.model,
+            this.config.ollama?.host,
+            resolveProviderTimeout(this.config, 'ollama', 120_000)
+          ),
       },
       {
         name: 'openai',
         checkAvailability: () => OpenAIProvider.checkAvailability(),
-        create: () => new OpenAIProvider(),
+        create: () =>
+          new OpenAIProvider(
+            resolveProviderModel(this.config, 'openai'),
+            resolveProviderTimeout(this.config, 'openai')
+          ),
       },
     ];
   }
@@ -227,32 +283,43 @@ export class AIProviderManager {
   ): Promise<AIGenerationResult> {
     await this.initialize();
 
-    // Try primary provider
-    if (this.primaryProvider) {
-      const result = await operation(this.primaryProvider);
-      if (result.success) {
-        return result;
-      }
-
-      // Try fallback if available
-      if (this.fallbackProvider) {
-        const fallbackResult = await operation(this.fallbackProvider);
-        if (fallbackResult.success) {
-          return fallbackResult;
-        }
-      }
-
-      return result; // Return primary error
+    // Walk every available candidate in priority order. In `auto` this is the
+    // whole chain; in explicit-provider mode it is the single configured
+    // primary. A `success:false` result therefore always advances to the next
+    // real candidate instead of being mistaken for "no more options" — which
+    // is what let an invalid GEMINI_API_KEY win selection and then fail
+    // silently.
+    let lastResult: AIGenerationResult | null = null;
+    for (const provider of this.autoChain) {
+      const result = await operation(provider);
+      if (result.success) return result;
+      lastResult = result;
     }
 
-    // Try fallback provider
-    if (this.fallbackProvider) {
-      return operation(this.fallbackProvider);
+    // Explicit ai.fallback is tried once after the chain, preserving
+    // pre-existing behaviour for non-auto configurations exactly.
+    if (this.fallbackProvider && !this.autoChain.includes(this.fallbackProvider)) {
+      const fallbackResult = await operation(this.fallbackProvider);
+      if (fallbackResult.success) return fallbackResult;
+      lastResult = fallbackResult;
     }
 
-    // Use basic fallback
-    const fallback = new FallbackProvider();
-    return operation(fallback);
+    if (lastResult) return lastResult;
+
+    return operation(new FallbackProvider());
+  }
+
+  /**
+   * What `auto` would pick right now, plus the priority order behind it.
+   * Used by `wt ai doctor` so its explanation cannot drift from the real
+   * selection logic.
+   */
+  async getAutoSelectionPreview(): Promise<{ priority: string[]; selected: string | null }> {
+    await this.initialize();
+    return {
+      priority: this.orderedFactoriesForAuto().map((f) => f.name),
+      selected: this.autoChain[0]?.name ?? null,
+    };
   }
 
   /**
