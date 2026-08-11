@@ -71,6 +71,7 @@ describe('cli/wtconfig', () => {
     branchPrefix: 'feat',
     worktreePattern: '{repo}.pr{number}',
     worktreeParent: '..',
+    worktreeParentAnchor: 'main-worktree' as const,
     sharedRepos: [] as string[],
     syncPatterns: [] as string[],
     preferredEditor: 'auto' as const,

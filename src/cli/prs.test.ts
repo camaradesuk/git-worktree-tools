@@ -176,6 +176,7 @@ describe('prs CLI command', () => {
       draftPr: false,
       worktreePattern: '{repo}.pr{number}',
       worktreeParent: '..',
+      worktreeParentAnchor: 'main-worktree' as const,
       branchPrefix: 'feat',
       sharedRepos: [] as string[],
       syncPatterns: [] as string[],
