@@ -467,6 +467,36 @@ describe('ai provider/key allow-list (drift regression)', () => {
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  it('accepts ai.providerPriority as an array of valid provider names', () => {
+    const result = validateConfig({ ai: { providerPriority: ['openai', 'claude', 'ollama'] } });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('rejects ai.providerPriority with an invalid provider name', () => {
+    const result = validateConfig({ ai: { providerPriority: ['openai', 'bogus'] } });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(expect.objectContaining({ path: 'ai.providerPriority' }));
+  });
+
+  it('rejects ai.providerPriority when not an array', () => {
+    const result = validateConfig({ ai: { providerPriority: 'openai' } });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContainEqual(expect.objectContaining({ path: 'ai.providerPriority' }));
+  });
+
+  it('accepts a positive ai.timeout', () => {
+    const result = validateConfig({ ai: { timeout: 15000 } });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('rejects a non-positive ai.timeout', () => {
+    expect(validateConfig({ ai: { timeout: 0 } }).valid).toBe(false);
+    expect(validateConfig({ ai: { timeout: -5 } }).valid).toBe(false);
+    expect(validateConfig({ ai: { timeout: 'soon' as unknown as number } }).valid).toBe(false);
+  });
 });
 
 describe('formatValidationErrors', () => {

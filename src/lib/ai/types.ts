@@ -202,6 +202,15 @@ export interface AIConfig {
   script?: {
     path: string;
   };
+
+  /**
+   * Ordered list of providers to try when `provider` is 'auto'.
+   * Overridable via GWT_AI_PRIORITY (comma-separated), highest first.
+   */
+  providerPriority?: AIProviderName[];
+
+  /** Per-generation-call timeout in ms. Overridable via GWT_AI_TIMEOUT and --ai-timeout. */
+  timeout?: number;
 }
 
 /**

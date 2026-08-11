@@ -261,6 +261,8 @@ function validateAIConfig(ai: unknown, errors: ValidationError[]): void {
     'openai',
     'ollama',
     'script',
+    'providerPriority',
+    'timeout',
   ];
 
   // Check for unknown keys
@@ -345,6 +347,27 @@ function validateAIConfig(ai: unknown, errors: ValidationError[]): void {
         });
       }
     }
+  }
+
+  // Validate providerPriority
+  if (obj.providerPriority !== undefined) {
+    const isValidList =
+      Array.isArray(obj.providerPriority) &&
+      obj.providerPriority.every((p) => typeof p === 'string' && VALID_AI_PROVIDERS.includes(p));
+    if (!isValidList) {
+      errors.push({
+        path: 'ai.providerPriority',
+        message: `ai.providerPriority must be an array of provider names: ${VALID_AI_PROVIDERS.join(', ')}`,
+      });
+    }
+  }
+
+  // Validate timeout
+  if (obj.timeout !== undefined && (typeof obj.timeout !== 'number' || obj.timeout <= 0)) {
+    errors.push({
+      path: 'ai.timeout',
+      message: 'ai.timeout must be a positive number (milliseconds)',
+    });
   }
 }
 
