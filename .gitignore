@@ -34,3 +34,6 @@ test-results/
 
 # Config migration backups
 .worktree-backups/
+
+# Subagent-driven-development scratch workspace
+.superpowers/
