@@ -542,4 +542,20 @@ describe('createPr - new branch PR content resolution', () => {
     expect(git.exec).not.toHaveBeenCalled();
     expect(github.createPr).not.toHaveBeenCalled();
   });
+
+  // A blank title is a *defined* value, so it suppresses generation and then
+  // reaches `gh pr create`, which rejects it — after the push, orphaning the
+  // branch exactly as an unreadable --body-file did before it was hoisted.
+  it.each([
+    ['title', { title: '   ' }],
+    ['body', { body: '  \n ' }],
+  ])('rejects a whitespace-only %s without ever pushing to git', async (_label, override) => {
+    const result = await createPr({ description, ...override });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_ARGUMENT');
+    expect(result.error?.message).toMatch(/must not be empty or whitespace-only/);
+    expect(git.push).not.toHaveBeenCalled();
+    expect(github.createPr).not.toHaveBeenCalled();
+  });
 });

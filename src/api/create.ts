@@ -284,6 +284,27 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     throw error;
   }
 
+  // A blank title is a defined value, so it suppresses generation and then
+  // reaches `gh pr create`, which rejects it — on the new-branch path only
+  // after the branch is pushed, orphaning it exactly like an unreadable
+  // bodyFile did. Reject it here, with the other override checks, before any
+  // git mutation. Mirrors wt/new.ts's boundary validation.
+  if (titleOverride !== undefined && titleOverride.trim() === '') {
+    return createErrorResult(
+      'newpr',
+      ErrorCode.INVALID_ARGUMENT,
+      'title must not be empty or whitespace-only.'
+    );
+  }
+  if (bodyOverride !== undefined && bodyOverride.trim() === '') {
+    const which = bodyOverrideRaw !== undefined ? 'body' : 'bodyFile';
+    return createErrorResult(
+      'newpr',
+      ErrorCode.INVALID_ARGUMENT,
+      `${which} must not be empty or whitespace-only.`
+    );
+  }
+
   const warnings: string[] = [];
 
   try {

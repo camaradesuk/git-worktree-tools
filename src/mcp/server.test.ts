@@ -48,6 +48,7 @@ import { isValidStateActionKey, type StateActionKey, ErrorCode } from '../lib/js
 // Import tools array for definition tests, and handleToolCall to exercise the
 // actual dispatch logic (safe because the SDK's Server is mocked above).
 import { tools, handleToolCall } from './server.js';
+import { isJsonMode, print } from '../lib/ui/index.js';
 
 /** Extract and parse the JSON text body a handleToolCall response carries. */
 function parseToolResult(response: {
@@ -56,6 +57,27 @@ function parseToolResult(response: {
 }): { success: boolean; data?: Record<string, unknown>; error?: { code: string } } {
   return JSON.parse(response.content[0].text);
 }
+
+// stdout on the MCP server process IS the JSON-RPC channel, so a stray
+// console.log corrupts the protocol. Routing PR creation through
+// resolvePRContent made printStatus reachable here for the first time (an
+// AI-backed generation emits a status line on success AND failure), so the
+// server enables JSON mode at startup. Importing ./server.js runs main().
+describe('MCP Server stdout protocol safety', () => {
+  it('enables JSON mode at startup so nothing can leak onto stdout', () => {
+    expect(isJsonMode()).toBe(true);
+  });
+
+  it('suppresses print() output, which would otherwise corrupt JSON-RPC', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      print('this must never reach stdout');
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
 
 describe('MCP Server', () => {
   beforeEach(() => {
@@ -519,6 +541,8 @@ describe('MCP Server', () => {
         title: 'Exact PR title',
         body: 'Exact PR body',
         bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
       });
       const result = parseToolResult(response);
       expect(result.success).toBe(true);
@@ -559,6 +583,8 @@ describe('MCP Server', () => {
         title: undefined,
         body: undefined,
         bodyFile: '/tmp/pr-body.md',
+        forceAi: undefined,
+        skipAi: undefined,
       });
       const result = parseToolResult(response);
       expect(result.success).toBe(true);

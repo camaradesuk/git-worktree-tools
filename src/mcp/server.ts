@@ -28,6 +28,7 @@ import { queryState } from '../api/state.js';
 import { listWorktrees } from '../api/list.js';
 import { cleanWorktrees } from '../api/clean.js';
 import { createPr, setupPrWorktree } from '../api/create.js';
+import { setJsonMode } from '../lib/ui/index.js';
 import {
   type StateActionKey,
   isValidStateActionKey,
@@ -650,6 +651,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Start server
 async function main() {
+  // stdout on this process IS the JSON-RPC channel. Anything else written
+  // there corrupts the protocol stream. `print()`/`printStatus()` fall back
+  // to console.log unless JSON mode is on, and routing PR creation through
+  // resolvePRContent made those reachable here for the first time: an
+  // AI-backed generation emits a status line on both success and failure.
+  // Enable JSON mode before connecting so no such line can ever be written.
+  setJsonMode(true);
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
