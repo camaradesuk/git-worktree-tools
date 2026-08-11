@@ -449,6 +449,34 @@ describe('createPr - new branch PR content resolution', () => {
     expect(result.data?.bodySource).toBe('flag');
   });
 
+  it('resolves title from the flag and body from AI independently when only title is supplied', async () => {
+    vi.mocked(generatePRContentAsync).mockResolvedValue({
+      title: description,
+      description: 'AI-generated body',
+      aiGenerated: true,
+      titleGenerated: false,
+      descriptionGenerated: true,
+      provider: 'gemini',
+      error: null,
+    });
+
+    const result = await createPr({
+      description,
+      title: 'Caller-supplied title',
+    });
+
+    expect(github.createPr).toHaveBeenCalledWith({
+      title: 'Caller-supplied title',
+      body: 'AI-generated body',
+      base: 'main',
+      head: branchName,
+      draft: false,
+    });
+    expect(result.data?.titleSource).toBe('flag');
+    expect(result.data?.bodySource).toBe('ai');
+    expect(result.data?.aiProvider).toBe('gemini');
+  });
+
   it('resolves body from the flag and title from AI independently when only body is supplied', async () => {
     vi.mocked(generatePRContentAsync).mockResolvedValue({
       title: 'AI-generated title',
