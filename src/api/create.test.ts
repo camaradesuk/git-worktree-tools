@@ -341,6 +341,35 @@ describe('createPr - existing branch PR content resolution', () => {
     expect(result.data?.bodySource).toBe('flag');
     expect(result.data?.aiProvider).toBe('claude');
   });
+
+  it('forwards forceAi so AI wins over a supplied title', async () => {
+    vi.mocked(generatePRContentAsync).mockResolvedValue({
+      title: 'AI-generated title',
+      description: '',
+      aiGenerated: true,
+      titleGenerated: true,
+      descriptionGenerated: false,
+      provider: 'claude',
+      error: null,
+    });
+
+    const result = await createPr({
+      description: 'Add feature',
+      title: 'Caller-supplied title',
+      forceAi: true,
+    });
+
+    expect(generatePRContentAsync).toHaveBeenCalled();
+    expect(github.createPr).toHaveBeenCalledWith({
+      title: 'AI-generated title',
+      body: defaultBody,
+      base: 'main',
+      head: currentBranch,
+      draft: false,
+    });
+    expect(result.data?.titleSource).toBe('ai');
+    expect(result.data?.bodySource).toBe('template');
+  });
 });
 
 describe('createPr - new branch PR content resolution', () => {
@@ -445,5 +474,24 @@ describe('createPr - new branch PR content resolution', () => {
     expect(result.data?.titleSource).toBe('ai');
     expect(result.data?.bodySource).toBe('flag');
     expect(result.data?.aiProvider).toBe('gemini');
+  });
+
+  it('forwards skipAi so AI is never invoked, even when content is missing', async () => {
+    const result = await createPr({
+      description,
+      skipAi: true,
+    });
+
+    expect(generatePRContentAsync).not.toHaveBeenCalled();
+    expect(github.createPr).toHaveBeenCalledWith({
+      title: description,
+      body: defaultBody,
+      base: 'main',
+      head: branchName,
+      draft: false,
+    });
+    expect(result.data?.titleSource).toBe('template');
+    expect(result.data?.bodySource).toBe('template');
+    expect(result.data?.aiError).toBe('AI skipped (--skip-ai)');
   });
 });

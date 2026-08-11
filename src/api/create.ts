@@ -56,6 +56,10 @@ export interface CreatePrOptions {
   body?: string;
   /** Path to a file holding the PR body. Mutually exclusive with `body`. */
   bodyFile?: string;
+  /** Run AI generation even when title/body are supplied (--force-ai) */
+  forceAi?: boolean;
+  /** Skip AI generation entirely (--skip-ai) */
+  skipAi?: boolean;
 }
 
 /**
@@ -257,6 +261,8 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     title: titleOverride,
     body: bodyOverride,
     bodyFile: bodyFileOverride,
+    forceAi,
+    skipAi,
   } = options;
 
   const warnings: string[] = [];
@@ -452,6 +458,8 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
             title: titleOverride,
             body: bodyOverride,
             bodyFile: bodyFileOverride,
+            forceAi,
+            skipAi,
           },
           defaultBody,
         });
@@ -609,6 +617,8 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
             title: titleOverride,
             body: bodyOverride,
             bodyFile: bodyFileOverride,
+            forceAi,
+            skipAi,
           },
           defaultBody,
         });

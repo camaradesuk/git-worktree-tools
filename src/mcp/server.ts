@@ -126,7 +126,7 @@ export const tools: Tool[] = [
     name: 'worktree_create_pr',
     description:
       'Create a new PR with a dedicated worktree. Handles git state intelligently based on the specified action. Use worktree_get_state first to understand available actions.\n\n' +
-      'By default the PR title/body come from AI generation (if configured) or a generic template. Supply `title`/`body`/`bodyFile` to provide exact PR content instead — supplied content always wins over AI generation and the template.\n\n' +
+      'By default the PR title/body come from AI generation (if configured) or a generic template. Supply `title`/`body`/`bodyFile` to provide exact PR content instead — supplied content always wins over AI generation and the template. Use `forceAi` to run AI generation even when title/body are supplied (AI then wins instead), or `skipAi` to disable AI generation for this call regardless of config.\n\n' +
       'Returns a CommandResult JSON with:\n' +
       '- data.prNumber: The created PR number\n' +
       '- data.prUrl: URL to the PR on GitHub\n' +
@@ -181,6 +181,16 @@ export const tools: Tool[] = [
           type: 'string',
           description:
             'Path to a file (on the machine running this MCP server) holding the PR body. Mutually exclusive with body.',
+        },
+        forceAi: {
+          type: 'boolean',
+          description:
+            'Run AI generation even when title/body are supplied — generated content then wins over the flags (default: false).',
+        },
+        skipAi: {
+          type: 'boolean',
+          description:
+            'Skip AI generation entirely for this call, regardless of config (default: false).',
         },
       },
       required: ['description'],
@@ -480,6 +490,8 @@ export async function handleToolCall(name: string, args: Record<string, unknown>
         const title = args?.title as string | undefined;
         const body = args?.body as string | undefined;
         const bodyFile = args?.bodyFile as string | undefined;
+        const forceAi = args?.forceAi as boolean | undefined;
+        const skipAi = args?.skipAi as boolean | undefined;
 
         // Validate action if provided
         let validatedAction: StateActionKey | undefined;
@@ -512,6 +524,8 @@ export async function handleToolCall(name: string, args: Record<string, unknown>
           title,
           body,
           bodyFile,
+          forceAi,
+          skipAi,
         });
 
         return {

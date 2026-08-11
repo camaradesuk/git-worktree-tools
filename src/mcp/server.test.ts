@@ -558,6 +558,47 @@ describe('MCP Server', () => {
       expect(result.success).toBe(true);
     });
 
+    it('calls createPr with forceAi and skipAi', async () => {
+      const mockResult = {
+        success: true,
+        command: 'newpr',
+        timestamp: '2026-01-02T00:00:00.000Z',
+        data: {
+          prNumber: 47,
+          prUrl: 'https://github.com/test/repo/pull/47',
+          branch: 'feat/ai-flags',
+          worktreePath: '/test/repo.pr47',
+          draft: false,
+          created: true,
+        },
+      };
+
+      vi.mocked(createPr).mockResolvedValue(mockResult);
+
+      const response = await handleToolCall('worktree_create_pr', {
+        description: 'Add AI-flag feature',
+        baseBranch: 'main',
+        draft: false,
+        forceAi: true,
+        skipAi: false,
+      });
+
+      expect(createPr).toHaveBeenCalledWith({
+        description: 'Add AI-flag feature',
+        action: undefined,
+        branchName: undefined,
+        baseBranch: 'main',
+        draft: false,
+        title: undefined,
+        body: undefined,
+        bodyFile: undefined,
+        forceAi: true,
+        skipAi: false,
+      });
+      const result = parseToolResult(response);
+      expect(result.success).toBe(true);
+    });
+
     it('requires a description', async () => {
       const response = await handleToolCall('worktree_create_pr', {});
 
@@ -715,7 +756,7 @@ describe('MCP Server', () => {
       expect(tool!.annotations!.openWorldHint).toBe(true);
     });
 
-    it('worktree_create_pr input schema exposes title/body/bodyFile properties', () => {
+    it('worktree_create_pr input schema exposes title/body/bodyFile/forceAi/skipAi properties', () => {
       const tool = tools.find((t) => t.name === 'worktree_create_pr');
       expect(tool).toBeDefined();
       const inputSchema = tool!.inputSchema as unknown as {
@@ -729,6 +770,10 @@ describe('MCP Server', () => {
       expect(inputSchema.properties.body.type).toBe('string');
       expect(inputSchema.properties.bodyFile).toBeDefined();
       expect(inputSchema.properties.bodyFile.type).toBe('string');
+      expect(inputSchema.properties.forceAi).toBeDefined();
+      expect(inputSchema.properties.forceAi.type).toBe('boolean');
+      expect(inputSchema.properties.skipAi).toBeDefined();
+      expect(inputSchema.properties.skipAi.type).toBe('boolean');
       // Only description stays required; content overrides remain optional.
       expect(inputSchema.required).toEqual(['description']);
     });
