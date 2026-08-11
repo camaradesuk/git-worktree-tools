@@ -5,7 +5,12 @@
  */
 
 import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import type { AIGenerationResult } from './types.js';
+import { DEFAULT_AI_TIMEOUT_MS } from './types.js';
 import { BaseAIProvider, createSuccessResult, createErrorResult } from './base-provider.js';
 
 /**
@@ -204,25 +209,26 @@ export class OllamaProvider extends BaseAIProvider {
 }
 
 /**
- * OpenAI Codex CLI provider
+ * OpenAI Codex CLI provider.
  *
- * Uses the Codex CLI for generation.
- * CLI syntax: codex exec "prompt" (non-interactive mode)
+ * Uses `codex exec` non-interactively and reads the answer from a temp file
+ * via --output-last-message: codex's stdout carries the agent's reasoning
+ * preamble and token accounting, which is not the answer.
  *
  * Note: This provider ONLY uses the Codex CLI tool. No API key fallback.
  * Users must have Codex CLI installed and authenticated.
  */
 export class OpenAIProvider extends BaseAIProvider {
   readonly name = 'codex';
+  private model?: string;
+  private timeoutMs: number;
 
-  constructor() {
+  constructor(model?: string, timeoutMs: number = DEFAULT_AI_TIMEOUT_MS) {
     super();
+    this.model = model;
+    this.timeoutMs = timeoutMs;
   }
 
-  /**
-   * Static availability check for lazy initialization
-   * Only available if Codex CLI is installed
-   */
   static checkAvailability(): Promise<boolean> {
     return Promise.resolve(commandExists('codex'));
   }
@@ -232,13 +238,66 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {
+    const outputFile = path.join(
+      os.tmpdir(),
+      `gwt-codex-${process.pid}-${crypto.randomBytes(6).toString('hex')}.txt`
+    );
+
     try {
-      // Codex CLI: codex exec "prompt" for non-interactive execution
-      const output = execCommand('codex', ['exec', prompt]);
-      return createSuccessResult(output.trim(), this.name);
+      const args = [
+        'exec',
+        '--skip-git-repo-check',
+        '-s',
+        'read-only',
+        '--color',
+        'never',
+        '--output-last-message',
+        outputFile,
+      ];
+      if (this.model) {
+        args.push('-m', this.model);
+      }
+      args.push(prompt);
+
+      const result = spawnSync('codex', args, {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 1024 * 1024 * 10,
+        timeout: this.timeoutMs,
+      });
+
+      if (result.error) {
+        throw result.error;
+      }
+      if (result.signal) {
+        throw new Error(
+          `codex exec was killed by signal ${result.signal} (likely timed out after ${this.timeoutMs}ms)`
+        );
+      }
+      if (result.status !== 0) {
+        throw new Error(result.stderr || `codex exec failed with exit code ${result.status}`);
+      }
+      if (!fs.existsSync(outputFile)) {
+        throw new Error('codex exec produced no output file');
+      }
+
+      const output = fs.readFileSync(outputFile, 'utf-8').trim();
+      if (!output) {
+        throw new Error('codex exec produced an empty response');
+      }
+
+      return createSuccessResult(output, this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return createErrorResult(`Codex CLI error: ${message}`, this.name);
+    } finally {
+      try {
+        if (fs.existsSync(outputFile)) {
+          fs.rmSync(outputFile, { force: true });
+        }
+      } catch {
+        // Best effort: a leftover temp file must never mask the real error.
+      }
     }
   }
 }
