@@ -1,4 +1,8 @@
 import { execSync, ExecSyncOptions } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as crypto from 'crypto';
 
 /**
  * Mock mode for testing - enabled via NEWPR_MOCK_GITHUB environment variable
@@ -157,6 +161,15 @@ export function getMockExistingPr(branch: string): PrInfo | undefined {
  * Shell-escape a string for use in a command
  */
 function shellEscape(str: string): string {
+  // An empty string matches no metacharacter, so without this guard it would
+  // be returned bare and vanish when args are joined into the command line --
+  // `gh pr create --body  --head "x"` makes gh consume `--head` as the body.
+  // Callers outside the CLI (src/api, src/mcp) have no empty-value guard of
+  // their own, so this is closed here at the source.
+  if (str === '') {
+    return '""';
+  }
+
   // Quote any string containing shell metacharacters or special chars
   // This includes: spaces, quotes, backslashes, slashes, commas, and other special chars
   if (/[\s"'\\/:,;|&$!`(){}[\]*?<>~#]/.test(str)) {
@@ -318,8 +331,26 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
 
   args.push('--title', options.title);
 
-  if (options.body) {
-    args.push('--body', options.body);
+  // The body goes through a temp file rather than the command line.
+  //
+  // `exec` joins arguments into a single string for execSync, so a body
+  // embedded here has to survive shell quoting AND fit the platform's
+  // command-line limit. PR bodies are the largest argument by far and are
+  // multi-line markdown full of backticks, quotes and `$` — and `--body-file`
+  // is the documented way to supply big ones. On Windows that combination is
+  // the worst case: cmd.exe caps the command line near 8191 characters, does
+  // not honour \" escaping, and expands %VAR%. Handing gh a file removes the
+  // body from the command line entirely, so size and quoting stop mattering.
+  let bodyFile: string | undefined;
+  if (options.body !== undefined) {
+    bodyFile = path.join(
+      os.tmpdir(),
+      `gwt-pr-body-${process.pid}-${crypto.randomBytes(6).toString('hex')}.md`
+    );
+    // Owner-only: under a typical 022 umask writeFileSync would create this
+    // 0644, letting any local user read the PR body for as long as gh runs.
+    fs.writeFileSync(bodyFile, options.body, { encoding: 'utf8', mode: 0o600 });
+    args.push('--body-file', bodyFile);
   }
 
   if (options.base) {
@@ -339,7 +370,18 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
   }
 
   // gh pr create doesn't support --json, it returns the PR URL on success
-  const result = exec(args, { cwd });
+  let result: string;
+  try {
+    result = exec(args, { cwd });
+  } finally {
+    if (bodyFile) {
+      try {
+        fs.unlinkSync(bodyFile);
+      } catch {
+        // Best effort: a leftover temp file must never mask the real error.
+      }
+    }
+  }
 
   // Extract PR number from URL in output
   const urlMatch = result.match(/https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);

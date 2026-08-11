@@ -35,6 +35,18 @@ export interface Options {
   /** Disable lifecycle hooks (for security-conscious environments) */
   noHooks: boolean;
 
+  // Caller-supplied PR content
+  /** Exact PR title (--title) */
+  title?: string;
+  /** Exact PR body (--body) */
+  body?: string;
+  /** Path to a file containing the PR body (--body-file) */
+  bodyFile?: string;
+  /** Run AI generation even when title/body flags are supplied (--force-ai) */
+  forceAi?: boolean;
+  /** Skip AI generation entirely (--skip-ai) */
+  skipAi?: boolean;
+
   // Plan generation options
   /** Generate AI plan document (--plan flag) */
   generatePlan?: boolean;
@@ -52,6 +64,12 @@ export interface Options {
   quiet?: boolean;
   /** Disable colored output (--no-color flag) */
   noColor?: boolean;
+
+  // AI config overrides (highest-priority tier: beats GWT_AI_* env vars)
+  /** Override ai.provider for this run (--ai-provider flag) */
+  aiProvider?: string;
+  /** Override ai.timeout (ms) for this run (--ai-timeout flag) */
+  aiTimeout?: number;
 }
 
 /**

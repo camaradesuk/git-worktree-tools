@@ -7,6 +7,8 @@ This guide documents all features that enable AI agents (Claude Code, Gemini CLI
 - [Quick Start for AI Agents](#quick-start-for-ai-agents)
 - [Non-Interactive Mode](#non-interactive-mode)
 - [JSON Output Mode](#json-output-mode)
+- [Supplying PR content directly](#supplying-pr-content-directly)
+- [Config Overrides for Agent Callers](#config-overrides-for-agent-callers)
 - [State Query Command (wtstate)](#state-query-command-wtstate)
 - [Action Selection (--action flag)](#action-selection---action-flag)
 - [Structured Error Codes](#structured-error-codes)
@@ -237,7 +239,228 @@ interface CommandResult<T> {
 }
 ```
 
+### Supplying PR content directly
+
+An agent driving `wt` usually has far better context for the PR title and body than the
+tool can reconstruct — it holds the conversation that produced the work. Pass that content
+in rather than relying on generation:
+
+```bash
+wt new "add dark mode" \
+  --title "feat: add dark mode toggle to settings" \
+  --body-file /tmp/pr-body.md \
+  --non-interactive --action=empty_commit --json
+```
+
+**These flags are `wt new` only.** The deprecated standalone `newpr` binary does not accept
+`--title`/`--body`/`--body-file`/`--force-ai`/`--skip-ai` — its argument parser rejects them
+with `Unknown option`. Use `wt new` for anything in this section.
+
+`--body-file` is strongly preferred over `--body` for anything multi-line: PR bodies contain
+backticks, quotes, and `$`, all of which are hazardous through shell quoting. `--body-file`
+is read and validated before any git mutation happens — an unreadable path fails fast with
+`INVALID_ARGUMENT` rather than partway through worktree creation. An empty or whitespace-only
+`--title`, `--body`, or `--body-file` is likewise rejected with `INVALID_ARGUMENT` before any
+git mutation happens, rather than being silently dropped from the `gh pr create` invocation.
+
+**Precedence**, applied independently to the title and the body:
+
+| Flags        | Order                  |
+| ------------ | ---------------------- |
+| _(default)_  | `flag` → AI → template |
+| `--force-ai` | AI → `flag` → template |
+| `--skip-ai`  | `flag` → template      |
+
+Supplying both `--title` and a body flag (`--body` or `--body-file`) without `--force-ai`
+makes **no LLM call for the PR title or body**.
+
+Note the scope: that promise covers **PR content only**. Other AI-backed steps are governed by
+their own config keys and still run — most importantly `ai.branchName`, which generates the
+branch name _before_ PR content is resolved, and `ai.planDocument`. If you need a run to make
+**no AI calls whatsoever** — for cost, latency, or because the diff must not leave the machine
+— pass `--skip-ai`, which disables every path (branch name, commit message, plan document, and
+PR content). If both `--force-ai` and `--skip-ai` are given together, **`--skip-ai` wins**.
+
+`--pr` mode (`wt new --pr <number>`, attaching a worktree to an existing PR) **ignores**
+`--title`, `--body`, and `--body-file` entirely: no PR is created in that mode, so there is
+no content to supply.
+
+**Verifying your content was used.** The `wt new` JSON envelope reports the origin of each
+field:
+
+```jsonc
+{
+  "data": {
+    "prNumber": 42,
+    "titleSource": "flag", // "flag" | "ai" | "template"
+    "bodySource": "flag",
+    "aiProvider": null, // provider that generated content, else null
+    "aiError": null, // why generation was skipped or failed, else null
+  },
+}
+```
+
+Assert `titleSource === "flag"` and `bodySource === "flag"` to confirm your content landed.
+A `"template"` value means the field fell back to the built-in default: for the body, that is
+a literal boilerplate stub (`## Summary\n\n...`); for the title, it's your own `description`
+argument verbatim, or a branch-derived title in `--branch` mode — not a canned stub. Whenever
+AI did not contribute (`aiProvider` is `null`), check `aiError`. It is non-null when generation
+was **disabled** (e.g. `"AI skipped (--skip-ai)"`, `"AI disabled (ai.provider = 'none')"`, or
+`"AI disabled (ai.provider = 'none'); --force-ai had no effect"`) or when it ran and **failed**
+(e.g. `"AI generation produced no content (title via 'gemini-api': API key invalid)"`).
+
+`aiError` is `null` when generation was simply **not needed** — you supplied both `--title` and
+a body flag without `--force-ai`, so no PR-content generation was attempted. In that case both
+`aiProvider` and `aiError` are `null` and both source fields read `"flag"`, which is the success
+case, not a failure to diagnose. (These fields describe PR content only; a branch name generated
+under `ai.branchName` is not reflected in them.)
+
+**Errors.** Passing both `--body` and `--body-file` fails with `INVALID_ARGUMENT` and the
+message `--body and --body-file are mutually exclusive; pass only one.`. A `--body-file` that
+cannot be read fails with `INVALID_ARGUMENT` and a message of the form
+`Could not read --body-file '<path>': ENOENT: no such file or directory, open '<path>'`. Both
+are rejected before any git mutation — no branch is created, committed, or pushed.
+
+**Flag naming note.** There is no `--no-ai` flag. This CLI enables yargs `.strict()` mode,
+which conflicts with yargs' automatic `--no-*` boolean negation, so any `--no-*` flag not
+explicitly declared is rejected as an unknown argument. Use `--skip-ai` instead.
+
 ---
+
+## Config Overrides for Agent Callers
+
+For agents driving `wt` non-interactively, AI config (`ai.provider`,
+`ai.providerPriority`, `ai.timeout`, `ai.fallback`, and the `ai.*` boolean
+generation flags) resolves through this chain, highest priority first:
+
+```
+--ai-provider / --ai-timeout (wt new only)
+  > GWT_AI_* environment variables (every command)
+  > .worktreerc.local
+  > .worktreerc
+  > global config.json (~/.config/git-worktree-tools/config.json)
+  > built-in default
+```
+
+This is a longer chain than the plain file-tier merge order
+(`defaults ← global ← repo ← local`, see [Configuration](../README.md#configuration))
+because it adds two override tiers on top: environment variables (apply to
+every command) and CLI flags (apply only to a single `wt new` invocation).
+
+### `--ai-provider` / `--ai-timeout` (wt new)
+
+These are distinct from `--skip-ai`-style flags that control _whether_ AI
+generation runs at all (not present on this branch as of this writing) —
+`--ai-provider`/`--ai-timeout` only affect _which provider_ and _what
+timeout_ are used, for that one `wt new` invocation:
+
+```bash
+wt new "Add dark mode" --ai-provider ollama
+wt new "Add dark mode" --ai-timeout 20000
+```
+
+`--ai-provider` accepts the same values as `GWT_AI_PROVIDER` below. `--ai-timeout`
+is milliseconds. Both beat every other tier, including `GWT_AI_*` env vars,
+for that run only — they don't persist and aren't written to any config file.
+
+### `GWT_AI_*` Environment Variables
+
+Read and validated in exactly one place (`src/lib/config-env.ts`), applied to
+every `wt` command (not just `wt new`):
+
+| Variable          | Overrides                       | Valid values                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GWT_AI_PROVIDER` | `ai.provider`                   | `auto`, `claude`, `gemini`, `gemini-api`, `openai`, `ollama`, `script`, `fallback`, `none`                                                                                                                                                                                            |
+| `GWT_AI_PRIORITY` | `ai.providerPriority`           | Comma-separated **concrete** providers only: `claude`, `gemini`, `gemini-api`, `openai`, `ollama`, `script`. `auto`/`fallback`/`none` are rejected — meaningless as one entry among several to try in order. Same restriction applies to `ai.providerPriority` set via `.worktreerc`. |
+| `GWT_NO_AI`       | `ai.provider` (forces `"none"`) | `1`, `true`, `0`, `false` (case-insensitive). When truthy, wins over `GWT_AI_PROVIDER` if both are set — "disable" is a stronger signal than "prefer this provider".                                                                                                                  |
+| `GWT_AI_TIMEOUT`  | `ai.timeout` (milliseconds)     | A positive integer. Rejects non-integers, zero, and negative values.                                                                                                                                                                                                                  |
+
+**Error behavior:** an invalid value always throws — never a silent fallback
+to the default. Because config loading runs as global CLI middleware before
+every command, this means **any** `wt` command exits non-zero with a clear
+message naming the offending variable, e.g.:
+
+```
+Invalid GWT_AI_PROVIDER: "bogus" — must be one of: auto, claude, gemini, gemini-api, openai, ollama, script, fallback, none
+```
+
+With `--json`, the same failure is reported as structured JSON instead of
+plain text on stderr:
+
+```json
+{
+  "success": false,
+  "command": "wt",
+  "timestamp": "2026-08-11T04:00:00.000Z",
+  "error": {
+    "code": "INVALID_CONFIG",
+    "message": "Invalid GWT_AI_PROVIDER: \"bogus\" — must be one of: auto, claude, gemini, gemini-api, openai, ollama, script, fallback, none"
+  }
+}
+```
+
+### Per-Key Provenance (`wt config show --json`)
+
+`wt config show --json` reports, for a curated set of the most-asked-about
+settings, which tier resolved the value and where it came from:
+
+```bash
+wt config show --json
+```
+
+```json
+{
+  "success": true,
+  "command": "wtconfig",
+  "data": {
+    "config": { "...": "full resolved config" },
+    "provenance": {
+      "baseBranch": {
+        "value": "develop",
+        "tier": "repo",
+        "source": "/path/to/repo/.worktreerc"
+      },
+      "worktreeParent": {
+        "value": ".worktrees",
+        "tier": "global",
+        "source": "/home/user/.config/git-worktree-tools/config.json"
+      },
+      "ai.provider": {
+        "value": "claude",
+        "tier": "repo",
+        "source": "/path/to/repo/.worktreerc"
+      },
+      "ai.timeout": {
+        "value": 20000,
+        "tier": "env",
+        "source": "GWT_AI_TIMEOUT"
+      },
+      "ai.fallback": {
+        "tier": "default",
+        "source": null
+      }
+    }
+  }
+}
+```
+
+This example is real output (repo config sets `baseBranch`/`ai.provider`,
+the developer's global config sets `worktreeParent`, and
+`GWT_AI_TIMEOUT=20000` was set in the shell). Notes:
+
+- `tier` is one of `flag`, `env`, `local`, `repo`, `global`, `default`.
+- When a key has no resolved value (e.g. `ai.fallback` here, which was never
+  set), the `value` field is simply absent — this is plain
+  `JSON.stringify` behavior on an `undefined` property, not a bug.
+- **`flag` tier is theoretical for this specific command.** `wt config
+show` itself takes no `--ai-provider`/`--ai-timeout` flags, so its
+  provenance output can only ever show `env`/`local`/`repo`/`global`/`default`
+  in practice. `flag` is real and does win inside `wt new --ai-provider ...`
+  itself, but that resolution isn't currently surfaced back through `wt
+config show --json` — the two are separate invocations.
+- `source` is a file path for `local`/`repo`/`global`, an env var name (e.g.
+  `GWT_AI_PROVIDER`) for `env`, a flag name (e.g. `--ai-provider`) for
+  `flag`, and `null` for `default`.
 
 ## State Query Command (wtstate)
 

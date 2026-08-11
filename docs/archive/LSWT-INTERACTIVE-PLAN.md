@@ -654,17 +654,18 @@ export interface WorktreeDisplay {
 ```
 
 **Shortcut mappings**:
-| Key | Action | Context |
-|-----|--------|---------|
-| `e` | Open in editor | All |
-| `t` | Open terminal | All |
-| `p` | Open PR / Create PR | PR worktrees / branch worktrees |
-| `d` | Show details | All |
-| `c` | Copy path | All |
-| `r` | Remove worktree | Non-main |
-| `l` | Link configs | All |
-| `q` | Quit | Always |
-| `Esc` | Back/Quit | Always |
+
+| Key   | Action              | Context                         |
+| ----- | ------------------- | ------------------------------- |
+| `e`   | Open in editor      | All                             |
+| `t`   | Open terminal       | All                             |
+| `p`   | Open PR / Create PR | PR worktrees / branch worktrees |
+| `d`   | Show details        | All                             |
+| `c`   | Copy path           | All                             |
+| `r`   | Remove worktree     | Non-main                        |
+| `l`   | Link configs        | All                             |
+| `q`   | Quit                | Always                          |
+| `Esc` | Back/Quit           | Always                          |
 
 **Implementation**:
 

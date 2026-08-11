@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.ts'],
     // Prevent individual tests from hanging indefinitely
     testTimeout: 30000,

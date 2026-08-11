@@ -333,3 +333,29 @@ describe('json-output', () => {
     });
   });
 });
+
+describe('NewprResultData provenance', () => {
+  it('carries content provenance through a success envelope', () => {
+    // Typed against NewprResultData itself, not an untyped literal: a shape
+    // change to the interface (renamed/removed field) is a compile error
+    // here, not just a runtime assertion mismatch.
+    const data: NewprResultData = {
+      prNumber: 22,
+      prUrl: 'https://github.com/o/r/pull/22',
+      branch: 'feat/x',
+      worktreePath: '/tmp/wt',
+      draft: true,
+      titleSource: 'flag',
+      bodySource: 'ai',
+      aiProvider: 'codex',
+      aiError: null,
+    };
+    const result = createSuccessResult('newpr', data);
+
+    const parsed = JSON.parse(formatJsonResult(result));
+    expect(parsed.data.titleSource).toBe('flag');
+    expect(parsed.data.bodySource).toBe('ai');
+    expect(parsed.data.aiProvider).toBe('codex');
+    expect(parsed.data.aiError).toBeNull();
+  });
+});

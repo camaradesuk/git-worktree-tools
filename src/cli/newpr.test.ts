@@ -482,6 +482,55 @@ describe('cli/newpr', () => {
         expect.stringContaining('PR #789 already exists')
       );
     });
+
+    it('reports per-field content provenance in --json output (regression: catches swapped/dropped fields)', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'branch',
+          branchName: 'my-feature',
+          ...defaultOptions,
+          json: true,
+          title: 'Custom Title', // flag-supplied title, template-supplied body:
+          // titleSource and bodySource MUST differ, so a swap between them
+          // (or a dropped field) is observable in the JSON output below.
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 456 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr456');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await runCli(['--branch', 'my-feature', '--title', 'Custom Title', '--json']);
+
+      // The title flag won on title, and there was no body flag/AI so body
+      // fell back to the template. These MUST differ for the test to be
+      // able to catch a swap.
+      expect(github.createPr).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Custom Title' })
+      );
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": true')
+      );
+      expect(jsonOutput).toBeDefined();
+      const parsed = JSON.parse(jsonOutput![0] as string);
+      expect(parsed.data.titleSource).toBe('flag');
+      expect(parsed.data.bodySource).toBe('template');
+      // titleSource and bodySource MUST differ, so a swap between them (or a
+      // dropped field) is caught by the assertions above.
+      expect(parsed.data.titleSource).not.toBe(parsed.data.bodySource);
+      expect(parsed.data.aiProvider).toBeNull();
+      // AI was disabled by defaultConfig's ai.provider: 'none', not by an
+      // explicit --skip-ai/--force-ai on this call.
+      expect(parsed.data.aiError).toBe("AI disabled (ai.provider = 'none')");
+    });
   });
 
   describe('new feature mode', () => {
@@ -638,6 +687,78 @@ describe('cli/newpr', () => {
 
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('Aborted'));
       expect(mockProcessExit).toHaveBeenCalledWith(1);
+    });
+
+    it('reports per-field content provenance in --json output for new-PR mode (regression: catches swapped/dropped fields at the modeNewFeature call site)', async () => {
+      // This is the primary user-facing path (`wt new "<description>"
+      // --title ... --non-interactive --action=empty_commit --json`), so it
+      // gets its own coverage distinct from the --branch-mode test above,
+      // which only ever reaches the other printSummary call site.
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'Add new feature',
+          ...defaultOptions,
+          json: true,
+          title: 'Custom Title', // flag-supplied title, template-supplied body:
+          // titleSource and bodySource MUST differ, so a swap between them
+          // (or a dropped field) is observable in the JSON output below.
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1); // 1-based index
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr100');
+
+      await runCli(['Add new feature', '--title', 'Custom Title', '--json']);
+
+      // Title flag won on title; there was no body flag/AI so body fell
+      // back to the template. These MUST differ for the test to be able to
+      // catch a swap.
+      expect(github.createPr).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Custom Title' })
+      );
+
+      const jsonOutput = mockConsoleLog.mock.calls.find((call) =>
+        String(call[0]).includes('"success": true')
+      );
+      expect(jsonOutput).toBeDefined();
+      const parsed = JSON.parse(jsonOutput![0] as string);
+      expect(parsed.data.titleSource).toBe('flag');
+      expect(parsed.data.bodySource).toBe('template');
+      // titleSource and bodySource MUST differ, so a swap between them (or a
+      // dropped field) is caught by the assertions above.
+      expect(parsed.data.titleSource).not.toBe(parsed.data.bodySource);
+      expect(parsed.data.aiProvider).toBeNull();
+      // AI was disabled by defaultConfig's ai.provider: 'none', not by an
+      // explicit --skip-ai/--force-ai on this call.
+      expect(parsed.data.aiError).toBe("AI disabled (ai.provider = 'none')");
     });
 
     it('shows helpful error when checkout fails due to conflicting changes', async () => {
@@ -1815,6 +1936,57 @@ describe('cli/newpr', () => {
         return msg.includes('sub-message that should be suppressed');
       });
       expect(hasSubMessage).toBe(false);
+    });
+  });
+
+  describe('--skip-ai suppresses every AI path, not just PR content', () => {
+    // Regression: --skip-ai is documented as "skip AI generation entirely", but
+    // it was only forwarded to resolvePRContent. generateBranchNameAsync runs
+    // BEFORE that resolver and plan generation runs after, so both could still
+    // call a provider despite the flag.
+    it('disables ai.branchName, ai.commitMessage and ai.planDocument in the config handed to the workflow', async () => {
+      const aiOnConfig = {
+        ...defaultConfig,
+        ai: {
+          provider: 'claude' as const,
+          branchName: true,
+          commitMessage: true,
+          planDocument: true,
+          prTitle: true,
+          prDescription: true,
+        },
+      };
+
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'add dark mode',
+          ...defaultOptions,
+          skipAi: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(aiOnConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/add-dark-mode');
+
+      await runCli(['add dark mode', '--skip-ai']).catch(() => {
+        // The run may not complete under these mocks; what matters is the
+        // config that reached generateBranchNameAsync.
+      });
+
+      expect(generateBranchNameAsync).toHaveBeenCalled();
+      const configPassed = vi.mocked(generateBranchNameAsync).mock.calls[0][0];
+      expect(configPassed.ai.branchName).toBe(false);
+      expect(configPassed.ai.commitMessage).toBe(false);
+      expect(configPassed.ai.planDocument).toBe(false);
+      // provider is deliberately left intact so resolvePRContent can still
+      // report "AI skipped (--skip-ai)" rather than the misleading
+      // "ai.provider = 'none'".
+      expect(configPassed.ai.provider).toBe('claude');
     });
   });
 });

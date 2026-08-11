@@ -9,6 +9,8 @@ import { runNewprHandler } from '../newpr.js';
 import type { Options } from '../../lib/newpr/index.js';
 import { setJsonMode, printError } from '../../lib/ui/index.js';
 import { createErrorResult, formatJsonResult, ErrorCode } from '../../lib/json-output.js';
+import { readBodyOverride, PRContentError } from '../../lib/newpr/pr-content.js';
+import { AI_PROVIDER_NAMES } from '../../lib/ai/types.js';
 
 interface NewArgs {
   description?: string;
@@ -30,6 +32,13 @@ interface NewArgs {
   verbose?: number | boolean;
   quiet?: boolean;
   noColor?: boolean;
+  title?: string;
+  body?: string;
+  'body-file'?: string;
+  'force-ai'?: boolean;
+  'skip-ai'?: boolean;
+  'ai-provider'?: string;
+  'ai-timeout'?: number;
 }
 
 export const newCommand: CommandModule<object, NewArgs> = {
@@ -132,6 +141,44 @@ export const newCommand: CommandModule<object, NewArgs> = {
           'branch_from_detached',
         ],
       })
+      .option('title', {
+        type: 'string',
+        description: 'Exact PR title (skips AI title generation)',
+      })
+      .option('body', {
+        type: 'string',
+        description: 'Exact PR body (skips AI description generation)',
+      })
+      .option('body-file', {
+        type: 'string',
+        description: 'Read the PR body from a file (preferred for multi-line markdown)',
+      })
+      .option('force-ai', {
+        type: 'boolean',
+        description: 'Run AI generation even when --title/--body are supplied',
+        default: false,
+      })
+      .option('skip-ai', {
+        type: 'boolean',
+        description: 'Skip AI generation entirely for this invocation',
+        default: false,
+      })
+      .example(
+        '$0 new "Add dark mode" --title "feat: dark mode" --body-file /tmp/body.md',
+        'Supply exact PR content'
+      )
+      .option('ai-provider', {
+        type: 'string',
+        description: 'Override the AI provider for this run',
+        // Derived from the canonical list, never hand-copied: a transcribed
+        // enum here would silently reject a provider the rest of the config
+        // chain accepts — the exact drift this flag's own tier exists to avoid.
+        choices: AI_PROVIDER_NAMES,
+      })
+      .option('ai-timeout', {
+        type: 'number',
+        description: 'Override the AI generation timeout (milliseconds) for this run',
+      })
       .example('$0 new "Add dark mode"', 'Create a new PR')
       .example('$0 n "Fix bug #123"', 'Short alias')
       .example('$0 new --pr 42', 'Create worktree for existing PR #42')
@@ -159,6 +206,55 @@ export const newCommand: CommandModule<object, NewArgs> = {
         printError({ title: 'PR number must be a positive integer' });
       }
       process.exit(1);
+    }
+
+    // Read and validate --title/--body/--body-file before any git mutation.
+    // This is a fail-fast check so a simple typo doesn't leave the repo
+    // mid-mutation (branch pushed, no PR, stash unpopped). It also rejects
+    // empty/whitespace-only values: an empty --title or body silently corrupts
+    // the underlying `gh pr create` invocation, so an agent must learn its
+    // content did not land rather than have `gh` misparse the command.
+    //
+    // The bytes read here are then carried downstream in `options.body`, and
+    // `bodyFile` is dropped, so the file is read EXACTLY ONCE. Re-reading the
+    // path later would be unsafe: the workflow may commit that very file onto
+    // the feature branch, push, and check the original branch back out before
+    // resolvePRContent runs — at which point a newly added body file is gone
+    // (ENOENT after the branch was already pushed) and a modified tracked one
+    // silently reverts to the original branch's stale contents. The documented
+    // `--body-file ./pr-body.md` example is exactly that shape.
+    //
+    // Skipped entirely in --pr mode: that path routes to modeExistingPr, which
+    // never calls resolvePRContent and never reads a body, so the content flags
+    // are ignored there (as documented in docs/AI-TOOLING.md). Validating them
+    // anyway would reject `wt new --pr 42 --body-file missing.md` over a file
+    // the command would never have opened.
+    let resolvedBody: string | undefined;
+    try {
+      if (argv.pr === undefined) {
+        if (argv.title !== undefined && argv.title.trim() === '') {
+          throw new PRContentError('--title must not be empty or whitespace-only.');
+        }
+
+        resolvedBody = readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
+        if (resolvedBody !== undefined && resolvedBody.trim() === '') {
+          const flagName = argv.body !== undefined ? '--body' : '--body-file';
+          throw new PRContentError(`${flagName} must not be empty or whitespace-only.`);
+        }
+      }
+    } catch (error) {
+      if (error instanceof PRContentError) {
+        const useJson = !!argv.json;
+        if (useJson) {
+          console.log(
+            formatJsonResult(createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message))
+          );
+        } else {
+          printError({ title: error.message });
+        }
+        process.exit(1);
+      }
+      throw error;
     }
 
     // Determine mode from argv
@@ -195,12 +291,23 @@ export const newCommand: CommandModule<object, NewArgs> = {
       nonInteractive: !!argv['non-interactive'],
       action: argv.action as Options['action'],
       noHooks: !!argv['no-hooks'],
+      title: argv.title,
+      // Pass the ALREADY-READ bytes, not the path, so the file is never read
+      // a second time after the workflow has moved git state underneath it.
+      // In --pr mode nothing was read (validation is skipped) and the content
+      // flags are ignored anyway, so fall back to the raw argv there.
+      body: resolvedBody ?? argv.body,
+      bodyFile: resolvedBody !== undefined ? undefined : argv['body-file'],
+      forceAi: !!argv['force-ai'],
+      skipAi: !!argv['skip-ai'],
       confirmHooks: !!argv['confirm-hooks'],
       generatePlan: argv.plan,
       noPlan: argv['no-plan'],
       verbose: !!argv.verbose,
       quiet: !!argv.quiet,
       noColor: !!argv.noColor,
+      aiProvider: argv['ai-provider'],
+      aiTimeout: argv['ai-timeout'],
     };
 
     setJsonMode(options.json);

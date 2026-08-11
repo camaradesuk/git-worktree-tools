@@ -20,10 +20,15 @@ import {
   loadConfig,
   generateBranchNameAsync,
   generateWorktreePath,
-  generatePRContentAsync,
   type ResolvedConfig,
 } from '../lib/config.js';
+import type { AIConfig } from '../lib/ai/types.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
+import {
+  resolvePRContent,
+  PRContentError,
+  type ResolvedPRContent,
+} from '../lib/newpr/pr-content.js';
 import { ensureWorktreeParentDir } from '../lib/worktree-setup.js';
 import {
   parseArgs,
@@ -78,6 +83,46 @@ class NonInteractiveError extends Error {
     super(message);
     this.name = 'NonInteractiveError';
   }
+}
+
+/**
+ * Load config for a run, applying every invocation-level AI override.
+ *
+ * This is the single chokepoint all `newpr` mode handlers load config
+ * through, so every call site gets flag-override support uniformly, and a
+ * future AI-backed feature cannot silently escape the flags.
+ *
+ * Two overrides apply here, and they compose:
+ *
+ * - `--ai-provider` / `--ai-timeout` select and bound the provider. CLI
+ *   flags are the highest tier — they beat GWT_AI_* env vars, which
+ *   loadConfig() has already applied via loadConfigWithValidation().
+ * - `--skip-ai` disables the AI-backed subsystems. `ai.provider` is
+ *   deliberately left alone so `resolvePRContent` can still report the
+ *   precise reason (`AI skipped (--skip-ai)`) rather than the misleading
+ *   `ai.provider = 'none'`.
+ *
+ * `--skip-ai` and an explicit `--ai-provider` are not contradictory: the
+ * provider still resolves (and is still reported), it simply has no
+ * AI-backed step left to run.
+ */
+export function loadConfigForRun(repoRoot: string, options: Options): ResolvedConfig {
+  const config = loadConfig(repoRoot);
+
+  const hasProviderOverride = Boolean(options.aiProvider) || options.aiTimeout !== undefined;
+  if (!hasProviderOverride && !options.skipAi) {
+    return config;
+  }
+
+  return {
+    ...config,
+    ai: {
+      ...config.ai,
+      ...(options.aiProvider ? { provider: options.aiProvider as AIConfig['provider'] } : {}),
+      ...(options.aiTimeout !== undefined ? { timeout: options.aiTimeout } : {}),
+      ...(options.skipAi ? { branchName: false, commitMessage: false, planDocument: false } : {}),
+    },
+  };
 }
 
 /**
@@ -390,7 +435,15 @@ function printSummary(
   worktreePath: string,
   prUrl: string,
   options: Options,
-  extra?: { draft?: boolean; scenario?: string; actionTaken?: string }
+  extra?: {
+    draft?: boolean;
+    scenario?: string;
+    actionTaken?: string;
+    titleSource?: 'flag' | 'ai' | 'template';
+    bodySource?: 'flag' | 'ai' | 'template';
+    aiProvider?: string | null;
+    aiError?: string | null;
+  }
 ): void {
   if (options.json) {
     const data: NewprResultData = {
@@ -401,6 +454,10 @@ function printSummary(
       draft: extra?.draft ?? options.draft,
       scenario: extra?.scenario,
       actionTaken: extra?.actionTaken,
+      titleSource: extra?.titleSource,
+      bodySource: extra?.bodySource,
+      aiProvider: extra?.aiProvider ?? null,
+      aiError: extra?.aiError ?? null,
     };
     console.log(formatJsonResult(createSuccessResult('newpr', data)));
     return;
@@ -431,6 +488,17 @@ async function handlePlanGeneration(
     worktreePath: string;
   }
 ): Promise<PlanGeneratorResult | undefined> {
+  // --skip-ai suppresses plan generation outright. This has to be checked
+  // HERE rather than relying on the ai.planDocument override applied in
+  // loadConfigForRun, because shouldGeneratePlan tests `cliFlag` (--plan)
+  // before `configEnabled` — so `--skip-ai --plan` would otherwise sail past
+  // the override and still call a provider. --skip-ai wins over an explicit
+  // --plan, matching the documented rule that it also wins over --force-ai.
+  if (options.skipAi) {
+    logger.debug('Skipping plan generation: --skip-ai');
+    return undefined;
+  }
+
   const aiConfig = config.ai ?? {};
 
   // Check if AI provider is configured (simple check without initialization)
@@ -537,7 +605,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
 
   let mainWorktreeRoot = repoRoot;
   try {
@@ -675,7 +743,7 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
 
   let mainWorktreeRoot = repoRoot;
   try {
@@ -743,15 +811,6 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
-  // Generate AI-enhanced PR content if enabled
-  const prContent = await generatePRContentAsync(config, {
-    description: descriptionFromBranch,
-    branchName,
-    baseBranch: options.baseBranch,
-    changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
-    commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
-  });
-
   const defaultBody = `## Summary
 
 PR created from existing branch: \`${branchName}\`
@@ -767,9 +826,36 @@ PR created from existing branch: \`${branchName}\`
 ---
 🤖 PR created with \`newpr --branch\``;
 
+  let prContent: ResolvedPRContent;
+  try {
+    prContent = await resolvePRContent({
+      config,
+      context: {
+        description: descriptionFromBranch,
+        branchName,
+        baseBranch: options.baseBranch,
+        changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
+        commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
+      },
+      overrides: {
+        title: options.title,
+        body: options.body,
+        bodyFile: options.bodyFile,
+        forceAi: options.forceAi,
+        skipAi: options.skipAi,
+      },
+      defaultBody,
+    });
+  } catch (error) {
+    if (error instanceof PRContentError) {
+      exitWithError(error.message, ErrorCode.INVALID_ARGUMENT, options.json);
+    }
+    throw error;
+  }
+
   const pr = github.createPr({
     title: prContent.title,
-    body: prContent.description || defaultBody,
+    body: prContent.body,
     base: options.baseBranch,
     head: branchName,
     draft: options.draft,
@@ -844,7 +930,12 @@ PR created from existing branch: \`${branchName}\`
   );
 
   setAuditContext({ prNumber: pr.number, worktreePath, gitBranch: branchName });
-  printSummary(pr.number, branchName, worktreePath, pr.url, options);
+  printSummary(pr.number, branchName, worktreePath, pr.url, options, {
+    titleSource: prContent.titleSource,
+    bodySource: prContent.bodySource,
+    aiProvider: prContent.aiProvider,
+    aiError: prContent.aiError,
+  });
 }
 
 /**
@@ -853,7 +944,7 @@ PR created from existing branch: \`${branchName}\`
 async function modeNewFeature(description: string, options: Options): Promise<void> {
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
   const branchName = await generateBranchNameAsync(config, description, repoName);
 
   let mainWorktreeRoot = repoRoot;
@@ -1126,16 +1217,6 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
 
     printStatus('info', 'Creating pull request...');
 
-    // Generate AI-enhanced PR content if enabled
-    // Use origin/baseBranch to compare against remote, not potentially stale local branch
-    const prContent = await generatePRContentAsync(config, {
-      description,
-      branchName,
-      baseBranch: options.baseBranch,
-      changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
-      commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
-    });
-
     const defaultBody = `## Summary
 
 ${description}
@@ -1151,9 +1232,37 @@ ${description}
 ---
 🤖 PR created with \`newpr\``;
 
+    // Use origin/baseBranch to compare against remote, not potentially stale local branch
+    let prContent: ResolvedPRContent;
+    try {
+      prContent = await resolvePRContent({
+        config,
+        context: {
+          description,
+          branchName,
+          baseBranch: options.baseBranch,
+          changedFiles: git.getChangedFiles(`origin/${options.baseBranch}`, branchName),
+          commitMessages: git.getCommitMessages(`origin/${options.baseBranch}`, branchName),
+        },
+        overrides: {
+          title: options.title,
+          body: options.body,
+          bodyFile: options.bodyFile,
+          forceAi: options.forceAi,
+          skipAi: options.skipAi,
+        },
+        defaultBody,
+      });
+    } catch (error) {
+      if (error instanceof PRContentError) {
+        exitWithError(error.message, ErrorCode.INVALID_ARGUMENT, options.json);
+      }
+      throw error;
+    }
+
     const pr = github.createPr({
       title: prContent.title,
-      body: prContent.description || defaultBody,
+      body: prContent.body,
       base: options.baseBranch,
       head: branchName,
       draft: options.draft,
@@ -1239,6 +1348,10 @@ ${description}
     printSummary(pr.number, branchName, worktreePath, pr.url, options, {
       scenario,
       actionTaken: action.action,
+      titleSource: prContent.titleSource,
+      bodySource: prContent.bodySource,
+      aiProvider: prContent.aiProvider,
+      aiError: prContent.aiError,
     });
   } catch (error) {
     // Run cleanup hook
@@ -1266,6 +1379,7 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Output error and exit
  */
+
 function exitWithError(message: string, code: ErrorCode, useJson: boolean): never {
   if (useJson) {
     console.log(formatJsonResult(createErrorResult('newpr', code, message)));
@@ -1291,7 +1405,7 @@ export async function runNewprHandler(options: Options): Promise<void> {
   // Apply config.draftPr if user didn't explicitly set --draft or --ready
   try {
     const repoRoot = git.getRepoRoot();
-    const config = loadConfig(repoRoot);
+    const config = loadConfigForRun(repoRoot, options);
     if (!options.draftExplicitlySet && config.draftPr !== undefined) {
       options.draft = config.draftPr;
     }

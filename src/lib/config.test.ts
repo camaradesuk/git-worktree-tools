@@ -604,6 +604,66 @@ describe('config', () => {
     });
   });
 
+  describe('loadConfigWithValidation env overrides', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-env-integration-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('GWT_AI_PROVIDER overrides ai.provider even when .worktreerc sets it', () => {
+      fs.writeFileSync(
+        path.join(tempDir, '.worktreerc'),
+        JSON.stringify({ ai: { provider: 'claude' } })
+      );
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PROVIDER: 'ollama' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.provider).toBe('ollama');
+    });
+
+    it('throws naming the variable for an invalid GWT_AI_PROVIDER', () => {
+      expect(() =>
+        loadConfig(tempDir, { env: { GWT_AI_PROVIDER: 'bogus' } as NodeJS.ProcessEnv })
+      ).toThrow(/GWT_AI_PROVIDER/);
+    });
+
+    it('GWT_AI_PRIORITY parses into ai.providerPriority', () => {
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PRIORITY: 'openai,claude,ollama' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.providerPriority).toEqual(['openai', 'claude', 'ollama']);
+    });
+
+    it('GWT_NO_AI forces ai.provider to none, beating GWT_AI_PROVIDER', () => {
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PROVIDER: 'claude', GWT_NO_AI: '1' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.provider).toBe('none');
+    });
+
+    it('GWT_AI_TIMEOUT sets ai.timeout as a number', () => {
+      const config = loadConfig(tempDir, { env: { GWT_AI_TIMEOUT: '15000' } as NodeJS.ProcessEnv });
+      expect(config.ai.timeout).toBe(15000);
+    });
+
+    it('throws for a non-numeric GWT_AI_TIMEOUT', () => {
+      expect(() =>
+        loadConfig(tempDir, { env: { GWT_AI_TIMEOUT: 'soon' } as NodeJS.ProcessEnv })
+      ).toThrow(/GWT_AI_TIMEOUT/);
+    });
+
+    it('with no GWT_AI_* vars set, behaves exactly as before', () => {
+      const config = loadConfig(tempDir, { env: {} as NodeJS.ProcessEnv });
+      expect(config.ai.provider).toBe('none');
+      expect(config.ai.providerPriority).toBeUndefined();
+    });
+  });
+
   describe('generateBranchNameAsync', () => {
     afterEach(() => {
       vi.restoreAllMocks();
@@ -848,6 +908,108 @@ describe('config', () => {
       expect(result.title).toBe('AI Title');
       expect(result.description).toBe('AI Description');
       expect(result.aiGenerated).toBe(true);
+    });
+
+    it('reports both providers when a fallback supplies one of the two fields', async () => {
+      // executeWithFallback picks a provider per operation, so title and
+      // description can legitimately come from different ones. Reporting only
+      // the last-assigned would credit a provider that produced nothing here.
+      const mockService = {
+        generatePRTitle: vi
+          .fn()
+          .mockResolvedValue({ success: true, content: 'AI Title', provider: 'codex' }),
+        generatePRDescription: vi
+          .fn()
+          .mockResolvedValue({ success: true, content: 'AI Description', provider: 'claude' }),
+      };
+      vi.doMock('./ai/index.js', () => ({ createAIGenerationService: () => mockService }));
+      const { generatePRContentAsync: asyncFn } = await import('./config.js');
+
+      const config = {
+        ...getDefaultConfig(),
+        ai: {
+          ...getDefaultConfig().ai,
+          provider: 'claude' as const,
+          prTitle: true,
+          prDescription: true,
+        },
+      };
+
+      const result = await asyncFn(config, { description: 'Original', branchName: 'feat/test' });
+
+      expect(result.provider).toBe('codex, claude');
+      expect(result.error).toBeNull();
+    });
+
+    it('explains a template body when the description generator is disabled', async () => {
+      // Title generated, description generator switched off. There is no
+      // AIGenerationResult for the body, so the failure path cannot see it --
+      // without an explicit note the caller gets bodySource 'template' with
+      // aiError null and no way to diagnose it.
+      const mockService = {
+        generatePRTitle: vi
+          .fn()
+          .mockResolvedValue({ success: true, content: 'AI Title', provider: 'codex' }),
+        generatePRDescription: vi.fn(),
+      };
+      vi.doMock('./ai/index.js', () => ({ createAIGenerationService: () => mockService }));
+      const { generatePRContentAsync: asyncFn } = await import('./config.js');
+
+      const config = {
+        ...getDefaultConfig(),
+        ai: {
+          ...getDefaultConfig().ai,
+          provider: 'claude' as const,
+          prTitle: true,
+          prDescription: false,
+        },
+      };
+
+      const result = await asyncFn(config, { description: 'Original', branchName: 'feat/test' });
+
+      expect(result.titleGenerated).toBe(true);
+      expect(result.descriptionGenerated).toBe(false);
+      expect(mockService.generatePRDescription).not.toHaveBeenCalled();
+      expect(result.error).toContain('ai.prDescription disabled');
+    });
+
+    it('should report the provider name on successful AI generation', async () => {
+      const mockService = {
+        generatePRTitle: vi.fn().mockResolvedValue({
+          success: true,
+          content: 'AI Title',
+          provider: 'codex',
+        }),
+        generatePRDescription: vi.fn().mockResolvedValue({
+          success: true,
+          content: 'AI Description',
+          provider: 'codex',
+        }),
+      };
+
+      vi.doMock('./ai/index.js', () => ({
+        createAIGenerationService: () => mockService,
+      }));
+
+      const { generatePRContentAsync: asyncFn } = await import('./config.js');
+
+      const config = {
+        ...getDefaultConfig(),
+        ai: {
+          ...getDefaultConfig().ai,
+          provider: 'claude' as const,
+          prTitle: true,
+          prDescription: true,
+        },
+      };
+
+      const result = await asyncFn(config, {
+        description: 'Original',
+        branchName: 'feat/test',
+      });
+
+      expect(result.aiGenerated).toBe(true);
+      expect(result.provider).toBe('codex');
     });
 
     it('should return defaults when AI throws error', async () => {

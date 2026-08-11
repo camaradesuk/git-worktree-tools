@@ -109,13 +109,33 @@
       "properties": {
         "provider": {
           "type": "string",
-          "enum": ["auto", "claude", "gemini", "openai", "ollama", "script", "fallback", "none"],
+          "enum": [
+            "auto",
+            "claude",
+            "gemini",
+            "gemini-api",
+            "openai",
+            "ollama",
+            "script",
+            "fallback",
+            "none"
+          ],
           "default": "none",
           "description": "AI provider to use"
         },
         "fallback": {
           "type": "string",
-          "enum": ["auto", "claude", "gemini", "openai", "ollama", "script", "fallback", "none"],
+          "enum": [
+            "auto",
+            "claude",
+            "gemini",
+            "gemini-api",
+            "openai",
+            "ollama",
+            "script",
+            "fallback",
+            "none"
+          ],
           "description": "Fallback provider if primary fails"
         },
         "branchName": {
@@ -440,7 +460,7 @@
       "properties": {
         "warnNotGlobal": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "Show a warning if the package is not installed globally"
         },
         "logging": {
