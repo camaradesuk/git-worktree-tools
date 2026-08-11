@@ -430,9 +430,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 // Handle tool calls
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
+//
+// The dispatch logic is extracted into a standalone exported function so it
+// can be invoked directly in tests (`handleToolCall(...)`), rather than only
+// through the SDK's `setRequestHandler` callback, which the mocked `Server`
+// in tests never actually invokes.
+export async function handleToolCall(name: string, args: Record<string, unknown> | undefined) {
   try {
     switch (name) {
       case 'worktree_get_state': {
@@ -624,6 +627,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       isError: true,
     };
   }
+}
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  return handleToolCall(name, args);
 });
 
 // Start server
