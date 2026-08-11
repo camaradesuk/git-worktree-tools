@@ -371,6 +371,17 @@ describe('createPr - existing branch PR content resolution', () => {
     expect(result.data?.titleSource).toBe('ai');
     expect(result.data?.bodySource).toBe('template');
   });
+
+  // Mirrors the new-branch suite's skipAi case. Without it, dropping `skipAi`
+  // from this path's overrides object would pass every other test here.
+  it('forwards skipAi so AI is never invoked on the existing-branch path', async () => {
+    const result = await createPr({ description: 'Add feature', skipAi: true });
+
+    expect(generatePRContentAsync).not.toHaveBeenCalled();
+    expect(result.data?.titleSource).toBe('template');
+    expect(result.data?.bodySource).toBe('template');
+    expect(result.data?.aiError).toBe('AI skipped (--skip-ai)');
+  });
 });
 
 describe('createPr - new branch PR content resolution', () => {
@@ -522,6 +533,28 @@ describe('createPr - new branch PR content resolution', () => {
     expect(result.data?.titleSource).toBe('template');
     expect(result.data?.bodySource).toBe('template');
     expect(result.data?.aiError).toBe('AI skipped (--skip-ai)');
+  });
+
+  // Mirrors the existing-branch suite's forceAi case, for the same reason.
+  it('forwards forceAi so AI wins over a supplied title on the new-branch path', async () => {
+    vi.mocked(generatePRContentAsync).mockResolvedValue({
+      title: 'AI-generated title',
+      description: '',
+      aiGenerated: true,
+      titleGenerated: true,
+      descriptionGenerated: false,
+      provider: 'claude',
+      error: null,
+    });
+
+    const result = await createPr({
+      description,
+      title: 'Caller-supplied title',
+      forceAi: true,
+    });
+
+    expect(generatePRContentAsync).toHaveBeenCalled();
+    expect(result.data?.titleSource).toBe('ai');
   });
 
   it('returns INVALID_ARGUMENT for an unreadable bodyFile without ever pushing to git', async () => {
