@@ -421,3 +421,49 @@ describe('resolvePRContent requests only the fields it can use', () => {
     expect(result.aiError).toContain('rate limited');
   });
 });
+
+describe('resolvePRContent aiError reflects whether AI was actually wanted', () => {
+  // Regression: --skip-ai / provider:'none' set a skip reason unconditionally,
+  // so supplying BOTH flags (where nothing was wanted from AI) reported an
+  // aiError. docs/AI-TOOLING.md defines that as the "generation not needed"
+  // SUCCESS case, with aiProvider and aiError both null.
+  it('leaves aiError null when both flags are supplied and AI is disabled', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('none'),
+      context: CONTEXT,
+      overrides: { title: 'flag title', body: 'flag body' },
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.titleSource).toBe('flag');
+    expect(result.bodySource).toBe('flag');
+    expect(result.aiProvider).toBeNull();
+    expect(result.aiError).toBeNull();
+  });
+
+  it('leaves aiError null when both flags are supplied with --skip-ai', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'flag title', body: 'flag body', skipAi: true },
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.aiError).toBeNull();
+  });
+
+  it('still reports the skip reason when a field actually needed AI', async () => {
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'flag title', skipAi: true },
+      defaultBody: TEMPLATE,
+      generate: neverGenerate,
+    });
+
+    expect(result.bodySource).toBe('template');
+    expect(result.aiError).toBe('AI skipped (--skip-ai)');
+  });
+});

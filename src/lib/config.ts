@@ -903,10 +903,13 @@ export interface PRGenerationResult {
  * field that failed is always reported even when its sibling succeeded.
  * Names the real provider from each result rather than any placeholder.
  */
-function describeFailures(results: {
-  titleResult?: AIGenerationResult;
-  descResult?: AIGenerationResult;
-}): string | null {
+function describeFailures(
+  results: {
+    titleResult?: AIGenerationResult;
+    descResult?: AIGenerationResult;
+  },
+  prefix = 'AI generation produced no content'
+): string | null {
   const reasons: string[] = [];
 
   if (results.titleResult) {
@@ -924,7 +927,7 @@ function describeFailures(results: {
     );
   }
 
-  return reasons.length > 0 ? `AI generation produced no content (${reasons.join('; ')})` : null;
+  return reasons.length > 0 ? `${prefix} (${reasons.join('; ')})` : null;
 }
 
 /**
@@ -1013,10 +1016,16 @@ export async function generatePRContentAsync(
         // this, a generated title plus a failed description yields a template
         // body and aiError: null, which a JSON caller cannot distinguish from
         // "generation wasn't needed".
-        const partialFailures = describeFailures({
-          titleResult: titleGenerated ? undefined : titleResult,
-          descResult: descriptionGenerated ? undefined : descResult,
-        });
+        const partialFailures = describeFailures(
+          {
+            titleResult: titleGenerated ? undefined : titleResult,
+            descResult: descriptionGenerated ? undefined : descResult,
+          },
+          // Not "produced no content" here — at least one field WAS generated,
+          // and the caller will see titleSource/bodySource say so. A blanket
+          // "no content" would contradict the provenance sitting beside it.
+          'AI generation partially failed'
+        );
         return {
           title,
           description,
@@ -1026,6 +1035,23 @@ export async function generatePRContentAsync(
           provider: providerName,
           error: partialFailures,
         };
+      }
+
+      // Nothing was even attempted: every generator that could have run was
+      // switched off (ai.prTitle / ai.prDescription false, or the caller only
+      // needed a field whose generator is disabled). That is NOT a failure,
+      // but it must not look like the "generation not needed" success case
+      // either — the caller asked for content and silently got the template.
+      if (!titleResult && !descResult) {
+        const disabled = [
+          config.ai.prTitle ? null : 'ai.prTitle',
+          config.ai.prDescription ? null : 'ai.prDescription',
+        ].filter(Boolean);
+        const why =
+          disabled.length > 0
+            ? `AI generation not attempted (${disabled.join(' and ')} disabled)`
+            : 'AI generation not attempted (no field required generation)';
+        return { ...defaultResult, error: why };
       }
 
       // A provider was attempted but produced nothing. Build the diagnostic
@@ -1046,6 +1072,19 @@ export async function generatePRContentAsync(
       printStatus('warning', `\u26A0 AI generation failed: ${reason}`);
       return { ...defaultResult, error: reason };
     }
+  }
+
+  // The AI block was skipped entirely. `provider: 'none'` is a deliberate
+  // opt-out that the caller already knows about (resolvePRContent reports it),
+  // but a configured provider with BOTH PR generators switched off is not
+  // self-evident: the caller gets template content with no explanation, which
+  // is indistinguishable from the documented "generation not needed" success
+  // case. Say so.
+  if (config.ai.provider !== 'none') {
+    return {
+      ...defaultResult,
+      error: 'AI generation not attempted (ai.prTitle and ai.prDescription are both disabled)',
+    };
   }
 
   return defaultResult;

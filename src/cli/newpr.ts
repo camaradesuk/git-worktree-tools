@@ -447,6 +447,17 @@ async function handlePlanGeneration(
     worktreePath: string;
   }
 ): Promise<PlanGeneratorResult | undefined> {
+  // --skip-ai suppresses plan generation outright. This has to be checked
+  // HERE rather than relying on the ai.planDocument override applied in
+  // loadConfigForRun, because shouldGeneratePlan tests `cliFlag` (--plan)
+  // before `configEnabled` — so `--skip-ai --plan` would otherwise sail past
+  // the override and still call a provider. --skip-ai wins over an explicit
+  // --plan, matching the documented rule that it also wins over --force-ai.
+  if (options.skipAi) {
+    logger.debug('Skipping plan generation: --skip-ai');
+    return undefined;
+  }
+
   const aiConfig = config.ai ?? {};
 
   // Check if AI provider is configured (simple check without initialization)

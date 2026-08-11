@@ -142,7 +142,15 @@ export async function resolvePRContent({
   // ai.provider === 'none'). Record *why*, distinguishing the case where
   // --force-ai was also supplied and had no effect, so aiError is never
   // silently null on a skip path (spec §3.3 / docs/AI-TOOLING.md).
-  const aiSkippedReason = aiDisabled ? describeAiSkipReason(overrides) : null;
+  //
+  // But only when generation would actually have been used. With both fields
+  // supplied by flags and no --force-ai, nothing was wanted from AI in the
+  // first place: that is the documented "generation not needed" success case,
+  // where aiProvider and aiError are both null. Reporting a disabled-reason
+  // there would make a fully successful run look like a degraded one.
+  const aiWouldHaveBeenUsed = forceAi || !hasTitleFlag || !hasBodyFlag;
+  const aiSkippedReason =
+    aiDisabled && aiWouldHaveBeenUsed ? describeAiSkipReason(overrides) : null;
 
   // Use the PER-FIELD flags, not the truthiness of the returned strings.
   // `generatePRContentAsync` seeds `title` with `context.description` and
