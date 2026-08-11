@@ -738,14 +738,20 @@ export function getConfigPath(repoRoot: string): string | null {
 export { getSchemaUrl } from './global-config.js';
 
 /**
- * Generate worktree path based on config pattern
+ * Generate worktree path based on config pattern.
+ *
+ * A relative `worktreeParent` is resolved against `mainWorktreeRoot` (defaulting to
+ * `repoRoot` when omitted, preserving pre-anchor-fix behaviour for callers that
+ * haven't been updated). Set `config.worktreeParentAnchor` to "repo-root" to anchor
+ * against `repoRoot` instead. Absolute `worktreeParent` values are always used as-is.
  */
 export function generateWorktreePath(
   config: ResolvedConfig,
   repoRoot: string,
   repoName: string,
   prNumber: number,
-  branchName?: string
+  branchName?: string,
+  mainWorktreeRoot?: string
 ): string {
   let pattern = config.worktreePattern;
 
@@ -786,7 +792,9 @@ export function generateWorktreePath(
   if (path.isAbsolute(config.worktreeParent)) {
     parentDir = config.worktreeParent;
   } else {
-    parentDir = path.resolve(repoRoot, config.worktreeParent);
+    const anchor =
+      config.worktreeParentAnchor === 'repo-root' ? repoRoot : (mainWorktreeRoot ?? repoRoot);
+    parentDir = path.resolve(anchor, config.worktreeParent);
   }
 
   return path.join(parentDir, pattern);
