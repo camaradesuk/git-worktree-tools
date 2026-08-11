@@ -69,6 +69,17 @@ describe('validateConfig', () => {
       expect(validateConfig({ preferredEditor: 'cursor' }).valid).toBe(true);
       expect(validateConfig({ preferredEditor: 'auto' }).valid).toBe(true);
     });
+
+    it('should validate worktreeParentAnchor enum', () => {
+      const result = validateConfig({ worktreeParentAnchor: 'nonsense' });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.path === 'worktreeParentAnchor')).toBe(true);
+    });
+
+    it('should accept valid worktreeParentAnchor values', () => {
+      expect(validateConfig({ worktreeParentAnchor: 'main-worktree' }).valid).toBe(true);
+      expect(validateConfig({ worktreeParentAnchor: 'repo-root' }).valid).toBe(true);
+    });
   });
 
   describe('array properties', () => {
