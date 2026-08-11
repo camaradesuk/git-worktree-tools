@@ -1011,7 +1011,6 @@ export async function generatePRContentAsync(
       }
 
       if (anyGenerated) {
-        printStatus('info', `\u2728 AI-generated PR content (${providerName})`);
         // Partial success still has to report the half that failed. Without
         // this, a generated title plus a failed description yields a template
         // body and aiError: null, which a JSON caller cannot distinguish from
@@ -1026,14 +1025,43 @@ export async function generatePRContentAsync(
           // "no content" would contradict the provenance sitting beside it.
           'AI generation partially failed'
         );
+
+        // A field can also be missing because its generator is switched off
+        // rather than because it failed. That produces no AIGenerationResult
+        // at all, so describeFailures() cannot see it — report it separately,
+        // otherwise the caller gets template content with aiError: null.
+        const disabledNotes: string[] = [];
+        if (!titleGenerated && !titleResult && wantTitle && !config.ai.prTitle) {
+          disabledNotes.push('title not generated (ai.prTitle disabled)');
+        }
+        if (!descriptionGenerated && !descResult && wantDescription && !config.ai.prDescription) {
+          disabledNotes.push('description not generated (ai.prDescription disabled)');
+        }
+
+        const notes = [partialFailures, ...disabledNotes].filter(Boolean);
+
+        // Name every provider that actually contributed. With a fallback
+        // configured, executeWithFallback picks per operation, so the title
+        // and description can come from different providers — reporting only
+        // the last one assigned would credit a provider that produced nothing
+        // for the other field.
+        const contributors = [
+          titleGenerated ? titleResult?.provider : undefined,
+          descriptionGenerated ? descResult?.provider : undefined,
+        ].filter((p): p is string => Boolean(p));
+        const providerLabel =
+          contributors.length > 0 ? [...new Set(contributors)].join(', ') : providerName;
+
+        printStatus('info', `\u2728 AI-generated PR content (${providerLabel})`);
+
         return {
           title,
           description,
           aiGenerated: true,
           titleGenerated,
           descriptionGenerated,
-          provider: providerName,
-          error: partialFailures,
+          provider: providerLabel,
+          error: notes.length > 0 ? notes.join('; ') : null,
         };
       }
 

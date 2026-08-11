@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
 import * as github from './github.js';
+import { readFileSync } from 'fs';
 
 // Mock child_process
 vi.mock('child_process', () => ({
@@ -321,13 +322,17 @@ describe('github', () => {
         repo: 'org/repo',
       });
 
+      // The body is handed to gh through a temp file, never inlined into the
+      // command, so its size and quoting cannot break the invocation.
       expect(mockExecSync).toHaveBeenNthCalledWith(
         1,
         expect.stringMatching(
-          /--title "Draft PR".*--body "PR description".*--base develop.*--head "feature\/draft".*--draft.*--repo "org\/repo"/
+          /--title "Draft PR".*--body-file .*--base develop.*--head "feature\/draft".*--draft.*--repo "org\/repo"/
         ),
         expect.any(Object)
       );
+      const cmd1 = mockExecSync.mock.calls[0][0] as string;
+      expect(cmd1).not.toContain('--body "PR description"');
 
       expect(result).toEqual({
         number: 43,
@@ -391,20 +396,57 @@ describe('github', () => {
       github.createPr({ title: 'Empty body PR', body: '', head: 'feature/empty-body' });
 
       // Before the fix, `if (options.body)` was falsy for '' and silently
-      // dropped --body from the command entirely.
-      //
-      // Pin the emitted FORM, not just the flag's presence: shellEscape('')
-      // used to return a bare empty string, so the command read
-      // `--body  --head "x"` and gh consumed --head as the body value. A
-      // stringContaining('--body') assertion passes against that corrupt
-      // shape, which would lock the bug in as "correct".
-      expect(mockExecSync).toHaveBeenNthCalledWith(
-        1,
-        expect.stringContaining('--body ""'),
-        expect.any(Object)
-      );
+      // dropped the body from the command entirely. An explicit empty body is
+      // now still passed, via --body-file, so gh receives a real (empty) body
+      // rather than the next flag being swallowed as the body value.
       const cmd = mockExecSync.mock.calls[0][0] as string;
+      expect(cmd).toContain('--body-file');
       expect(cmd).not.toMatch(/--body\s+--/);
+    });
+
+    it('keeps a large multi-line body out of the command line entirely', () => {
+      // The case this exists for: cmd.exe caps the command line near 8191
+      // chars, so a big --body-file inlined as --body would fail on Windows
+      // AFTER the branch was already committed and pushed. Passing gh a file
+      // means body size never reaches the shell.
+      const bigBody = [
+        '# Heading',
+        '',
+        'x'.repeat(20000),
+        '',
+        '`backticks` $(whoami) "quotes"',
+      ].join('\n');
+
+      let capturedBody: string | undefined;
+      mockExecSync
+        .mockImplementationOnce((cmd) => {
+          // Read the temp file while it still exists (createPr deletes it in
+          // a finally block once gh returns).
+          const m = /--body-file "?([^"\s]+)"?/.exec(String(cmd));
+          if (m) capturedBody = readFileSync(m[1], 'utf8');
+          return 'https://github.com/org/repo/pull/47\n';
+        })
+        .mockReturnValueOnce(
+          JSON.stringify({
+            number: 47,
+            title: 'Big body PR',
+            state: 'OPEN',
+            url: 'https://github.com/org/repo/pull/47',
+            headRefName: 'feature/big',
+            baseRefName: 'main',
+            isDraft: false,
+          })
+        );
+
+      github.createPr({ title: 'Big body PR', body: bigBody, head: 'feature/big' });
+
+      const cmd = mockExecSync.mock.calls[0][0] as string;
+      // The 20k body must not appear in the command at all.
+      expect(cmd).not.toContain('x'.repeat(100));
+      expect(cmd.length).toBeLessThan(500);
+      expect(cmd).toContain('--body-file');
+      // ...and gh must still receive it byte-for-byte.
+      expect(capturedBody).toBe(bigBody);
     });
 
     it('omits --body entirely when body is undefined', () => {

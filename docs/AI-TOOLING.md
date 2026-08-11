@@ -271,8 +271,14 @@ git mutation happens, rather than being silently dropped from the `gh pr create`
 | `--skip-ai`  | `flag` → template      |
 
 Supplying both `--title` and a body flag (`--body` or `--body-file`) without `--force-ai`
-makes **no LLM call at all**. If both `--force-ai` and `--skip-ai` are given together,
-**`--skip-ai` wins** — AI is not invoked.
+makes **no LLM call for the PR title or body**.
+
+Note the scope: that promise covers **PR content only**. Other AI-backed steps are governed by
+their own config keys and still run — most importantly `ai.branchName`, which generates the
+branch name _before_ PR content is resolved, and `ai.planDocument`. If you need a run to make
+**no AI calls whatsoever** — for cost, latency, or because the diff must not leave the machine
+— pass `--skip-ai`, which disables every path (branch name, commit message, plan document, and
+PR content). If both `--force-ai` and `--skip-ai` are given together, **`--skip-ai` wins**.
 
 `--pr` mode (`wt new --pr <number>`, attaching a worktree to an existing PR) **ignores**
 `--title`, `--body`, and `--body-file` entirely: no PR is created in that mode, so there is
@@ -303,9 +309,10 @@ was **disabled** (e.g. `"AI skipped (--skip-ai)"`, `"AI disabled (ai.provider = 
 (e.g. `"AI generation produced no content (title via 'gemini-api': API key invalid)"`).
 
 `aiError` is `null` when generation was simply **not needed** — you supplied both `--title` and
-a body flag without `--force-ai`, so no LLM call was made. In that case both `aiProvider` and
-`aiError` are `null` and both source fields read `"flag"`, which is the success case, not a
-failure to diagnose.
+a body flag without `--force-ai`, so no PR-content generation was attempted. In that case both
+`aiProvider` and `aiError` are `null` and both source fields read `"flag"`, which is the success
+case, not a failure to diagnose. (These fields describe PR content only; a branch name generated
+under `ai.branchName` is not reflected in them.)
 
 **Errors.** Passing both `--body` and `--body-file` fails with `INVALID_ARGUMENT` and the
 message `--body and --body-file are mutually exclusive; pass only one.`. A `--body-file` that
