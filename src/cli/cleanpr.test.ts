@@ -51,6 +51,7 @@ describe('cli/cleanpr', () => {
     baseBranch: 'main',
     worktreePattern: '{repo}.pr{number}',
     worktreeParent: '..',
+    worktreeParentAnchor: 'main-worktree' as const,
     draftPr: false,
     sharedRepos: [],
     branchPrefix: 'feature',
