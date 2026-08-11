@@ -19,7 +19,7 @@ const CLI_DIR = path.resolve(__dirname, '../../../dist/cli');
 // Helper to run the wt CLI command
 function runWt(
   args: string[] = [],
-  options: { cwd?: string; input?: string; timeout?: number } = {}
+  options: { cwd?: string; input?: string; timeout?: number; env?: NodeJS.ProcessEnv } = {}
 ): { stdout: string; stderr: string; exitCode: number } {
   const scriptPath = path.join(CLI_DIR, 'wt.js');
 
@@ -32,6 +32,7 @@ function runWt(
       ...process.env,
       FORCE_COLOR: '0', // Disable colors for consistent output
       GWT_ALLOW_LOCAL: '1', // Suppress global install warning in tests
+      ...options.env,
     },
   });
 
@@ -611,6 +612,35 @@ describe('wt command e2e tests', () => {
       expect(result.exitCode).toBe(1);
       // Should show git-related error
       expect(result.stderr.toLowerCase()).toMatch(/git|repository/i);
+    });
+
+    it('fails cleanly (not an uncaught crash) for an invalid GWT_AI_PROVIDER, on ANY command', () => {
+      // initializeCliEnvironment() runs as global middleware before every
+      // command (it loads config for logging settings), so an invalid
+      // GWT_AI_* env var must fail cleanly here even for a command with
+      // nothing to do with AI — not crash with a raw Node stack trace.
+      const result = runWt(['list'], {
+        cwd: repoDir,
+        env: { GWT_AI_PROVIDER: 'bogus' },
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('GWT_AI_PROVIDER');
+      expect(result.stderr).not.toContain('at loadConfig');
+      expect(result.stderr).not.toContain('.js:');
+    });
+
+    it('fails cleanly with JSON output for an invalid GWT_AI_PROVIDER when --json is passed', () => {
+      const result = runWt(['list', '--json'], {
+        cwd: repoDir,
+        env: { GWT_AI_PROVIDER: 'bogus' },
+      });
+
+      expect(result.exitCode).toBe(1);
+      const parsed = JSON.parse(result.stdout);
+      expect(parsed.success).toBe(false);
+      expect(parsed.error.code).toBe('INVALID_CONFIG');
+      expect(parsed.error.message).toContain('GWT_AI_PROVIDER');
     });
   });
 

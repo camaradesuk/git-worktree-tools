@@ -42,6 +42,7 @@ import { printError } from '../lib/ui/index.js';
 import { createErrorResult, formatJsonResult, ErrorCode } from '../lib/json-output.js';
 import { loadConfig } from '../lib/config.js';
 import { checkAndWarnGlobalInstall } from '../lib/global-check.js';
+import { ConfigurationError } from '../lib/errors.js';
 import * as git from '../lib/git.js';
 
 // Global terminal state safety net
@@ -82,18 +83,52 @@ function initializeLoggerFromCliFlags(): void {
 // Non-critical initialization that can run after yargs parsing
 // Exported for testing
 export function initializeCliEnvironment(): void {
-  // Try to load config for logging settings
+  // Determine repo root separately from loading config: a getRepoRoot()
+  // failure means "not in a git repo" (fall back to global config only),
+  // but a loadConfig() failure is a real configuration problem (e.g. an
+  // invalid GWT_AI_* env var) that must NOT be swallowed by the same catch
+  // — this middleware runs before EVERY command, so letting a config error
+  // escape uncaught here would crash `wt list`/`wt state`/etc. with a raw
+  // Node stack trace, not just AI-related commands.
+  let repoRoot: string | undefined;
+  try {
+    repoRoot = git.getRepoRoot();
+  } catch {
+    repoRoot = undefined;
+  }
+
   let config;
   try {
-    const repoRoot = git.getRepoRoot();
-    config = loadConfig(repoRoot);
-  } catch {
-    // Not in a git repo, load global config only
-    config = loadConfig();
+    config = repoRoot ? loadConfig(repoRoot) : loadConfig();
+  } catch (error) {
+    if (error instanceof ConfigurationError) {
+      // Real process.exit() never returns; only reachable "past" this call
+      // when process.exit is mocked out in tests, in which case falling
+      // through to checkAndWarnGlobalInstall(undefined) below is harmless.
+      reportFatalConfigError(error);
+    } else {
+      throw error;
+    }
   }
 
   // Check global installation (non-critical warning)
   checkAndWarnGlobalInstall(config);
+}
+
+/**
+ * Report a fatal configuration error (e.g. an invalid GWT_AI_* env var) the
+ * same way the top-level .fail()/.catch() handlers below report CLI errors,
+ * and exit(1) — instead of letting it propagate as an uncaught exception.
+ * Never returns.
+ */
+function reportFatalConfigError(error: ConfigurationError): never {
+  if (hasJsonFlag(process.argv.slice(2))) {
+    const errorResult = createErrorResult('wt', ErrorCode.INVALID_CONFIG, error.message);
+    console.log(formatJsonResult(errorResult));
+  } else {
+    printError({ title: error.message });
+  }
+  process.exit(1);
 }
 
 /**
