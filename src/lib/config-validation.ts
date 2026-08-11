@@ -23,9 +23,15 @@ export interface ValidationResult {
 }
 
 /**
- * Valid AI provider names
+ * Valid AI provider names.
+ *
+ * Exported so other modules that maintain their own provider allow-lists
+ * (e.g. config-editor.ts's `ai.provider`/`ai.fallback` picker enums) can be
+ * guarded against drifting from this one, instead of hardcoding a second
+ * copy that silently goes stale (see the gemini-api regression this
+ * prevents).
  */
-const VALID_AI_PROVIDERS = [
+export const VALID_AI_PROVIDERS = [
   'auto',
   'claude',
   'gemini',
