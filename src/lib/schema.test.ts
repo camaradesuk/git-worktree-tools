@@ -80,6 +80,7 @@ describe('JSON Schema', () => {
         draftPr: false,
         worktreePattern: '{repo}.pr{number}',
         worktreeParent: '..',
+        worktreeParentAnchor: 'main-worktree',
         branchPrefix: 'feat',
         preferredEditor: 'vscode',
         sharedRepos: [],
@@ -249,6 +250,12 @@ describe('JSON Schema', () => {
       }
     });
 
+    it('config with all worktreeParentAnchor values', () => {
+      for (const anchor of ['main-worktree', 'repo-root']) {
+        expect(validate({ worktreeParentAnchor: anchor })).toBe(true);
+      }
+    });
+
     it('config with all AI provider values', () => {
       const providers = [
         'auto',
@@ -303,6 +310,10 @@ describe('JSON Schema', () => {
     it('rejects invalid preferredEditor value', () => {
       const config = { preferredEditor: 'sublime' };
       expect(validate(config)).toBe(false);
+    });
+
+    it('rejects invalid worktreeParentAnchor value', () => {
+      expect(validate({ worktreeParentAnchor: 'somewhere-else' })).toBe(false);
     });
 
     it('rejects invalid AI provider value', () => {

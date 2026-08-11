@@ -4,6 +4,7 @@ import {
   DEFAULT_BASE_BRANCH,
   DEFAULT_WORKTREE_PATTERN,
   DEFAULT_WORKTREE_PARENT,
+  DEFAULT_WORKTREE_PARENT_ANCHOR,
   DEFAULT_BRANCH_PREFIX,
   CONFIG_FILE_NAMES,
   LogLevel,
@@ -250,6 +251,18 @@ export interface WorktreeConfig {
   worktreeParent?: string;
 
   /**
+   * Anchor used to resolve a relative `worktreeParent`.
+   * - "main-worktree" (default): anchor to the main worktree root, resolved via
+   *   `getMainWorktreeRoot()`. For a bare-repository container (`.bare/` + linked
+   *   worktrees) this is the container directory. Stable regardless of which
+   *   worktree the command is invoked from.
+   * - "repo-root": anchor to the current worktree's root (legacy behaviour, the
+   *   only option before this setting existed).
+   * Default: "main-worktree"
+   */
+  worktreeParentAnchor?: 'main-worktree' | 'repo-root';
+
+  /**
    * Gitignored config files to sync between worktrees via hard links
    * e.g., [".env.local", ".vscode/settings.json"]
    */
@@ -367,6 +380,7 @@ export function getDefaultConfig(): ResolvedConfig {
     draftPr: false,
     worktreePattern: DEFAULT_WORKTREE_PATTERN,
     worktreeParent: DEFAULT_WORKTREE_PARENT,
+    worktreeParentAnchor: DEFAULT_WORKTREE_PARENT_ANCHOR,
     syncPatterns: [],
     branchPrefix: DEFAULT_BRANCH_PREFIX,
     previewLabel: 'preview',
@@ -734,14 +748,20 @@ export function getConfigPath(repoRoot: string): string | null {
 export { getSchemaUrl } from './global-config.js';
 
 /**
- * Generate worktree path based on config pattern
+ * Generate worktree path based on config pattern.
+ *
+ * A relative `worktreeParent` is resolved against `mainWorktreeRoot` (defaulting to
+ * `repoRoot` when omitted, preserving pre-anchor-fix behaviour for callers that
+ * haven't been updated). Set `config.worktreeParentAnchor` to "repo-root" to anchor
+ * against `repoRoot` instead. Absolute `worktreeParent` values are always used as-is.
  */
 export function generateWorktreePath(
   config: ResolvedConfig,
   repoRoot: string,
   repoName: string,
   prNumber: number,
-  branchName?: string
+  branchName?: string,
+  mainWorktreeRoot?: string
 ): string {
   let pattern = config.worktreePattern;
 
@@ -782,7 +802,9 @@ export function generateWorktreePath(
   if (path.isAbsolute(config.worktreeParent)) {
     parentDir = config.worktreeParent;
   } else {
-    parentDir = path.resolve(repoRoot, config.worktreeParent);
+    const anchor =
+      config.worktreeParentAnchor === 'repo-root' ? repoRoot : (mainWorktreeRoot ?? repoRoot);
+    parentDir = path.resolve(anchor, config.worktreeParent);
   }
 
   return path.join(parentDir, pattern);

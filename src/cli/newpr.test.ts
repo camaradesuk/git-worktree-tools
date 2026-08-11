@@ -134,6 +134,7 @@ describe('cli/newpr', () => {
     baseBranch: 'main',
     worktreePattern: '{repo}.pr{number}',
     worktreeParent: '..',
+    worktreeParentAnchor: 'main-worktree' as const,
     draftPr: false,
     sharedRepos: [],
     branchPrefix: 'feature',
@@ -344,6 +345,33 @@ describe('cli/newpr', () => {
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('PR #123'));
     });
 
+    it('anchors the worktree path to the main worktree root, not the invoking cwd', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo/pr/pr1.other-worktree');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo/pr/pr123.feature-123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await runCli(['--pr', '123']);
+
+      expect(generateWorktreePath).toHaveBeenCalledWith(
+        defaultConfig,
+        '/repo/pr/pr1.other-worktree',
+        'repo',
+        123,
+        'feature-123',
+        '/repo'
+      );
+    });
+
     it('exits 1 when PR not found', async () => {
       vi.mocked(newpr.parseArgs).mockReturnValue({
         kind: 'success',
@@ -397,6 +425,35 @@ describe('cli/newpr', () => {
           createBranch: true,
           startPoint: 'origin/my-feature',
         })
+      );
+    });
+
+    it('anchors the worktree path to the main worktree root, not the invoking cwd', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'branch', branchName: 'my-feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo/pr/pr1.other-worktree');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 456 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo/pr/pr456.my-feature');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await runCli(['--branch', 'my-feature']);
+
+      expect(generateWorktreePath).toHaveBeenCalledWith(
+        defaultConfig,
+        '/repo/pr/pr1.other-worktree',
+        'repo',
+        456,
+        'my-feature',
+        '/repo'
       );
     });
 
@@ -542,6 +599,59 @@ describe('cli/newpr', () => {
         '/repo.pr100', // path from generateWorktreePath
         'feature/add-new-feature', // the branch name
         { cwd: '/repo' } // repoRoot from getRepoRoot()
+      );
+    });
+
+    it('anchors the worktree path to the main worktree root, not the invoking cwd', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'new', description: 'Add new feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo/pr/pr1.other-worktree');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feature/add-new-feature');
+      vi.mocked(analyzeGitState).mockReturnValue(makeGitState());
+      vi.mocked(detectScenario).mockReturnValue('main_clean_same');
+      vi.mocked(newpr.isPrWorktreeScenario).mockReturnValue(false);
+      vi.mocked(newpr.getScenarioContext).mockReturnValue({
+        message: 'No changes detected',
+        choices: [
+          {
+            label: 'Create empty commit',
+            action: { action: 'empty_commit', branchFrom: 'origin_main', stashUnstaged: false },
+          },
+          { label: 'Cancel', action: null },
+        ],
+      });
+      vi.mocked(newpr.getScenarioMessageLevel).mockReturnValue('warning');
+      vi.mocked(prompts.promptChoiceIndex).mockResolvedValue(1); // 1-based index
+      vi.mocked(newpr.isExistingBranchAction).mockReturnValue(false);
+      vi.mocked(newpr.executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(newpr.getBranchPoint).mockReturnValue('origin/main');
+      vi.mocked(git.remoteBranchExists).mockReturnValue(false);
+      vi.mocked(git.getCurrentBranch).mockReturnValue('main');
+      vi.mocked(git.getStagedFiles).mockReturnValue([]);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 100 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo/pr/pr100.add-new-feature');
+      vi.mocked(generatePRContentAsync).mockResolvedValue({
+        title: 'Add new feature',
+        description: '',
+        aiGenerated: false,
+      });
+
+      await runCli(['Add new feature']);
+
+      expect(generateWorktreePath).toHaveBeenCalledWith(
+        defaultConfig,
+        '/repo/pr/pr1.other-worktree',
+        'repo',
+        100,
+        'feature/add-new-feature',
+        '/repo'
       );
     });
 

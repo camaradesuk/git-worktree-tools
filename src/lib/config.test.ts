@@ -25,6 +25,7 @@ describe('config', () => {
       expect(config.draftPr).toBe(false);
       expect(config.worktreePattern).toBe('{repo}.pr{number}');
       expect(config.worktreeParent).toBe('..');
+      expect(config.worktreeParentAnchor).toBe('main-worktree');
       expect(config.sharedRepos).toEqual([]);
       expect(config.syncPatterns).toEqual([]);
       expect(config.branchPrefix).toBe('feat');
@@ -268,6 +269,102 @@ describe('config', () => {
         'feat/my-feature'
       );
       expect(path.basename(result)).toBe('myproject-pr123.my-feature');
+    });
+
+    it('anchors relative worktreeParent to mainWorktreeRoot when invoked from a linked worktree', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/pr/pr2467.x', // repoRoot: current (linked) worktree
+        'syrf',
+        2600,
+        'feat/my-feature',
+        '/home/chris/workspace/syrf' // mainWorktreeRoot: stable container anchor
+      );
+      expect(normalizePath(result)).toBe('/home/chris/workspace/syrf/pr/pr2600.my-feature');
+    });
+
+    it('produces the same path regardless of which worktree it is invoked from', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const mainWorktreeRoot = '/home/chris/workspace/syrf';
+      const fromMain = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/main',
+        'syrf',
+        2600,
+        'feat/my-feature',
+        mainWorktreeRoot
+      );
+      const fromLinkedWorktree = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/pr/pr2467.other-feature',
+        'syrf',
+        2600,
+        'feat/my-feature',
+        mainWorktreeRoot
+      );
+      expect(fromMain).toBe(fromLinkedWorktree);
+      expect(normalizePath(fromMain)).toBe('/home/chris/workspace/syrf/pr/pr2600.my-feature');
+    });
+
+    it('ignores mainWorktreeRoot when worktreeParent is absolute', () => {
+      const customConfig = { ...config, worktreeParent: '/tmp/worktrees' };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject.pr1',
+        'myproject',
+        789,
+        undefined,
+        '/home/user/repos/myproject'
+      );
+      expect(normalizePath(result)).toBe('/tmp/worktrees/myproject.pr789');
+    });
+
+    it('anchors to repoRoot (legacy) when worktreeParentAnchor is "repo-root"', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+        worktreeParentAnchor: 'repo-root' as const,
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/pr/pr2467.x',
+        'syrf',
+        2600,
+        'feat/my-feature',
+        '/home/chris/workspace/syrf' // must be ignored
+      );
+      expect(normalizePath(result)).toBe(
+        '/home/chris/workspace/syrf/pr/pr2467.x/pr/pr2600.my-feature'
+      );
+    });
+
+    it('falls back to repoRoot when mainWorktreeRoot is omitted (backward compatible)', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: '.worktrees',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        42,
+        'fix-login-bug'
+        // mainWorktreeRoot intentionally omitted
+      );
+      expect(normalizePath(result)).toBe(
+        '/home/user/repos/myproject/.worktrees/pr42.fix-login-bug'
+      );
     });
   });
 

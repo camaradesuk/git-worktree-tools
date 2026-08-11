@@ -41,6 +41,11 @@ export const VALID_AI_PROVIDERS: string[] = AI_PROVIDER_NAMES;
 const VALID_EDITORS = ['vscode', 'cursor', 'auto'];
 
 /**
+ * Valid worktreeParentAnchor options
+ */
+const VALID_WORKTREE_PARENT_ANCHORS = ['main-worktree', 'repo-root'];
+
+/**
  * Valid branch styles
  */
 const VALID_BRANCH_STYLES = ['conventional', 'kebab', 'snake'];
@@ -80,6 +85,7 @@ const KNOWN_TOP_LEVEL_KEYS = [
   'draftPr',
   'worktreePattern',
   'worktreeParent',
+  'worktreeParentAnchor',
   'syncPatterns',
   'branchPrefix',
   'previewLabel',
@@ -146,6 +152,19 @@ export function validateConfig(config: unknown): ValidationResult {
   // Validate worktreeParent
   if (obj.worktreeParent !== undefined && typeof obj.worktreeParent !== 'string') {
     errors.push({ path: 'worktreeParent', message: 'worktreeParent must be a string' });
+  }
+
+  // Validate worktreeParentAnchor
+  if (obj.worktreeParentAnchor !== undefined) {
+    if (
+      typeof obj.worktreeParentAnchor !== 'string' ||
+      !VALID_WORKTREE_PARENT_ANCHORS.includes(obj.worktreeParentAnchor)
+    ) {
+      errors.push({
+        path: 'worktreeParentAnchor',
+        message: `worktreeParentAnchor must be one of: ${VALID_WORKTREE_PARENT_ANCHORS.join(', ')}`,
+      });
+    }
   }
 
   // Validate syncPatterns
