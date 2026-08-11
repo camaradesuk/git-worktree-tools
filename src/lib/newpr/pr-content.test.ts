@@ -467,3 +467,572 @@ describe('resolvePRContent aiError reflects whether AI was actually wanted', () 
     expect(result.aiError).toBe('AI skipped (--skip-ai)');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Exhaustive invariant matrix.
+//
+// Every combination of the five inputs that decide PR content, with EXPLICIT
+// expected values. The expectations are written out by hand as a spec rather
+// than computed, so this table cannot silently agree with a bug in the code
+// it checks.
+//
+// The column that matters most is `called`: whether a provider was invoked at
+// all. Several defects in this feature were "an AI call happened when the
+// flags promised none" or the reverse, and only an explicit assertion on
+// invocation catches those.
+// ---------------------------------------------------------------------------
+
+type MatrixRow = {
+  aiEnabled: boolean;
+  skipAi: boolean;
+  forceAi: boolean;
+  hasTitle: boolean;
+  hasBody: boolean;
+  called: boolean;
+  titleSource: 'flag' | 'ai' | 'template';
+  bodySource: 'flag' | 'ai' | 'template';
+  /** null = aiError must be null; string = aiError must contain this. */
+  err: string | null;
+};
+
+const MATRIX: MatrixRow[] = [
+  // --- provider enabled, no skip, no force -------------------------------
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: false,
+    called: true,
+    titleSource: 'ai',
+    bodySource: 'ai',
+    err: null,
+  },
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: true,
+    called: true,
+    titleSource: 'ai',
+    bodySource: 'flag',
+    err: null,
+  },
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: false,
+    called: true,
+    titleSource: 'flag',
+    bodySource: 'ai',
+    err: null,
+  },
+  // Both supplied: the headline "no LLM call at all" guarantee.
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: true,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'flag',
+    err: null,
+  },
+
+  // --- provider enabled, --force-ai (AI outranks flags) ------------------
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: false,
+    called: true,
+    titleSource: 'ai',
+    bodySource: 'ai',
+    err: null,
+  },
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: true,
+    called: true,
+    titleSource: 'ai',
+    bodySource: 'ai',
+    err: null,
+  },
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: false,
+    called: true,
+    titleSource: 'ai',
+    bodySource: 'ai',
+    err: null,
+  },
+  {
+    aiEnabled: true,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: true,
+    called: true,
+    titleSource: 'ai',
+    bodySource: 'ai',
+    err: null,
+  },
+
+  // --- --skip-ai: never call a provider ----------------------------------
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: false,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'template',
+    err: 'AI skipped (--skip-ai)',
+  },
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: true,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'flag',
+    err: 'AI skipped (--skip-ai)',
+  },
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: false,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'template',
+    err: 'AI skipped (--skip-ai)',
+  },
+  // Nothing was wanted from AI, so skipping it is not a degradation.
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: true,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'flag',
+    err: null,
+  },
+
+  // --- --skip-ai beats --force-ai, and says so ---------------------------
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: false,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'template',
+    err: 'overrides --force-ai',
+  },
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: true,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'flag',
+    err: 'overrides --force-ai',
+  },
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: false,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'template',
+    err: 'overrides --force-ai',
+  },
+  // --force-ai was explicitly asked for and silently did nothing: say so.
+  {
+    aiEnabled: true,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: true,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'flag',
+    err: 'overrides --force-ai',
+  },
+
+  // --- provider 'none' ---------------------------------------------------
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: false,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'template',
+    err: "ai.provider = 'none'",
+  },
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: true,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'flag',
+    err: "ai.provider = 'none'",
+  },
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: false,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'template',
+    err: "ai.provider = 'none'",
+  },
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: true,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'flag',
+    err: null,
+  },
+
+  // --- provider 'none' + --force-ai (force had no effect) ----------------
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: false,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'template',
+    err: 'had no effect',
+  },
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: true,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'flag',
+    err: 'had no effect',
+  },
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: false,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'template',
+    err: 'had no effect',
+  },
+  {
+    aiEnabled: false,
+    skipAi: false,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: true,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'flag',
+    err: 'had no effect',
+  },
+
+  // --- provider 'none' + --skip-ai (both disable; skip is reported) ------
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: false,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'template',
+    err: 'AI skipped (--skip-ai)',
+  },
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: false,
+    hasBody: true,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'flag',
+    err: 'AI skipped (--skip-ai)',
+  },
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: false,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'template',
+    err: 'AI skipped (--skip-ai)',
+  },
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: false,
+    hasTitle: true,
+    hasBody: true,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'flag',
+    err: null,
+  },
+
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: false,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'template',
+    err: 'overrides --force-ai',
+  },
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: false,
+    hasBody: true,
+    called: false,
+    titleSource: 'template',
+    bodySource: 'flag',
+    err: 'overrides --force-ai',
+  },
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: false,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'template',
+    err: 'overrides --force-ai',
+  },
+  {
+    aiEnabled: false,
+    skipAi: true,
+    forceAi: true,
+    hasTitle: true,
+    hasBody: true,
+    called: false,
+    titleSource: 'flag',
+    bodySource: 'flag',
+    err: 'overrides --force-ai',
+  },
+];
+
+describe('resolvePRContent invariant matrix', () => {
+  it('covers every combination of the five deciding inputs exactly once', () => {
+    expect(MATRIX).toHaveLength(32);
+    const keys = MATRIX.map(
+      (r) => `${r.aiEnabled}|${r.skipAi}|${r.forceAi}|${r.hasTitle}|${r.hasBody}`
+    );
+    expect(new Set(keys).size).toBe(32);
+  });
+
+  for (const row of MATRIX) {
+    const label = [
+      row.aiEnabled ? 'ai=on' : 'ai=none',
+      row.skipAi ? '--skip-ai' : '-',
+      row.forceAi ? '--force-ai' : '-',
+      row.hasTitle ? '--title' : '-',
+      row.hasBody ? '--body' : '-',
+    ].join(' ');
+
+    it(`${label} -> called=${row.called} title=${row.titleSource} body=${row.bodySource}`, async () => {
+      let calls = 0;
+      const generate = async (): Promise<PRGenerationResult> => {
+        calls += 1;
+        return {
+          title: 'AI TITLE',
+          description: 'AI BODY',
+          aiGenerated: true,
+          titleGenerated: true,
+          descriptionGenerated: true,
+          provider: 'codex',
+          error: null,
+        };
+      };
+
+      const result = await resolvePRContent({
+        config: configWithAi(row.aiEnabled ? 'auto' : 'none'),
+        context: CONTEXT,
+        overrides: {
+          title: row.hasTitle ? 'FLAG TITLE' : undefined,
+          body: row.hasBody ? 'FLAG BODY' : undefined,
+          forceAi: row.forceAi || undefined,
+          skipAi: row.skipAi || undefined,
+        },
+        defaultBody: TEMPLATE,
+        generate,
+      });
+
+      // The invariant that most defects violated.
+      expect(calls).toBe(row.called ? 1 : 0);
+
+      expect(result.titleSource).toBe(row.titleSource);
+      expect(result.bodySource).toBe(row.bodySource);
+
+      const expectedTitle = { flag: 'FLAG TITLE', ai: 'AI TITLE', template: CONTEXT.description }[
+        row.titleSource
+      ];
+      const expectedBody = { flag: 'FLAG BODY', ai: 'AI BODY', template: TEMPLATE }[row.bodySource];
+      expect(result.title).toBe(expectedTitle);
+      expect(result.body).toBe(expectedBody);
+
+      if (row.err === null) {
+        expect(result.aiError).toBeNull();
+      } else {
+        expect(result.aiError).toContain(row.err);
+      }
+
+      // aiProvider is set exactly when AI actually supplied a field.
+      const aiContributed = row.titleSource === 'ai' || row.bodySource === 'ai';
+      expect(result.aiProvider).toBe(aiContributed ? 'codex' : null);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Second matrix: what the generator actually produced.
+//
+// The first matrix always has the generator succeed at BOTH fields, so it
+// cannot tell `titleGenerated` from `aiGenerated` — and the provenance bug
+// that shipped lived exactly there (a seeded title reported as 'ai'). This
+// table varies the per-field outcome instead, over the flag combinations that
+// actually invoke a provider.
+// ---------------------------------------------------------------------------
+
+type Outcome = 'both' | 'title-only' | 'body-only' | 'neither';
+
+function generatorWithOutcome(outcome: Outcome): GenerateFn {
+  return async (_c, ctx) => {
+    const titleGenerated = outcome === 'both' || outcome === 'title-only';
+    const descriptionGenerated = outcome === 'both' || outcome === 'body-only';
+    return {
+      // Mirrors generatePRContentAsync: `title` is SEEDED with the caller's
+      // description and returned even when the model never touched it.
+      title: titleGenerated ? 'AI TITLE' : ctx.description,
+      description: descriptionGenerated ? 'AI BODY' : '',
+      aiGenerated: titleGenerated || descriptionGenerated,
+      titleGenerated,
+      descriptionGenerated,
+      provider: titleGenerated || descriptionGenerated ? 'codex' : null,
+      error: outcome === 'neither' ? 'AI generation produced no content (…)' : null,
+    };
+  };
+}
+
+type OutcomeRow = {
+  flags: 'none' | 'title' | 'body' | 'force+both';
+  outcome: Outcome;
+  titleSource: 'flag' | 'ai' | 'template';
+  bodySource: 'flag' | 'ai' | 'template';
+};
+
+const OUTCOME_MATRIX: OutcomeRow[] = [
+  // No flags: AI fills what it can, template covers the rest.
+  { flags: 'none', outcome: 'both', titleSource: 'ai', bodySource: 'ai' },
+  { flags: 'none', outcome: 'title-only', titleSource: 'ai', bodySource: 'template' },
+  // The shipped bug: seeded title must NOT be reported as 'ai'.
+  { flags: 'none', outcome: 'body-only', titleSource: 'template', bodySource: 'ai' },
+  { flags: 'none', outcome: 'neither', titleSource: 'template', bodySource: 'template' },
+
+  // --title supplied: flag wins the title regardless of the outcome.
+  { flags: 'title', outcome: 'both', titleSource: 'flag', bodySource: 'ai' },
+  { flags: 'title', outcome: 'title-only', titleSource: 'flag', bodySource: 'template' },
+  { flags: 'title', outcome: 'body-only', titleSource: 'flag', bodySource: 'ai' },
+  { flags: 'title', outcome: 'neither', titleSource: 'flag', bodySource: 'template' },
+
+  // --body supplied: flag wins the body regardless of the outcome.
+  { flags: 'body', outcome: 'both', titleSource: 'ai', bodySource: 'flag' },
+  { flags: 'body', outcome: 'title-only', titleSource: 'ai', bodySource: 'flag' },
+  { flags: 'body', outcome: 'body-only', titleSource: 'template', bodySource: 'flag' },
+  { flags: 'body', outcome: 'neither', titleSource: 'template', bodySource: 'flag' },
+
+  // --force-ai with both flags: AI wins where it produced, flag fills the gap.
+  { flags: 'force+both', outcome: 'both', titleSource: 'ai', bodySource: 'ai' },
+  { flags: 'force+both', outcome: 'title-only', titleSource: 'ai', bodySource: 'flag' },
+  { flags: 'force+both', outcome: 'body-only', titleSource: 'flag', bodySource: 'ai' },
+  { flags: 'force+both', outcome: 'neither', titleSource: 'flag', bodySource: 'flag' },
+];
+
+describe('resolvePRContent generator-outcome matrix', () => {
+  for (const row of OUTCOME_MATRIX) {
+    it(`${row.flags} + generated:${row.outcome} -> title=${row.titleSource} body=${row.bodySource}`, async () => {
+      const overrides = {
+        none: {},
+        title: { title: 'FLAG TITLE' },
+        body: { body: 'FLAG BODY' },
+        'force+both': { title: 'FLAG TITLE', body: 'FLAG BODY', forceAi: true },
+      }[row.flags];
+
+      const result = await resolvePRContent({
+        config: configWithAi('auto'),
+        context: CONTEXT,
+        overrides,
+        defaultBody: TEMPLATE,
+        generate: generatorWithOutcome(row.outcome),
+      });
+
+      expect(result.titleSource).toBe(row.titleSource);
+      expect(result.bodySource).toBe(row.bodySource);
+
+      const expectedTitle = { flag: 'FLAG TITLE', ai: 'AI TITLE', template: CONTEXT.description }[
+        row.titleSource
+      ];
+      const expectedBody = { flag: 'FLAG BODY', ai: 'AI BODY', template: TEMPLATE }[row.bodySource];
+      expect(result.title).toBe(expectedTitle);
+      expect(result.body).toBe(expectedBody);
+
+      const aiContributed = row.titleSource === 'ai' || row.bodySource === 'ai';
+      expect(result.aiProvider).toBe(aiContributed ? 'codex' : null);
+    });
+  }
+});
