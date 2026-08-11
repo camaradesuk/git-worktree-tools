@@ -637,6 +637,16 @@ describe('git', () => {
       const result = git.getMainWorktreeRoot();
       expect(result).toContain('fallback');
     });
+
+    it('resolves a relative --git-common-dir against the given cwd, not process.cwd()', () => {
+      // Real git returns a RELATIVE common-dir (".git") for a normal repo — only the
+      // bare-container case returns an absolute path. path.resolve() must anchor this
+      // relative value to the cwd we asked git about, never to the process's own cwd.
+      const repoPath = path.join('/home', 'user', 'main-repo');
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess('.git'));
+      const result = git.getMainWorktreeRoot(repoPath);
+      expect(result).toBe(path.resolve(repoPath));
+    });
   });
 
   describe('isBareContainerLayout', () => {
