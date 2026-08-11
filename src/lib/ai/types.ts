@@ -228,6 +228,39 @@ export type AIProviderName =
   | 'none';
 
 /**
+ * All valid AIProviderName values, including the meta-values ('auto',
+ * 'fallback', 'none') that are meaningful as a single top-level
+ * ai.provider/ai.fallback selection.
+ *
+ * This is a leaf module (no imports), so it's the shared home for provider
+ * name lists that both config-env.ts (GWT_AI_* env var parsing) and
+ * config-validation.ts (file config validation) need — importing either of
+ * those *into* the other would risk a cycle; importing from here can't.
+ */
+export const AI_PROVIDER_NAMES: AIProviderName[] = [
+  'auto',
+  'claude',
+  'gemini',
+  'gemini-api',
+  'openai',
+  'ollama',
+  'script',
+  'fallback',
+  'none',
+];
+
+/**
+ * Concrete provider names only — excludes 'auto' / 'fallback' / 'none',
+ * which are meta-values, meaningless as one entry among several to try in
+ * priority order. Shared by config-env.ts's GWT_AI_PRIORITY parsing and
+ * config-validation.ts's ai.providerPriority validation so file config and
+ * the env var can't disagree about what's valid inside a priority list.
+ */
+export const AI_PRIORITY_PROVIDER_NAMES: AIProviderName[] = AI_PROVIDER_NAMES.filter(
+  (p) => p !== 'auto' && p !== 'fallback' && p !== 'none'
+);
+
+/**
  * Default AI configuration
  */
 export const DEFAULT_AI_CONFIG: AIConfig = {

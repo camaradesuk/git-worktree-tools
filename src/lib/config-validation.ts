@@ -5,6 +5,7 @@
  */
 
 import type { WorktreeConfig } from './config.js';
+import { AI_PROVIDER_NAMES, AI_PRIORITY_PROVIDER_NAMES, type AIProviderName } from './ai/types.js';
 
 /**
  * Validation error with path and message
@@ -23,25 +24,16 @@ export interface ValidationResult {
 }
 
 /**
- * Valid AI provider names.
+ * Valid AI provider names — re-exported from the canonical list in
+ * ai/types.ts (the leaf module both config-env.ts and this file share) so
+ * this doesn't become a second hardcoded copy that drifts again.
  *
- * Exported so other modules that maintain their own provider allow-lists
- * (e.g. config-editor.ts's `ai.provider`/`ai.fallback` picker enums) can be
- * guarded against drifting from this one, instead of hardcoding a second
- * copy that silently goes stale (see the gemini-api regression this
- * prevents).
+ * Re-exported (not just used internally) so other modules that maintain
+ * their own provider allow-lists (e.g. config-editor.ts's
+ * `ai.provider`/`ai.fallback` picker enums) can be guarded against drifting
+ * from this one — see the gemini-api regression this prevents.
  */
-export const VALID_AI_PROVIDERS = [
-  'auto',
-  'claude',
-  'gemini',
-  'gemini-api',
-  'openai',
-  'ollama',
-  'script',
-  'fallback',
-  'none',
-];
+export const VALID_AI_PROVIDERS: string[] = AI_PROVIDER_NAMES;
 
 /**
  * Valid editor options
@@ -355,15 +347,21 @@ function validateAIConfig(ai: unknown, errors: ValidationError[]): void {
     }
   }
 
-  // Validate providerPriority
+  // Validate providerPriority. Deliberately narrower than VALID_AI_PROVIDERS:
+  // 'auto'/'fallback'/'none' are meta-values, meaningless as one entry among
+  // several to try in priority order. Shares AI_PRIORITY_PROVIDER_NAMES with
+  // config-env.ts's GWT_AI_PRIORITY parsing so file config and the env var
+  // can't disagree about what's valid inside the same semantic field.
   if (obj.providerPriority !== undefined) {
     const isValidList =
       Array.isArray(obj.providerPriority) &&
-      obj.providerPriority.every((p) => typeof p === 'string' && VALID_AI_PROVIDERS.includes(p));
+      obj.providerPriority.every(
+        (p) => typeof p === 'string' && AI_PRIORITY_PROVIDER_NAMES.includes(p as AIProviderName)
+      );
     if (!isValidList) {
       errors.push({
         path: 'ai.providerPriority',
-        message: `ai.providerPriority must be an array of provider names: ${VALID_AI_PROVIDERS.join(', ')}`,
+        message: `ai.providerPriority must be an array of provider names: ${AI_PRIORITY_PROVIDER_NAMES.join(', ')}`,
       });
     }
   }

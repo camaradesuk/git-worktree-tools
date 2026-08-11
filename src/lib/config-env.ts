@@ -7,30 +7,12 @@
  * GWT_LOG_LEVEL, which is the anti-pattern this deliberately avoids.
  */
 import { ConfigurationError } from './errors.js';
-import type { AIProviderName } from './ai/types.js';
+import {
+  AI_PROVIDER_NAMES as VALID_PROVIDER_NAMES,
+  AI_PRIORITY_PROVIDER_NAMES as VALID_PRIORITY_PROVIDER_NAMES,
+  type AIProviderName,
+} from './ai/types.js';
 import type { ResolvedConfig } from './config.js';
-
-const VALID_PROVIDER_NAMES: AIProviderName[] = [
-  'auto',
-  'claude',
-  'gemini',
-  'gemini-api',
-  'openai',
-  'ollama',
-  'script',
-  'fallback',
-  'none',
-];
-
-// 'auto'/'fallback'/'none' are meta-values — meaningless as one entry among
-// several to try in priority order.
-// Explicitly typed as AIProviderName[] (not inferred) so TS 5.5+'s automatic
-// type-predicate inference doesn't narrow this to a literal union that
-// rejects a same-typed `entry as AIProviderName` at the .includes() call
-// below.
-const VALID_PRIORITY_PROVIDER_NAMES: AIProviderName[] = VALID_PROVIDER_NAMES.filter(
-  (p) => p !== 'auto' && p !== 'fallback' && p !== 'none'
-);
 
 export interface EnvConfigOverrides {
   aiProvider?: AIProviderName;
