@@ -563,6 +563,31 @@ describe('wt command e2e tests', () => {
         expect(result.stderr).not.toContain('Unknown argument');
       }
     });
+
+    it('passes --ai-provider flag correctly', () => {
+      const result = runWt(['new', 'Test', '--ai-provider', 'ollama'], { cwd: repoDir });
+
+      // Should fail with GitHub error, not argument error
+      if (result.exitCode !== 0) {
+        expect(result.stderr).not.toContain('Unknown argument');
+      }
+    });
+
+    it('rejects an invalid --ai-provider choice', () => {
+      const result = runWt(['new', 'Test', '--ai-provider', 'bogus'], { cwd: repoDir });
+
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain('ai-provider');
+    });
+
+    it('passes --ai-timeout flag correctly', () => {
+      const result = runWt(['new', 'Test', '--ai-timeout', '15000'], { cwd: repoDir });
+
+      // Should fail with GitHub error, not argument error
+      if (result.exitCode !== 0) {
+        expect(result.stderr).not.toContain('Unknown argument');
+      }
+    });
   });
 
   describe('error handling', () => {

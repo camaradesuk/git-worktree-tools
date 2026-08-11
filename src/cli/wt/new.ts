@@ -30,6 +30,8 @@ interface NewArgs {
   verbose?: number | boolean;
   quiet?: boolean;
   noColor?: boolean;
+  'ai-provider'?: string;
+  'ai-timeout'?: number;
 }
 
 export const newCommand: CommandModule<object, NewArgs> = {
@@ -132,6 +134,25 @@ export const newCommand: CommandModule<object, NewArgs> = {
           'branch_from_detached',
         ],
       })
+      .option('ai-provider', {
+        type: 'string',
+        description: 'Override the AI provider for this run',
+        choices: [
+          'auto',
+          'claude',
+          'gemini',
+          'gemini-api',
+          'openai',
+          'ollama',
+          'script',
+          'fallback',
+          'none',
+        ],
+      })
+      .option('ai-timeout', {
+        type: 'number',
+        description: 'Override the AI generation timeout (milliseconds) for this run',
+      })
       .example('$0 new "Add dark mode"', 'Create a new PR')
       .example('$0 n "Fix bug #123"', 'Short alias')
       .example('$0 new --pr 42', 'Create worktree for existing PR #42')
@@ -201,6 +222,8 @@ export const newCommand: CommandModule<object, NewArgs> = {
       verbose: !!argv.verbose,
       quiet: !!argv.quiet,
       noColor: !!argv.noColor,
+      aiProvider: argv['ai-provider'],
+      aiTimeout: argv['ai-timeout'],
     };
 
     setJsonMode(options.json);
