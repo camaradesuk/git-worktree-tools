@@ -428,6 +428,35 @@ describe('cli/newpr', () => {
       );
     });
 
+    it('anchors the worktree path to the main worktree root, not the invoking cwd', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'branch', branchName: 'my-feature', ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo/pr/pr1.other-worktree');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 456 }));
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo/pr/pr456.my-feature');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await runCli(['--branch', 'my-feature']);
+
+      expect(generateWorktreePath).toHaveBeenCalledWith(
+        defaultConfig,
+        '/repo/pr/pr1.other-worktree',
+        'repo',
+        456,
+        'my-feature',
+        '/repo'
+      );
+    });
+
     it('uses existing PR if branch already has one', async () => {
       const existingPr = makePrInfo({ number: 789 });
 
