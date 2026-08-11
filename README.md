@@ -388,7 +388,7 @@ Enable AI-powered content generation for branch names and PR descriptions:
 }
 ```
 
-**Providers:** `"auto"` (detects available tools), `"claude"`, `"gemini"`, `"openai"`, `"ollama"`, `"none"`
+**Providers:** `"auto"` (detects available tools), `"claude"`, `"gemini"`, `"gemini-api"`, `"openai"`, `"ollama"`, `"none"`
 
 ### Lifecycle Hooks
 

@@ -328,7 +328,17 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
     if (typeof config.ai !== 'object' || config.ai === null) {
       errors.push({ path: 'ai', message: 'Must be an object' });
     } else {
-      const validProviders = ['auto', 'claude', 'gemini', 'openai', 'ollama', 'fallback', 'none'];
+      const validProviders = [
+        'auto',
+        'claude',
+        'gemini',
+        'gemini-api',
+        'openai',
+        'ollama',
+        'script',
+        'fallback',
+        'none',
+      ];
       if (config.ai.provider !== undefined && !validProviders.includes(config.ai.provider)) {
         errors.push({
           path: 'ai.provider',

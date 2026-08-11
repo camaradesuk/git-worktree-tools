@@ -374,6 +374,11 @@ describe('config-manager', () => {
       expect(result.valid).toBe(true);
     });
 
+    it('accepts gemini-api and script as ai.provider', () => {
+      expect(validateConfig({ ai: { provider: 'gemini-api' } }).valid).toBe(true);
+      expect(validateConfig({ ai: { provider: 'script' } }).valid).toBe(true);
+    });
+
     it('returns error for invalid baseBranch type', () => {
       const config = { baseBranch: 123 as unknown as string };
       const result = validateConfig(config);

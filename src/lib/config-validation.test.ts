@@ -451,6 +451,24 @@ describe('validateConfig', () => {
   });
 });
 
+describe('ai provider/key allow-list (drift regression)', () => {
+  it('accepts gemini-api as ai.provider', () => {
+    expect(validateConfig({ ai: { provider: 'gemini-api' } }).valid).toBe(true);
+  });
+
+  it('accepts gemini-api as ai.fallback', () => {
+    expect(validateConfig({ ai: { provider: 'auto', fallback: 'gemini-api' } }).valid).toBe(true);
+  });
+
+  it('accepts ai.planPath and ai.planPathMode (documented AIConfig fields)', () => {
+    const result = validateConfig({
+      ai: { planPath: 'PLAN-{prNumber}-{slug}.md', planPathMode: 'prompt' },
+    });
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+});
+
 describe('formatValidationErrors', () => {
   it('should return empty string for no errors', () => {
     expect(formatValidationErrors([])).toBe('');
