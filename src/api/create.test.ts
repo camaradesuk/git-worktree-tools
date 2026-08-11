@@ -378,6 +378,15 @@ describe('createPr - existing branch PR content resolution', () => {
     const result = await createPr({ description: 'Add feature', skipAi: true });
 
     expect(generatePRContentAsync).not.toHaveBeenCalled();
+    // Pin the full call shape like every sibling here: source metadata alone
+    // would not catch a regression that swapped title/body on this path.
+    expect(github.createPr).toHaveBeenCalledWith({
+      title: derivedTitle,
+      body: defaultBody,
+      base: 'main',
+      head: currentBranch,
+      draft: false,
+    });
     expect(result.data?.titleSource).toBe('template');
     expect(result.data?.bodySource).toBe('template');
     expect(result.data?.aiError).toBe('AI skipped (--skip-ai)');
@@ -554,7 +563,16 @@ describe('createPr - new branch PR content resolution', () => {
     });
 
     expect(generatePRContentAsync).toHaveBeenCalled();
+    // Pin the full call shape, matching the existing-branch mirror.
+    expect(github.createPr).toHaveBeenCalledWith({
+      title: 'AI-generated title',
+      body: defaultBody,
+      base: 'main',
+      head: branchName,
+      draft: false,
+    });
     expect(result.data?.titleSource).toBe('ai');
+    expect(result.data?.bodySource).toBe('template');
   });
 
   it('returns INVALID_ARGUMENT for an unreadable bodyFile without ever pushing to git', async () => {

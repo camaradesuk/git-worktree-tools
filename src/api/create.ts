@@ -639,10 +639,17 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       const defaultBody = `## Summary\n\n${description}\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``;
 
       // No PRContentError catch here — same reasoning as the existing-branch
-      // site above. Worth noting what removing it also removes: the dead
-      // handler restored `actionResult.stashRef` but silently abandoned
-      // `unstagedStashRef`, so had it ever become reachable it would have
-      // stranded the user's unstaged changes. The outer catch handles both.
+      // site above: readBodyOverride is pre-called at the top of this function
+      // and `bodyFile` is never forwarded, so resolvePRContent cannot raise it.
+      //
+      // KNOWN GAP, pre-existing and NOT fixed here: the outer catch below
+      // restores `actionResult.stashRef` only. `unstagedStashRef` (stashed at
+      // line 591, applied at 694) is never restored on an error path, so any
+      // throw between those two points strands the user's unstaged changes in
+      // the stash. Removing the dead handler above neither caused nor fixed
+      // that — the handler had the same omission and was unreachable anyway.
+      // Fixing it properly means restoring both refs in the outer catch, which
+      // is beyond this change's scope.
       const prContent: ResolvedPRContent = await resolvePRContent({
         config,
         context: {
