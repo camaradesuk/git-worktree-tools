@@ -12,3 +12,6 @@ coverage/
 
 # Changelog (auto-generated)
 CHANGELOG.md
+
+# Local tool caches (regenerated, not source)
+.impeccable/
