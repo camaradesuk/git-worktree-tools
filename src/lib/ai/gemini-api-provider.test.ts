@@ -303,7 +303,41 @@ describe('GeminiAPIProvider', () => {
       expect(result.error).toContain('Empty response from Gemini API');
     });
 
-    it('names an invalid API key explicitly on HTTP 400 API_KEY_INVALID', async () => {
+    it("names an invalid API key explicitly on HTTP 400 API_KEY_INVALID (real Gemini API response shape: reason nested in error.details[], captured via curl against this machine's actual invalid GEMINI_API_KEY)", async () => {
+      process.env.GEMINI_API_KEY = 'invalid-key';
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: {
+              code: 400,
+              message: 'API key not valid. Please pass a valid API key.',
+              status: 'INVALID_ARGUMENT',
+              details: [
+                {
+                  '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+                  reason: 'API_KEY_INVALID',
+                  domain: 'googleapis.com',
+                  metadata: { service: 'generativelanguage.googleapis.com' },
+                },
+                {
+                  '@type': 'type.googleapis.com/google.rpc.LocalizedMessage',
+                  locale: 'en-US',
+                  message: 'API key not valid. Please pass a valid API key.',
+                },
+              ],
+            },
+          }),
+      });
+
+      const result = await new GeminiAPIProvider().generateBranchName(branchContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid or blocked API key');
+    });
+
+    it('also handles a flat error.reason field, in case Google ever simplifies the response shape', async () => {
       process.env.GEMINI_API_KEY = 'invalid-key';
       mockFetch.mockResolvedValue({
         ok: false,

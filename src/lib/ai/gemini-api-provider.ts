@@ -11,6 +11,7 @@
 import { BaseAIProvider, createSuccessResult, createErrorResult } from './base-provider.js';
 import type { AIGenerationResult } from './types.js';
 import { DEFAULT_AI_TIMEOUT_MS } from './types.js';
+import { extractGeminiErrorReason, type GeminiErrorBody } from './gemini-error.js';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = 'gemini-2.5-flash';
@@ -85,9 +86,9 @@ export class GeminiAPIProvider extends BaseAIProvider {
 
       // HTTP error handling
       if (!response.ok) {
-        let body: { error?: { reason?: string; message?: string } } | undefined;
+        let body: GeminiErrorBody | undefined;
         try {
-          body = (await response.json()) as { error?: { reason?: string; message?: string } };
+          body = (await response.json()) as GeminiErrorBody;
         } catch {
           // Non-JSON error body — fall through to the generic branches.
         }
@@ -95,7 +96,7 @@ export class GeminiAPIProvider extends BaseAIProvider {
         if (
           response.status === 401 ||
           response.status === 403 ||
-          body?.error?.reason === 'API_KEY_INVALID'
+          extractGeminiErrorReason(body) === 'API_KEY_INVALID'
         ) {
           return createErrorResult('Invalid or blocked API key — check GEMINI_API_KEY', this.name);
         }
