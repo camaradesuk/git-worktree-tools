@@ -126,13 +126,17 @@ export const tools: Tool[] = [
     name: 'worktree_create_pr',
     description:
       'Create a new PR with a dedicated worktree. Handles git state intelligently based on the specified action. Use worktree_get_state first to understand available actions.\n\n' +
+      'By default the PR title/body come from AI generation (if configured) or a generic template. Supply `title`/`body`/`bodyFile` to provide exact PR content instead — supplied content always wins over AI generation and the template.\n\n' +
       'Returns a CommandResult JSON with:\n' +
       '- data.prNumber: The created PR number\n' +
       '- data.prUrl: URL to the PR on GitHub\n' +
       '- data.branch: Branch name used for the PR\n' +
-      '- data.worktreePath: Absolute path to the new worktree directory\n\n' +
+      '- data.worktreePath: Absolute path to the new worktree directory\n' +
+      '- data.titleSource / data.bodySource: Where the title/body came from ("flag", "ai", or "template")\n' +
+      '- data.aiProvider: The AI provider that generated content, or null if AI did not contribute\n' +
+      '- data.aiError: Why AI generation produced nothing, or null if not attempted or it succeeded\n\n' +
       'Example success response:\n' +
-      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","created":true}}',
+      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","titleSource":"flag","bodySource":"template","aiProvider":null,"aiError":null,"created":true}}',
     annotations: {
       title: 'Create PR with Worktree',
       readOnlyHint: false,
@@ -164,6 +168,20 @@ export const tools: Tool[] = [
           type: 'string',
           description: 'Custom branch name (auto-generated if not provided)',
         },
+        title: {
+          type: 'string',
+          description: 'Exact PR title to use. Wins over AI generation and the built-in template.',
+        },
+        body: {
+          type: 'string',
+          description:
+            'Exact PR body to use. Wins over AI generation and the built-in template. Mutually exclusive with bodyFile.',
+        },
+        bodyFile: {
+          type: 'string',
+          description:
+            'Path to a file (on the machine running this MCP server) holding the PR body. Mutually exclusive with body.',
+        },
       },
       required: ['description'],
     },
@@ -181,6 +199,10 @@ export const tools: Tool[] = [
             draft: { type: 'boolean' },
             scenario: { type: 'string' },
             actionTaken: { type: 'string' },
+            titleSource: { type: 'string' },
+            bodySource: { type: 'string' },
+            aiProvider: { type: ['string', 'null'] },
+            aiError: { type: ['string', 'null'] },
             created: { type: 'boolean' },
           },
         },
@@ -452,6 +474,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const draft = (args?.draft as boolean) ?? false;
         const baseBranch = (args?.baseBranch as string) ?? 'main';
         const branchName = args?.branchName as string | undefined;
+        const title = args?.title as string | undefined;
+        const body = args?.body as string | undefined;
+        const bodyFile = args?.bodyFile as string | undefined;
 
         // Validate action if provided
         let validatedAction: StateActionKey | undefined;
@@ -481,6 +506,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           draft,
           baseBranch,
           branchName,
+          title,
+          body,
+          bodyFile,
         });
 
         return {

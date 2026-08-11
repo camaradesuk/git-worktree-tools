@@ -20,6 +20,11 @@ import {
   type StateAction,
 } from '../lib/newpr/index.js';
 import {
+  resolvePRContent,
+  PRContentError,
+  type ResolvedPRContent,
+} from '../lib/newpr/pr-content.js';
+import {
   type CommandResult,
   type NewprResultData,
   type StateActionKey,
@@ -45,6 +50,12 @@ export interface CreatePrOptions {
   branchName?: string;
   /** Working directory (defaults to current directory) */
   cwd?: string;
+  /** Exact PR title. Wins over AI generation and the built-in template. */
+  title?: string;
+  /** Exact PR body. Wins over AI generation and the built-in template. */
+  body?: string;
+  /** Path to a file holding the PR body. Mutually exclusive with `body`. */
+  bodyFile?: string;
 }
 
 /**
@@ -243,6 +254,9 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     baseBranch = 'main',
     branchName: customBranchName,
     cwd,
+    title: titleOverride,
+    body: bodyOverride,
+    bodyFile: bodyFileOverride,
   } = options;
 
   const warnings: string[] = [];
@@ -421,9 +435,36 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         .replace(/-/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase());
 
+      const defaultBody = `## Summary\n\nPR created from existing branch: \`${currentBranch}\`\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``;
+
+      let prContent: ResolvedPRContent;
+      try {
+        prContent = await resolvePRContent({
+          config,
+          context: {
+            description: title,
+            branchName: currentBranch,
+            baseBranch,
+            changedFiles: git.getChangedFiles(`origin/${baseBranch}`, currentBranch, repoRoot),
+            commitMessages: git.getCommitMessages(`origin/${baseBranch}`, currentBranch, repoRoot),
+          },
+          overrides: {
+            title: titleOverride,
+            body: bodyOverride,
+            bodyFile: bodyFileOverride,
+          },
+          defaultBody,
+        });
+      } catch (error) {
+        if (error instanceof PRContentError) {
+          return createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message);
+        }
+        throw error;
+      }
+
       const pr = github.createPr({
-        title,
-        body: `## Summary\n\nPR created from existing branch: \`${currentBranch}\`\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``,
+        title: prContent.title,
+        body: prContent.body,
         base: baseBranch,
         head: currentBranch,
         draft,
@@ -463,6 +504,10 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         draft,
         scenario,
         actionTaken: action.action,
+        titleSource: prContent.titleSource,
+        bodySource: prContent.bodySource,
+        aiProvider: prContent.aiProvider,
+        aiError: prContent.aiError,
         created: true,
       };
 
@@ -547,9 +592,43 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       git.checkout(originalBranch, repoRoot);
 
       // Create PR
+      const defaultBody = `## Summary\n\n${description}\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``;
+
+      let prContent: ResolvedPRContent;
+      try {
+        prContent = await resolvePRContent({
+          config,
+          context: {
+            description,
+            branchName,
+            baseBranch,
+            changedFiles: git.getChangedFiles(`origin/${baseBranch}`, branchName, repoRoot),
+            commitMessages: git.getCommitMessages(`origin/${baseBranch}`, branchName, repoRoot),
+          },
+          overrides: {
+            title: titleOverride,
+            body: bodyOverride,
+            bodyFile: bodyFileOverride,
+          },
+          defaultBody,
+        });
+      } catch (error) {
+        if (error instanceof PRContentError) {
+          if (actionResult.stashRef) {
+            try {
+              git.stashPop(actionResult.stashRef, repoRoot);
+            } catch {
+              // Ignore stash restore errors
+            }
+          }
+          return createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message);
+        }
+        throw error;
+      }
+
       const pr = github.createPr({
-        title: description,
-        body: `## Summary\n\n${description}\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``,
+        title: prContent.title,
+        body: prContent.body,
         base: baseBranch,
         head: branchName,
         draft,
@@ -594,6 +673,10 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         draft,
         scenario,
         actionTaken: action.action,
+        titleSource: prContent.titleSource,
+        bodySource: prContent.bodySource,
+        aiProvider: prContent.aiProvider,
+        aiError: prContent.aiError,
         created: true,
       };
 

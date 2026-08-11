@@ -443,6 +443,80 @@ describe('MCP Server', () => {
       expect(result.success).toBe(true);
       expect(result.data?.branch).toBe('custom/my-branch');
     });
+
+    it('calls createPr with supplied title/body/bodyFile and reports provenance', async () => {
+      const mockResult = {
+        success: true,
+        command: 'newpr',
+        timestamp: '2026-01-02T00:00:00.000Z',
+        data: {
+          prNumber: 45,
+          prUrl: 'https://github.com/test/repo/pull/45',
+          branch: 'feat/exact-content',
+          worktreePath: '/test/repo.pr45',
+          draft: false,
+          created: true,
+          titleSource: 'flag' as const,
+          bodySource: 'flag' as const,
+          aiProvider: null,
+          aiError: null,
+        },
+      };
+
+      vi.mocked(createPr).mockResolvedValue(mockResult);
+
+      const result = await createPr({
+        description: 'Add exact-content feature',
+        baseBranch: 'main',
+        draft: false,
+        title: 'Exact PR title',
+        body: 'Exact PR body',
+      });
+
+      expect(createPr).toHaveBeenCalledWith({
+        description: 'Add exact-content feature',
+        baseBranch: 'main',
+        draft: false,
+        title: 'Exact PR title',
+        body: 'Exact PR body',
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.titleSource).toBe('flag');
+      expect(result.data?.bodySource).toBe('flag');
+    });
+
+    it('calls createPr with bodyFile', async () => {
+      const mockResult = {
+        success: true,
+        command: 'newpr',
+        timestamp: '2026-01-02T00:00:00.000Z',
+        data: {
+          prNumber: 46,
+          prUrl: 'https://github.com/test/repo/pull/46',
+          branch: 'feat/body-file',
+          worktreePath: '/test/repo.pr46',
+          draft: false,
+          created: true,
+        },
+      };
+
+      vi.mocked(createPr).mockResolvedValue(mockResult);
+
+      const result = await createPr({
+        description: 'Add body-file feature',
+        baseBranch: 'main',
+        draft: false,
+        bodyFile: '/tmp/pr-body.md',
+      });
+
+      expect(createPr).toHaveBeenCalledWith({
+        description: 'Add body-file feature',
+        baseBranch: 'main',
+        draft: false,
+        bodyFile: '/tmp/pr-body.md',
+      });
+      expect(result.success).toBe(true);
+    });
   });
 
   describe('worktree_setup_pr handler', () => {
@@ -589,6 +663,37 @@ describe('MCP Server', () => {
       expect(tool!.annotations!.readOnlyHint).toBe(false);
       expect(tool!.annotations!.destructiveHint).toBe(false);
       expect(tool!.annotations!.openWorldHint).toBe(true);
+    });
+
+    it('worktree_create_pr input schema exposes title/body/bodyFile properties', () => {
+      const tool = tools.find((t) => t.name === 'worktree_create_pr');
+      expect(tool).toBeDefined();
+      const inputSchema = tool!.inputSchema as unknown as {
+        properties: Record<string, { type: string; description?: string }>;
+        required: string[];
+      };
+
+      expect(inputSchema.properties.title).toBeDefined();
+      expect(inputSchema.properties.title.type).toBe('string');
+      expect(inputSchema.properties.body).toBeDefined();
+      expect(inputSchema.properties.body.type).toBe('string');
+      expect(inputSchema.properties.bodyFile).toBeDefined();
+      expect(inputSchema.properties.bodyFile.type).toBe('string');
+      // Only description stays required; content overrides remain optional.
+      expect(inputSchema.required).toEqual(['description']);
+    });
+
+    it('worktree_create_pr output schema exposes content provenance fields', () => {
+      const tool = tools.find((t) => t.name === 'worktree_create_pr');
+      expect(tool).toBeDefined();
+      const outputSchema = tool!.outputSchema as unknown as {
+        properties: { data: { properties: Record<string, unknown> } };
+      };
+
+      expect(outputSchema.properties.data.properties.titleSource).toBeDefined();
+      expect(outputSchema.properties.data.properties.bodySource).toBeDefined();
+      expect(outputSchema.properties.data.properties.aiProvider).toBeDefined();
+      expect(outputSchema.properties.data.properties.aiError).toBeDefined();
     });
 
     it('worktree_list is annotated as read-only with open world', () => {
