@@ -62,8 +62,9 @@ vi.mock('../lib/worktree-setup.js', () => ({
 }));
 
 vi.mock('fs', () => ({
-  default: { existsSync: vi.fn() },
+  default: { existsSync: vi.fn(), readFileSync: vi.fn() },
   existsSync: vi.fn(),
+  readFileSync: vi.fn(),
 }));
 
 import * as fs from 'fs';
@@ -493,5 +494,24 @@ describe('createPr - new branch PR content resolution', () => {
     expect(result.data?.titleSource).toBe('template');
     expect(result.data?.bodySource).toBe('template');
     expect(result.data?.aiError).toBe('AI skipped (--skip-ai)');
+  });
+
+  it('returns INVALID_ARGUMENT for an unreadable bodyFile without ever pushing to git', async () => {
+    vi.mocked(fs.readFileSync).mockImplementation(() => {
+      throw new Error('ENOENT: no such file or directory');
+    });
+
+    const result = await createPr({
+      description,
+      bodyFile: '/nonexistent/body.md',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.code).toBe('INVALID_ARGUMENT');
+    // The whole point: validation must happen before any git mutation, so a
+    // bad --body-file must never leave a pushed branch with no PR behind it.
+    expect(git.push).not.toHaveBeenCalled();
+    expect(git.exec).not.toHaveBeenCalled();
+    expect(github.createPr).not.toHaveBeenCalled();
   });
 });

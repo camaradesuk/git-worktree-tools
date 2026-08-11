@@ -21,6 +21,7 @@ import {
 } from '../lib/newpr/index.js';
 import {
   resolvePRContent,
+  readBodyOverride,
   PRContentError,
   type ResolvedPRContent,
 } from '../lib/newpr/pr-content.js';
@@ -259,11 +260,29 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     branchName: customBranchName,
     cwd,
     title: titleOverride,
-    body: bodyOverride,
+    body: bodyOverrideRaw,
     bodyFile: bodyFileOverride,
     forceAi,
     skipAi,
   } = options;
+
+  // Validate caller-supplied content overrides (--body/--body-file mutual
+  // exclusion, and that --body-file is actually readable) before touching
+  // git at all. Resolving this lazily — right before creating the PR, as
+  // resolvePRContent() does internally — meant a bad override surfaced only
+  // after the branch had already been committed and pushed, leaving an
+  // orphaned remote branch with no PR (and a retry that then fails with
+  // BRANCH_EXISTS). Read once here and reuse the resolved string below so
+  // resolvePRContent() never re-reads the file.
+  let bodyOverride: string | undefined;
+  try {
+    bodyOverride = readBodyOverride({ body: bodyOverrideRaw, bodyFile: bodyFileOverride });
+  } catch (error) {
+    if (error instanceof PRContentError) {
+      return createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message);
+    }
+    throw error;
+  }
 
   const warnings: string[] = [];
 
@@ -457,7 +476,6 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
           overrides: {
             title: titleOverride,
             body: bodyOverride,
-            bodyFile: bodyFileOverride,
             forceAi,
             skipAi,
           },
@@ -616,7 +634,6 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
           overrides: {
             title: titleOverride,
             body: bodyOverride,
-            bodyFile: bodyFileOverride,
             forceAi,
             skipAi,
           },
