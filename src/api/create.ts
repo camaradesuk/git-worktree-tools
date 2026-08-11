@@ -135,6 +135,13 @@ export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<
     const repoName = git.getRepoName(repoRoot);
     const config = loadConfig(repoRoot);
 
+    let mainWorktreeRoot = repoRoot;
+    try {
+      mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+    } catch {
+      // Could not determine main worktree root; anchor to repoRoot instead.
+    }
+
     // Get PR info
     const pr = github.getPr(prNumber);
     if (!pr) {
@@ -146,7 +153,14 @@ export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<
     }
 
     // Generate worktree path
-    const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
+    const worktreePath = generateWorktreePath(
+      config,
+      repoRoot,
+      repoName,
+      prNumber,
+      pr.headBranch,
+      mainWorktreeRoot
+    );
 
     if (fs.existsSync(worktreePath)) {
       return createErrorResult(
