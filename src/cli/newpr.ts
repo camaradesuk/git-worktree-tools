@@ -856,6 +856,13 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   const config = loadConfig(repoRoot);
   const branchName = await generateBranchNameAsync(config, description, repoName);
 
+  let mainWorktreeRoot = repoRoot;
+  try {
+    mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+  } catch {
+    // Could not determine main worktree root; anchor to repoRoot instead.
+  }
+
   // Initialize hook runner (disabled if --no-hooks flag is set)
   const hookRunner = createHookRunner(
     options.noHooks ? {} : (config.hooks ?? {}),
@@ -1163,7 +1170,14 @@ ${description}
     // Run post-pr hook
     await hookRunner.runHook('post-pr');
 
-    const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+    const worktreePath = generateWorktreePath(
+      config,
+      repoRoot,
+      repoName,
+      pr.number,
+      branchName,
+      mainWorktreeRoot
+    );
 
     // Auto-setup worktree parent directory
     const worktreeSetupResult = await ensureWorktreeParentDir({
