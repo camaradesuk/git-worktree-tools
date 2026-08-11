@@ -345,6 +345,33 @@ describe('cli/newpr', () => {
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('PR #123'));
     });
 
+    it('anchors the worktree path to the main worktree root, not the invoking cwd', async () => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo/pr/pr1.other-worktree');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/repo');
+      vi.mocked(loadConfig).mockReturnValue(defaultConfig);
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo/pr/pr123.feature-123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      await runCli(['--pr', '123']);
+
+      expect(generateWorktreePath).toHaveBeenCalledWith(
+        defaultConfig,
+        '/repo/pr/pr1.other-worktree',
+        'repo',
+        123,
+        'feature-123',
+        '/repo'
+      );
+    });
+
     it('exits 1 when PR not found', async () => {
       vi.mocked(newpr.parseArgs).mockReturnValue({
         kind: 'success',

@@ -539,6 +539,13 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfig(repoRoot);
 
+  let mainWorktreeRoot = repoRoot;
+  try {
+    mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+  } catch {
+    // Could not determine main worktree root; anchor to repoRoot instead.
+  }
+
   // Initialize hook runner for post-worktree hook
   const hookRunner = createHookRunner(
     options.noHooks ? {} : (config.hooks ?? {}),
@@ -566,7 +573,14 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   printStatus('info', `PR branch: ${pr.headBranch}`);
 
-  const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
+  const worktreePath = generateWorktreePath(
+    config,
+    repoRoot,
+    repoName,
+    prNumber,
+    pr.headBranch,
+    mainWorktreeRoot
+  );
 
   // Auto-setup worktree parent directory
   const setupResult = await ensureWorktreeParentDir({
