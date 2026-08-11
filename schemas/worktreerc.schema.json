@@ -247,6 +247,47 @@
               "description": "Path to custom script provider"
             }
           }
+        },
+        "providerPriority": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "claude",
+              "gemini",
+              "gemini-api",
+              "openai",
+              "ollama",
+              "script",
+              "fallback",
+              "none"
+            ]
+          },
+          "description": "Ordered provider names to try when provider is 'auto'. Default: [\"openai\", \"claude\", \"gemini-api\", \"ollama\"] (subscription-first; 'openai' is the codex CLI)."
+        },
+        "timeout": {
+          "type": "number",
+          "description": "Default per-generation timeout in milliseconds for every provider unless overridden. Default: 60000."
+        },
+        "providers": {
+          "type": "object",
+          "description": "Per-provider overrides, keyed by provider name.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "timeout": {
+                "type": "number",
+                "description": "Per-provider timeout override in milliseconds."
+              }
+            }
+          }
+        },
+        "models": {
+          "type": "object",
+          "description": "Per-provider model override, keyed by provider name. Takes precedence over the legacy claude.model / gemini.model / openai.model fields.",
+          "additionalProperties": { "type": "string" }
         }
       }
     },

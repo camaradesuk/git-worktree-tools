@@ -211,6 +211,15 @@ export interface AIConfig {
 
   /** Per-generation-call timeout in ms. Overridable via GWT_AI_TIMEOUT and --ai-timeout. */
   timeout?: number;
+
+  /** Per-provider overrides, keyed by provider name. */
+  providers?: Partial<Record<AIProviderName, { timeout?: number }>>;
+
+  /**
+   * Per-provider model override. Takes precedence over the legacy
+   * `claude.model` / `gemini.model` / `openai.model` nested fields.
+   */
+  models?: Partial<Record<AIProviderName, string>>;
 }
 
 /**
@@ -226,6 +235,26 @@ export type AIProviderName =
   | 'script'
   | 'fallback'
   | 'none';
+
+/**
+ * Ordered list of providers to try when `provider` is `'auto'`.
+ * Subscription-first: codex and claude are flat-rate against subscriptions
+ * already paid for; gemini-api is metered per token; ollama is a local last
+ * resort. Overridable at every config tier via `ai.providerPriority`.
+ *
+ * NOTE: the wire identifier for the codex CLI provider is `'openai'` (kept
+ * for backward compatibility with existing .worktreerc files); its display
+ * name is `'codex'`.
+ */
+export const DEFAULT_AI_PROVIDER_PRIORITY: AIProviderName[] = [
+  'openai',
+  'claude',
+  'gemini-api',
+  'ollama',
+];
+
+/** Default per-generation timeout (ms) applied to every provider unless overridden. */
+export const DEFAULT_AI_TIMEOUT_MS = 60_000;
 
 /**
  * All valid AIProviderName values, including the meta-values ('auto',

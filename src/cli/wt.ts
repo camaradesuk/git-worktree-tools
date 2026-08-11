@@ -36,6 +36,7 @@ import { configCommand } from './wt/config.js';
 import { initCommand } from './wt/init.js';
 import { completionCommand } from './wt/completion.js';
 import { prsCommand } from './wt/prs.js';
+import { aiCommand } from './wt/ai.js';
 import { showMainMenu } from './wt/interactive-menu.js';
 import { initializeLogger } from '../lib/logger.js';
 import { printError } from '../lib/ui/index.js';
@@ -189,6 +190,7 @@ yargs(hideBin(process.argv))
   .command(initCommand)
   .command(completionCommand)
   .command(prsCommand)
+  .command(aiCommand)
   .completion('get-yargs-completions', false) // Enable yargs completion for bash script
   .alias('h', 'help')
   .help()
@@ -207,6 +209,7 @@ yargs(hideBin(process.argv))
   .example('wt state', 'Show current worktree state')
   .example('wt config show', 'Show current configuration')
   .example('wt init', 'Initialize local/global configuration')
+  .example('wt ai doctor', 'Diagnose AI provider availability')
   .example('wt -v new "Feature"', 'Create PR with verbose logging')
   .strict()
   .fail((msg, err) => {

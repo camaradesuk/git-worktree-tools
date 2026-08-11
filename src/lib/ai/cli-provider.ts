@@ -5,13 +5,18 @@
  */
 
 import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import type { AIGenerationResult } from './types.js';
+import { DEFAULT_AI_TIMEOUT_MS } from './types.js';
 import { BaseAIProvider, createSuccessResult, createErrorResult } from './base-provider.js';
 
 /**
  * Check if a command exists in PATH
  */
-function commandExists(cmd: string): boolean {
+export function commandExists(cmd: string): boolean {
   try {
     const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -26,19 +31,28 @@ function commandExists(cmd: string): boolean {
 /**
  * Execute a CLI command and capture output
  */
-function execCommand(cmd: string, args: string[], input?: string): string {
+function execCommand(
+  cmd: string,
+  args: string[],
+  input?: string,
+  timeoutMs: number = DEFAULT_AI_TIMEOUT_MS
+): string {
   const result = spawnSync(cmd, args, {
     input,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
     maxBuffer: 1024 * 1024 * 10, // 10MB
-    timeout: 60000, // 60 seconds
+    timeout: timeoutMs,
   });
 
   if (result.error) {
     throw result.error;
   }
-
+  if (result.signal) {
+    throw new Error(
+      `${cmd} was killed by signal ${result.signal} (likely timed out after ${timeoutMs}ms)`
+    );
+  }
   if (result.status !== 0) {
     throw new Error(result.stderr || `Command failed with exit code ${result.status}`);
   }
@@ -53,11 +67,13 @@ function execCommand(cmd: string, args: string[], input?: string): string {
  */
 export class ClaudeProvider extends BaseAIProvider {
   readonly name = 'claude';
-  private model: string;
+  private model?: string;
+  private timeoutMs: number;
 
-  constructor(model = 'claude-sonnet-4-20250514') {
+  constructor(model?: string, timeoutMs: number = DEFAULT_AI_TIMEOUT_MS) {
     super();
     this.model = model;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
@@ -76,7 +92,11 @@ export class ClaudeProvider extends BaseAIProvider {
     try {
       // Use claude CLI with the prompt
       // The claude CLI accepts prompts via stdin or as an argument
-      const output = execCommand('claude', ['-p', prompt, '--model', this.model]);
+      const args = ['-p', prompt];
+      if (this.model) {
+        args.push('--model', this.model);
+      }
+      const output = execCommand('claude', args, undefined, this.timeoutMs);
       return createSuccessResult(output.trim(), this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -94,10 +114,12 @@ export class ClaudeProvider extends BaseAIProvider {
 export class GeminiProvider extends BaseAIProvider {
   readonly name = 'gemini';
   private model: string;
+  private timeoutMs: number;
 
-  constructor(model = 'gemini-2.0-flash') {
+  constructor(model = 'gemini-2.0-flash', timeoutMs: number = DEFAULT_AI_TIMEOUT_MS) {
     super();
     this.model = model;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
@@ -114,7 +136,12 @@ export class GeminiProvider extends BaseAIProvider {
   protected async generate(prompt: string): Promise<AIGenerationResult> {
     try {
       // Use gemini CLI in non-interactive mode with -p flag
-      const output = execCommand('gemini', ['-p', prompt, '--model', this.model]);
+      const output = execCommand(
+        'gemini',
+        ['-p', prompt, '--model', this.model],
+        undefined,
+        this.timeoutMs
+      );
       return createSuccessResult(output.trim(), this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -132,11 +159,17 @@ export class OllamaProvider extends BaseAIProvider {
   readonly name = 'ollama';
   private model: string;
   private host: string;
+  private timeoutMs: number;
 
-  constructor(model = 'codellama:13b', host = 'http://localhost:11434') {
+  constructor(
+    model = 'codellama:13b',
+    host = 'http://localhost:11434',
+    timeoutMs: number = 120_000
+  ) {
     super();
     this.model = model;
     this.host = host;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
@@ -182,7 +215,7 @@ export class OllamaProvider extends BaseAIProvider {
         ],
         {
           encoding: 'utf-8',
-          timeout: 120000, // 2 minutes for local models
+          timeout: this.timeoutMs,
         }
       );
 
@@ -204,25 +237,26 @@ export class OllamaProvider extends BaseAIProvider {
 }
 
 /**
- * OpenAI Codex CLI provider
+ * OpenAI Codex CLI provider.
  *
- * Uses the Codex CLI for generation.
- * CLI syntax: codex exec "prompt" (non-interactive mode)
+ * Uses `codex exec` non-interactively and reads the answer from a temp file
+ * via --output-last-message: codex's stdout carries the agent's reasoning
+ * preamble and token accounting, which is not the answer.
  *
  * Note: This provider ONLY uses the Codex CLI tool. No API key fallback.
  * Users must have Codex CLI installed and authenticated.
  */
 export class OpenAIProvider extends BaseAIProvider {
   readonly name = 'codex';
+  private model?: string;
+  private timeoutMs: number;
 
-  constructor() {
+  constructor(model?: string, timeoutMs: number = DEFAULT_AI_TIMEOUT_MS) {
     super();
+    this.model = model;
+    this.timeoutMs = timeoutMs;
   }
 
-  /**
-   * Static availability check for lazy initialization
-   * Only available if Codex CLI is installed
-   */
   static checkAvailability(): Promise<boolean> {
     return Promise.resolve(commandExists('codex'));
   }
@@ -232,13 +266,66 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   protected async generate(prompt: string): Promise<AIGenerationResult> {
+    const outputFile = path.join(
+      os.tmpdir(),
+      `gwt-codex-${process.pid}-${crypto.randomBytes(6).toString('hex')}.txt`
+    );
+
     try {
-      // Codex CLI: codex exec "prompt" for non-interactive execution
-      const output = execCommand('codex', ['exec', prompt]);
-      return createSuccessResult(output.trim(), this.name);
+      const args = [
+        'exec',
+        '--skip-git-repo-check',
+        '-s',
+        'read-only',
+        '--color',
+        'never',
+        '--output-last-message',
+        outputFile,
+      ];
+      if (this.model) {
+        args.push('-m', this.model);
+      }
+      args.push(prompt);
+
+      const result = spawnSync('codex', args, {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+        maxBuffer: 1024 * 1024 * 10,
+        timeout: this.timeoutMs,
+      });
+
+      if (result.error) {
+        throw result.error;
+      }
+      if (result.signal) {
+        throw new Error(
+          `codex exec was killed by signal ${result.signal} (likely timed out after ${this.timeoutMs}ms)`
+        );
+      }
+      if (result.status !== 0) {
+        throw new Error(result.stderr || `codex exec failed with exit code ${result.status}`);
+      }
+      if (!fs.existsSync(outputFile)) {
+        throw new Error('codex exec produced no output file');
+      }
+
+      const output = fs.readFileSync(outputFile, 'utf-8').trim();
+      if (!output) {
+        throw new Error('codex exec produced an empty response');
+      }
+
+      return createSuccessResult(output, this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return createErrorResult(`Codex CLI error: ${message}`, this.name);
+    } finally {
+      try {
+        if (fs.existsSync(outputFile)) {
+          fs.rmSync(outputFile, { force: true });
+        }
+      } catch {
+        // Best effort: a leftover temp file must never mask the real error.
+      }
     }
   }
 }

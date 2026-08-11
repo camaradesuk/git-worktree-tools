@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'child_process';
+import * as fs from 'fs';
 import {
   ClaudeProvider,
   GeminiProvider,
@@ -13,6 +14,14 @@ import {
 } from './cli-provider.js';
 
 vi.mock('child_process');
+// Real fs calls run against real temp files (see mockCodexExec below), but a
+// few tests need to spy on fs.writeFileSync. Node's native `fs` module
+// exports non-configurable bindings that `vi.spyOn` cannot redefine
+// in-place, so re-export it as a plain, spy-able object.
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return { ...actual };
+});
 
 describe('cli-provider', () => {
   const originalPlatform = process.platform;
@@ -150,6 +159,60 @@ describe('cli-provider', () => {
 
         expect(result.success).toBe(false);
         expect(result.error).toContain('Claude CLI error');
+      });
+    });
+
+    describe('configurable model and timeout', () => {
+      function mockClaude(stdout = 'feat/x') {
+        vi.mocked(spawnSync).mockImplementation((cmd) => {
+          if (cmd === 'which' || cmd === 'where') {
+            return {
+              status: 0,
+              stdout: '/usr/bin/claude',
+              stderr: '',
+              pid: 0,
+              output: [],
+              signal: null,
+            };
+          }
+          return { status: 0, stdout, stderr: '', pid: 0, output: [], signal: null };
+        });
+      }
+
+      it('omits --model when no model is configured (uses the CLI default)', async () => {
+        mockClaude();
+        await new ClaudeProvider().generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        const claudeCall = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'claude')!;
+        expect(claudeCall[1] as string[]).not.toContain('--model');
+      });
+
+      it('passes --model when a model is configured', async () => {
+        mockClaude();
+        await new ClaudeProvider('claude-opus-4-6').generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        const [, args] = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'claude')!;
+        expect(args as string[]).toEqual(expect.arrayContaining(['--model', 'claude-opus-4-6']));
+      });
+
+      it('passes the configured timeout through to spawnSync', async () => {
+        mockClaude('ok');
+        await new ClaudeProvider(undefined, 9_999).generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        const [, , opts] = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'claude')!;
+        expect((opts as { timeout: number }).timeout).toBe(9_999);
       });
     });
   });
@@ -358,93 +421,169 @@ describe('cli-provider', () => {
     });
   });
 
-  describe('OpenAIProvider (Codex CLI only)', () => {
-    // Helper to mock spawnSync for Codex CLI
-    const mockSpawnForCodex = (codexExists: boolean, codexOutput?: string) => {
+  describe('OpenAIProvider (Codex CLI)', () => {
+    function findFlagValue(args: string[], flag: string): string | undefined {
+      const i = args.indexOf(flag);
+      return i === -1 ? undefined : args[i + 1];
+    }
+
+    function mockCodexExec(opts: {
+      installed?: boolean;
+      status?: number | null;
+      signal?: NodeJS.Signals | null;
+      stderr?: string;
+      lastMessage?: string | null; // null = codex never wrote the file
+      error?: Error;
+    }) {
+      const {
+        installed = true,
+        status = 0,
+        signal = null,
+        stderr = '',
+        lastMessage = 'ok',
+        error,
+      } = opts;
+
       vi.mocked(spawnSync).mockImplementation((cmd, args) => {
-        // Check for 'which codex' or 'where codex' (commandExists check)
-        if ((cmd === 'which' || cmd === 'where') && args?.[0] === 'codex') {
+        if ((cmd === 'which' || cmd === 'where') && (args as string[])?.[0] === 'codex') {
           return {
-            status: codexExists ? 0 : 1,
-            stdout: codexExists ? '/usr/bin/codex' : '',
+            status: installed ? 0 : 1,
+            stdout: installed ? '/usr/bin/codex' : '',
             stderr: '',
             pid: 0,
             output: [],
             signal: null,
           };
         }
-        // Codex CLI execution
-        if (cmd === 'codex' && codexOutput !== undefined) {
-          return {
-            status: 0,
-            stdout: codexOutput,
-            stderr: '',
-            pid: 0,
-            output: [],
-            signal: null,
-          };
+
+        if (cmd === 'codex') {
+          const argv = args as string[];
+          const outputFile = findFlagValue(argv, '--output-last-message');
+          if (lastMessage !== null && outputFile) {
+            fs.writeFileSync(outputFile, lastMessage, 'utf-8');
+          }
+          return { status, signal, stdout: '', stderr, pid: 0, output: [], error };
         }
-        // Default fallback
-        return {
-          status: 1,
-          stdout: '',
-          stderr: 'Command not found',
-          pid: 0,
-          output: [],
-          signal: null,
-        };
+
+        throw new Error(`unexpected spawnSync call: ${cmd}`);
       });
-    };
+    }
 
-    describe('isAvailable', () => {
-      it('returns true when Codex CLI is available', async () => {
-        mockSpawnForCodex(true);
+    const ctx = { description: 'Add auth', repoName: 'repo', branchPrefix: 'feat' };
 
-        const provider = new OpenAIProvider();
-        const available = await provider.isAvailable();
-
-        expect(available).toBe(true);
-      });
-
-      it('returns false when Codex CLI is not available', async () => {
-        mockSpawnForCodex(false);
-
-        const provider = new OpenAIProvider();
-        const available = await provider.isAvailable();
-
-        expect(available).toBe(false);
-      });
+    it('returns true when codex is installed', async () => {
+      mockCodexExec({ installed: true });
+      expect(await new OpenAIProvider().isAvailable()).toBe(true);
     });
 
-    describe('generateBranchName', () => {
-      it('generates branch name using Codex CLI', async () => {
-        mockSpawnForCodex(true, 'chore/update-dependencies');
+    it('returns false when codex is not installed', async () => {
+      mockCodexExec({ installed: false });
+      expect(await new OpenAIProvider().isAvailable()).toBe(false);
+    });
 
-        const provider = new OpenAIProvider();
-        const result = await provider.generateBranchName({
-          description: 'Update dependencies',
-          repoName: 'test-repo',
-          branchPrefix: 'chore',
-        });
+    it('invokes codex exec with the safe, non-interactive flag set', async () => {
+      mockCodexExec({ lastMessage: 'feat/add-auth' });
 
-        expect(result.success).toBe(true);
-        expect(result.content).toBe('chore/update-dependencies');
-        expect(result.provider).toBe('codex');
-      });
+      await new OpenAIProvider().generateBranchName(ctx);
 
-      it('returns error when Codex CLI is not available', async () => {
-        mockSpawnForCodex(false);
+      const codexCall = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'codex')!;
+      const args = codexCall[1] as string[];
 
-        const provider = new OpenAIProvider();
-        const result = await provider.generateBranchName({
-          description: 'Test',
-          repoName: 'test-repo',
-          branchPrefix: 'feat',
-        });
+      expect(args[0]).toBe('exec');
+      expect(args).toContain('--skip-git-repo-check');
+      expect(args).toEqual(expect.arrayContaining(['-s', 'read-only']));
+      expect(args).toEqual(expect.arrayContaining(['--color', 'never']));
+      expect(args).toContain('--output-last-message');
+      expect(args).not.toContain('-m');
+    });
 
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('Codex CLI error');
-      });
+    it('includes -m <model> only when a model is configured', async () => {
+      mockCodexExec({ lastMessage: 'feat/add-auth' });
+
+      await new OpenAIProvider('gpt-5.6-codex').generateBranchName(ctx);
+
+      const [, args] = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'codex')!;
+      expect(args as string[]).toEqual(expect.arrayContaining(['-m', 'gpt-5.6-codex']));
+    });
+
+    it('reads the answer from the --output-last-message file, not stdout', async () => {
+      mockCodexExec({ lastMessage: 'feat/add-auth' });
+
+      const result = await new OpenAIProvider().generateBranchName(ctx);
+
+      expect(result.success).toBe(true);
+      expect(result.content).toBe('feat/add-auth');
+      expect(result.provider).toBe('codex');
+    });
+
+    it('deletes the temp file after a successful run', async () => {
+      mockCodexExec({ lastMessage: 'feat/add-auth' });
+      const writeSpy = vi.spyOn(fs, 'writeFileSync');
+
+      await new OpenAIProvider().generateBranchName(ctx);
+
+      const outputFile = writeSpy.mock.calls[0][0] as string;
+      expect(fs.existsSync(outputFile)).toBe(false);
+    });
+
+    it('deletes the temp file even when codex exits non-zero', async () => {
+      mockCodexExec({ status: 1, stderr: 'boom', lastMessage: 'partial' });
+      const writeSpy = vi.spyOn(fs, 'writeFileSync');
+
+      const result = await new OpenAIProvider().generateBranchName(ctx);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('boom');
+      const outputFile = writeSpy.mock.calls[0][0] as string;
+      expect(fs.existsSync(outputFile)).toBe(false);
+    });
+
+    it('returns an error when the output file was never written', async () => {
+      mockCodexExec({ status: 0, lastMessage: null });
+
+      const result = await new OpenAIProvider().generateBranchName(ctx);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('no output');
+    });
+
+    it('returns an error on empty output', async () => {
+      mockCodexExec({ status: 0, lastMessage: '   ' });
+
+      const result = await new OpenAIProvider().generateBranchName(ctx);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('empty');
+    });
+
+    it('treats a timeout (killed by signal) as a failure and cleans up', async () => {
+      mockCodexExec({ status: null, signal: 'SIGTERM', lastMessage: 'unfinished' });
+      const writeSpy = vi.spyOn(fs, 'writeFileSync');
+
+      const result = await new OpenAIProvider(undefined, 100).generateBranchName(ctx);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/timeout|signal/i);
+      const outputFile = writeSpy.mock.calls[0][0] as string;
+      expect(fs.existsSync(outputFile)).toBe(false);
+    });
+
+    it('cleans up even when spawnSync itself errors', async () => {
+      mockCodexExec({ lastMessage: null, error: new Error('ENOENT') });
+
+      const result = await new OpenAIProvider().generateBranchName(ctx);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('ENOENT');
+    });
+
+    it('passes the configured timeout to spawnSync', async () => {
+      mockCodexExec({ lastMessage: 'ok' });
+
+      await new OpenAIProvider(undefined, 12_345).generateBranchName(ctx);
+
+      const [, , opts] = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'codex')!;
+      expect((opts as { timeout: number }).timeout).toBe(12_345);
     });
   });
 

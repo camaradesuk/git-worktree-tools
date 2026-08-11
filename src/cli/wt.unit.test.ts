@@ -85,10 +85,12 @@ vi.mock('yargs/helpers', () => ({
   hideBin: vi.fn((args) => args.slice(2)),
 }));
 
+import yargs from 'yargs';
 import * as git from '../lib/git.js';
 import * as config from '../lib/config.js';
 import * as logger from '../lib/logger.js';
 import * as globalCheck from '../lib/global-check.js';
+import { aiCommand } from './wt/ai.js';
 import { printError } from '../lib/ui/index.js';
 import { createErrorResult } from '../lib/json-output.js';
 
@@ -303,6 +305,26 @@ describe('wt CLI entry point', () => {
         await expect(import('./wt.js')).rejects.toThrow('Some other failure');
         expect(processExitSpy).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('command registration', () => {
+    it('registers the ai command (wt ai doctor)', async () => {
+      (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
+      (config.loadConfig as ReturnType<typeof vi.fn>).mockReturnValue({});
+
+      await import('./wt.js');
+
+      // wt.js is re-imported fresh per test (vi.resetModules() in afterEach),
+      // so it pulls in its own fresh copy of aiCommand whose handler/builder
+      // function references differ from the one statically imported above —
+      // compare the stable command/describe strings rather than object
+      // identity, which a deep-equal toHaveBeenCalledWith(aiCommand) would
+      // spuriously fail on function identity alone.
+      const mockYargsInstance = vi.mocked(yargs).mock.results[0]?.value;
+      expect(mockYargsInstance.command).toHaveBeenCalledWith(
+        expect.objectContaining({ command: aiCommand.command, describe: aiCommand.describe })
+      );
     });
   });
 });

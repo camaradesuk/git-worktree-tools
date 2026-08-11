@@ -175,6 +175,31 @@ describe('JSON Schema', () => {
       expect(validate(config)).toBe(true);
     });
 
+    it('AIConfig documents providerPriority, timeout, providers and models', () => {
+      const aiProps = schema.definitions.AIConfig.properties;
+
+      expect(aiProps.providerPriority).toBeDefined();
+      expect(aiProps.providerPriority.type).toBe('array');
+      expect(aiProps.timeout).toBeDefined();
+      expect(aiProps.timeout.type).toBe('number');
+      expect(aiProps.providers).toBeDefined();
+      expect(aiProps.models).toBeDefined();
+    });
+
+    it('a .worktreerc using the new ai fields validates against the schema', () => {
+      expect(
+        validate({
+          ai: {
+            provider: 'auto',
+            providerPriority: ['openai', 'claude', 'gemini-api', 'ollama'],
+            timeout: 45_000,
+            providers: { openai: { timeout: 30_000 } },
+            models: { claude: 'claude-opus-4-6' },
+          },
+        })
+      ).toBe(true);
+    });
+
     it('config with hooks', () => {
       const config = {
         hooks: {
