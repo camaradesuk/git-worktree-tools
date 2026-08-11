@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import {
-  pickAutoProvider,
+  describeSelectionWarning,
   probeCodex,
   probeClaude,
   probeGeminiApi,
@@ -26,63 +26,43 @@ function diag(name: string, overrides: Partial<ProviderDiagnostic> = {}): Provid
   };
 }
 
-describe('pickAutoProvider', () => {
-  it('picks the first provider in priority order that is installed', () => {
-    const result = pickAutoProvider([diag('openai'), diag('claude')], ['openai', 'claude']);
-    expect(result.selected).toBe('openai');
-    expect(result.reason).toContain('installed');
+describe('describeSelectionWarning', () => {
+  it('returns undefined when there is no selected diagnostic', () => {
+    expect(describeSelectionWarning(undefined)).toBeUndefined();
   });
 
-  it('skips a provider that is not installed', () => {
-    const result = pickAutoProvider(
-      [diag('openai', { installed: false }), diag('claude')],
-      ['openai', 'claude']
-    );
-    expect(result.selected).toBe('claude');
+  it('returns undefined for a healthy, installed, authenticated, reachable selection', () => {
+    expect(describeSelectionWarning(diag('openai'))).toBeUndefined();
   });
 
-  it('skips a provider whose authenticated check explicitly failed', () => {
-    const result = pickAutoProvider(
-      [diag('gemini-api', { authenticated: false }), diag('ollama')],
-      ['gemini-api', 'ollama']
-    );
-    expect(result.selected).toBe('ollama');
-  });
-
-  it('does NOT skip a provider whose authenticated check is merely "unknown"', () => {
-    // Mirrors the manager's cheap-availability semantics on purpose.
-    const result = pickAutoProvider([diag('claude', { authenticated: 'unknown' })], ['claude']);
-    expect(result.selected).toBe('claude');
-  });
-
-  it('returns null with a reason when nothing is installed', () => {
-    const result = pickAutoProvider(
-      [diag('openai', { installed: false }), diag('claude', { installed: false })],
-      ['openai', 'claude']
-    );
-    expect(result.selected).toBeNull();
-    expect(result.reason).toContain('no provider');
-  });
-
-  it('flags a selected-but-unreachable provider (the GEMINI_API_KEY bug, reproduced)', () => {
-    const result = pickAutoProvider(
-      [
-        diag('gemini-api', {
-          authenticated: true,
-          reachable: false,
-          error: 'HTTP 400: API_KEY_INVALID',
-        }),
-      ],
-      ['gemini-api']
+  it('warns when the selected provider is unreachable (the GEMINI_API_KEY bug, reproduced)', () => {
+    const warning = describeSelectionWarning(
+      diag('gemini-api', {
+        authenticated: true,
+        reachable: false,
+        error: 'API_KEY_INVALID: API key not valid.',
+      })
     );
 
-    expect(result.selected).toBe('gemini-api');
-    expect(result.warning).toContain('API_KEY_INVALID');
+    expect(warning).toContain('gemini-api');
+    expect(warning).toContain('API_KEY_INVALID');
   });
 
-  it('ignores priority entries with no matching diagnostic', () => {
-    const result = pickAutoProvider([diag('claude')], ['openai', 'claude']);
-    expect(result.selected).toBe('claude');
+  it('warns when the selected provider is explicitly not authenticated', () => {
+    const warning = describeSelectionWarning(diag('claude', { authenticated: false }));
+    expect(warning).toContain('claude');
+    expect(warning).toContain('not appear to be authenticated');
+  });
+
+  it('does NOT warn when authenticated is merely "unknown" (claude has no free auth check)', () => {
+    expect(describeSelectionWarning(diag('claude', { authenticated: 'unknown' }))).toBeUndefined();
+  });
+
+  it('prefers the reachability warning over the authentication warning when both apply', () => {
+    const warning = describeSelectionWarning(
+      diag('gemini-api', { authenticated: false, reachable: false, error: 'boom' })
+    );
+    expect(warning).toContain('reachability probe failed');
   });
 });
 

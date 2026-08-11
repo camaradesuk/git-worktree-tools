@@ -16,7 +16,7 @@ import { BaseAIProvider, createSuccessResult, createErrorResult } from './base-p
 /**
  * Check if a command exists in PATH
  */
-function commandExists(cmd: string): boolean {
+export function commandExists(cmd: string): boolean {
   try {
     const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], {
       stdio: ['pipe', 'pipe', 'pipe'],

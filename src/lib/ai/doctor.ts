@@ -1,9 +1,12 @@
 /**
  * `wt ai doctor` diagnostics.
  *
- * Split deliberately: the pure `pickAutoProvider()` mirrors what
- * AIProviderManager does at runtime (cheap availability check, not a live
- * probe) so the two cannot drift. The live-probe layer is separate.
+ * The doctor's *selection* answer (what `auto` will really pick) comes
+ * directly from `AIProviderManager.getAutoSelectionPreview()` — see
+ * `doctor-report.ts` — so it can never drift from the real selection logic.
+ * This module supplies the richer, live-probed diagnostic data used to
+ * *annotate* that answer (`describeSelectionWarning()`) plus the real
+ * per-provider probes themselves.
  */
 
 import { spawnSync } from 'child_process';
@@ -11,6 +14,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { commandExists } from './cli-provider.js';
+import { extractGeminiErrorReason, type GeminiErrorBody } from './gemini-error.js';
 
 export interface ProviderDiagnostic {
   /** Config-facing identifier (e.g. 'openai'). */
@@ -26,46 +31,32 @@ export interface ProviderDiagnostic {
   error?: string;
 }
 
-export interface AutoSelection {
-  selected: string | null;
-  reason: string;
-  /** Set when the selected provider fails a deeper check than selection uses. */
-  warning?: string;
-}
-
 /**
- * What `auto` would select given cheap availability data (installed +
- * authenticated !== false) — matching AIProviderManager.buildAutoChain()'s
- * criterion exactly, on purpose.
+ * Build a warning to attach to the manager's real `auto` selection when the
+ * selected provider's own live diagnostic shows a deeper problem than the
+ * manager's own (cheap, availability-only) check can see — e.g. codex is
+ * `commandExists`-installed but not logged in, or a live reachability probe
+ * failed. Returns `undefined` when there's nothing to warn about.
+ *
+ * Deliberately does NOT re-derive *which* provider is selected — that used
+ * to live here (as `pickAutoProvider`), duplicating the manager's own
+ * availability semantics (and subtly diverging from them: the manager has
+ * no `authenticated` concept at all for CLI providers, so a doctor-only
+ * auth filter could report a provider `auto` would never actually try).
+ * Selection now comes from `AIProviderManager.getAutoSelectionPreview()`.
  */
-export function pickAutoProvider(
-  diagnostics: ProviderDiagnostic[],
-  priority: string[]
-): AutoSelection {
-  const byName = new Map(diagnostics.map((d) => [d.name, d]));
+export function describeSelectionWarning(
+  selectedDiagnostic: ProviderDiagnostic | undefined
+): string | undefined {
+  if (!selectedDiagnostic) return undefined;
 
-  for (const name of priority) {
-    const d = byName.get(name);
-    if (!d) continue;
-    if (!d.installed) continue;
-    if (d.authenticated === false) continue;
-
-    const warning =
-      d.reachable === false
-        ? `${d.displayName} is selected by auto, but a live reachability probe failed: ${d.error ?? 'unknown reason'}`
-        : undefined;
-
-    return {
-      selected: d.name,
-      reason: `${d.displayName} is installed${d.authenticated === true ? ' and authenticated' : ''}, first in priority order`,
-      warning,
-    };
+  if (selectedDiagnostic.reachable === false) {
+    return `auto selects ${selectedDiagnostic.displayName}, but a live reachability probe failed: ${selectedDiagnostic.error ?? 'unknown reason'}`;
   }
-
-  return {
-    selected: null,
-    reason: 'no provider in the priority list is installed and authenticated',
-  };
+  if (selectedDiagnostic.authenticated === false) {
+    return `auto selects ${selectedDiagnostic.displayName}, but it does not appear to be authenticated`;
+  }
+  return undefined;
 }
 
 // --- Real per-provider probes -------------------------------------------
@@ -79,16 +70,8 @@ export interface ProbeOptions {
   offline: boolean;
 }
 
-function commandInstalled(cmd: string): boolean {
-  const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], {
-    stdio: ['pipe', 'pipe', 'pipe'],
-    encoding: 'utf-8',
-  });
-  return result.status === 0;
-}
-
 export async function probeCodex(options: ProbeOptions): Promise<Partial<ProviderDiagnostic>> {
-  const installed = commandInstalled('codex');
+  const installed = commandExists('codex');
   if (!installed) {
     return { installed: false, authenticated: 'unknown', reachable: 'unknown' };
   }
@@ -151,7 +134,7 @@ export async function probeCodex(options: ProbeOptions): Promise<Partial<Provide
 }
 
 export async function probeClaude(options: ProbeOptions): Promise<Partial<ProviderDiagnostic>> {
-  const installed = commandInstalled('claude');
+  const installed = commandExists('claude');
   if (!installed) {
     return { installed: false, authenticated: 'unknown', reachable: 'unknown' };
   }
@@ -172,29 +155,6 @@ export async function probeClaude(options: ProbeOptions): Promise<Partial<Provid
     reachable,
     error: reachable ? undefined : result.stderr || 'no output',
   };
-}
-
-interface GeminiErrorBody {
-  error?: {
-    reason?: string;
-    message?: string;
-    /**
-     * The REAL shape of a Gemini API error body (verified via a live curl
-     * against this machine's actual invalid GEMINI_API_KEY): `reason` is
-     * nested inside a `google.rpc.ErrorInfo` entry in `details[]`, not a
-     * flat `error.reason` field.
-     */
-    details?: Array<{ reason?: string }>;
-  };
-}
-
-/** Extract the machine-readable failure reason (e.g. "API_KEY_INVALID") from
- * a Gemini API error body, checking the real nested `details[]` shape first
- * and falling back to a flat `error.reason` in case Google ever simplifies
- * the response. */
-function extractGeminiErrorReason(body: GeminiErrorBody | undefined): string | undefined {
-  const fromDetails = body?.error?.details?.find((d) => typeof d?.reason === 'string')?.reason;
-  return fromDetails ?? body?.error?.reason;
 }
 
 export async function probeGeminiApi(options: ProbeOptions): Promise<Partial<ProviderDiagnostic>> {

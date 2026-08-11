@@ -53,6 +53,13 @@ export class AIProviderManager {
    * mode this holds just the resolved primary (or is empty).
    */
   private autoChain: AIProvider[] = [];
+  /**
+   * Config-facing names (e.g. 'openai') parallel to `autoChain`, in the same
+   * order. Needed because `AIProvider.name` is a *display* name ('codex' for
+   * OpenAIProvider) that differs from the config key `wt ai doctor` and
+   * `.worktreerc` both use — see `getAutoSelectionPreview()`.
+   */
+  private autoChainConfigNames: string[] = [];
 
   constructor(options: ProviderManagerOptions = {}) {
     this.config = { ...DEFAULT_AI_CONFIG, ...options.config };
@@ -71,14 +78,16 @@ export class AIProviderManager {
   }
 
   /** Every AVAILABLE provider in priority order. Lazy: nothing unavailable is constructed. */
-  private async buildAutoChain(): Promise<AIProvider[]> {
-    const chain: AIProvider[] = [];
+  private async buildAutoChain(): Promise<{ providers: AIProvider[]; configNames: string[] }> {
+    const providers: AIProvider[] = [];
+    const configNames: string[] = [];
     for (const factory of this.orderedFactoriesForAuto()) {
       if (await this.isProviderAvailable(factory)) {
-        chain.push(factory.create());
+        providers.push(factory.create());
+        configNames.push(factory.name);
       }
     }
-    return chain;
+    return { providers, configNames };
   }
 
   /**
@@ -88,11 +97,15 @@ export class AIProviderManager {
     if (this.initialized) return;
 
     if ((this.config.provider ?? 'auto') === 'auto') {
-      this.autoChain = await this.buildAutoChain();
+      const chain = await this.buildAutoChain();
+      this.autoChain = chain.providers;
+      this.autoChainConfigNames = chain.configNames;
       this.primaryProvider = this.autoChain[0] ?? null;
     } else {
-      this.primaryProvider = await this.resolveProvider(this.config.provider ?? 'auto');
+      const configuredName = this.config.provider ?? 'auto';
+      this.primaryProvider = await this.resolveProvider(configuredName);
       this.autoChain = this.primaryProvider ? [this.primaryProvider] : [];
+      this.autoChainConfigNames = this.primaryProvider ? [configuredName] : [];
     }
 
     if (this.config.fallback && this.config.fallback !== 'none') {
@@ -313,12 +326,17 @@ export class AIProviderManager {
    * What `auto` would pick right now, plus the priority order behind it.
    * Used by `wt ai doctor` so its explanation cannot drift from the real
    * selection logic.
+   *
+   * `selected` is the config-facing name (e.g. 'openai'), matching
+   * `.worktreerc`'s `ai.providerPriority` and `ProviderDiagnostic.name` —
+   * NOT `AIProvider.name`, which is a display name ('codex') for some
+   * providers and would silently fail to match either.
    */
   async getAutoSelectionPreview(): Promise<{ priority: string[]; selected: string | null }> {
     await this.initialize();
     return {
       priority: this.orderedFactoriesForAuto().map((f) => f.name),
-      selected: this.autoChain[0]?.name ?? null,
+      selected: this.autoChainConfigNames[0] ?? null,
     };
   }
 

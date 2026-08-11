@@ -218,6 +218,78 @@ describe('provider-manager', () => {
       });
     });
 
+    describe('getAutoSelectionPreview', () => {
+      // `wt ai doctor` reports this value directly as the "auto would
+      // select" answer, and matches it against ProviderDiagnostic.name
+      // (config-facing keys like 'openai'). Providers' own .name is a
+      // *display* name ('codex' for OpenAIProvider) that differs from its
+      // config key — so this must never leak the display name.
+      it('returns the config-facing provider name ("openai"), not the display name ("codex")', async () => {
+        const codexProvider = mockProvider('codex', true);
+        vi.mocked(OpenAIProvider).mockImplementation(
+          () => codexProvider as unknown as InstanceType<typeof OpenAIProvider>
+        );
+
+        const manager = new AIProviderManager({ config: { provider: 'auto' } });
+        const preview = await manager.getAutoSelectionPreview();
+
+        expect(preview.selected).toBe('openai');
+      });
+
+      it('returns the full default priority order as config-facing names', async () => {
+        const manager = new AIProviderManager({ config: { provider: 'auto' } });
+        const preview = await manager.getAutoSelectionPreview();
+
+        expect(preview.priority).toEqual(['openai', 'claude', 'gemini-api', 'ollama']);
+      });
+
+      it('returns null when nothing is available', async () => {
+        (
+          OpenAIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          ClaudeProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          GeminiAPIProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+        (
+          OllamaProvider as unknown as { checkAvailability: () => Promise<boolean> }
+        ).checkAvailability = vi.fn().mockResolvedValue(false);
+
+        const manager = new AIProviderManager({ config: { provider: 'auto' } });
+        const preview = await manager.getAutoSelectionPreview();
+
+        expect(preview.selected).toBeNull();
+      });
+
+      it('respects a custom ai.providerPriority order, still returning the config-facing name', async () => {
+        const ollamaProvider = mockProvider('ollama', true);
+        vi.mocked(OllamaProvider).mockImplementation(
+          () => ollamaProvider as unknown as InstanceType<typeof OllamaProvider>
+        );
+
+        const manager = new AIProviderManager({
+          config: { provider: 'auto', providerPriority: ['ollama', 'claude'] },
+        });
+        const preview = await manager.getAutoSelectionPreview();
+
+        expect(preview.selected).toBe('ollama');
+      });
+
+      it('in explicit-provider mode, returns the configured provider name directly', async () => {
+        const claudeProvider = mockProvider('claude', true);
+        vi.mocked(ClaudeProvider).mockImplementation(
+          () => claudeProvider as unknown as InstanceType<typeof ClaudeProvider>
+        );
+
+        const manager = new AIProviderManager({ config: { provider: 'claude' } });
+        const preview = await manager.getAutoSelectionPreview();
+
+        expect(preview.selected).toBe('claude');
+      });
+    });
+
     describe('auto-mode fallthrough on failure', () => {
       it('advances past a provider that is available but returns success:false', async () => {
         const codexProvider = mockProvider('codex', true, {
