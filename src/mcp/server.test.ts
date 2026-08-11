@@ -388,6 +388,8 @@ describe('MCP Server', () => {
         title: undefined,
         body: undefined,
         bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
       });
       const result = parseToolResult(response);
       expect(result.success).toBe(true);
@@ -430,6 +432,8 @@ describe('MCP Server', () => {
         title: undefined,
         body: undefined,
         bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
       });
       const result = parseToolResult(response);
       expect(result.success).toBe(true);
@@ -469,6 +473,8 @@ describe('MCP Server', () => {
         title: undefined,
         body: undefined,
         bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
       });
       const result = parseToolResult(response);
       expect(result.success).toBe(true);

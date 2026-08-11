@@ -462,31 +462,28 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
       const defaultBody = `## Summary\n\nPR created from existing branch: \`${currentBranch}\`\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``;
 
-      let prContent: ResolvedPRContent;
-      try {
-        prContent = await resolvePRContent({
-          config,
-          context: {
-            description: title,
-            branchName: currentBranch,
-            baseBranch,
-            changedFiles: git.getChangedFiles(`origin/${baseBranch}`, currentBranch, repoRoot),
-            commitMessages: git.getCommitMessages(`origin/${baseBranch}`, currentBranch, repoRoot),
-          },
-          overrides: {
-            title: titleOverride,
-            body: bodyOverride,
-            forceAi,
-            skipAi,
-          },
-          defaultBody,
-        });
-      } catch (error) {
-        if (error instanceof PRContentError) {
-          return createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message);
-        }
-        throw error;
-      }
+      // No PRContentError catch here: both of its throw sites live in
+      // readBodyOverride and both require `bodyFile`. We pre-read that at the
+      // top of this function and pass the contents as `body`, never `bodyFile`,
+      // so resolvePRContent cannot raise it. A catch that can never fire is
+      // dead code that only makes a future real error look handled.
+      const prContent: ResolvedPRContent = await resolvePRContent({
+        config,
+        context: {
+          description: title,
+          branchName: currentBranch,
+          baseBranch,
+          changedFiles: git.getChangedFiles(`origin/${baseBranch}`, currentBranch, repoRoot),
+          commitMessages: git.getCommitMessages(`origin/${baseBranch}`, currentBranch, repoRoot),
+        },
+        overrides: {
+          title: titleOverride,
+          body: bodyOverride,
+          forceAi,
+          skipAi,
+        },
+        defaultBody,
+      });
 
       const pr = github.createPr({
         title: prContent.title,
@@ -620,38 +617,28 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       // Create PR
       const defaultBody = `## Summary\n\n${description}\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``;
 
-      let prContent: ResolvedPRContent;
-      try {
-        prContent = await resolvePRContent({
-          config,
-          context: {
-            description,
-            branchName,
-            baseBranch,
-            changedFiles: git.getChangedFiles(`origin/${baseBranch}`, branchName, repoRoot),
-            commitMessages: git.getCommitMessages(`origin/${baseBranch}`, branchName, repoRoot),
-          },
-          overrides: {
-            title: titleOverride,
-            body: bodyOverride,
-            forceAi,
-            skipAi,
-          },
-          defaultBody,
-        });
-      } catch (error) {
-        if (error instanceof PRContentError) {
-          if (actionResult.stashRef) {
-            try {
-              git.stashPop(actionResult.stashRef, repoRoot);
-            } catch {
-              // Ignore stash restore errors
-            }
-          }
-          return createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message);
-        }
-        throw error;
-      }
+      // No PRContentError catch here — same reasoning as the existing-branch
+      // site above. Worth noting what removing it also removes: the dead
+      // handler restored `actionResult.stashRef` but silently abandoned
+      // `unstagedStashRef`, so had it ever become reachable it would have
+      // stranded the user's unstaged changes. The outer catch handles both.
+      const prContent: ResolvedPRContent = await resolvePRContent({
+        config,
+        context: {
+          description,
+          branchName,
+          baseBranch,
+          changedFiles: git.getChangedFiles(`origin/${baseBranch}`, branchName, repoRoot),
+          commitMessages: git.getCommitMessages(`origin/${baseBranch}`, branchName, repoRoot),
+        },
+        overrides: {
+          title: titleOverride,
+          body: bodyOverride,
+          forceAi,
+          skipAi,
+        },
+        defaultBody,
+      });
 
       const pr = github.createPr({
         title: prContent.title,
