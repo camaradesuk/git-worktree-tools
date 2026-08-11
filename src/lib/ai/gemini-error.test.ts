@@ -54,4 +54,19 @@ describe('extractGeminiErrorReason', () => {
     const body = { error: { details: [{ '@type': 'x' } as { reason?: string }] } };
     expect(extractGeminiErrorReason(body)).toBeUndefined();
   });
+
+  // The body is untrusted JSON off the wire, so it can contradict the type.
+  // This parser runs inside an error handler: throwing here would replace a
+  // clear diagnostic with a stack trace, so malformed shapes must degrade.
+  it.each([
+    ['details is a string', { error: { details: 'not-an-array' } }],
+    ['details is an object', { error: { details: { reason: 'X' } } }],
+    ['details is null', { error: { details: null } }],
+    ['details entry is null', { error: { details: [null] } }],
+    ['error is a string', { error: 'boom' }],
+    ['flat reason is not a string', { error: { reason: 42 } }],
+  ])('does not throw and returns undefined when %s', (_label, body) => {
+    expect(() => extractGeminiErrorReason(body as never)).not.toThrow();
+    expect(extractGeminiErrorReason(body as never)).toBeUndefined();
+  });
 });

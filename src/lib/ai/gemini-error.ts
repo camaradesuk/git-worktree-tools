@@ -43,6 +43,14 @@ export interface GeminiErrorBody {
  * reason is present in either shape.
  */
 export function extractGeminiErrorReason(body: GeminiErrorBody | undefined): string | undefined {
-  const fromDetails = body?.error?.details?.find((d) => typeof d?.reason === 'string')?.reason;
-  return fromDetails ?? body?.error?.reason;
+  // `details` is typed as an array but arrives as untrusted JSON off the
+  // wire; a non-array value would make `.find` throw *inside an error
+  // handler*, turning a clear diagnostic into a stack trace. Guard the
+  // shape rather than trusting the type.
+  const details = body?.error?.details;
+  const fromDetails = Array.isArray(details)
+    ? details.find((d) => typeof d?.reason === 'string')?.reason
+    : undefined;
+  const flat = body?.error?.reason;
+  return fromDetails ?? (typeof flat === 'string' ? flat : undefined);
 }
