@@ -174,6 +174,29 @@ export async function probeClaude(options: ProbeOptions): Promise<Partial<Provid
   };
 }
 
+interface GeminiErrorBody {
+  error?: {
+    reason?: string;
+    message?: string;
+    /**
+     * The REAL shape of a Gemini API error body (verified via a live curl
+     * against this machine's actual invalid GEMINI_API_KEY): `reason` is
+     * nested inside a `google.rpc.ErrorInfo` entry in `details[]`, not a
+     * flat `error.reason` field.
+     */
+    details?: Array<{ reason?: string }>;
+  };
+}
+
+/** Extract the machine-readable failure reason (e.g. "API_KEY_INVALID") from
+ * a Gemini API error body, checking the real nested `details[]` shape first
+ * and falling back to a flat `error.reason` in case Google ever simplifies
+ * the response. */
+function extractGeminiErrorReason(body: GeminiErrorBody | undefined): string | undefined {
+  const fromDetails = body?.error?.details?.find((d) => typeof d?.reason === 'string')?.reason;
+  return fromDetails ?? body?.error?.reason;
+}
+
 export async function probeGeminiApi(options: ProbeOptions): Promise<Partial<ProviderDiagnostic>> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
@@ -196,10 +219,8 @@ export async function probeGeminiApi(options: ProbeOptions): Promise<Partial<Pro
     );
 
     if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as {
-        error?: { reason?: string; message?: string };
-      };
-      const reason = body?.error?.reason ?? `HTTP ${response.status}`;
+      const body = (await response.json().catch(() => ({}))) as GeminiErrorBody;
+      const reason = extractGeminiErrorReason(body) ?? `HTTP ${response.status}`;
       return {
         installed: true,
         authenticated: true,
