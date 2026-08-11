@@ -20,6 +20,12 @@ import {
   type StateAction,
 } from '../lib/newpr/index.js';
 import {
+  resolvePRContent,
+  readBodyOverride,
+  PRContentError,
+  type ResolvedPRContent,
+} from '../lib/newpr/pr-content.js';
+import {
   type CommandResult,
   type NewprResultData,
   type StateActionKey,
@@ -45,6 +51,16 @@ export interface CreatePrOptions {
   branchName?: string;
   /** Working directory (defaults to current directory) */
   cwd?: string;
+  /** Exact PR title. Wins over AI generation and the built-in template. */
+  title?: string;
+  /** Exact PR body. Wins over AI generation and the built-in template. */
+  body?: string;
+  /** Path to a file holding the PR body. Mutually exclusive with `body`. */
+  bodyFile?: string;
+  /** Run AI generation even when title/body are supplied (--force-ai) */
+  forceAi?: boolean;
+  /** Skip AI generation entirely (--skip-ai) */
+  skipAi?: boolean;
 }
 
 /**
@@ -243,7 +259,51 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     baseBranch = 'main',
     branchName: customBranchName,
     cwd,
+    title: titleOverride,
+    body: bodyOverrideRaw,
+    bodyFile: bodyFileOverride,
+    forceAi,
+    skipAi,
   } = options;
+
+  // Validate caller-supplied content overrides (--body/--body-file mutual
+  // exclusion, and that --body-file is actually readable) before touching
+  // git at all. Resolving this lazily — right before creating the PR, as
+  // resolvePRContent() does internally — meant a bad override surfaced only
+  // after the branch had already been committed and pushed, leaving an
+  // orphaned remote branch with no PR (and a retry that then fails with
+  // BRANCH_EXISTS). Read once here and reuse the resolved string below so
+  // resolvePRContent() never re-reads the file.
+  let bodyOverride: string | undefined;
+  try {
+    bodyOverride = readBodyOverride({ body: bodyOverrideRaw, bodyFile: bodyFileOverride });
+  } catch (error) {
+    if (error instanceof PRContentError) {
+      return createErrorResult('newpr', ErrorCode.INVALID_ARGUMENT, error.message);
+    }
+    throw error;
+  }
+
+  // A blank title is a defined value, so it suppresses generation and then
+  // reaches `gh pr create`, which rejects it — on the new-branch path only
+  // after the branch is pushed, orphaning it exactly like an unreadable
+  // bodyFile did. Reject it here, with the other override checks, before any
+  // git mutation. Mirrors wt/new.ts's boundary validation.
+  if (titleOverride !== undefined && titleOverride.trim() === '') {
+    return createErrorResult(
+      'newpr',
+      ErrorCode.INVALID_ARGUMENT,
+      'title must not be empty or whitespace-only.'
+    );
+  }
+  if (bodyOverride !== undefined && bodyOverride.trim() === '') {
+    const which = bodyOverrideRaw !== undefined ? 'body' : 'bodyFile';
+    return createErrorResult(
+      'newpr',
+      ErrorCode.INVALID_ARGUMENT,
+      `${which} must not be empty or whitespace-only.`
+    );
+  }
 
   const warnings: string[] = [];
 
@@ -421,9 +481,34 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         .replace(/-/g, ' ')
         .replace(/\b\w/g, (c) => c.toUpperCase());
 
+      const defaultBody = `## Summary\n\nPR created from existing branch: \`${currentBranch}\`\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``;
+
+      // No PRContentError catch here: both of its throw sites live in
+      // readBodyOverride and both require `bodyFile`. We pre-read that at the
+      // top of this function and pass the contents as `body`, never `bodyFile`,
+      // so resolvePRContent cannot raise it. A catch that can never fire is
+      // dead code that only makes a future real error look handled.
+      const prContent: ResolvedPRContent = await resolvePRContent({
+        config,
+        context: {
+          description: title,
+          branchName: currentBranch,
+          baseBranch,
+          changedFiles: git.getChangedFiles(`origin/${baseBranch}`, currentBranch, repoRoot),
+          commitMessages: git.getCommitMessages(`origin/${baseBranch}`, currentBranch, repoRoot),
+        },
+        overrides: {
+          title: titleOverride,
+          body: bodyOverride,
+          forceAi,
+          skipAi,
+        },
+        defaultBody,
+      });
+
       const pr = github.createPr({
-        title,
-        body: `## Summary\n\nPR created from existing branch: \`${currentBranch}\`\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``,
+        title: prContent.title,
+        body: prContent.body,
         base: baseBranch,
         head: currentBranch,
         draft,
@@ -463,6 +548,10 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         draft,
         scenario,
         actionTaken: action.action,
+        titleSource: prContent.titleSource,
+        bodySource: prContent.bodySource,
+        aiProvider: prContent.aiProvider,
+        aiError: prContent.aiError,
         created: true,
       };
 
@@ -547,9 +636,41 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       git.checkout(originalBranch, repoRoot);
 
       // Create PR
+      const defaultBody = `## Summary\n\n${description}\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``;
+
+      // No PRContentError catch here — same reasoning as the existing-branch
+      // site above: readBodyOverride is pre-called at the top of this function
+      // and `bodyFile` is never forwarded, so resolvePRContent cannot raise it.
+      //
+      // KNOWN GAP, pre-existing and NOT fixed here: the outer catch below
+      // restores `actionResult.stashRef` only. `unstagedStashRef` (stashed at
+      // line 591, applied at 694) is never restored on an error path, so any
+      // throw between those two points strands the user's unstaged changes in
+      // the stash. Removing the dead handler above neither caused nor fixed
+      // that — the handler had the same omission and was unreachable anyway.
+      // Fixing it properly means restoring both refs in the outer catch, which
+      // is beyond this change's scope.
+      const prContent: ResolvedPRContent = await resolvePRContent({
+        config,
+        context: {
+          description,
+          branchName,
+          baseBranch,
+          changedFiles: git.getChangedFiles(`origin/${baseBranch}`, branchName, repoRoot),
+          commitMessages: git.getCommitMessages(`origin/${baseBranch}`, branchName, repoRoot),
+        },
+        overrides: {
+          title: titleOverride,
+          body: bodyOverride,
+          forceAi,
+          skipAi,
+        },
+        defaultBody,
+      });
+
       const pr = github.createPr({
-        title: description,
-        body: `## Summary\n\n${description}\n\n## Changes\n\n-\n\n## Test Plan\n\n- [ ]\n\n---\n🤖 PR created with \`newpr\``,
+        title: prContent.title,
+        body: prContent.body,
         base: baseBranch,
         head: branchName,
         draft,
@@ -594,6 +715,10 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         draft,
         scenario,
         actionTaken: action.action,
+        titleSource: prContent.titleSource,
+        bodySource: prContent.bodySource,
+        aiProvider: prContent.aiProvider,
+        aiError: prContent.aiError,
         created: true,
       };
 

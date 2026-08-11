@@ -28,6 +28,7 @@ import { queryState } from '../api/state.js';
 import { listWorktrees } from '../api/list.js';
 import { cleanWorktrees } from '../api/clean.js';
 import { createPr, setupPrWorktree } from '../api/create.js';
+import { setJsonMode } from '../lib/ui/index.js';
 import {
   type StateActionKey,
   isValidStateActionKey,
@@ -126,13 +127,17 @@ export const tools: Tool[] = [
     name: 'worktree_create_pr',
     description:
       'Create a new PR with a dedicated worktree. Handles git state intelligently based on the specified action. Use worktree_get_state first to understand available actions.\n\n' +
+      'By default the PR title/body come from AI generation (if configured) or a generic template. Supply `title`/`body`/`bodyFile` to provide exact PR content instead — supplied content always wins over AI generation and the template. Use `forceAi` to run AI generation even when title/body are supplied (AI then wins instead), or `skipAi` to disable AI generation for this call regardless of config.\n\n' +
       'Returns a CommandResult JSON with:\n' +
       '- data.prNumber: The created PR number\n' +
       '- data.prUrl: URL to the PR on GitHub\n' +
       '- data.branch: Branch name used for the PR\n' +
-      '- data.worktreePath: Absolute path to the new worktree directory\n\n' +
+      '- data.worktreePath: Absolute path to the new worktree directory\n' +
+      '- data.titleSource / data.bodySource: Where the title/body came from ("flag", "ai", or "template")\n' +
+      '- data.aiProvider: The AI provider that generated content, or null if AI did not contribute\n' +
+      '- data.aiError: Why AI generation produced no content for a field that needed it. This is null only when AI was not needed at all (every requested field came from a flag) or when it succeeded — it is NOT null just because the response looks normal. With the default `ai.provider = \'none\'` (no AI configured), any field that falls through to "template" will have a non-null aiError like "AI disabled (ai.provider = \'none\')"; that is expected, not a failure.\n\n' +
       'Example success response:\n' +
-      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","created":true}}',
+      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","titleSource":"flag","bodySource":"template","aiProvider":null,"aiError":"AI disabled (ai.provider = \'none\')","created":true}}',
     annotations: {
       title: 'Create PR with Worktree',
       readOnlyHint: false,
@@ -164,6 +169,30 @@ export const tools: Tool[] = [
           type: 'string',
           description: 'Custom branch name (auto-generated if not provided)',
         },
+        title: {
+          type: 'string',
+          description: 'Exact PR title to use. Wins over AI generation and the built-in template.',
+        },
+        body: {
+          type: 'string',
+          description:
+            'Exact PR body to use. Wins over AI generation and the built-in template. Mutually exclusive with bodyFile.',
+        },
+        bodyFile: {
+          type: 'string',
+          description:
+            'Path to a file (on the machine running this MCP server) holding the PR body. Mutually exclusive with body.',
+        },
+        forceAi: {
+          type: 'boolean',
+          description:
+            'Run AI generation even when title/body are supplied — generated content then wins over the flags (default: false).',
+        },
+        skipAi: {
+          type: 'boolean',
+          description:
+            'Skip AI generation entirely for this call, regardless of config (default: false).',
+        },
       },
       required: ['description'],
     },
@@ -181,6 +210,10 @@ export const tools: Tool[] = [
             draft: { type: 'boolean' },
             scenario: { type: 'string' },
             actionTaken: { type: 'string' },
+            titleSource: { type: 'string' },
+            bodySource: { type: 'string' },
+            aiProvider: { type: ['string', 'null'] },
+            aiError: { type: ['string', 'null'] },
             created: { type: 'boolean' },
           },
         },
@@ -408,9 +441,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 // Handle tool calls
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
+//
+// The dispatch logic is extracted into a standalone exported function so it
+// can be invoked directly in tests (`handleToolCall(...)`), rather than only
+// through the SDK's `setRequestHandler` callback, which the mocked `Server`
+// in tests never actually invokes.
+export async function handleToolCall(name: string, args: Record<string, unknown> | undefined) {
   try {
     switch (name) {
       case 'worktree_get_state': {
@@ -452,6 +488,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const draft = (args?.draft as boolean) ?? false;
         const baseBranch = (args?.baseBranch as string) ?? 'main';
         const branchName = args?.branchName as string | undefined;
+        const title = args?.title as string | undefined;
+        const body = args?.body as string | undefined;
+        const bodyFile = args?.bodyFile as string | undefined;
+        const forceAi = args?.forceAi as boolean | undefined;
+        const skipAi = args?.skipAi as boolean | undefined;
 
         // Validate action if provided
         let validatedAction: StateActionKey | undefined;
@@ -481,6 +522,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           draft,
           baseBranch,
           branchName,
+          title,
+          body,
+          bodyFile,
+          forceAi,
+          skipAi,
         });
 
         return {
@@ -596,10 +642,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       isError: true,
     };
   }
+}
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  return handleToolCall(name, args);
 });
 
 // Start server
 async function main() {
+  // stdout on this process IS the JSON-RPC channel. Anything else written
+  // there corrupts the protocol stream. `print()`/`printStatus()` fall back
+  // to console.log unless JSON mode is on, and routing PR creation through
+  // resolvePRContent made those reachable here for the first time: an
+  // AI-backed generation emits a status line on both success and failure.
+  // Enable JSON mode before connecting so no such line can ever be written.
+  setJsonMode(true);
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
