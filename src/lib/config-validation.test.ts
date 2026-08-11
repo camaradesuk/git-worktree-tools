@@ -145,6 +145,18 @@ describe('validateConfig', () => {
       }
     });
 
+    it('accepts gemini-api as ai.provider', () => {
+      const result = validateConfig({ ai: { provider: 'gemini-api' } });
+      expect(result.valid).toBe(true);
+    });
+
+    it('accepts a providerPriority list containing gemini-api (the shipped default)', () => {
+      const result = validateConfig({
+        ai: { providerPriority: ['openai', 'claude', 'gemini-api', 'ollama'] },
+      });
+      expect(result.valid).toBe(true);
+    });
+
     it('should reject non-boolean ai feature flags', () => {
       const result = validateConfig({
         ai: { branchName: 'yes' },

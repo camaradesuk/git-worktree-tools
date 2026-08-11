@@ -29,6 +29,7 @@ const VALID_AI_PROVIDERS = [
   'auto',
   'claude',
   'gemini',
+  'gemini-api',
   'openai',
   'ollama',
   'script',
