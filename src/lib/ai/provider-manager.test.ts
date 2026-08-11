@@ -425,7 +425,12 @@ describe('provider-manager', () => {
 
         const manager = new AIProviderManager({ config: { provider: 'auto' } });
         await manager.initialize();
-        const winner = expectedWinner === null ? 'fallback' : await manager.getActiveProviderName();
+        // Always call the real manager — including for the "nothing
+        // available" row — so this row exercises actual behaviour instead of
+        // comparing a literal to itself. With no auto-chain candidate and no
+        // ai.fallback configured, getActiveProviderName() falls through to
+        // the string 'fallback' (see provider-manager.ts).
+        const winner = await manager.getActiveProviderName();
         expect(winner).toBe(expectedWinner ?? 'fallback');
       });
     });
