@@ -46,8 +46,15 @@ vi.mock('fs', () => ({
 import * as fs from 'fs';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
-import { loadConfig, generateWorktreePath } from '../lib/config.js';
-import { setupPrWorktree } from './create.js';
+import { loadConfig, generateBranchName, generateWorktreePath } from '../lib/config.js';
+import { analyzeGitState, detectScenario } from '../lib/state-detection.js';
+import {
+  getScenarioContext,
+  isExistingBranchAction,
+  executeStateAction,
+  createActionDeps,
+} from '../lib/newpr/index.js';
+import { setupPrWorktree, createPr } from './create.js';
 import type { ResolvedConfig } from '../lib/config.js';
 import type { PrInfo } from '../lib/github.js';
 
@@ -114,5 +121,51 @@ describe('setupPrWorktree', () => {
       'feat/x',
       '/repo'
     );
+  });
+});
+
+describe('createPr', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(github.isGhInstalled).mockReturnValue(true);
+    vi.mocked(github.isAuthenticated).mockReturnValue(true);
+  });
+
+  it('anchors the worktree path to the main worktree root for an existing PR on an existing branch', async () => {
+    vi.mocked(git.getRepoRoot).mockReturnValue('/container/pr/pr1.other');
+    vi.mocked(git.getRepoName).mockReturnValue('container');
+    vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/container');
+    vi.mocked(loadConfig).mockReturnValue(fakeConfig);
+    vi.mocked(generateBranchName).mockReturnValue('feat/current');
+    vi.mocked(analyzeGitState).mockReturnValue({
+      currentBranch: 'feat/current',
+    } as unknown as ReturnType<typeof analyzeGitState>);
+    vi.mocked(detectScenario).mockReturnValue('branch_with_changes');
+    const action = { action: 'commit_and_push', branchFrom: 'current' } as unknown as Parameters<
+      typeof isExistingBranchAction
+    >[0];
+    vi.mocked(getScenarioContext).mockReturnValue({
+      message: '',
+      choices: [{ label: 'Commit and push', action }],
+    } as unknown as ReturnType<typeof getScenarioContext>);
+    vi.mocked(isExistingBranchAction).mockReturnValue(true);
+    vi.mocked(createActionDeps).mockReturnValue({} as ReturnType<typeof createActionDeps>);
+    vi.mocked(executeStateAction).mockReturnValue({ success: true, stashRef: null });
+    vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+    vi.mocked(github.getPrByBranch).mockReturnValue(makePrInfo());
+    vi.mocked(generateWorktreePath).mockReturnValue('/container/pr/pr42.feature-x');
+    vi.mocked(fs.existsSync).mockReturnValue(true); // skip addWorktree
+
+    const result = await createPr({ description: 'Add feature' });
+
+    expect(generateWorktreePath).toHaveBeenCalledWith(
+      fakeConfig,
+      '/container/pr/pr1.other',
+      'container',
+      42,
+      'feat/current',
+      '/container'
+    );
+    expect(result.success).toBe(true);
   });
 });
