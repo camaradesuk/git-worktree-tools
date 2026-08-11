@@ -134,9 +134,9 @@ export const tools: Tool[] = [
       '- data.worktreePath: Absolute path to the new worktree directory\n' +
       '- data.titleSource / data.bodySource: Where the title/body came from ("flag", "ai", or "template")\n' +
       '- data.aiProvider: The AI provider that generated content, or null if AI did not contribute\n' +
-      '- data.aiError: Why AI generation produced nothing, or null if not attempted or it succeeded\n\n' +
+      '- data.aiError: Why AI generation produced no content for a field that needed it. This is null only when AI was not needed at all (every requested field came from a flag) or when it succeeded — it is NOT null just because the response looks normal. With the default `ai.provider = \'none\'` (no AI configured), any field that falls through to "template" will have a non-null aiError like "AI disabled (ai.provider = \'none\')"; that is expected, not a failure.\n\n' +
       'Example success response:\n' +
-      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","titleSource":"flag","bodySource":"template","aiProvider":null,"aiError":null,"created":true}}',
+      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","titleSource":"flag","bodySource":"template","aiProvider":null,"aiError":"AI disabled (ai.provider = \'none\')","created":true}}',
     annotations: {
       title: 'Create PR with Worktree',
       readOnlyHint: false,
