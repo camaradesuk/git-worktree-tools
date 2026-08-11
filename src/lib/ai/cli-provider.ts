@@ -31,19 +31,28 @@ function commandExists(cmd: string): boolean {
 /**
  * Execute a CLI command and capture output
  */
-function execCommand(cmd: string, args: string[], input?: string): string {
+function execCommand(
+  cmd: string,
+  args: string[],
+  input?: string,
+  timeoutMs: number = DEFAULT_AI_TIMEOUT_MS
+): string {
   const result = spawnSync(cmd, args, {
     input,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
     maxBuffer: 1024 * 1024 * 10, // 10MB
-    timeout: 60000, // 60 seconds
+    timeout: timeoutMs,
   });
 
   if (result.error) {
     throw result.error;
   }
-
+  if (result.signal) {
+    throw new Error(
+      `${cmd} was killed by signal ${result.signal} (likely timed out after ${timeoutMs}ms)`
+    );
+  }
   if (result.status !== 0) {
     throw new Error(result.stderr || `Command failed with exit code ${result.status}`);
   }
@@ -58,11 +67,13 @@ function execCommand(cmd: string, args: string[], input?: string): string {
  */
 export class ClaudeProvider extends BaseAIProvider {
   readonly name = 'claude';
-  private model: string;
+  private model?: string;
+  private timeoutMs: number;
 
-  constructor(model = 'claude-sonnet-4-20250514') {
+  constructor(model?: string, timeoutMs: number = DEFAULT_AI_TIMEOUT_MS) {
     super();
     this.model = model;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
@@ -81,7 +92,11 @@ export class ClaudeProvider extends BaseAIProvider {
     try {
       // Use claude CLI with the prompt
       // The claude CLI accepts prompts via stdin or as an argument
-      const output = execCommand('claude', ['-p', prompt, '--model', this.model]);
+      const args = ['-p', prompt];
+      if (this.model) {
+        args.push('--model', this.model);
+      }
+      const output = execCommand('claude', args, undefined, this.timeoutMs);
       return createSuccessResult(output.trim(), this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -99,10 +114,12 @@ export class ClaudeProvider extends BaseAIProvider {
 export class GeminiProvider extends BaseAIProvider {
   readonly name = 'gemini';
   private model: string;
+  private timeoutMs: number;
 
-  constructor(model = 'gemini-2.0-flash') {
+  constructor(model = 'gemini-2.0-flash', timeoutMs: number = DEFAULT_AI_TIMEOUT_MS) {
     super();
     this.model = model;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
@@ -119,7 +136,12 @@ export class GeminiProvider extends BaseAIProvider {
   protected async generate(prompt: string): Promise<AIGenerationResult> {
     try {
       // Use gemini CLI in non-interactive mode with -p flag
-      const output = execCommand('gemini', ['-p', prompt, '--model', this.model]);
+      const output = execCommand(
+        'gemini',
+        ['-p', prompt, '--model', this.model],
+        undefined,
+        this.timeoutMs
+      );
       return createSuccessResult(output.trim(), this.name);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -137,11 +159,17 @@ export class OllamaProvider extends BaseAIProvider {
   readonly name = 'ollama';
   private model: string;
   private host: string;
+  private timeoutMs: number;
 
-  constructor(model = 'codellama:13b', host = 'http://localhost:11434') {
+  constructor(
+    model = 'codellama:13b',
+    host = 'http://localhost:11434',
+    timeoutMs: number = 120_000
+  ) {
     super();
     this.model = model;
     this.host = host;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
@@ -187,7 +215,7 @@ export class OllamaProvider extends BaseAIProvider {
         ],
         {
           encoding: 'utf-8',
-          timeout: 120000, // 2 minutes for local models
+          timeout: this.timeoutMs,
         }
       );
 

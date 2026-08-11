@@ -161,6 +161,60 @@ describe('cli-provider', () => {
         expect(result.error).toContain('Claude CLI error');
       });
     });
+
+    describe('configurable model and timeout', () => {
+      function mockClaude(stdout = 'feat/x') {
+        vi.mocked(spawnSync).mockImplementation((cmd) => {
+          if (cmd === 'which' || cmd === 'where') {
+            return {
+              status: 0,
+              stdout: '/usr/bin/claude',
+              stderr: '',
+              pid: 0,
+              output: [],
+              signal: null,
+            };
+          }
+          return { status: 0, stdout, stderr: '', pid: 0, output: [], signal: null };
+        });
+      }
+
+      it('omits --model when no model is configured (uses the CLI default)', async () => {
+        mockClaude();
+        await new ClaudeProvider().generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        const claudeCall = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'claude')!;
+        expect(claudeCall[1] as string[]).not.toContain('--model');
+      });
+
+      it('passes --model when a model is configured', async () => {
+        mockClaude();
+        await new ClaudeProvider('claude-opus-4-6').generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        const [, args] = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'claude')!;
+        expect(args as string[]).toEqual(expect.arrayContaining(['--model', 'claude-opus-4-6']));
+      });
+
+      it('passes the configured timeout through to spawnSync', async () => {
+        mockClaude('ok');
+        await new ClaudeProvider(undefined, 9_999).generateBranchName({
+          description: 'x',
+          repoName: 'r',
+          branchPrefix: 'feat',
+        });
+
+        const [, , opts] = vi.mocked(spawnSync).mock.calls.find(([cmd]) => cmd === 'claude')!;
+        expect((opts as { timeout: number }).timeout).toBe(9_999);
+      });
+    });
   });
 
   describe('GeminiProvider', () => {
