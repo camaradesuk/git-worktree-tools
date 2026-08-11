@@ -25,6 +25,7 @@ describe('config', () => {
       expect(config.draftPr).toBe(false);
       expect(config.worktreePattern).toBe('{repo}.pr{number}');
       expect(config.worktreeParent).toBe('..');
+      expect(config.worktreeParentAnchor).toBe('main-worktree');
       expect(config.sharedRepos).toEqual([]);
       expect(config.syncPatterns).toEqual([]);
       expect(config.branchPrefix).toBe('feat');
