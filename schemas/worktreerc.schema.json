@@ -38,7 +38,13 @@
     "worktreeParent": {
       "type": "string",
       "default": "..",
-      "description": "Parent directory for worktrees (absolute or relative to repo root). When the resolved path is inside the repository, the directory will be auto-created and added to .gitignore."
+      "description": "Parent directory for worktrees (absolute, or relative to the anchor set by worktreeParentAnchor). When the resolved path is inside the repository, the directory will be auto-created and added to .gitignore."
+    },
+    "worktreeParentAnchor": {
+      "type": "string",
+      "enum": ["main-worktree", "repo-root"],
+      "default": "main-worktree",
+      "description": "Anchor for resolving a relative worktreeParent. 'main-worktree' (default) resolves against the main worktree root — the bare-repository container directory for .bare/ layouts, stable regardless of which worktree the command runs from. 'repo-root' restores the legacy behaviour of anchoring to the current worktree's root."
     },
     "syncPatterns": {
       "type": "array",
