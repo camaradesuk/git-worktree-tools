@@ -9,6 +9,7 @@ import { runNewprHandler } from '../newpr.js';
 import type { Options } from '../../lib/newpr/index.js';
 import { setJsonMode, printError } from '../../lib/ui/index.js';
 import { createErrorResult, formatJsonResult, ErrorCode } from '../../lib/json-output.js';
+import { AI_PROVIDER_NAMES } from '../../lib/ai/types.js';
 
 interface NewArgs {
   description?: string;
@@ -137,17 +138,10 @@ export const newCommand: CommandModule<object, NewArgs> = {
       .option('ai-provider', {
         type: 'string',
         description: 'Override the AI provider for this run',
-        choices: [
-          'auto',
-          'claude',
-          'gemini',
-          'gemini-api',
-          'openai',
-          'ollama',
-          'script',
-          'fallback',
-          'none',
-        ],
+        // Derived from the canonical list, never hand-copied: a transcribed
+        // enum here would silently reject a provider the rest of the config
+        // chain accepts — the exact drift this flag's own tier exists to avoid.
+        choices: AI_PROVIDER_NAMES,
       })
       .option('ai-timeout', {
         type: 'number',
