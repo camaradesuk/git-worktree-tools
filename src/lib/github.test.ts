@@ -10,6 +10,22 @@ vi.mock('child_process', () => ({
 
 const mockExecSync = vi.mocked(execSync);
 
+/**
+ * Extract the --body-file path from a built `gh` command line.
+ *
+ * shellEscape quotes the path and escapes `\`, `"`, `$` and backticks inside
+ * it, so on Windows `C:\Users\X\Temp\f.md` reaches the command line as
+ * `"C:\\Users\\X\\Temp\\f.md"`. Capturing the quoted span is not enough —
+ * the escaping has to be reversed or the path won't open.
+ */
+function bodyFilePathFrom(cmd: unknown): string | undefined {
+  const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
+  if (!m) return undefined;
+  const raw = m[1] ?? m[2];
+  // Undo shellEscape's `str.replace(/["\\$`]/g, '\\$&')`.
+  return m[1] !== undefined ? raw.replace(/\\(["\\$`])/g, '$1') : raw;
+}
+
 describe('github', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -426,8 +442,8 @@ describe('github', () => {
           // Windows os.tmpdir() is routinely something like
           // C:\Users\User Name\Temp, and shellEscape always quotes the path
           // (it contains : / or \). A \S+ pattern would truncate at the space.
-          const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
-          if (m) capturedBody = readFileSync(m[1] ?? m[2], 'utf8');
+          const p = bodyFilePathFrom(cmd);
+          if (p) capturedBody = readFileSync(p, 'utf8');
           return 'https://github.com/org/repo/pull/47\n';
         })
         .mockReturnValueOnce(
@@ -459,8 +475,8 @@ describe('github', () => {
       let mode: number | undefined;
       mockExecSync
         .mockImplementationOnce((cmd) => {
-          const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
-          if (m) mode = statSync(m[1] ?? m[2]).mode & 0o777;
+          const p = bodyFilePathFrom(cmd);
+          if (p) mode = statSync(p).mode & 0o777;
           return 'https://github.com/org/repo/pull/48\n';
         })
         .mockReturnValueOnce(
@@ -486,8 +502,7 @@ describe('github', () => {
     it('removes the temp body file even when gh fails', () => {
       let bodyPath: string | undefined;
       mockExecSync.mockImplementationOnce((cmd) => {
-        const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
-        bodyPath = m ? (m[1] ?? m[2]) : undefined;
+        bodyPath = bodyFilePathFrom(cmd);
         throw new Error('gh exploded');
       });
 
