@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
 import * as github from './github.js';
-import { readFileSync } from 'fs';
+import { readFileSync, statSync, existsSync } from 'fs';
 
 // Mock child_process
 vi.mock('child_process', () => ({
@@ -422,8 +422,12 @@ describe('github', () => {
         .mockImplementationOnce((cmd) => {
           // Read the temp file while it still exists (createPr deletes it in
           // a finally block once gh returns).
-          const m = /--body-file "?([^"\s]+)"?/.exec(String(cmd));
-          if (m) capturedBody = readFileSync(m[1], 'utf8');
+          // Match the quoted form FIRST and allow spaces inside it: on
+          // Windows os.tmpdir() is routinely something like
+          // C:\Users\User Name\Temp, and shellEscape always quotes the path
+          // (it contains : / or \). A \S+ pattern would truncate at the space.
+          const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
+          if (m) capturedBody = readFileSync(m[1] ?? m[2], 'utf8');
           return 'https://github.com/org/repo/pull/47\n';
         })
         .mockReturnValueOnce(
@@ -447,6 +451,52 @@ describe('github', () => {
       expect(cmd).toContain('--body-file');
       // ...and gh must still receive it byte-for-byte.
       expect(capturedBody).toBe(bigBody);
+    });
+
+    it('creates the temp body file owner-only (0600)', () => {
+      // Under a typical 022 umask an unqualified write would be 0644, exposing
+      // the PR body to every local user for as long as gh runs.
+      let mode: number | undefined;
+      mockExecSync
+        .mockImplementationOnce((cmd) => {
+          const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
+          if (m) mode = statSync(m[1] ?? m[2]).mode & 0o777;
+          return 'https://github.com/org/repo/pull/48\n';
+        })
+        .mockReturnValueOnce(
+          JSON.stringify({
+            number: 48,
+            title: 'Perms PR',
+            state: 'OPEN',
+            url: 'https://github.com/org/repo/pull/48',
+            headRefName: 'feature/perms',
+            baseRefName: 'main',
+            isDraft: false,
+          })
+        );
+
+      github.createPr({ title: 'Perms PR', body: 'secret body', head: 'feature/perms' });
+
+      // Windows does not model POSIX permission bits; assert only where it means something.
+      if (process.platform !== 'win32') {
+        expect(mode).toBe(0o600);
+      }
+    });
+
+    it('removes the temp body file even when gh fails', () => {
+      let bodyPath: string | undefined;
+      mockExecSync.mockImplementationOnce((cmd) => {
+        const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
+        bodyPath = m ? (m[1] ?? m[2]) : undefined;
+        throw new Error('gh exploded');
+      });
+
+      expect(() =>
+        github.createPr({ title: 'Doomed PR', body: 'body', head: 'feature/doomed' })
+      ).toThrow();
+
+      expect(bodyPath).toBeDefined();
+      expect(existsSync(bodyPath as string)).toBe(false);
     });
 
     it('omits --body entirely when body is undefined', () => {
