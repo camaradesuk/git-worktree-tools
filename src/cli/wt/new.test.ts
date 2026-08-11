@@ -166,3 +166,46 @@ describe('wt new content flags', () => {
     }
   });
 });
+
+describe('wt new content-flag validation is scoped to modes that use it', () => {
+  // Regression: the fail-fast validation ran before the mode was determined,
+  // so `--pr 42 --body-file missing.md` was rejected over a file the command
+  // would never open. --pr routes to modeExistingPr, which never calls
+  // resolvePRContent; docs/AI-TOOLING.md documents the content flags as
+  // ignored there, so rejecting them contradicts the shipped docs.
+  it('does not validate --body-file in --pr mode, where it is ignored', async () => {
+    runNewprHandler.mockReset();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = newCommand.handler as any;
+
+    await handler({ base: 'main', pr: 42, 'body-file': '/nonexistent-xyz-should-be-ignored.md' });
+
+    expect(runNewprHandler).toHaveBeenCalled();
+    const options = runNewprHandler.mock.calls[0][0];
+    expect(options.mode).toBe('pr');
+    expect(options.prNumber).toBe(42);
+  });
+
+  it('does not reject an empty --title in --pr mode', async () => {
+    runNewprHandler.mockReset();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = newCommand.handler as any;
+
+    await handler({ base: 'main', pr: 42, title: '   ' });
+
+    expect(runNewprHandler).toHaveBeenCalled();
+    expect(runNewprHandler.mock.calls[0][0].mode).toBe('pr');
+  });
+
+  it('still validates --body-file when NOT in --pr mode', async () => {
+    runNewprHandler.mockReset();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = newCommand.handler as any;
+
+    await expect(
+      handler({ base: 'main', 'body-file': '/nonexistent-xyz-should-be-rejected.md' })
+    ).rejects.toThrow('process.exit(1)');
+
+    expect(runNewprHandler).not.toHaveBeenCalled();
+  });
+});

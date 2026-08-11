@@ -157,6 +157,15 @@ export function getMockExistingPr(branch: string): PrInfo | undefined {
  * Shell-escape a string for use in a command
  */
 function shellEscape(str: string): string {
+  // An empty string matches no metacharacter, so without this guard it would
+  // be returned bare and vanish when args are joined into the command line --
+  // `gh pr create --body  --head "x"` makes gh consume `--head` as the body.
+  // Callers outside the CLI (src/api, src/mcp) have no empty-value guard of
+  // their own, so this is closed here at the source.
+  if (str === '') {
+    return '""';
+  }
+
   // Quote any string containing shell metacharacters or special chars
   // This includes: spaces, quotes, backslashes, slashes, commas, and other special chars
   if (/[\s"'\\/:,;|&$!`(){}[\]*?<>~#]/.test(str)) {

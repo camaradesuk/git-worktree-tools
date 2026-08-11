@@ -392,11 +392,19 @@ describe('github', () => {
 
       // Before the fix, `if (options.body)` was falsy for '' and silently
       // dropped --body from the command entirely.
+      //
+      // Pin the emitted FORM, not just the flag's presence: shellEscape('')
+      // used to return a bare empty string, so the command read
+      // `--body  --head "x"` and gh consumed --head as the body value. A
+      // stringContaining('--body') assertion passes against that corrupt
+      // shape, which would lock the bug in as "correct".
       expect(mockExecSync).toHaveBeenNthCalledWith(
         1,
-        expect.stringContaining('--body'),
+        expect.stringContaining('--body ""'),
         expect.any(Object)
       );
+      const cmd = mockExecSync.mock.calls[0][0] as string;
+      expect(cmd).not.toMatch(/--body\s+--/);
     });
 
     it('omits --body entirely when body is undefined', () => {

@@ -202,15 +202,23 @@ export const newCommand: CommandModule<object, NewArgs> = {
     // `gh pr create` invocation (an empty argument is emitted unquoted and
     // swallows the next flag), so an agent must learn its content did not
     // land rather than have `gh` misparse the command.
+    //
+    // Skipped entirely in --pr mode: that path routes to modeExistingPr, which
+    // never calls resolvePRContent and never reads a body, so the content flags
+    // are ignored there (as documented in docs/AI-TOOLING.md). Validating them
+    // anyway would reject `wt new --pr 42 --body-file missing.md` over a file
+    // the command would never have opened.
     try {
-      if (argv.title !== undefined && argv.title.trim() === '') {
-        throw new PRContentError('--title must not be empty or whitespace-only.');
-      }
+      if (argv.pr === undefined) {
+        if (argv.title !== undefined && argv.title.trim() === '') {
+          throw new PRContentError('--title must not be empty or whitespace-only.');
+        }
 
-      const resolvedBody = readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
-      if (resolvedBody !== undefined && resolvedBody.trim() === '') {
-        const flagName = argv.body !== undefined ? '--body' : '--body-file';
-        throw new PRContentError(`${flagName} must not be empty or whitespace-only.`);
+        const resolvedBody = readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
+        if (resolvedBody !== undefined && resolvedBody.trim() === '') {
+          const flagName = argv.body !== undefined ? '--body' : '--body-file';
+          throw new PRContentError(`${flagName} must not be empty or whitespace-only.`);
+        }
       }
     } catch (error) {
       if (error instanceof PRContentError) {

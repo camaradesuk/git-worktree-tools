@@ -870,6 +870,17 @@ export interface PRGenerationResult {
   title: string;
   description: string;
   aiGenerated: boolean;
+  /**
+   * True only when a model actually produced the title.
+   *
+   * `aiGenerated` covers both fields at once, so it cannot distinguish "the
+   * model wrote the title" from "the model wrote only the description and the
+   * title is still the caller's `context.description`". Consumers reporting
+   * provenance must use this per-field flag, not the truthiness of `title`.
+   */
+  titleGenerated?: boolean;
+  /** True only when a model actually produced the description. */
+  descriptionGenerated?: boolean;
   /** Provider that generated content, or null when AI did not contribute. */
   provider?: string | null;
   /** Why generation produced nothing, or null when not attempted / successful. */
@@ -889,6 +900,8 @@ export async function generatePRContentAsync(
     title: context.description,
     description: '',
     aiGenerated: false,
+    titleGenerated: false,
+    descriptionGenerated: false,
     provider: null,
     error: null,
   };
@@ -920,6 +933,8 @@ export async function generatePRContentAsync(
       let title = context.description;
       let description = '';
       let anyGenerated = false;
+      let titleGenerated = false;
+      let descriptionGenerated = false;
       let providerName = 'ai';
       let titleResult: AIGenerationResult | undefined;
       let descResult: AIGenerationResult | undefined;
@@ -930,6 +945,7 @@ export async function generatePRContentAsync(
         if (titleResult.success && titleResult.content) {
           title = titleResult.content;
           anyGenerated = true;
+          titleGenerated = true;
           providerName = titleResult.provider;
         }
       }
@@ -940,13 +956,21 @@ export async function generatePRContentAsync(
         if (descResult.success && descResult.content) {
           description = descResult.content;
           anyGenerated = true;
+          descriptionGenerated = true;
           providerName = descResult.provider;
         }
       }
 
       if (anyGenerated) {
         printStatus('info', `\u2728 AI-generated PR content (${providerName})`);
-        return { title, description, aiGenerated: true, provider: providerName };
+        return {
+          title,
+          description,
+          aiGenerated: true,
+          titleGenerated,
+          descriptionGenerated,
+          provider: providerName,
+        };
       }
 
       // A provider was attempted but produced nothing. Build the diagnostic

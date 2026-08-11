@@ -135,9 +135,14 @@ export async function resolvePRContent({
   // silently null on a skip path (spec §3.3 / docs/AI-TOOLING.md).
   const aiSkippedReason = aiDisabled ? describeAiSkipReason(overrides) : null;
 
-  const aiTitle = generated?.aiGenerated && generated.title ? generated.title : undefined;
+  // Use the PER-FIELD flags, not the truthiness of the returned strings.
+  // `generatePRContentAsync` seeds `title` with `context.description` and
+  // returns it untouched when only the description was generated, so a
+  // truthy-content check would report titleSource: 'ai' for text no model
+  // ever produced — and provenance accuracy is the point of these fields.
+  const aiTitle = generated?.titleGenerated && generated.title ? generated.title : undefined;
   const aiBody =
-    generated?.aiGenerated && generated.description ? generated.description : undefined;
+    generated?.descriptionGenerated && generated.description ? generated.description : undefined;
 
   // Ordered candidate lists differ only in whether AI outranks flags.
   const titleCandidates: Array<[string | undefined, ContentSource]> = forceAi

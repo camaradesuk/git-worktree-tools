@@ -107,6 +107,8 @@ describe('resolvePRContent', () => {
       title: 'ai title',
       description: 'ai body',
       aiGenerated: true,
+      titleGenerated: true,
+      descriptionGenerated: true,
       provider: 'codex',
     });
 
@@ -210,6 +212,8 @@ describe('resolvePRContent', () => {
       title: 'ai title',
       description: 'ai body',
       aiGenerated: true,
+      titleGenerated: true,
+      descriptionGenerated: true,
       provider: 'claude',
     });
 
@@ -265,5 +269,64 @@ describe('resolvePRContent', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('resolvePRContent per-field provenance', () => {
+  // Regression: `generatePRContentAsync` seeds `title` with
+  // `context.description` and returns it untouched when ai.prTitle is off (or
+  // title generation fails) while description generation succeeds. A
+  // truthy-content check then reported titleSource:'ai' for text no model
+  // produced. The shape below is what the real function returns in that case
+  // — note `title` is NON-EMPTY and equals context.description, which is
+  // exactly what `generatorReturning`'s `title: ''` default hides.
+  it("reports titleSource 'template' when only the description was AI-generated", async () => {
+    const generate = async (): Promise<PRGenerationResult> => ({
+      title: CONTEXT.description, // seeded, NOT model output
+      description: 'a real AI-written body',
+      aiGenerated: true,
+      titleGenerated: false,
+      descriptionGenerated: true,
+      provider: 'codex',
+      error: null,
+    });
+
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: {},
+      defaultBody: TEMPLATE,
+      generate,
+    });
+
+    expect(result.title).toBe(CONTEXT.description);
+    expect(result.titleSource).toBe('template');
+    expect(result.body).toBe('a real AI-written body');
+    expect(result.bodySource).toBe('ai');
+  });
+
+  it("reports bodySource 'template' when only the title was AI-generated", async () => {
+    const generate = async (): Promise<PRGenerationResult> => ({
+      title: 'feat: a real AI-written title',
+      description: '',
+      aiGenerated: true,
+      titleGenerated: true,
+      descriptionGenerated: false,
+      provider: 'claude',
+      error: null,
+    });
+
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: {},
+      defaultBody: TEMPLATE,
+      generate,
+    });
+
+    expect(result.title).toBe('feat: a real AI-written title');
+    expect(result.titleSource).toBe('ai');
+    expect(result.body).toBe(TEMPLATE);
+    expect(result.bodySource).toBe('template');
   });
 });
