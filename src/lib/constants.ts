@@ -106,6 +106,13 @@ export const DEFAULT_WORKTREE_PATTERN = '{repo}.pr{number}';
 export const DEFAULT_WORKTREE_PARENT = '..';
 
 /**
+ * Default anchor for resolving a relative worktreeParent.
+ * "main-worktree" resolves against getMainWorktreeRoot() (the bare-repo container
+ * root for .bare/ layouts), stable regardless of which worktree invoked the command.
+ */
+export const DEFAULT_WORKTREE_PARENT_ANCHOR = 'main-worktree';
+
+/**
  * Default branch name prefix for auto-generated branches
  */
 export const DEFAULT_BRANCH_PREFIX = 'feat';

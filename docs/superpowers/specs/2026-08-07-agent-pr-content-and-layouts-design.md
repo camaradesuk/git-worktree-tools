@@ -122,8 +122,21 @@ location. Only _placement_ of new worktrees is broken.
 
 ### 1.4 Settings are neither overridable nor documented
 
-- `schemas/worktreerc.schema.json` has **no `ai` section** — zero properties. No editor
-  autocomplete, no `wt config validate` coverage, nothing for `wt config schema` to report.
+- ~~`schemas/worktreerc.schema.json` has **no `ai` section** — zero properties.~~
+  **CORRECTION (2026-08-11): this claim was wrong.** `properties.ai` is a `$ref` to
+  `#/definitions/AIConfig`, which has **18 properties**; `HooksConfig` has **13**. The original
+  check inspected `properties.ai.properties` without following the `$ref`, and reported the
+  resulting empty object as "no section". The schema's `ai`/`hooks` coverage is complete.
+
+  What the schema _does_ have is **drift**, found while planning Part 4 and verified: `gemini-api`
+  — a real, shipped provider (`AIProviderName`, implemented by `GeminiAPIProvider`) — is absent
+  from both the schema's provider enum and `VALID_AI_PROVIDERS` in `config-validation.ts`, so
+  `ai.provider: "gemini-api"` is **rejected as invalid config today**. `ai.planPath` /
+  `ai.planPathMode` are typed and schema'd but missing from the validator's `knownKeys`.
+  `global.warnNotGlobal`'s schema default (`false`) contradicts the runtime default (`true`).
+  Part 4's schema work is correspondingly smaller: fix that drift and add a drift-guard test,
+  rather than author a missing section.
+
 - `docs/AI-TOOLING.md` (860 lines, the agent-facing guide) contains the word "provider"
   **zero times**. The AI subsystem is entirely undocumented for agent callers.
 - `README.md` does not mention `ai.provider`, `GEMINI_API_KEY`, or codex.

@@ -22,6 +22,7 @@ import {
   generateWorktreePath,
   type ResolvedConfig,
 } from '../lib/config.js';
+import type { AIConfig } from '../lib/ai/types.js';
 import { analyzeGitState, detectScenario, type GitState } from '../lib/state-detection.js';
 import {
   resolvePRContent,
@@ -82,6 +83,46 @@ class NonInteractiveError extends Error {
     super(message);
     this.name = 'NonInteractiveError';
   }
+}
+
+/**
+ * Load config for a run, applying every invocation-level AI override.
+ *
+ * This is the single chokepoint all `newpr` mode handlers load config
+ * through, so every call site gets flag-override support uniformly, and a
+ * future AI-backed feature cannot silently escape the flags.
+ *
+ * Two overrides apply here, and they compose:
+ *
+ * - `--ai-provider` / `--ai-timeout` select and bound the provider. CLI
+ *   flags are the highest tier — they beat GWT_AI_* env vars, which
+ *   loadConfig() has already applied via loadConfigWithValidation().
+ * - `--skip-ai` disables the AI-backed subsystems. `ai.provider` is
+ *   deliberately left alone so `resolvePRContent` can still report the
+ *   precise reason (`AI skipped (--skip-ai)`) rather than the misleading
+ *   `ai.provider = 'none'`.
+ *
+ * `--skip-ai` and an explicit `--ai-provider` are not contradictory: the
+ * provider still resolves (and is still reported), it simply has no
+ * AI-backed step left to run.
+ */
+export function loadConfigForRun(repoRoot: string, options: Options): ResolvedConfig {
+  const config = loadConfig(repoRoot);
+
+  const hasProviderOverride = Boolean(options.aiProvider) || options.aiTimeout !== undefined;
+  if (!hasProviderOverride && !options.skipAi) {
+    return config;
+  }
+
+  return {
+    ...config,
+    ai: {
+      ...config.ai,
+      ...(options.aiProvider ? { provider: options.aiProvider as AIConfig['provider'] } : {}),
+      ...(options.aiTimeout !== undefined ? { timeout: options.aiTimeout } : {}),
+      ...(options.skipAi ? { branchName: false, commitMessage: false, planDocument: false } : {}),
+    },
+  };
 }
 
 /**
@@ -566,6 +607,13 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfigForRun(repoRoot, options);
 
+  let mainWorktreeRoot = repoRoot;
+  try {
+    mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+  } catch {
+    // Could not determine main worktree root; anchor to repoRoot instead.
+  }
+
   // Initialize hook runner for post-worktree hook
   const hookRunner = createHookRunner(
     options.noHooks ? {} : (config.hooks ?? {}),
@@ -593,7 +641,14 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   printStatus('info', `PR branch: ${pr.headBranch}`);
 
-  const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
+  const worktreePath = generateWorktreePath(
+    config,
+    repoRoot,
+    repoName,
+    prNumber,
+    pr.headBranch,
+    mainWorktreeRoot
+  );
 
   // Auto-setup worktree parent directory
   const setupResult = await ensureWorktreeParentDir({
@@ -689,6 +744,13 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfigForRun(repoRoot, options);
+
+  let mainWorktreeRoot = repoRoot;
+  try {
+    mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+  } catch {
+    // Could not determine main worktree root; anchor to repoRoot instead.
+  }
 
   // Initialize hook runner for post-worktree hook
   const hookRunner = createHookRunner(
@@ -808,7 +870,14 @@ PR created from existing branch: \`${branchName}\`
     prUrl: pr.url,
   });
 
-  const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+  const worktreePath = generateWorktreePath(
+    config,
+    repoRoot,
+    repoName,
+    pr.number,
+    branchName,
+    mainWorktreeRoot
+  );
 
   // Auto-setup worktree parent directory
   const setupResult = await ensureWorktreeParentDir({
@@ -877,6 +946,13 @@ async function modeNewFeature(description: string, options: Options): Promise<vo
   const repoName = git.getRepoName(repoRoot);
   const config = loadConfigForRun(repoRoot, options);
   const branchName = await generateBranchNameAsync(config, description, repoName);
+
+  let mainWorktreeRoot = repoRoot;
+  try {
+    mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+  } catch {
+    // Could not determine main worktree root; anchor to repoRoot instead.
+  }
 
   // Initialize hook runner (disabled if --no-hooks flag is set)
   const hookRunner = createHookRunner(
@@ -1203,7 +1279,14 @@ ${description}
     // Run post-pr hook
     await hookRunner.runHook('post-pr');
 
-    const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+    const worktreePath = generateWorktreePath(
+      config,
+      repoRoot,
+      repoName,
+      pr.number,
+      branchName,
+      mainWorktreeRoot
+    );
 
     // Auto-setup worktree parent directory
     const worktreeSetupResult = await ensureWorktreeParentDir({
@@ -1296,36 +1379,6 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Output error and exit
  */
-/**
- * Load config for a run, applying invocation-level AI overrides.
- *
- * `--skip-ai` promises to skip AI generation *entirely*, so it must suppress
- * branch-name, commit-message and plan-document generation as well — not only
- * PR content, which `resolvePRContent` handles through its own override.
- * Routing every load through here means a future AI-backed feature cannot
- * silently escape the flag.
- *
- * `ai.provider` is deliberately left alone so `resolvePRContent` can still
- * report the precise reason (`AI skipped (--skip-ai)`) rather than the
- * misleading `ai.provider = 'none'`.
- */
-function loadConfigForRun(repoRoot: string, options: Options): ResolvedConfig {
-  const config = loadConfig(repoRoot);
-
-  if (!options.skipAi) {
-    return config;
-  }
-
-  return {
-    ...config,
-    ai: {
-      ...config.ai,
-      branchName: false,
-      commitMessage: false,
-      planDocument: false,
-    },
-  };
-}
 
 function exitWithError(message: string, code: ErrorCode, useJson: boolean): never {
   if (useJson) {
@@ -1352,7 +1405,7 @@ export async function runNewprHandler(options: Options): Promise<void> {
   // Apply config.draftPr if user didn't explicitly set --draft or --ready
   try {
     const repoRoot = git.getRepoRoot();
-    const config = loadConfig(repoRoot);
+    const config = loadConfigForRun(repoRoot, options);
     if (!options.draftExplicitlySet && config.draftPr !== undefined) {
       options.draft = config.draftPr;
     }

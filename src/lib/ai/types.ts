@@ -203,10 +203,13 @@ export interface AIConfig {
     path: string;
   };
 
-  /** Ordered provider names to try when `provider` is `'auto'`. */
+  /**
+   * Ordered list of providers to try when `provider` is 'auto'.
+   * Overridable via GWT_AI_PRIORITY (comma-separated), highest first.
+   */
   providerPriority?: AIProviderName[];
 
-  /** Default generation timeout in ms for every provider unless overridden. Default 60000. */
+  /** Per-generation-call timeout in ms. Overridable via GWT_AI_TIMEOUT and --ai-timeout. */
   timeout?: number;
 
   /** Per-provider overrides, keyed by provider name. */
@@ -252,6 +255,39 @@ export const DEFAULT_AI_PROVIDER_PRIORITY: AIProviderName[] = [
 
 /** Default per-generation timeout (ms) applied to every provider unless overridden. */
 export const DEFAULT_AI_TIMEOUT_MS = 60_000;
+
+/**
+ * All valid AIProviderName values, including the meta-values ('auto',
+ * 'fallback', 'none') that are meaningful as a single top-level
+ * ai.provider/ai.fallback selection.
+ *
+ * This is a leaf module (no imports), so it's the shared home for provider
+ * name lists that both config-env.ts (GWT_AI_* env var parsing) and
+ * config-validation.ts (file config validation) need — importing either of
+ * those *into* the other would risk a cycle; importing from here can't.
+ */
+export const AI_PROVIDER_NAMES: AIProviderName[] = [
+  'auto',
+  'claude',
+  'gemini',
+  'gemini-api',
+  'openai',
+  'ollama',
+  'script',
+  'fallback',
+  'none',
+];
+
+/**
+ * Concrete provider names only — excludes 'auto' / 'fallback' / 'none',
+ * which are meta-values, meaningless as one entry among several to try in
+ * priority order. Shared by config-env.ts's GWT_AI_PRIORITY parsing and
+ * config-validation.ts's ai.providerPriority validation so file config and
+ * the env var can't disagree about what's valid inside a priority list.
+ */
+export const AI_PRIORITY_PROVIDER_NAMES: AIProviderName[] = AI_PROVIDER_NAMES.filter(
+  (p) => p !== 'auto' && p !== 'fallback' && p !== 'none'
+);
 
 /**
  * Default AI configuration

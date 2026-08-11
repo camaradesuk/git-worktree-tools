@@ -135,6 +135,13 @@ export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<
     const repoName = git.getRepoName(repoRoot);
     const config = loadConfig(repoRoot);
 
+    let mainWorktreeRoot = repoRoot;
+    try {
+      mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+    } catch {
+      // Could not determine main worktree root; anchor to repoRoot instead.
+    }
+
     // Get PR info
     const pr = github.getPr(prNumber);
     if (!pr) {
@@ -146,7 +153,14 @@ export async function setupPrWorktree(options: SetupPrWorktreeOptions): Promise<
     }
 
     // Generate worktree path
-    const worktreePath = generateWorktreePath(config, repoRoot, repoName, prNumber, pr.headBranch);
+    const worktreePath = generateWorktreePath(
+      config,
+      repoRoot,
+      repoName,
+      prNumber,
+      pr.headBranch,
+      mainWorktreeRoot
+    );
 
     if (fs.existsSync(worktreePath)) {
       return createErrorResult(
@@ -257,6 +271,13 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     const config = loadConfig(repoRoot);
     const branchName = customBranchName ?? generateBranchName(config, description);
 
+    let mainWorktreeRoot = repoRoot;
+    try {
+      mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+    } catch {
+      // Could not determine main worktree root; anchor to repoRoot instead.
+    }
+
     // Fetch latest
     try {
       git.fetch('origin', repoRoot);
@@ -356,7 +377,8 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
           repoRoot,
           repoName,
           existingPr.number,
-          currentBranch
+          currentBranch,
+          mainWorktreeRoot
         );
 
         // Create worktree if it doesn't exist
@@ -412,7 +434,8 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
         repoRoot,
         repoName,
         pr.number,
-        currentBranch
+        currentBranch,
+        mainWorktreeRoot
       );
 
       // Auto-setup worktree parent directory
@@ -533,7 +556,14 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
       });
 
       // Create worktree
-      const worktreePath = generateWorktreePath(config, repoRoot, repoName, pr.number, branchName);
+      const worktreePath = generateWorktreePath(
+        config,
+        repoRoot,
+        repoName,
+        pr.number,
+        branchName,
+        mainWorktreeRoot
+      );
 
       // Auto-setup worktree parent directory
       await ensureWorktreeParentDir({

@@ -347,7 +347,9 @@ export function createPr(options: CreatePrOptions, cwd?: string): PrInfo {
       os.tmpdir(),
       `gwt-pr-body-${process.pid}-${crypto.randomBytes(6).toString('hex')}.md`
     );
-    fs.writeFileSync(bodyFile, options.body, 'utf8');
+    // Owner-only: under a typical 022 umask writeFileSync would create this
+    // 0644, letting any local user read the PR body for as long as gh runs.
+    fs.writeFileSync(bodyFile, options.body, { encoding: 'utf8', mode: 0o600 });
     args.push('--body-file', bodyFile);
   }
 

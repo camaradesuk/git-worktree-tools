@@ -26,6 +26,7 @@ function createArgv(args: { local?: boolean; global?: boolean; force?: boolean }
 // Mock dependencies before importing the module
 vi.mock('../../lib/git.js', () => ({
   getRepoRoot: vi.fn(),
+  isBareContainerLayout: vi.fn(() => false),
 }));
 
 vi.mock('../../lib/colors.js', () => ({
@@ -59,6 +60,7 @@ vi.mock('../../lib/global-config.js', () => ({
   })),
   ensureLocalConfigInGitignore: vi.fn(() => true),
   getGlobalConfigPath: vi.fn(() => '/home/user/.config/git-worktree-tools/config.json'),
+  createRepoConfig: vi.fn(() => '/repo/.worktreerc'),
 }));
 
 vi.mock('../../lib/prompts.js', () => ({
@@ -522,6 +524,57 @@ describe('wt init command', () => {
       await initCommand.handler(createArgv({ local: false, global: false, force: false }));
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('No changes needed'));
+    });
+  });
+
+  describe('handler - bare-container layout detection', () => {
+    it('offers to scaffold repo config when a bare-container layout is detected', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (git.isBareContainerLayout as Mock).mockReturnValue(true);
+      (prompts.promptChoice as Mock).mockResolvedValueOnce('bare-layout');
+
+      await initCommand.handler(createArgv({ local: false, global: false, force: false }));
+
+      expect(globalConfig.createRepoConfig).toHaveBeenCalledWith('/repo', {
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+      });
+    });
+
+    it('does not offer the scaffold for a conventional repository', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (git.isBareContainerLayout as Mock).mockReturnValue(false);
+      (prompts.promptChoice as Mock).mockResolvedValueOnce('cancel');
+
+      await initCommand.handler(createArgv({ local: false, global: false, force: false }));
+
+      const choices = (prompts.promptChoice as Mock).mock.calls[0][1] as Array<{ value: string }>;
+      expect(choices.some((c) => c.value === 'bare-layout')).toBe(false);
+    });
+
+    it('does not offer the scaffold when a repo config already exists', async () => {
+      (git.getRepoRoot as Mock).mockReturnValue('/repo');
+      (git.isBareContainerLayout as Mock).mockReturnValue(true);
+      (globalConfig.getConfigSummary as Mock).mockReturnValue({
+        global: false,
+        repo: true,
+        local: false,
+        paths: {
+          global: {
+            path: '/home/user/.config/git-worktree-tools/config.json',
+            level: 'global',
+            exists: false,
+          },
+          repo: { path: '/repo/.worktreerc', level: 'repo', exists: true },
+          local: { path: '/repo/.worktreerc.local', level: 'local', exists: false },
+        },
+      });
+      (prompts.promptChoice as Mock).mockResolvedValueOnce('cancel');
+
+      await initCommand.handler(createArgv({ local: false, global: false, force: false }));
+
+      const choices = (prompts.promptChoice as Mock).mock.calls[0][1] as Array<{ value: string }>;
+      expect(choices.some((c) => c.value === 'bare-layout')).toBe(false);
     });
   });
 });

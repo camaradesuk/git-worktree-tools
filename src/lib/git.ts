@@ -700,7 +700,11 @@ export function getMainWorktreeRoot(cwd?: string): string {
     return getRepoRoot(cwd);
   }
 
-  const commonDirPath = path.resolve(commonDir);
+  // git may return a relative common-dir (e.g. ".git") for a normal repository —
+  // only the bare-container case is already absolute. Resolve against the same
+  // cwd we asked git about, not process.cwd(), so this is correct when invoked
+  // from a subdirectory or a different linked worktree.
+  const commonDirPath = path.resolve(cwd ?? process.cwd(), commonDir);
 
   // If git-common-dir returns ".git", we're in the main worktree
   if (path.basename(commonDirPath) === '.git') {
@@ -716,6 +720,23 @@ export function getMainWorktreeRoot(cwd?: string): string {
       : commonDirPath;
 
   return path.dirname(gitDir);
+}
+
+/**
+ * Detect whether the current repository uses a bare-repository container layout
+ * (e.g. a `.bare/` directory with `main/` and `pr/*` as linked worktrees) rather
+ * than a conventional repository with its own `.git` directory.
+ *
+ * True when `git rev-parse --git-common-dir` resolves to something whose basename
+ * is not `.git`. Returns false (never throws) when the lookup fails, so callers
+ * can treat this as a soft hint.
+ */
+export function isBareContainerLayout(cwd?: string): boolean {
+  const commonDir = execSafe(['rev-parse', '--git-common-dir'], { cwd });
+  if (!commonDir) {
+    return false;
+  }
+  return path.basename(path.resolve(commonDir)) !== '.git';
 }
 
 /**

@@ -25,6 +25,7 @@ describe('config', () => {
       expect(config.draftPr).toBe(false);
       expect(config.worktreePattern).toBe('{repo}.pr{number}');
       expect(config.worktreeParent).toBe('..');
+      expect(config.worktreeParentAnchor).toBe('main-worktree');
       expect(config.sharedRepos).toEqual([]);
       expect(config.syncPatterns).toEqual([]);
       expect(config.branchPrefix).toBe('feat');
@@ -269,6 +270,102 @@ describe('config', () => {
       );
       expect(path.basename(result)).toBe('myproject-pr123.my-feature');
     });
+
+    it('anchors relative worktreeParent to mainWorktreeRoot when invoked from a linked worktree', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/pr/pr2467.x', // repoRoot: current (linked) worktree
+        'syrf',
+        2600,
+        'feat/my-feature',
+        '/home/chris/workspace/syrf' // mainWorktreeRoot: stable container anchor
+      );
+      expect(normalizePath(result)).toBe('/home/chris/workspace/syrf/pr/pr2600.my-feature');
+    });
+
+    it('produces the same path regardless of which worktree it is invoked from', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const mainWorktreeRoot = '/home/chris/workspace/syrf';
+      const fromMain = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/main',
+        'syrf',
+        2600,
+        'feat/my-feature',
+        mainWorktreeRoot
+      );
+      const fromLinkedWorktree = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/pr/pr2467.other-feature',
+        'syrf',
+        2600,
+        'feat/my-feature',
+        mainWorktreeRoot
+      );
+      expect(fromMain).toBe(fromLinkedWorktree);
+      expect(normalizePath(fromMain)).toBe('/home/chris/workspace/syrf/pr/pr2600.my-feature');
+    });
+
+    it('ignores mainWorktreeRoot when worktreeParent is absolute', () => {
+      const customConfig = { ...config, worktreeParent: '/tmp/worktrees' };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject.pr1',
+        'myproject',
+        789,
+        undefined,
+        '/home/user/repos/myproject'
+      );
+      expect(normalizePath(result)).toBe('/tmp/worktrees/myproject.pr789');
+    });
+
+    it('anchors to repoRoot (legacy) when worktreeParentAnchor is "repo-root"', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+        worktreeParentAnchor: 'repo-root' as const,
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/chris/workspace/syrf/pr/pr2467.x',
+        'syrf',
+        2600,
+        'feat/my-feature',
+        '/home/chris/workspace/syrf' // must be ignored
+      );
+      expect(normalizePath(result)).toBe(
+        '/home/chris/workspace/syrf/pr/pr2467.x/pr/pr2600.my-feature'
+      );
+    });
+
+    it('falls back to repoRoot when mainWorktreeRoot is omitted (backward compatible)', () => {
+      const customConfig = {
+        ...config,
+        worktreeParent: '.worktrees',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+      const result = generateWorktreePath(
+        customConfig,
+        '/home/user/repos/myproject',
+        'myproject',
+        42,
+        'fix-login-bug'
+        // mainWorktreeRoot intentionally omitted
+      );
+      expect(normalizePath(result)).toBe(
+        '/home/user/repos/myproject/.worktrees/pr42.fix-login-bug'
+      );
+    });
   });
 
   describe('loadConfig', () => {
@@ -504,6 +601,66 @@ describe('config', () => {
       // Defaults should still be present
       expect(config.draftPr).toBe(false);
       expect(config.branchPrefix).toBe('feat');
+    });
+  });
+
+  describe('loadConfigWithValidation env overrides', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-env-integration-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('GWT_AI_PROVIDER overrides ai.provider even when .worktreerc sets it', () => {
+      fs.writeFileSync(
+        path.join(tempDir, '.worktreerc'),
+        JSON.stringify({ ai: { provider: 'claude' } })
+      );
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PROVIDER: 'ollama' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.provider).toBe('ollama');
+    });
+
+    it('throws naming the variable for an invalid GWT_AI_PROVIDER', () => {
+      expect(() =>
+        loadConfig(tempDir, { env: { GWT_AI_PROVIDER: 'bogus' } as NodeJS.ProcessEnv })
+      ).toThrow(/GWT_AI_PROVIDER/);
+    });
+
+    it('GWT_AI_PRIORITY parses into ai.providerPriority', () => {
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PRIORITY: 'openai,claude,ollama' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.providerPriority).toEqual(['openai', 'claude', 'ollama']);
+    });
+
+    it('GWT_NO_AI forces ai.provider to none, beating GWT_AI_PROVIDER', () => {
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PROVIDER: 'claude', GWT_NO_AI: '1' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.provider).toBe('none');
+    });
+
+    it('GWT_AI_TIMEOUT sets ai.timeout as a number', () => {
+      const config = loadConfig(tempDir, { env: { GWT_AI_TIMEOUT: '15000' } as NodeJS.ProcessEnv });
+      expect(config.ai.timeout).toBe(15000);
+    });
+
+    it('throws for a non-numeric GWT_AI_TIMEOUT', () => {
+      expect(() =>
+        loadConfig(tempDir, { env: { GWT_AI_TIMEOUT: 'soon' } as NodeJS.ProcessEnv })
+      ).toThrow(/GWT_AI_TIMEOUT/);
+    });
+
+    it('with no GWT_AI_* vars set, behaves exactly as before', () => {
+      const config = loadConfig(tempDir, { env: {} as NodeJS.ProcessEnv });
+      expect(config.ai.provider).toBe('none');
+      expect(config.ai.providerPriority).toBeUndefined();
     });
   });
 

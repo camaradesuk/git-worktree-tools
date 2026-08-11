@@ -19,6 +19,7 @@ import {
   getGlobalDataDir,
   DEFAULT_WORKTREE_PATTERN,
   DEFAULT_WORKTREE_PARENT,
+  DEFAULT_WORKTREE_PARENT_ANCHOR,
   DEFAULT_BRANCH_PREFIX,
   LogLevel,
   DEFAULT_LOG_LEVEL,
@@ -66,6 +67,10 @@ describe('constants', () => {
 
     it('has correct DEFAULT_WORKTREE_PARENT', () => {
       expect(DEFAULT_WORKTREE_PARENT).toBe('..');
+    });
+
+    it('has correct DEFAULT_WORKTREE_PARENT_ANCHOR', () => {
+      expect(DEFAULT_WORKTREE_PARENT_ANCHOR).toBe('main-worktree');
     });
 
     it('has correct DEFAULT_BRANCH_PREFIX', () => {

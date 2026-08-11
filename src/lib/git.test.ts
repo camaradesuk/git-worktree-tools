@@ -637,6 +637,35 @@ describe('git', () => {
       const result = git.getMainWorktreeRoot();
       expect(result).toContain('fallback');
     });
+
+    it('resolves a relative --git-common-dir against the given cwd, not process.cwd()', () => {
+      // Real git returns a RELATIVE common-dir (".git") for a normal repo — only the
+      // bare-container case returns an absolute path. path.resolve() must anchor this
+      // relative value to the cwd we asked git about, never to the process's own cwd.
+      const repoPath = path.join('/home', 'user', 'main-repo');
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess('.git'));
+      const result = git.getMainWorktreeRoot(repoPath);
+      expect(result).toBe(path.resolve(repoPath));
+    });
+  });
+
+  describe('isBareContainerLayout', () => {
+    it('returns false for a conventional repository (.git)', () => {
+      const repoPath = path.join('/home', 'user', 'repo');
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess(path.join(repoPath, '.git')));
+      expect(git.isBareContainerLayout(repoPath)).toBe(false);
+    });
+
+    it('returns true for a bare-repository container layout (.bare)', () => {
+      const containerPath = path.join('/home', 'chris', 'workspace', 'syrf');
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess(path.join(containerPath, '.bare')));
+      expect(git.isBareContainerLayout(path.join(containerPath, 'main'))).toBe(true);
+    });
+
+    it('returns false when git-common-dir lookup fails', () => {
+      mockSpawnSync.mockReturnValue(mockSpawnFailure('not a git repository'));
+      expect(git.isBareContainerLayout()).toBe(false);
+    });
   });
 
   describe('isGitIgnored', () => {
