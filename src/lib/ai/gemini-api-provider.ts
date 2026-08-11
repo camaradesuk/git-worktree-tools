@@ -10,10 +10,10 @@
 
 import { BaseAIProvider, createSuccessResult, createErrorResult } from './base-provider.js';
 import type { AIGenerationResult } from './types.js';
+import { DEFAULT_AI_TIMEOUT_MS } from './types.js';
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = 'gemini-2.5-flash';
-const TIMEOUT_MS = 30_000;
 
 /**
  * AI provider that calls the Gemini REST API directly via fetch.
@@ -26,10 +26,12 @@ const TIMEOUT_MS = 30_000;
 export class GeminiAPIProvider extends BaseAIProvider {
   readonly name = 'gemini-api';
   private model: string;
+  private timeoutMs: number;
 
-  constructor(model?: string) {
+  constructor(model?: string, timeoutMs: number = DEFAULT_AI_TIMEOUT_MS) {
     super();
     this.model = model || DEFAULT_MODEL;
+    this.timeoutMs = timeoutMs;
   }
 
   /**
@@ -51,24 +53,50 @@ export class GeminiAPIProvider extends BaseAIProvider {
 
     const url = `${GEMINI_API_BASE}/models/${this.model}:generateContent`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    let timedOut = false;
+    let timeout!: ReturnType<typeof setTimeout>;
+    // A manual timeout promise raced against fetch(), rather than relying
+    // solely on fetch() honoring the AbortSignal: this guarantees a bounded
+    // wait even against a fetch implementation (real or mocked) that never
+    // settles on abort.
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+        reject(new Error('timeout'));
+      }, this.timeoutMs);
+    });
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': key,
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+      const response = (await Promise.race([
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': key,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+          signal: controller.signal,
         }),
-        signal: controller.signal,
-      });
+        timeoutPromise,
+      ])) as Response;
 
       // HTTP error handling
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
+        let body: { error?: { reason?: string; message?: string } } | undefined;
+        try {
+          body = (await response.json()) as { error?: { reason?: string; message?: string } };
+        } catch {
+          // Non-JSON error body — fall through to the generic branches.
+        }
+
+        if (
+          response.status === 401 ||
+          response.status === 403 ||
+          body?.error?.reason === 'API_KEY_INVALID'
+        ) {
           return createErrorResult('Invalid or blocked API key — check GEMINI_API_KEY', this.name);
         }
         if (response.status === 429) {
@@ -98,8 +126,8 @@ export class GeminiAPIProvider extends BaseAIProvider {
 
       return createSuccessResult(text, this.name);
     } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return createErrorResult('Request timed out (30s)', this.name);
+      if (timedOut || (error instanceof DOMException && error.name === 'AbortError')) {
+        return createErrorResult(`Request timed out (${this.timeoutMs / 1000}s)`, this.name);
       }
       if (error instanceof TypeError) {
         return createErrorResult(`Network error: ${error.message}`, this.name);

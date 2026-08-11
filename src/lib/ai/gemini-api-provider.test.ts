@@ -303,6 +303,44 @@ describe('GeminiAPIProvider', () => {
       expect(result.error).toContain('Empty response from Gemini API');
     });
 
+    it('names an invalid API key explicitly on HTTP 400 API_KEY_INVALID', async () => {
+      process.env.GEMINI_API_KEY = 'invalid-key';
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: {
+              code: 400,
+              message: 'API key not valid. Please pass a valid API key.',
+              status: 'INVALID_ARGUMENT',
+              reason: 'API_KEY_INVALID',
+            },
+          }),
+      });
+
+      const result = await new GeminiAPIProvider().generateBranchName(branchContext);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid or blocked API key');
+    });
+
+    it('passes the configured timeout to the AbortController', async () => {
+      vi.useFakeTimers();
+      process.env.GEMINI_API_KEY = 'test-key';
+      mockFetch.mockImplementation(() => new Promise(() => {})); // never resolves
+
+      const resultPromise = new GeminiAPIProvider(undefined, 5_000).generateBranchName(
+        branchContext
+      );
+      await vi.advanceTimersByTimeAsync(5_001);
+      const result = await resultPromise;
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('timed out');
+      vi.useRealTimers();
+    });
+
     it('returns error on fetch timeout (AbortError)', async () => {
       process.env.GEMINI_API_KEY = 'test-key';
       const abortError = new DOMException('The operation was aborted', 'AbortError');
