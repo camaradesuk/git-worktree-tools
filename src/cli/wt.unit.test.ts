@@ -37,6 +37,23 @@ vi.mock('./wt/interactive-menu.js', () => ({
   showMainMenu: vi.fn(),
 }));
 
+vi.mock('../lib/ui/index.js', () => ({
+  printError: vi.fn(),
+}));
+
+vi.mock('../lib/json-output.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/json-output.js')>();
+  return {
+    ...actual,
+    createErrorResult: vi.fn((command: string, code: string, message: string) => ({
+      success: false,
+      command,
+      error: { code, message },
+    })),
+    formatJsonResult: vi.fn((result: unknown) => JSON.stringify(result)),
+  };
+});
+
 // Mock yargs to prevent actual CLI parsing
 vi.mock('yargs', () => {
   const mockYargs = {
@@ -72,6 +89,8 @@ import * as git from '../lib/git.js';
 import * as config from '../lib/config.js';
 import * as logger from '../lib/logger.js';
 import * as globalCheck from '../lib/global-check.js';
+import { printError } from '../lib/ui/index.js';
+import { createErrorResult } from '../lib/json-output.js';
 
 describe('wt CLI entry point', () => {
   const originalArgv = process.argv;
@@ -205,6 +224,85 @@ describe('wt CLI entry point', () => {
           commandName: 'wt',
         })
       );
+    });
+
+    describe('invalid GWT_AI_* env var (ConfigurationError from loadConfig)', () => {
+      // This middleware runs before EVERY command (it loads config for
+      // logging settings), so a ConfigurationError from an invalid
+      // GWT_AI_* env var must be reported cleanly and exit(1) — not
+      // propagate as an uncaught exception that would crash unrelated
+      // commands like `wt list`.
+      let processExitSpy: ReturnType<typeof vi.spyOn>;
+      let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+      beforeEach(() => {
+        processExitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
+        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      });
+
+      afterEach(() => {
+        processExitSpy.mockRestore();
+        consoleLogSpy.mockRestore();
+      });
+
+      it('prints a clean error and exits 1, without --json', async () => {
+        // Import errors.js fresh (matching whatever instance wt.js's own
+        // dynamic import below will resolve to post-resetModules) so
+        // `error instanceof ConfigurationError` inside wt.ts's catch block
+        // sees the SAME class reference as this thrown error, not a stale
+        // one bound at this test file's original static-import time.
+        const { ConfigurationError: FreshConfigurationError } = await import('../lib/errors.js');
+        (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
+        (config.loadConfig as ReturnType<typeof vi.fn>).mockImplementation(() => {
+          throw new FreshConfigurationError(
+            'Invalid GWT_AI_PROVIDER: "bogus" — must be one of: ...',
+            { field: 'GWT_AI_PROVIDER' }
+          );
+        });
+
+        await import('./wt.js');
+
+        expect(printError).toHaveBeenCalledWith(
+          expect.objectContaining({ title: expect.stringContaining('GWT_AI_PROVIDER') })
+        );
+        expect(processExitSpy).toHaveBeenCalledWith(1);
+        // checkAndWarnGlobalInstall must not run with a broken config.
+        expect(globalCheck.checkAndWarnGlobalInstall).not.toHaveBeenCalledWith(
+          expect.objectContaining({ logging: expect.anything() })
+        );
+      });
+
+      it('prints an INVALID_CONFIG JSON error and exits 1, with --json', async () => {
+        const { ConfigurationError: FreshConfigurationError } = await import('../lib/errors.js');
+        process.argv = ['node', 'wt', 'list', '--json'];
+        (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
+        (config.loadConfig as ReturnType<typeof vi.fn>).mockImplementation(() => {
+          throw new FreshConfigurationError(
+            'Invalid GWT_AI_PROVIDER: "bogus" — must be one of: ...',
+            { field: 'GWT_AI_PROVIDER' }
+          );
+        });
+
+        await import('./wt.js');
+
+        expect(createErrorResult).toHaveBeenCalledWith(
+          'wt',
+          'INVALID_CONFIG',
+          expect.stringContaining('GWT_AI_PROVIDER')
+        );
+        expect(consoleLogSpy).toHaveBeenCalled();
+        expect(processExitSpy).toHaveBeenCalledWith(1);
+      });
+
+      it('re-throws non-ConfigurationError errors from loadConfig (unchanged behavior)', async () => {
+        (git.getRepoRoot as ReturnType<typeof vi.fn>).mockReturnValue('/repo');
+        (config.loadConfig as ReturnType<typeof vi.fn>).mockImplementation(() => {
+          throw new Error('Some other failure');
+        });
+
+        await expect(import('./wt.js')).rejects.toThrow('Some other failure');
+        expect(processExitSpy).not.toHaveBeenCalled();
+      });
     });
   });
 });

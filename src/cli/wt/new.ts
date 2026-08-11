@@ -10,6 +10,7 @@ import type { Options } from '../../lib/newpr/index.js';
 import { setJsonMode, printError } from '../../lib/ui/index.js';
 import { createErrorResult, formatJsonResult, ErrorCode } from '../../lib/json-output.js';
 import { readBodyOverride, PRContentError } from '../../lib/newpr/pr-content.js';
+import { AI_PROVIDER_NAMES } from '../../lib/ai/types.js';
 
 interface NewArgs {
   description?: string;
@@ -36,6 +37,8 @@ interface NewArgs {
   'body-file'?: string;
   'force-ai'?: boolean;
   'skip-ai'?: boolean;
+  'ai-provider'?: string;
+  'ai-timeout'?: number;
 }
 
 export const newCommand: CommandModule<object, NewArgs> = {
@@ -164,6 +167,18 @@ export const newCommand: CommandModule<object, NewArgs> = {
         '$0 new "Add dark mode" --title "feat: dark mode" --body-file /tmp/body.md',
         'Supply exact PR content'
       )
+      .option('ai-provider', {
+        type: 'string',
+        description: 'Override the AI provider for this run',
+        // Derived from the canonical list, never hand-copied: a transcribed
+        // enum here would silently reject a provider the rest of the config
+        // chain accepts — the exact drift this flag's own tier exists to avoid.
+        choices: AI_PROVIDER_NAMES,
+      })
+      .option('ai-timeout', {
+        type: 'number',
+        description: 'Override the AI generation timeout (milliseconds) for this run',
+      })
       .example('$0 new "Add dark mode"', 'Create a new PR')
       .example('$0 n "Fix bug #123"', 'Short alias')
       .example('$0 new --pr 42', 'Create worktree for existing PR #42')
@@ -291,6 +306,8 @@ export const newCommand: CommandModule<object, NewArgs> = {
       verbose: !!argv.verbose,
       quiet: !!argv.quiet,
       noColor: !!argv.noColor,
+      aiProvider: argv['ai-provider'],
+      aiTimeout: argv['ai-timeout'],
     };
 
     setJsonMode(options.json);

@@ -507,6 +507,66 @@ describe('config', () => {
     });
   });
 
+  describe('loadConfigWithValidation env overrides', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-env-integration-'));
+    });
+
+    afterEach(() => {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('GWT_AI_PROVIDER overrides ai.provider even when .worktreerc sets it', () => {
+      fs.writeFileSync(
+        path.join(tempDir, '.worktreerc'),
+        JSON.stringify({ ai: { provider: 'claude' } })
+      );
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PROVIDER: 'ollama' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.provider).toBe('ollama');
+    });
+
+    it('throws naming the variable for an invalid GWT_AI_PROVIDER', () => {
+      expect(() =>
+        loadConfig(tempDir, { env: { GWT_AI_PROVIDER: 'bogus' } as NodeJS.ProcessEnv })
+      ).toThrow(/GWT_AI_PROVIDER/);
+    });
+
+    it('GWT_AI_PRIORITY parses into ai.providerPriority', () => {
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PRIORITY: 'openai,claude,ollama' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.providerPriority).toEqual(['openai', 'claude', 'ollama']);
+    });
+
+    it('GWT_NO_AI forces ai.provider to none, beating GWT_AI_PROVIDER', () => {
+      const config = loadConfig(tempDir, {
+        env: { GWT_AI_PROVIDER: 'claude', GWT_NO_AI: '1' } as NodeJS.ProcessEnv,
+      });
+      expect(config.ai.provider).toBe('none');
+    });
+
+    it('GWT_AI_TIMEOUT sets ai.timeout as a number', () => {
+      const config = loadConfig(tempDir, { env: { GWT_AI_TIMEOUT: '15000' } as NodeJS.ProcessEnv });
+      expect(config.ai.timeout).toBe(15000);
+    });
+
+    it('throws for a non-numeric GWT_AI_TIMEOUT', () => {
+      expect(() =>
+        loadConfig(tempDir, { env: { GWT_AI_TIMEOUT: 'soon' } as NodeJS.ProcessEnv })
+      ).toThrow(/GWT_AI_TIMEOUT/);
+    });
+
+    it('with no GWT_AI_* vars set, behaves exactly as before', () => {
+      const config = loadConfig(tempDir, { env: {} as NodeJS.ProcessEnv });
+      expect(config.ai.provider).toBe('none');
+      expect(config.ai.providerPriority).toBeUndefined();
+    });
+  });
+
   describe('generateBranchNameAsync', () => {
     afterEach(() => {
       vi.restoreAllMocks();
