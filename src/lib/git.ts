@@ -719,6 +719,23 @@ export function getMainWorktreeRoot(cwd?: string): string {
 }
 
 /**
+ * Detect whether the current repository uses a bare-repository container layout
+ * (e.g. a `.bare/` directory with `main/` and `pr/*` as linked worktrees) rather
+ * than a conventional repository with its own `.git` directory.
+ *
+ * True when `git rev-parse --git-common-dir` resolves to something whose basename
+ * is not `.git`. Returns false (never throws) when the lookup fails, so callers
+ * can treat this as a soft hint.
+ */
+export function isBareContainerLayout(cwd?: string): boolean {
+  const commonDir = execSafe(['rev-parse', '--git-common-dir'], { cwd });
+  if (!commonDir) {
+    return false;
+  }
+  return path.basename(path.resolve(commonDir)) !== '.git';
+}
+
+/**
  * Check if a file is ignored by git
  */
 export function isGitIgnored(filePath: string, cwd?: string): boolean {

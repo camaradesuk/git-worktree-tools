@@ -639,6 +639,25 @@ describe('git', () => {
     });
   });
 
+  describe('isBareContainerLayout', () => {
+    it('returns false for a conventional repository (.git)', () => {
+      const repoPath = path.join('/home', 'user', 'repo');
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess(path.join(repoPath, '.git')));
+      expect(git.isBareContainerLayout(repoPath)).toBe(false);
+    });
+
+    it('returns true for a bare-repository container layout (.bare)', () => {
+      const containerPath = path.join('/home', 'chris', 'workspace', 'syrf');
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess(path.join(containerPath, '.bare')));
+      expect(git.isBareContainerLayout(path.join(containerPath, 'main'))).toBe(true);
+    });
+
+    it('returns false when git-common-dir lookup fails', () => {
+      mockSpawnSync.mockReturnValue(mockSpawnFailure('not a git repository'));
+      expect(git.isBareContainerLayout()).toBe(false);
+    });
+  });
+
   describe('isGitIgnored', () => {
     it('returns true when file is ignored', () => {
       mockSpawnSync.mockReturnValue(mockSpawnSuccess('node_modules/'));
