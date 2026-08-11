@@ -330,3 +330,94 @@ describe('resolvePRContent per-field provenance', () => {
     expect(result.bodySource).toBe('template');
   });
 });
+
+describe('resolvePRContent requests only the fields it can use', () => {
+  /** Capture the context handed to the generator. */
+  function capturingGenerator() {
+    const contexts: PRGenerationContext[] = [];
+    const fn = async (
+      _c: ResolvedConfig,
+      ctx: PRGenerationContext
+    ): Promise<PRGenerationResult> => {
+      contexts.push(ctx);
+      return {
+        title: 'ai title',
+        description: 'ai body',
+        aiGenerated: true,
+        titleGenerated: true,
+        descriptionGenerated: true,
+        provider: 'codex',
+        error: null,
+      };
+    };
+    return { fn, contexts };
+  }
+
+  it('does not request a title when --title was supplied', async () => {
+    const { fn, contexts } = capturingGenerator();
+
+    await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'flag title' },
+      defaultBody: TEMPLATE,
+      generate: fn,
+    });
+
+    expect(contexts[0].needed).toEqual({ title: false, description: true });
+  });
+
+  it('does not request a description when a body flag was supplied', async () => {
+    const { fn, contexts } = capturingGenerator();
+
+    await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { body: 'flag body' },
+      defaultBody: TEMPLATE,
+      generate: fn,
+    });
+
+    expect(contexts[0].needed).toEqual({ title: true, description: false });
+  });
+
+  it('requests both fields when --force-ai is set, even with both flags', async () => {
+    const { fn, contexts } = capturingGenerator();
+
+    await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: { title: 'flag title', body: 'flag body', forceAi: true },
+      defaultBody: TEMPLATE,
+      generate: fn,
+    });
+
+    expect(contexts[0].needed).toEqual({ title: true, description: true });
+  });
+
+  it('surfaces a partial failure: generated title, failed description', async () => {
+    const generate = async (): Promise<PRGenerationResult> => ({
+      title: 'a real AI title',
+      description: '',
+      aiGenerated: true,
+      titleGenerated: true,
+      descriptionGenerated: false,
+      provider: 'codex',
+      // What generatePRContentAsync now reports when one half fails.
+      error: "AI generation produced no content (description via 'codex': rate limited)",
+    });
+
+    const result = await resolvePRContent({
+      config: configWithAi('auto'),
+      context: CONTEXT,
+      overrides: {},
+      defaultBody: TEMPLATE,
+      generate,
+    });
+
+    expect(result.titleSource).toBe('ai');
+    expect(result.bodySource).toBe('template');
+    // The half that failed must still be diagnosable, not reported as null.
+    expect(result.aiError).toContain('rate limited');
+  });
+});

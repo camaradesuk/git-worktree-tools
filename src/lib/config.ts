@@ -861,6 +861,15 @@ export interface PRGenerationContext {
   commitMessages?: string[];
   /** Repository root path for documentation gathering */
   repoRoot?: string;
+  /**
+   * Restrict generation to the fields the caller actually needs.
+   *
+   * A caller that already has a title from a flag gains nothing from a
+   * generated one (the flag wins), so requesting it only costs latency and
+   * quota. Omit to generate every field enabled in config, which is the
+   * historical behaviour.
+   */
+  needed?: { title: boolean; description: boolean };
 }
 
 /**
@@ -885,6 +894,37 @@ export interface PRGenerationResult {
   provider?: string | null;
   /** Why generation produced nothing, or null when not attempted / successful. */
   error?: string | null;
+}
+
+/**
+ * Summarise per-field AI generation failures, or null if none failed.
+ *
+ * Used on both the total-failure path and the partial-success path, so a
+ * field that failed is always reported even when its sibling succeeded.
+ * Names the real provider from each result rather than any placeholder.
+ */
+function describeFailures(results: {
+  titleResult?: AIGenerationResult;
+  descResult?: AIGenerationResult;
+}): string | null {
+  const reasons: string[] = [];
+
+  if (results.titleResult) {
+    reasons.push(
+      `title via '${results.titleResult.provider}': ${
+        results.titleResult.error ?? 'returned no content'
+      }`
+    );
+  }
+  if (results.descResult) {
+    reasons.push(
+      `description via '${results.descResult.provider}': ${
+        results.descResult.error ?? 'returned no content'
+      }`
+    );
+  }
+
+  return reasons.length > 0 ? `AI generation produced no content (${reasons.join('; ')})` : null;
 }
 
 /**
@@ -939,8 +979,14 @@ export async function generatePRContentAsync(
       let titleResult: AIGenerationResult | undefined;
       let descResult: AIGenerationResult | undefined;
 
+      // Only generate what the caller actually needs. A field the caller has
+      // already supplied by flag cannot be replaced by generation (the flag
+      // wins), so requesting it would cost latency and quota for nothing.
+      const wantTitle = context.needed ? context.needed.title : true;
+      const wantDescription = context.needed ? context.needed.description : true;
+
       // Generate title if enabled
-      if (config.ai.prTitle) {
+      if (config.ai.prTitle && wantTitle) {
         titleResult = await service.generatePRTitle(prContext);
         if (titleResult.success && titleResult.content) {
           title = titleResult.content;
@@ -951,7 +997,7 @@ export async function generatePRContentAsync(
       }
 
       // Generate description if enabled
-      if (config.ai.prDescription) {
+      if (config.ai.prDescription && wantDescription) {
         descResult = await service.generatePRDescription(prContext);
         if (descResult.success && descResult.content) {
           description = descResult.content;
@@ -963,6 +1009,14 @@ export async function generatePRContentAsync(
 
       if (anyGenerated) {
         printStatus('info', `\u2728 AI-generated PR content (${providerName})`);
+        // Partial success still has to report the half that failed. Without
+        // this, a generated title plus a failed description yields a template
+        // body and aiError: null, which a JSON caller cannot distinguish from
+        // "generation wasn't needed".
+        const partialFailures = describeFailures({
+          titleResult: titleGenerated ? undefined : titleResult,
+          descResult: descriptionGenerated ? undefined : descResult,
+        });
         return {
           title,
           description,
@@ -970,6 +1024,7 @@ export async function generatePRContentAsync(
           titleGenerated,
           descriptionGenerated,
           provider: providerName,
+          error: partialFailures,
         };
       }
 
@@ -977,21 +1032,8 @@ export async function generatePRContentAsync(
       // from the real result(s) rather than the last-assigned providerName
       // (which is never reassigned on failure, so it would still read the
       // 'ai' placeholder and hide the actual provider/error).
-      const failureReasons: string[] = [];
-      if (titleResult) {
-        failureReasons.push(
-          `title via '${titleResult.provider}': ${titleResult.error ?? 'returned no content'}`
-        );
-      }
-      if (descResult) {
-        failureReasons.push(
-          `description via '${descResult.provider}': ${descResult.error ?? 'returned no content'}`
-        );
-      }
       const reason =
-        failureReasons.length > 0
-          ? `AI generation produced no content (${failureReasons.join('; ')})`
-          : 'AI generation produced no content';
+        describeFailures({ titleResult, descResult }) ?? 'AI generation produced no content';
 
       printStatus('warning', `\u26a0 AI generation failed: ${reason}`);
 

@@ -126,7 +126,16 @@ export async function resolvePRContent({
 
   let generated: PRGenerationResult | null = null;
   if (needsAi) {
-    generated = await generate(config, context);
+    // Ask only for the fields that could actually be used. Without --force-ai
+    // a flag always beats generation, so generating that field would burn
+    // latency and quota on a result guaranteed to lose.
+    generated = await generate(config, {
+      ...context,
+      needed: {
+        title: forceAi || !hasTitleFlag,
+        description: forceAi || !hasBodyFlag,
+      },
+    });
   }
 
   // AI was never attempted because it is disabled (--skip-ai or
