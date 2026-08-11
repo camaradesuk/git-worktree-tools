@@ -11,6 +11,7 @@ import {
   initializeLocalConfig,
   saveGlobalConfig,
   getConfigSummary,
+  createRepoConfig,
 } from '../../lib/global-config.js';
 import type { WorktreeConfig, LoggingConfig } from '../../lib/config.js';
 import { promptChoice, promptConfirm, promptInput, type PromptOption } from '../../lib/prompts.js';
@@ -125,6 +126,16 @@ async function handleInteractiveInit(
   }
   console.log();
 
+  const isBareContainer = repoRoot ? git.isBareContainerLayout(repoRoot) : false;
+  if (isBareContainer && !summary.repo) {
+    console.log(
+      colors.info(
+        'Detected a bare-repository container layout (a .bare/ directory rather than .git).'
+      )
+    );
+    console.log();
+  }
+
   // Build choices based on context
   const choices: PromptOption<string>[] = [];
 
@@ -147,6 +158,13 @@ async function handleInteractiveInit(
       choices.push({
         label: `Update .gitignore with local config patterns`,
         value: 'gitignore',
+      });
+    }
+
+    if (isBareContainer && !summary.repo) {
+      choices.push({
+        label: `Scaffold repo config for bare-container layout (.worktreerc, committed)`,
+        value: 'bare-layout',
       });
     }
   }
@@ -180,6 +198,11 @@ async function handleInteractiveInit(
         } else {
           console.log(colors.dim('No changes needed to .gitignore'));
         }
+      }
+      break;
+    case 'bare-layout':
+      if (repoRoot) {
+        await createBareLayoutConfig(repoRoot);
       }
       break;
     case 'cancel':
@@ -226,6 +249,26 @@ async function createLocalConfig(repoRoot: string): Promise<void> {
     colors.dim('Local config is for personal settings that override repo/global configs.')
   );
   console.log(colors.dim('Edit with: wt config edit'));
+}
+
+/**
+ * Scaffold a repo config (.worktreerc) for a bare-repository container layout,
+ * matching the pattern such containers use: .bare/ + main/ + pr/pr<N>.<slug>.
+ */
+async function createBareLayoutConfig(repoRoot: string): Promise<void> {
+  const configPath = createRepoConfig(repoRoot, {
+    worktreeParent: 'pr',
+    worktreePattern: 'pr{number}.{slug}',
+  });
+
+  console.log(colors.success(`✓ Created repo config: ${configPath}`));
+  console.log();
+  console.log(
+    colors.dim(
+      'Worktrees will be created under pr/pr<N>.<slug>, anchored to the main worktree root.'
+    )
+  );
+  console.log(colors.dim('Commit this file so it applies identically from every worktree.'));
 }
 
 /**
