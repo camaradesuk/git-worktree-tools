@@ -6,6 +6,12 @@
  * probe) so the two cannot drift. The live-probe layer is separate.
  */
 
+import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as crypto from 'crypto';
+
 export interface ProviderDiagnostic {
   /** Config-facing identifier (e.g. 'openai'). */
   name: string;
@@ -60,4 +66,168 @@ export function pickAutoProvider(
     selected: null,
     reason: 'no provider in the priority list is installed and authenticated',
   };
+}
+
+// --- Real per-provider probes -------------------------------------------
+//
+// `--offline` skips every live network/subprocess reachability call, which
+// is what makes this testable without spending quota or touching a real
+// provider. Ollama's /api/tags is free and local, so it always runs.
+
+export interface ProbeOptions {
+  /** Skip every live network/subprocess reachability call. */
+  offline: boolean;
+}
+
+function commandInstalled(cmd: string): boolean {
+  const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    encoding: 'utf-8',
+  });
+  return result.status === 0;
+}
+
+export async function probeCodex(options: ProbeOptions): Promise<Partial<ProviderDiagnostic>> {
+  const installed = commandInstalled('codex');
+  if (!installed) {
+    return { installed: false, authenticated: 'unknown', reachable: 'unknown' };
+  }
+
+  // `codex login status` is a free, local, quota-free REAL check — distinct
+  // from `reachable`, which proves auth + network + model actually answer.
+  const statusResult = spawnSync('codex', ['login', 'status'], {
+    encoding: 'utf-8',
+    timeout: 10_000,
+  });
+  const authenticated =
+    statusResult.status === 0 && !/not logged in/i.test(statusResult.stdout ?? '');
+
+  if (options.offline || !authenticated) {
+    return { installed: true, authenticated, reachable: 'unknown' };
+  }
+
+  const outputFile = path.join(
+    os.tmpdir(),
+    `gwt-doctor-codex-${process.pid}-${crypto.randomBytes(6).toString('hex')}.txt`
+  );
+  try {
+    const result = spawnSync(
+      'codex',
+      [
+        'exec',
+        '--skip-git-repo-check',
+        '-s',
+        'read-only',
+        '--color',
+        'never',
+        '--output-last-message',
+        outputFile,
+        'Reply with exactly: OK',
+      ],
+      { encoding: 'utf-8', timeout: 20_000 }
+    );
+    const output = fs.existsSync(outputFile) ? fs.readFileSync(outputFile, 'utf-8').trim() : '';
+    const reachable = result.status === 0 && output.length > 0;
+    return {
+      installed: true,
+      authenticated,
+      reachable,
+      error: reachable ? undefined : result.stderr || 'no output',
+    };
+  } catch (error) {
+    return {
+      installed: true,
+      authenticated,
+      reachable: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    try {
+      if (fs.existsSync(outputFile)) fs.rmSync(outputFile, { force: true });
+    } catch {
+      // best effort
+    }
+  }
+}
+
+export async function probeClaude(options: ProbeOptions): Promise<Partial<ProviderDiagnostic>> {
+  const installed = commandInstalled('claude');
+  if (!installed) {
+    return { installed: false, authenticated: 'unknown', reachable: 'unknown' };
+  }
+
+  // No free `claude auth status` equivalent exists, so stay honest.
+  if (options.offline) {
+    return { installed: true, authenticated: 'unknown', reachable: 'unknown' };
+  }
+
+  const result = spawnSync('claude', ['-p', 'Reply with exactly: OK'], {
+    encoding: 'utf-8',
+    timeout: 20_000,
+  });
+  const reachable = result.status === 0 && Boolean(result.stdout?.trim());
+  return {
+    installed: true,
+    authenticated: reachable ? true : 'unknown',
+    reachable,
+    error: reachable ? undefined : result.stderr || 'no output',
+  };
+}
+
+export async function probeGeminiApi(options: ProbeOptions): Promise<Partial<ProviderDiagnostic>> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) {
+    return { installed: true, authenticated: false, reachable: 'unknown' };
+  }
+  if (options.offline) {
+    return { installed: true, authenticated: true, reachable: 'unknown' };
+  }
+
+  // The probe this task exists for: catches an invalid key as HTTP 400
+  // API_KEY_INVALID instead of Boolean(env) reporting "available".
+  try {
+    const response = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with exactly: OK' }] }] }),
+      }
+    );
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: { reason?: string; message?: string };
+      };
+      const reason = body?.error?.reason ?? `HTTP ${response.status}`;
+      return {
+        installed: true,
+        authenticated: true,
+        reachable: false,
+        error: `${reason}: ${body?.error?.message ?? 'request failed'}`,
+      };
+    }
+
+    return { installed: true, authenticated: true, reachable: true };
+  } catch (error) {
+    return {
+      installed: true,
+      authenticated: true,
+      reachable: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function probeOllama(
+  _options: ProbeOptions,
+  host = 'http://localhost:11434'
+): Promise<Partial<ProviderDiagnostic>> {
+  // Free and local — always runs, even offline.
+  const result = spawnSync('curl', ['-s', `${host}/api/tags`], {
+    encoding: 'utf-8',
+    timeout: 5_000,
+  });
+  const reachable = result.status === 0;
+  return { installed: reachable, authenticated: true, reachable };
 }
