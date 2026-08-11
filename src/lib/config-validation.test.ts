@@ -193,6 +193,34 @@ describe('validateConfig', () => {
       expect(result.valid).toBe(false);
       expect(result.errors.some((e) => e.path === 'ai.unknownKey')).toBe(true);
     });
+
+    it('accepts a valid ai.providerPriority list', () => {
+      expect(
+        validateConfig({ ai: { providerPriority: ['openai', 'claude', 'ollama'] } }).valid
+      ).toBe(true);
+    });
+
+    it('rejects an unknown provider name inside ai.providerPriority', () => {
+      const result = validateConfig({ ai: { providerPriority: ['openai', 'not-a-provider'] } });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.path === 'ai.providerPriority')).toBe(true);
+    });
+
+    it('rejects a non-array ai.providerPriority', () => {
+      expect(
+        validateConfig({ ai: { providerPriority: 'openai' as unknown as string[] } }).valid
+      ).toBe(false);
+    });
+
+    it('rejects a non-numeric ai.timeout', () => {
+      const result = validateConfig({ ai: { timeout: 'fast' as unknown as number } });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.path === 'ai.timeout')).toBe(true);
+    });
+
+    it('accepts a numeric ai.timeout', () => {
+      expect(validateConfig({ ai: { timeout: 30_000 } }).valid).toBe(true);
+    });
   });
 
   describe('hooks config', () => {

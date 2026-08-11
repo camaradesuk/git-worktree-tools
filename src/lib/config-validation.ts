@@ -258,6 +258,10 @@ function validateAIConfig(ai: unknown, errors: ValidationError[]): void {
     'openai',
     'ollama',
     'script',
+    'providerPriority',
+    'timeout',
+    'providers',
+    'models',
   ];
 
   // Check for unknown keys
@@ -285,6 +289,26 @@ function validateAIConfig(ai: unknown, errors: ValidationError[]): void {
         message: `ai.fallback must be one of: ${VALID_AI_PROVIDERS.join(', ')}`,
       });
     }
+  }
+
+  // Validate providerPriority
+  if (obj.providerPriority !== undefined) {
+    if (!Array.isArray(obj.providerPriority)) {
+      errors.push({ path: 'ai.providerPriority', message: 'Must be an array' });
+    } else {
+      const invalid = obj.providerPriority.filter((p) => !VALID_AI_PROVIDERS.includes(p));
+      if (invalid.length > 0) {
+        errors.push({
+          path: 'ai.providerPriority',
+          message: `Unknown provider(s): ${invalid.join(', ')}. Must be one of: ${VALID_AI_PROVIDERS.join(', ')}`,
+        });
+      }
+    }
+  }
+
+  // Validate timeout
+  if (obj.timeout !== undefined && typeof obj.timeout !== 'number') {
+    errors.push({ path: 'ai.timeout', message: 'Must be a number (milliseconds)' });
   }
 
   // Validate boolean flags
