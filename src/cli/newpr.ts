@@ -553,7 +553,7 @@ async function modeExistingPr(prNumber: number, options: Options): Promise<void>
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
 
   // Initialize hook runner for post-worktree hook
   const hookRunner = createHookRunner(
@@ -677,7 +677,7 @@ async function modeExistingBranch(branchName: string, options: Options): Promise
 
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
 
   // Initialize hook runner for post-worktree hook
   const hookRunner = createHookRunner(
@@ -864,7 +864,7 @@ PR created from existing branch: \`${branchName}\`
 async function modeNewFeature(description: string, options: Options): Promise<void> {
   const repoRoot = git.getRepoRoot();
   const repoName = git.getRepoName(repoRoot);
-  const config = loadConfig(repoRoot);
+  const config = loadConfigForRun(repoRoot, options);
   const branchName = await generateBranchNameAsync(config, description, repoName);
 
   // Initialize hook runner (disabled if --no-hooks flag is set)
@@ -1285,6 +1285,37 @@ function hasJsonFlag(args: string[]): boolean {
 /**
  * Output error and exit
  */
+/**
+ * Load config for a run, applying invocation-level AI overrides.
+ *
+ * `--skip-ai` promises to skip AI generation *entirely*, so it must suppress
+ * branch-name, commit-message and plan-document generation as well — not only
+ * PR content, which `resolvePRContent` handles through its own override.
+ * Routing every load through here means a future AI-backed feature cannot
+ * silently escape the flag.
+ *
+ * `ai.provider` is deliberately left alone so `resolvePRContent` can still
+ * report the precise reason (`AI skipped (--skip-ai)`) rather than the
+ * misleading `ai.provider = 'none'`.
+ */
+function loadConfigForRun(repoRoot: string, options: Options): ResolvedConfig {
+  const config = loadConfig(repoRoot);
+
+  if (!options.skipAi) {
+    return config;
+  }
+
+  return {
+    ...config,
+    ai: {
+      ...config.ai,
+      branchName: false,
+      commitMessage: false,
+      planDocument: false,
+    },
+  };
+}
+
 function exitWithError(message: string, code: ErrorCode, useJson: boolean): never {
   if (useJson) {
     console.log(formatJsonResult(createErrorResult('newpr', code, message)));

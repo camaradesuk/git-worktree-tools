@@ -49,18 +49,23 @@ describe('wt new content flags', () => {
     expect(options.title).toBe('feat: dark mode');
   });
 
-  it('passes --body and --body-file through unchanged', async () => {
+  it('passes --body through, and resolves --body-file to its contents', async () => {
     const withBody = await invoke({ body: 'inline' });
     expect(withBody.body).toBe('inline');
 
-    // The handler now eagerly validates --body-file is readable (Finding 1
-    // fix), so this must point at a real file rather than an arbitrary path.
+    // The handler eagerly validates --body-file is readable, so this must
+    // point at a real file rather than an arbitrary path.
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-new-test-'));
     const bodyFilePath = path.join(tmpDir, 'body.md');
     fs.writeFileSync(bodyFilePath, '# body');
     try {
       const withFile = await invoke({ 'body-file': bodyFilePath });
-      expect(withFile.bodyFile).toBe(bodyFilePath);
+      // The path is deliberately NOT forwarded: the file is read once here,
+      // before any git mutation, and the bytes travel onward. Forwarding the
+      // path would let a later re-read pick up stale or missing content once
+      // the workflow has committed/pushed/checked out around it.
+      expect(withFile.body).toBe('# body');
+      expect(withFile.bodyFile).toBeUndefined();
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -207,5 +212,47 @@ describe('wt new content-flag validation is scoped to modes that use it', () => 
     ).rejects.toThrow('process.exit(1)');
 
     expect(runNewprHandler).not.toHaveBeenCalled();
+  });
+});
+
+describe('wt new reads --body-file exactly once, before git mutation', () => {
+  it('passes the file CONTENTS downstream and drops the path', async () => {
+    runNewprHandler.mockReset();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-new-bodyfile-'));
+    const file = path.join(dir, 'pr-body.md');
+    fs.writeFileSync(file, '## Summary\n\nthe validated bytes\n');
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const handler = newCommand.handler as any;
+      await handler({ base: 'main', description: 'x', 'body-file': file });
+
+      const options = runNewprHandler.mock.calls[0][0];
+      // The bytes validated up front are the bytes used downstream...
+      expect(options.body).toBe('## Summary\n\nthe validated bytes\n');
+      // ...and the path is gone, so nothing can re-read it after the workflow
+      // commits/pushes/checks out and the file is missing or stale.
+      expect(options.bodyFile).toBeUndefined();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('survives the body file being deleted after argument parsing', async () => {
+    runNewprHandler.mockReset();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-new-bodyfile-gone-'));
+    const file = path.join(dir, 'pr-body.md');
+    fs.writeFileSync(file, 'content that must survive');
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = newCommand.handler as any;
+    await handler({ base: 'main', description: 'x', 'body-file': file });
+
+    // Simulate the workflow moving git state out from under the path.
+    fs.rmSync(dir, { recursive: true, force: true });
+
+    const options = runNewprHandler.mock.calls[0][0];
+    expect(options.body).toBe('content that must survive');
+    expect(options.bodyFile).toBeUndefined();
   });
 });

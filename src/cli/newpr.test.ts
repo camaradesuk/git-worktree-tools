@@ -1828,4 +1828,55 @@ describe('cli/newpr', () => {
       expect(hasSubMessage).toBe(false);
     });
   });
+
+  describe('--skip-ai suppresses every AI path, not just PR content', () => {
+    // Regression: --skip-ai is documented as "skip AI generation entirely", but
+    // it was only forwarded to resolvePRContent. generateBranchNameAsync runs
+    // BEFORE that resolver and plan generation runs after, so both could still
+    // call a provider despite the flag.
+    it('disables ai.branchName, ai.commitMessage and ai.planDocument in the config handed to the workflow', async () => {
+      const aiOnConfig = {
+        ...defaultConfig,
+        ai: {
+          provider: 'claude' as const,
+          branchName: true,
+          commitMessage: true,
+          planDocument: true,
+          prTitle: true,
+          prDescription: true,
+        },
+      };
+
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: {
+          mode: 'new',
+          description: 'add dark mode',
+          ...defaultOptions,
+          skipAi: true,
+        },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue(aiOnConfig);
+      vi.mocked(generateBranchNameAsync).mockResolvedValue('feat/add-dark-mode');
+
+      await runCli(['add dark mode', '--skip-ai']).catch(() => {
+        // The run may not complete under these mocks; what matters is the
+        // config that reached generateBranchNameAsync.
+      });
+
+      expect(generateBranchNameAsync).toHaveBeenCalled();
+      const configPassed = vi.mocked(generateBranchNameAsync).mock.calls[0][0];
+      expect(configPassed.ai.branchName).toBe(false);
+      expect(configPassed.ai.commitMessage).toBe(false);
+      expect(configPassed.ai.planDocument).toBe(false);
+      // provider is deliberately left intact so resolvePRContent can still
+      // report "AI skipped (--skip-ai)" rather than the misleading
+      // "ai.provider = 'none'".
+      expect(configPassed.ai.provider).toBe('claude');
+    });
+  });
 });

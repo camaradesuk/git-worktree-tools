@@ -193,28 +193,35 @@ export const newCommand: CommandModule<object, NewArgs> = {
       process.exit(1);
     }
 
-    // Validate --title/--body/--body-file before any git mutation happens.
-    // The authoritative body read still happens later inside
-    // resolvePRContent (via runNewprHandler); this is a fail-fast check so a
-    // simple typo doesn't leave the repo mid-mutation (branch pushed, no PR,
-    // stash unpopped). It also rejects empty/whitespace-only values: an
-    // empty --title or --body/--body-file silently corrupts the underlying
-    // `gh pr create` invocation (an empty argument is emitted unquoted and
-    // swallows the next flag), so an agent must learn its content did not
-    // land rather than have `gh` misparse the command.
+    // Read and validate --title/--body/--body-file before any git mutation.
+    // This is a fail-fast check so a simple typo doesn't leave the repo
+    // mid-mutation (branch pushed, no PR, stash unpopped). It also rejects
+    // empty/whitespace-only values: an empty --title or body silently corrupts
+    // the underlying `gh pr create` invocation, so an agent must learn its
+    // content did not land rather than have `gh` misparse the command.
+    //
+    // The bytes read here are then carried downstream in `options.body`, and
+    // `bodyFile` is dropped, so the file is read EXACTLY ONCE. Re-reading the
+    // path later would be unsafe: the workflow may commit that very file onto
+    // the feature branch, push, and check the original branch back out before
+    // resolvePRContent runs — at which point a newly added body file is gone
+    // (ENOENT after the branch was already pushed) and a modified tracked one
+    // silently reverts to the original branch's stale contents. The documented
+    // `--body-file ./pr-body.md` example is exactly that shape.
     //
     // Skipped entirely in --pr mode: that path routes to modeExistingPr, which
     // never calls resolvePRContent and never reads a body, so the content flags
     // are ignored there (as documented in docs/AI-TOOLING.md). Validating them
     // anyway would reject `wt new --pr 42 --body-file missing.md` over a file
     // the command would never have opened.
+    let resolvedBody: string | undefined;
     try {
       if (argv.pr === undefined) {
         if (argv.title !== undefined && argv.title.trim() === '') {
           throw new PRContentError('--title must not be empty or whitespace-only.');
         }
 
-        const resolvedBody = readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
+        resolvedBody = readBodyOverride({ body: argv.body, bodyFile: argv['body-file'] });
         if (resolvedBody !== undefined && resolvedBody.trim() === '') {
           const flagName = argv.body !== undefined ? '--body' : '--body-file';
           throw new PRContentError(`${flagName} must not be empty or whitespace-only.`);
@@ -270,8 +277,12 @@ export const newCommand: CommandModule<object, NewArgs> = {
       action: argv.action as Options['action'],
       noHooks: !!argv['no-hooks'],
       title: argv.title,
-      body: argv.body,
-      bodyFile: argv['body-file'],
+      // Pass the ALREADY-READ bytes, not the path, so the file is never read
+      // a second time after the workflow has moved git state underneath it.
+      // In --pr mode nothing was read (validation is skipped) and the content
+      // flags are ignored anyway, so fall back to the raw argv there.
+      body: resolvedBody ?? argv.body,
+      bodyFile: resolvedBody !== undefined ? undefined : argv['body-file'],
       forceAi: !!argv['force-ai'],
       skipAi: !!argv['skip-ai'],
       confirmHooks: !!argv['confirm-hooks'],
