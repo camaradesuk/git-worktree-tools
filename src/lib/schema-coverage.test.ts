@@ -40,7 +40,6 @@ function flattenSchemaKeys(properties: any, definitions: any, prefix = ''): stri
   return out;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function collectSchemaDefaults(
   properties: any,
   definitions: any,

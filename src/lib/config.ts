@@ -8,7 +8,7 @@ import {
   CONFIG_FILE_NAMES,
   LogLevel,
 } from './constants.js';
-import type { AIConfig, BranchContext, PRContext } from './ai/types.js';
+import type { AIConfig, AIGenerationResult, BranchContext, PRContext } from './ai/types.js';
 import { DEFAULT_AI_CONFIG } from './ai/types.js';
 import type { HooksConfig } from './hooks/types.js';
 import { gatherRepoDocumentation } from './ai/repo-docs.js';
@@ -871,6 +871,15 @@ export interface PRGenerationContext {
   commitMessages?: string[];
   /** Repository root path for documentation gathering */
   repoRoot?: string;
+  /**
+   * Restrict generation to the fields the caller actually needs.
+   *
+   * A caller that already has a title from a flag gains nothing from a
+   * generated one (the flag wins), so requesting it only costs latency and
+   * quota. Omit to generate every field enabled in config, which is the
+   * historical behaviour.
+   */
+  needed?: { title: boolean; description: boolean };
 }
 
 /**
@@ -880,6 +889,55 @@ export interface PRGenerationResult {
   title: string;
   description: string;
   aiGenerated: boolean;
+  /**
+   * True only when a model actually produced the title.
+   *
+   * `aiGenerated` covers both fields at once, so it cannot distinguish "the
+   * model wrote the title" from "the model wrote only the description and the
+   * title is still the caller's `context.description`". Consumers reporting
+   * provenance must use this per-field flag, not the truthiness of `title`.
+   */
+  titleGenerated?: boolean;
+  /** True only when a model actually produced the description. */
+  descriptionGenerated?: boolean;
+  /** Provider that generated content, or null when AI did not contribute. */
+  provider?: string | null;
+  /** Why generation produced nothing, or null when not attempted / successful. */
+  error?: string | null;
+}
+
+/**
+ * Summarise per-field AI generation failures, or null if none failed.
+ *
+ * Used on both the total-failure path and the partial-success path, so a
+ * field that failed is always reported even when its sibling succeeded.
+ * Names the real provider from each result rather than any placeholder.
+ */
+function describeFailures(
+  results: {
+    titleResult?: AIGenerationResult;
+    descResult?: AIGenerationResult;
+  },
+  prefix = 'AI generation produced no content'
+): string | null {
+  const reasons: string[] = [];
+
+  if (results.titleResult) {
+    reasons.push(
+      `title via '${results.titleResult.provider}': ${
+        results.titleResult.error ?? 'returned no content'
+      }`
+    );
+  }
+  if (results.descResult) {
+    reasons.push(
+      `description via '${results.descResult.provider}': ${
+        results.descResult.error ?? 'returned no content'
+      }`
+    );
+  }
+
+  return reasons.length > 0 ? `${prefix} (${reasons.join('; ')})` : null;
 }
 
 /**
@@ -895,6 +953,10 @@ export async function generatePRContentAsync(
     title: context.description,
     description: '',
     aiGenerated: false,
+    titleGenerated: false,
+    descriptionGenerated: false,
+    provider: null,
+    error: null,
   };
 
   // If AI is enabled for PR content, try to use it
@@ -924,37 +986,143 @@ export async function generatePRContentAsync(
       let title = context.description;
       let description = '';
       let anyGenerated = false;
+      let titleGenerated = false;
+      let descriptionGenerated = false;
       let providerName = 'ai';
+      let titleResult: AIGenerationResult | undefined;
+      let descResult: AIGenerationResult | undefined;
+
+      // Only generate what the caller actually needs. A field the caller has
+      // already supplied by flag cannot be replaced by generation (the flag
+      // wins), so requesting it would cost latency and quota for nothing.
+      const wantTitle = context.needed ? context.needed.title : true;
+      const wantDescription = context.needed ? context.needed.description : true;
 
       // Generate title if enabled
-      if (config.ai.prTitle) {
-        const titleResult = await service.generatePRTitle(prContext);
+      if (config.ai.prTitle && wantTitle) {
+        titleResult = await service.generatePRTitle(prContext);
         if (titleResult.success && titleResult.content) {
           title = titleResult.content;
           anyGenerated = true;
+          titleGenerated = true;
           providerName = titleResult.provider;
         }
       }
 
       // Generate description if enabled
-      if (config.ai.prDescription) {
-        const descResult = await service.generatePRDescription(prContext);
+      if (config.ai.prDescription && wantDescription) {
+        descResult = await service.generatePRDescription(prContext);
         if (descResult.success && descResult.content) {
           description = descResult.content;
           anyGenerated = true;
+          descriptionGenerated = true;
           providerName = descResult.provider;
         }
       }
 
       if (anyGenerated) {
-        printStatus('info', `\u2728 AI-generated PR content (${providerName})`);
-        return { title, description, aiGenerated: true };
+        // Partial success still has to report the half that failed. Without
+        // this, a generated title plus a failed description yields a template
+        // body and aiError: null, which a JSON caller cannot distinguish from
+        // "generation wasn't needed".
+        const partialFailures = describeFailures(
+          {
+            titleResult: titleGenerated ? undefined : titleResult,
+            descResult: descriptionGenerated ? undefined : descResult,
+          },
+          // Not "produced no content" here — at least one field WAS generated,
+          // and the caller will see titleSource/bodySource say so. A blanket
+          // "no content" would contradict the provenance sitting beside it.
+          'AI generation partially failed'
+        );
+
+        // A field can also be missing because its generator is switched off
+        // rather than because it failed. That produces no AIGenerationResult
+        // at all, so describeFailures() cannot see it — report it separately,
+        // otherwise the caller gets template content with aiError: null.
+        const disabledNotes: string[] = [];
+        if (!titleGenerated && !titleResult && wantTitle && !config.ai.prTitle) {
+          disabledNotes.push('title not generated (ai.prTitle disabled)');
+        }
+        if (!descriptionGenerated && !descResult && wantDescription && !config.ai.prDescription) {
+          disabledNotes.push('description not generated (ai.prDescription disabled)');
+        }
+
+        const notes = [partialFailures, ...disabledNotes].filter(Boolean);
+
+        // Name every provider that actually contributed. With a fallback
+        // configured, executeWithFallback picks per operation, so the title
+        // and description can come from different providers — reporting only
+        // the last one assigned would credit a provider that produced nothing
+        // for the other field.
+        const contributors = [
+          titleGenerated ? titleResult?.provider : undefined,
+          descriptionGenerated ? descResult?.provider : undefined,
+        ].filter((p): p is string => Boolean(p));
+        const providerLabel =
+          contributors.length > 0 ? [...new Set(contributors)].join(', ') : providerName;
+
+        printStatus('info', `\u2728 AI-generated PR content (${providerLabel})`);
+
+        return {
+          title,
+          description,
+          aiGenerated: true,
+          titleGenerated,
+          descriptionGenerated,
+          provider: providerLabel,
+          error: notes.length > 0 ? notes.join('; ') : null,
+        };
       }
+
+      // Nothing was even attempted: every generator that could have run was
+      // switched off (ai.prTitle / ai.prDescription false, or the caller only
+      // needed a field whose generator is disabled). That is NOT a failure,
+      // but it must not look like the "generation not needed" success case
+      // either — the caller asked for content and silently got the template.
+      if (!titleResult && !descResult) {
+        const disabled = [
+          config.ai.prTitle ? null : 'ai.prTitle',
+          config.ai.prDescription ? null : 'ai.prDescription',
+        ].filter(Boolean);
+        const why =
+          disabled.length > 0
+            ? `AI generation not attempted (${disabled.join(' and ')} disabled)`
+            : 'AI generation not attempted (no field required generation)';
+        return { ...defaultResult, error: why };
+      }
+
+      // A provider was attempted but produced nothing. Build the diagnostic
+      // from the real result(s) rather than the last-assigned providerName
+      // (which is never reassigned on failure, so it would still read the
+      // 'ai' placeholder and hide the actual provider/error).
+      const reason =
+        describeFailures({ titleResult, descResult }) ?? 'AI generation produced no content';
+
+      printStatus('warning', `\u26a0 AI generation failed: ${reason}`);
+
+      return {
+        ...defaultResult,
+        error: reason,
+      };
     } catch (error) {
-      // Fall through to defaults on error, but make the failure visible
       const reason = error instanceof Error ? error.message : String(error);
       printStatus('warning', `\u26A0 AI generation failed: ${reason}`);
+      return { ...defaultResult, error: reason };
     }
+  }
+
+  // The AI block was skipped entirely. `provider: 'none'` is a deliberate
+  // opt-out that the caller already knows about (resolvePRContent reports it),
+  // but a configured provider with BOTH PR generators switched off is not
+  // self-evident: the caller gets template content with no explanation, which
+  // is indistinguishable from the documented "generation not needed" success
+  // case. Say so.
+  if (config.ai.provider !== 'none') {
+    return {
+      ...defaultResult,
+      error: 'AI generation not attempted (ai.prTitle and ai.prDescription are both disabled)',
+    };
   }
 
   return defaultResult;

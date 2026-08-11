@@ -66,4 +66,51 @@ describe('loadConfigForRun', () => {
     expect(config.ai.branchName).toBe(true);
     expect(config.ai.timeout).toBe(5000);
   });
+
+  it('--skip-ai disables every AI-backed subsystem', () => {
+    fs.writeFileSync(
+      path.join(tempDir, '.worktreerc'),
+      JSON.stringify({
+        ai: { provider: 'claude', branchName: true, commitMessage: true, planDocument: true },
+      })
+    );
+    const config = loadConfigForRun(tempDir, { ...getDefaultOptions(), skipAi: true });
+    expect(config.ai.branchName).toBe(false);
+    expect(config.ai.commitMessage).toBe(false);
+    expect(config.ai.planDocument).toBe(false);
+  });
+
+  it('--skip-ai leaves ai.provider alone so the skip reason stays reportable', () => {
+    // resolvePRContent distinguishes "AI skipped (--skip-ai)" from
+    // "ai.provider = 'none'"; rewriting the provider here would collapse
+    // those two very different explanations into one.
+    fs.writeFileSync(
+      path.join(tempDir, '.worktreerc'),
+      JSON.stringify({ ai: { provider: 'claude' } })
+    );
+    const config = loadConfigForRun(tempDir, { ...getDefaultOptions(), skipAi: true });
+    expect(config.ai.provider).toBe('claude');
+  });
+
+  // The provider-selection flags and --skip-ai were added on separate
+  // branches and first met in a merge, so their composition has never run
+  // before. They are not contradictory: the provider still resolves and is
+  // still reported, it simply has no AI-backed step left to run.
+  it('composes --skip-ai with --ai-provider/--ai-timeout', () => {
+    fs.writeFileSync(
+      path.join(tempDir, '.worktreerc'),
+      JSON.stringify({ ai: { provider: 'claude', branchName: true, commitMessage: true } })
+    );
+    const config = loadConfigForRun(tempDir, {
+      ...getDefaultOptions(),
+      skipAi: true,
+      aiProvider: 'ollama',
+      aiTimeout: 1234,
+    });
+    expect(config.ai.provider).toBe('ollama');
+    expect(config.ai.timeout).toBe(1234);
+    expect(config.ai.branchName).toBe(false);
+    expect(config.ai.commitMessage).toBe(false);
+    expect(config.ai.planDocument).toBe(false);
+  });
 });

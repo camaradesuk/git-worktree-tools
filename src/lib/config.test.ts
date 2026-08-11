@@ -813,6 +813,108 @@ describe('config', () => {
       expect(result.aiGenerated).toBe(true);
     });
 
+    it('reports both providers when a fallback supplies one of the two fields', async () => {
+      // executeWithFallback picks a provider per operation, so title and
+      // description can legitimately come from different ones. Reporting only
+      // the last-assigned would credit a provider that produced nothing here.
+      const mockService = {
+        generatePRTitle: vi
+          .fn()
+          .mockResolvedValue({ success: true, content: 'AI Title', provider: 'codex' }),
+        generatePRDescription: vi
+          .fn()
+          .mockResolvedValue({ success: true, content: 'AI Description', provider: 'claude' }),
+      };
+      vi.doMock('./ai/index.js', () => ({ createAIGenerationService: () => mockService }));
+      const { generatePRContentAsync: asyncFn } = await import('./config.js');
+
+      const config = {
+        ...getDefaultConfig(),
+        ai: {
+          ...getDefaultConfig().ai,
+          provider: 'claude' as const,
+          prTitle: true,
+          prDescription: true,
+        },
+      };
+
+      const result = await asyncFn(config, { description: 'Original', branchName: 'feat/test' });
+
+      expect(result.provider).toBe('codex, claude');
+      expect(result.error).toBeNull();
+    });
+
+    it('explains a template body when the description generator is disabled', async () => {
+      // Title generated, description generator switched off. There is no
+      // AIGenerationResult for the body, so the failure path cannot see it --
+      // without an explicit note the caller gets bodySource 'template' with
+      // aiError null and no way to diagnose it.
+      const mockService = {
+        generatePRTitle: vi
+          .fn()
+          .mockResolvedValue({ success: true, content: 'AI Title', provider: 'codex' }),
+        generatePRDescription: vi.fn(),
+      };
+      vi.doMock('./ai/index.js', () => ({ createAIGenerationService: () => mockService }));
+      const { generatePRContentAsync: asyncFn } = await import('./config.js');
+
+      const config = {
+        ...getDefaultConfig(),
+        ai: {
+          ...getDefaultConfig().ai,
+          provider: 'claude' as const,
+          prTitle: true,
+          prDescription: false,
+        },
+      };
+
+      const result = await asyncFn(config, { description: 'Original', branchName: 'feat/test' });
+
+      expect(result.titleGenerated).toBe(true);
+      expect(result.descriptionGenerated).toBe(false);
+      expect(mockService.generatePRDescription).not.toHaveBeenCalled();
+      expect(result.error).toContain('ai.prDescription disabled');
+    });
+
+    it('should report the provider name on successful AI generation', async () => {
+      const mockService = {
+        generatePRTitle: vi.fn().mockResolvedValue({
+          success: true,
+          content: 'AI Title',
+          provider: 'codex',
+        }),
+        generatePRDescription: vi.fn().mockResolvedValue({
+          success: true,
+          content: 'AI Description',
+          provider: 'codex',
+        }),
+      };
+
+      vi.doMock('./ai/index.js', () => ({
+        createAIGenerationService: () => mockService,
+      }));
+
+      const { generatePRContentAsync: asyncFn } = await import('./config.js');
+
+      const config = {
+        ...getDefaultConfig(),
+        ai: {
+          ...getDefaultConfig().ai,
+          provider: 'claude' as const,
+          prTitle: true,
+          prDescription: true,
+        },
+      };
+
+      const result = await asyncFn(config, {
+        description: 'Original',
+        branchName: 'feat/test',
+      });
+
+      expect(result.aiGenerated).toBe(true);
+      expect(result.provider).toBe('codex');
+    });
+
     it('should return defaults when AI throws error', async () => {
       vi.doMock('./ai/index.js', () => ({
         createAIGenerationService: () => {

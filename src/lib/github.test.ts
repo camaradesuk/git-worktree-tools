@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execSync } from 'child_process';
 import * as github from './github.js';
+import { readFileSync, statSync, existsSync } from 'fs';
 
 // Mock child_process
 vi.mock('child_process', () => ({
@@ -8,6 +9,22 @@ vi.mock('child_process', () => ({
 }));
 
 const mockExecSync = vi.mocked(execSync);
+
+/**
+ * Extract the --body-file path from a built `gh` command line.
+ *
+ * shellEscape quotes the path and escapes `\`, `"`, `$` and backticks inside
+ * it, so on Windows `C:\Users\X\Temp\f.md` reaches the command line as
+ * `"C:\\Users\\X\\Temp\\f.md"`. Capturing the quoted span is not enough —
+ * the escaping has to be reversed or the path won't open.
+ */
+function bodyFilePathFrom(cmd: unknown): string | undefined {
+  const m = /--body-file (?:"([^"]+)"|(\S+))/.exec(String(cmd));
+  if (!m) return undefined;
+  const raw = m[1] ?? m[2];
+  // Undo shellEscape's `str.replace(/["\\$`]/g, '\\$&')`.
+  return m[1] !== undefined ? raw.replace(/\\(["\\$`])/g, '$1') : raw;
+}
 
 describe('github', () => {
   beforeEach(() => {
@@ -321,13 +338,17 @@ describe('github', () => {
         repo: 'org/repo',
       });
 
+      // The body is handed to gh through a temp file, never inlined into the
+      // command, so its size and quoting cannot break the invocation.
       expect(mockExecSync).toHaveBeenNthCalledWith(
         1,
         expect.stringMatching(
-          /--title "Draft PR".*--body "PR description".*--base develop.*--head "feature\/draft".*--draft.*--repo "org\/repo"/
+          /--title "Draft PR".*--body-file .*--base develop.*--head "feature\/draft".*--draft.*--repo "org\/repo"/
         ),
         expect.any(Object)
       );
+      const cmd1 = mockExecSync.mock.calls[0][0] as string;
+      expect(cmd1).not.toContain('--body "PR description"');
 
       expect(result).toEqual({
         number: 43,
@@ -372,6 +393,146 @@ describe('github', () => {
 
       expect(() => github.createPr({ title: 'Test PR' })).toThrow(
         'Failed to parse PR creation response'
+      );
+    });
+
+    it('still emits --body when body is an explicit empty string (options.body !== undefined, not truthy check)', () => {
+      mockExecSync.mockReturnValueOnce('https://github.com/org/repo/pull/45\n').mockReturnValueOnce(
+        JSON.stringify({
+          number: 45,
+          title: 'Empty body PR',
+          state: 'OPEN',
+          url: 'https://github.com/org/repo/pull/45',
+          headRefName: 'feature/empty-body',
+          baseRefName: 'main',
+          isDraft: false,
+        })
+      );
+
+      github.createPr({ title: 'Empty body PR', body: '', head: 'feature/empty-body' });
+
+      // Before the fix, `if (options.body)` was falsy for '' and silently
+      // dropped the body from the command entirely. An explicit empty body is
+      // now still passed, via --body-file, so gh receives a real (empty) body
+      // rather than the next flag being swallowed as the body value.
+      const cmd = mockExecSync.mock.calls[0][0] as string;
+      expect(cmd).toContain('--body-file');
+      expect(cmd).not.toMatch(/--body\s+--/);
+    });
+
+    it('keeps a large multi-line body out of the command line entirely', () => {
+      // The case this exists for: cmd.exe caps the command line near 8191
+      // chars, so a big --body-file inlined as --body would fail on Windows
+      // AFTER the branch was already committed and pushed. Passing gh a file
+      // means body size never reaches the shell.
+      const bigBody = [
+        '# Heading',
+        '',
+        'x'.repeat(20000),
+        '',
+        '`backticks` $(whoami) "quotes"',
+      ].join('\n');
+
+      let capturedBody: string | undefined;
+      mockExecSync
+        .mockImplementationOnce((cmd) => {
+          // Read the temp file while it still exists (createPr deletes it in
+          // a finally block once gh returns).
+          // Match the quoted form FIRST and allow spaces inside it: on
+          // Windows os.tmpdir() is routinely something like
+          // C:\Users\User Name\Temp, and shellEscape always quotes the path
+          // (it contains : / or \). A \S+ pattern would truncate at the space.
+          const p = bodyFilePathFrom(cmd);
+          if (p) capturedBody = readFileSync(p, 'utf8');
+          return 'https://github.com/org/repo/pull/47\n';
+        })
+        .mockReturnValueOnce(
+          JSON.stringify({
+            number: 47,
+            title: 'Big body PR',
+            state: 'OPEN',
+            url: 'https://github.com/org/repo/pull/47',
+            headRefName: 'feature/big',
+            baseRefName: 'main',
+            isDraft: false,
+          })
+        );
+
+      github.createPr({ title: 'Big body PR', body: bigBody, head: 'feature/big' });
+
+      const cmd = mockExecSync.mock.calls[0][0] as string;
+      // The 20k body must not appear in the command at all.
+      expect(cmd).not.toContain('x'.repeat(100));
+      expect(cmd.length).toBeLessThan(500);
+      expect(cmd).toContain('--body-file');
+      // ...and gh must still receive it byte-for-byte.
+      expect(capturedBody).toBe(bigBody);
+    });
+
+    it('creates the temp body file owner-only (0600)', () => {
+      // Under a typical 022 umask an unqualified write would be 0644, exposing
+      // the PR body to every local user for as long as gh runs.
+      let mode: number | undefined;
+      mockExecSync
+        .mockImplementationOnce((cmd) => {
+          const p = bodyFilePathFrom(cmd);
+          if (p) mode = statSync(p).mode & 0o777;
+          return 'https://github.com/org/repo/pull/48\n';
+        })
+        .mockReturnValueOnce(
+          JSON.stringify({
+            number: 48,
+            title: 'Perms PR',
+            state: 'OPEN',
+            url: 'https://github.com/org/repo/pull/48',
+            headRefName: 'feature/perms',
+            baseRefName: 'main',
+            isDraft: false,
+          })
+        );
+
+      github.createPr({ title: 'Perms PR', body: 'secret body', head: 'feature/perms' });
+
+      // Windows does not model POSIX permission bits; assert only where it means something.
+      if (process.platform !== 'win32') {
+        expect(mode).toBe(0o600);
+      }
+    });
+
+    it('removes the temp body file even when gh fails', () => {
+      let bodyPath: string | undefined;
+      mockExecSync.mockImplementationOnce((cmd) => {
+        bodyPath = bodyFilePathFrom(cmd);
+        throw new Error('gh exploded');
+      });
+
+      expect(() =>
+        github.createPr({ title: 'Doomed PR', body: 'body', head: 'feature/doomed' })
+      ).toThrow();
+
+      expect(bodyPath).toBeDefined();
+      expect(existsSync(bodyPath as string)).toBe(false);
+    });
+
+    it('omits --body entirely when body is undefined', () => {
+      mockExecSync.mockReturnValueOnce('https://github.com/org/repo/pull/46\n').mockReturnValueOnce(
+        JSON.stringify({
+          number: 46,
+          title: 'No body PR',
+          state: 'OPEN',
+          url: 'https://github.com/org/repo/pull/46',
+          headRefName: 'feature/no-body',
+          baseRefName: 'main',
+          isDraft: false,
+        })
+      );
+
+      github.createPr({ title: 'No body PR', head: 'feature/no-body' });
+
+      expect(mockExecSync).toHaveBeenNthCalledWith(
+        1,
+        expect.not.stringContaining('--body'),
+        expect.any(Object)
       );
     });
   });

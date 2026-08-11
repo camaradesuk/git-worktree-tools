@@ -14,6 +14,9 @@
     "commitMessage": true
   },
   "hooks": {
-    "post-worktree": "cd {{WORKTREE_PATH}} && npm install && code . && wt link link --yes"
+    "post-worktree": "cd {{WORKTREE_PATH}} && pnpm install --frozen-lockfile && code . && wt link link --yes"
+  },
+  "hookDefaults": {
+    "timeout": 60000
   }
 }

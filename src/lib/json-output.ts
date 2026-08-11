@@ -88,6 +88,14 @@ export interface NewprResultData {
   draft: boolean;
   scenario?: string;
   actionTaken?: string;
+  /** Where the PR title came from: caller flag, AI, or the built-in template. */
+  titleSource?: 'flag' | 'ai' | 'template';
+  /** Where the PR body came from. */
+  bodySource?: 'flag' | 'ai' | 'template';
+  /** Provider that generated content, or null. */
+  aiProvider?: string | null;
+  /** Why AI generation produced nothing, or null. */
+  aiError?: string | null;
 }
 
 /**
