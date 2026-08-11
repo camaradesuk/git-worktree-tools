@@ -1,3 +1,18 @@
+# [1.15.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.14.0...v1.15.0) (2026-08-11)
+
+
+### Bug Fixes
+
+* **ci:** drop `assigned` from the claude.yml issues trigger ([4ea268c](https://github.com/camaradesuk/git-worktree-tools/commit/4ea268ce348d8ca3a184a46226f320813173935f))
+
+
+### Features
+
+* **ai:** subscription-first provider order, chain fallthrough, and wt ai doctor (spec Part 2) ([#27](https://github.com/camaradesuk/git-worktree-tools/issues/27)) ([4087f41](https://github.com/camaradesuk/git-worktree-tools/commit/4087f418c28cb8b78ac6cb94d02c164f823c1f75)), closes [#22](https://github.com/camaradesuk/git-worktree-tools/issues/22)
+* **config:** anchor worktree placement to the main worktree root (spec Part 3) ([#25](https://github.com/camaradesuk/git-worktree-tools/issues/25)) ([289b6fb](https://github.com/camaradesuk/git-worktree-tools/commit/289b6fbc2d4e596f9b899d2c8847261081bd97ab))
+* **config:** env-var override tier, per-key provenance, and schema drift fixes (spec Part 4) ([#26](https://github.com/camaradesuk/git-worktree-tools/issues/26)) ([0cd8860](https://github.com/camaradesuk/git-worktree-tools/commit/0cd8860e2d2dc320fe45c06d33b7339aa92c0e0e))
+* **wt new:** accept caller-supplied PR title/body with per-field provenance (spec Part 1) ([#22](https://github.com/camaradesuk/git-worktree-tools/issues/22)) ([19ac081](https://github.com/camaradesuk/git-worktree-tools/commit/19ac0812ac089cb21fda5b5d589ea98d5fc2f4af))
+
 # [1.14.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.13.0...v1.14.0) (2026-03-14)
 
 
