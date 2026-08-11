@@ -197,6 +197,24 @@ export function createLocalConfig(repoRoot: string, config: WorktreeConfig = {})
 }
 
 /**
+ * Create a repo-level config file (.worktreerc), intended to be committed so it
+ * applies identically from every worktree.
+ */
+export function createRepoConfig(repoRoot: string, config: WorktreeConfig = {}): string {
+  const configPath = path.join(repoRoot, CONFIG_FILE_NAMES[0]);
+
+  const configWithSchema = {
+    $schema: getSchemaUrl(),
+    ...config,
+  };
+
+  fs.writeFileSync(configPath, JSON.stringify(configWithSchema, null, 2) + '\n', 'utf8');
+  logger.debug(`Created repo config at ${configPath}`);
+
+  return configPath;
+}
+
+/**
  * Ensure local config files are in .gitignore
  */
 export function ensureLocalConfigInGitignore(repoRoot: string): boolean {

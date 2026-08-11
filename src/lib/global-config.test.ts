@@ -15,6 +15,7 @@ import {
   loadGlobalConfig,
   saveGlobalConfig,
   createLocalConfig,
+  createRepoConfig,
   ensureLocalConfigInGitignore,
   initializeLocalConfig,
   getSchemaUrl,
@@ -233,6 +234,31 @@ describe('global-config', () => {
     it('creates .worktreerc.local file', () => {
       const configPath = createLocalConfig(repoDir);
       expect(path.basename(configPath)).toBe(LOCAL_CONFIG_FILE_NAMES[0]);
+    });
+  });
+
+  describe('createRepoConfig', () => {
+    it('creates repo config file', () => {
+      expect(fs.existsSync(createRepoConfig(repoDir))).toBe(true);
+    });
+
+    it('creates config with provided values', () => {
+      const configPath = createRepoConfig(repoDir, {
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+      });
+      const content = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      expect(content.worktreeParent).toBe('pr');
+      expect(content.worktreePattern).toBe('pr{number}.{slug}');
+    });
+
+    it('includes $schema in created config', () => {
+      const content = JSON.parse(fs.readFileSync(createRepoConfig(repoDir), 'utf8'));
+      expect(content.$schema).toContain('unpkg.com');
+    });
+
+    it('creates .worktreerc, not .worktreerc.local', () => {
+      expect(path.basename(createRepoConfig(repoDir))).toBe(CONFIG_FILE_NAMES[0]);
     });
   });
 
