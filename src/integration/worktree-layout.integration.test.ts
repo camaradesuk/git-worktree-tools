@@ -123,3 +123,92 @@ describe('worktree layout anchoring integration', () => {
     expect(result).not.toBe(path.join(container, 'pr', 'pr2600.new-feature'));
   });
 });
+
+describe('bare container: relative worktreeParent must not escape the container', () => {
+  let tempDir: string;
+  let container: string;
+  let mainWorktree: string;
+  let prWorktree: string;
+
+  beforeAll(() => {
+    tempDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'gwt-bare-escape-')));
+
+    const seed = path.join(tempDir, 'seed');
+    fs.mkdirSync(seed);
+    execSync('git init -q -b main', { cwd: seed });
+    execSync('git config user.email test@test.com', { cwd: seed });
+    execSync('git config user.name Test', { cwd: seed });
+    fs.writeFileSync(path.join(seed, 'README.md'), 'seed\n');
+    execSync('git add README.md', { cwd: seed });
+    execSync('git commit -q -m initial', { cwd: seed });
+
+    // Container layout: <container>/.bare + <container>/main + <container>/pr/*
+    container = path.join(tempDir, 'container');
+    fs.mkdirSync(container);
+    execSync(`git clone --bare -q "${seed}" "${path.join(container, '.bare')}"`);
+    // The container itself carries a .git FILE pointing into .bare, exactly like
+    // the real-world layout this regression came from.
+    fs.writeFileSync(path.join(container, '.git'), `gitdir: ${path.join(container, '.bare')}\n`);
+
+    mainWorktree = path.join(container, 'main');
+    execSync(`git worktree add -q "${mainWorktree}" main`, { cwd: path.join(container, '.bare') });
+
+    fs.mkdirSync(path.join(container, 'pr'));
+    prWorktree = path.join(container, 'pr', 'pr1.existing-feature');
+    execSync(`git worktree add -q -b feat/existing-feature "${prWorktree}" main`, {
+      cwd: path.join(container, '.bare'),
+    });
+  });
+
+  afterAll(() => {
+    try {
+      execSync('git worktree prune', { cwd: path.join(container, '.bare'), stdio: 'ignore' });
+    } catch {
+      // ignore
+    }
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function pathFor(worktreeParent: string, invokedFrom: string): string {
+    const config = {
+      ...getDefaultConfig(),
+      worktreeParent,
+      worktreePattern: 'pr{number}.{slug}',
+    };
+    return generateWorktreePath(
+      config,
+      invokedFrom,
+      'container',
+      2897,
+      'feat/shared-local-sqlserver-for-quartz',
+      git.getMainWorktreeRoot(invokedFrom)
+    );
+  }
+
+  const expected = () =>
+    normalizePath(path.join(container, 'pr', 'pr2897.shared-local-sqlserver-for-quartz'));
+
+  it('keeps a legacy "../pr" parent inside the container when invoked from main/', () => {
+    expect(normalizePath(pathFor('../pr', mainWorktree))).toBe(expected());
+  });
+
+  it('keeps a legacy "../pr" parent inside the container when invoked from a pr worktree', () => {
+    expect(normalizePath(pathFor('../pr', prWorktree))).toBe(expected());
+  });
+
+  it('clamps multiple escaping segments back into the container', () => {
+    expect(normalizePath(pathFor('../../pr', mainWorktree))).toBe(expected());
+  });
+
+  it('leaves a contained relative parent untouched', () => {
+    expect(normalizePath(pathFor('pr', mainWorktree))).toBe(expected());
+    expect(normalizePath(pathFor('./pr', prWorktree))).toBe(expected());
+  });
+
+  it('never places the worktree outside the container', () => {
+    for (const parent of ['../pr', '../../pr', '../../../pr', 'pr']) {
+      const result = pathFor(parent, mainWorktree);
+      expect(path.relative(container, result).startsWith('..')).toBe(false);
+    }
+  });
+});

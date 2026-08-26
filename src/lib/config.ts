@@ -804,10 +804,80 @@ export function generateWorktreePath(
   } else {
     const anchor =
       config.worktreeParentAnchor === 'repo-root' ? repoRoot : (mainWorktreeRoot ?? repoRoot);
-    parentDir = path.resolve(anchor, config.worktreeParent);
+    parentDir = resolveRelativeWorktreeParent(anchor, config.worktreeParent);
   }
 
   return path.join(parentDir, pattern);
+}
+
+/**
+ * True when `dir` is a bare-repository container root: a directory that is not a
+ * checkout itself but holds the shared object database in `.bare/` alongside its
+ * worktrees (`main/`, `pr/pr<N>.<slug>`, ...). Never throws — a failed lookup is
+ * reported as "not a container" so callers keep their previous behaviour.
+ */
+function isBareRepositoryContainer(dir: string): boolean {
+  try {
+    const bare = path.join(dir, '.bare');
+    return fs.statSync(bare).isDirectory() && fs.existsSync(path.join(bare, 'HEAD'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True when `candidate` is `root` itself or lives beneath it.
+ */
+function isWithin(root: string, candidate: string): boolean {
+  const rel = path.relative(root, candidate);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
+/**
+ * Drop leading `.` / `..` segments from a relative path so it can only descend.
+ * "../pr" -> "pr", "../../pr" -> "pr", ".." -> "".
+ */
+function stripLeadingParentSegments(relativePath: string): string {
+  const segments = relativePath.split(/[/\\]+/).filter((segment) => segment.length > 0);
+  while (segments.length > 0 && (segments[0] === '..' || segments[0] === '.')) {
+    segments.shift();
+  }
+  return segments.join(path.sep);
+}
+
+/**
+ * Resolve a relative `worktreeParent` against its anchor.
+ *
+ * For a bare-repository container the anchor IS the container, and the container is
+ * the whole point of the layout: every worktree belongs inside it. A relative parent
+ * that resolves outside the container is therefore never intentional — it is a config
+ * written before the anchor moved from the invoking worktree root to the container
+ * (see `worktreeParentAnchor`). Such a value (e.g. `"../pr"`, meaning `<container>/pr`
+ * when read from `<container>/main`) would otherwise silently place the worktree
+ * *beside* the container, dropping the container segment entirely.
+ *
+ * Rather than misplace the worktree, clamp the escaping leading segments so the parent
+ * stays inside the container, and warn so the config gets fixed. Callers that genuinely
+ * want worktrees outside a container can say so unambiguously with an absolute
+ * `worktreeParent` or `worktreeParentAnchor: "repo-root"`, neither of which is clamped.
+ */
+export function resolveRelativeWorktreeParent(anchor: string, worktreeParent: string): string {
+  const resolved = path.resolve(anchor, worktreeParent);
+
+  if (isWithin(anchor, resolved) || !isBareRepositoryContainer(anchor)) {
+    return resolved;
+  }
+
+  const contained = path.resolve(anchor, stripLeadingParentSegments(worktreeParent));
+  logger.warn(
+    `worktreeParent "${worktreeParent}" resolves outside the bare-repository container ` +
+      `"${anchor}" (would be "${resolved}"). Relative worktreeParent values are anchored to ` +
+      `the container, so leading "../" segments were dropped and the worktree will be created ` +
+      `under "${contained}" instead. Update worktreeParent to "${
+        path.relative(anchor, contained) || '.'
+      }" (or set an absolute path / worktreeParentAnchor: "repo-root") to silence this warning.`
+  );
+  return contained;
 }
 
 /**

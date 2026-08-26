@@ -6,7 +6,9 @@ import {
   loadConfig,
   generateBranchNameAsync,
   generatePRContentAsync,
+  resolveRelativeWorktreeParent,
 } from './config.js';
+import { logger } from './logger.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -1077,6 +1079,203 @@ describe('config', () => {
       expect(result.title).toBe('Default when AI fails');
       expect(result.description).toBe('');
       expect(result.aiGenerated).toBe(false);
+    });
+  });
+});
+
+describe('resolveRelativeWorktreeParent', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'gwt-parent-')));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  function makeContainer(name: string): string {
+    const container = path.join(tempDir, name);
+    fs.mkdirSync(path.join(container, '.bare'), { recursive: true });
+    fs.writeFileSync(path.join(container, '.bare', 'HEAD'), 'ref: refs/heads/main\n');
+    return container;
+  }
+
+  function makePlainDir(name: string): string {
+    const dir = path.join(tempDir, name);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  describe('non-container anchors are never clamped', () => {
+    it('resolves the default ".." to the sibling of the anchor', () => {
+      const anchor = makePlainDir('repo');
+      expect(normalizePath(resolveRelativeWorktreeParent(anchor, '..'))).toBe(
+        normalizePath(tempDir)
+      );
+    });
+
+    it('resolves "../worktrees" outside the anchor', () => {
+      const anchor = makePlainDir('repo');
+      expect(normalizePath(resolveRelativeWorktreeParent(anchor, '../worktrees'))).toBe(
+        normalizePath(path.join(tempDir, 'worktrees'))
+      );
+    });
+
+    it('resolves ".worktrees" inside the anchor', () => {
+      const anchor = makePlainDir('repo');
+      expect(normalizePath(resolveRelativeWorktreeParent(anchor, '.worktrees'))).toBe(
+        normalizePath(path.join(anchor, '.worktrees'))
+      );
+    });
+
+    it('does not treat a ".bare" FILE as a container', () => {
+      const anchor = makePlainDir('repo');
+      fs.writeFileSync(path.join(anchor, '.bare'), 'not a directory\n');
+      expect(normalizePath(resolveRelativeWorktreeParent(anchor, '../pr'))).toBe(
+        normalizePath(path.join(tempDir, 'pr'))
+      );
+    });
+
+    it('does not treat a ".bare" directory without a HEAD as a container', () => {
+      const anchor = makePlainDir('repo');
+      fs.mkdirSync(path.join(anchor, '.bare'));
+      expect(normalizePath(resolveRelativeWorktreeParent(anchor, '../pr'))).toBe(
+        normalizePath(path.join(tempDir, 'pr'))
+      );
+    });
+  });
+
+  describe('bare-repository container anchors', () => {
+    it('leaves a contained relative parent untouched', () => {
+      const container = makeContainer('container');
+      expect(normalizePath(resolveRelativeWorktreeParent(container, 'pr'))).toBe(
+        normalizePath(path.join(container, 'pr'))
+      );
+      expect(normalizePath(resolveRelativeWorktreeParent(container, './pr'))).toBe(
+        normalizePath(path.join(container, 'pr'))
+      );
+    });
+
+    it('clamps a legacy "../pr" back into the container', () => {
+      const container = makeContainer('container');
+      expect(normalizePath(resolveRelativeWorktreeParent(container, '../pr'))).toBe(
+        normalizePath(path.join(container, 'pr'))
+      );
+    });
+
+    it('clamps deeply escaping parents back into the container', () => {
+      const container = makeContainer('container');
+      expect(normalizePath(resolveRelativeWorktreeParent(container, '../../../pr'))).toBe(
+        normalizePath(path.join(container, 'pr'))
+      );
+    });
+
+    it('clamps a bare ".." to the container itself', () => {
+      const container = makeContainer('container');
+      expect(normalizePath(resolveRelativeWorktreeParent(container, '..'))).toBe(
+        normalizePath(container)
+      );
+    });
+
+    it('warns with the offending value, the escaped path and the suggested fix', () => {
+      const container = makeContainer('container');
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      resolveRelativeWorktreeParent(container, '../pr');
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const message = String(warn.mock.calls[0][0]);
+      expect(message).toContain('../pr');
+      expect(message).toContain(container);
+      expect(message).toContain(path.join(container, 'pr'));
+      expect(message).toContain('worktreeParentAnchor');
+    });
+
+    it('does not warn when the parent already stays inside the container', () => {
+      const container = makeContainer('container');
+      const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      resolveRelativeWorktreeParent(container, 'pr');
+
+      expect(warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('generateWorktreePath integration', () => {
+    it('anchors a legacy "../pr" to the container, not to the container\'s parent', () => {
+      const container = makeContainer('container');
+      const mainWorktree = path.join(container, 'main');
+      fs.mkdirSync(mainWorktree);
+      vi.spyOn(logger, 'warn').mockImplementation(() => {});
+
+      const config = {
+        ...getDefaultConfig(),
+        worktreeParent: '../pr',
+        worktreePattern: 'pr{number}.{slug}',
+      };
+
+      const result = generateWorktreePath(
+        config,
+        mainWorktree,
+        'container',
+        2897,
+        'feat/shared-local-sqlserver-for-quartz',
+        container
+      );
+
+      expect(normalizePath(result)).toBe(
+        normalizePath(path.join(container, 'pr', 'pr2897.shared-local-sqlserver-for-quartz'))
+      );
+    });
+
+    it('still honours worktreeParentAnchor: "repo-root" without clamping', () => {
+      const container = makeContainer('container');
+      const mainWorktree = path.join(container, 'main');
+      fs.mkdirSync(mainWorktree);
+
+      const config = {
+        ...getDefaultConfig(),
+        worktreeParent: '../pr',
+        worktreePattern: 'pr{number}.{slug}',
+        worktreeParentAnchor: 'repo-root' as const,
+      };
+
+      const result = generateWorktreePath(
+        config,
+        mainWorktree,
+        'container',
+        2897,
+        'feat/shared-local-sqlserver-for-quartz',
+        container
+      );
+
+      expect(normalizePath(result)).toBe(
+        normalizePath(path.join(container, 'pr', 'pr2897.shared-local-sqlserver-for-quartz'))
+      );
+    });
+
+    it('leaves an absolute worktreeParent untouched inside a container', () => {
+      const container = makeContainer('container');
+      const outside = path.join(tempDir, 'elsewhere');
+
+      const config = {
+        ...getDefaultConfig(),
+        worktreeParent: outside,
+        worktreePattern: 'pr{number}.{slug}',
+      };
+
+      const result = generateWorktreePath(
+        config,
+        path.join(container, 'main'),
+        'container',
+        2897,
+        'feat/thing',
+        container
+      );
+
+      expect(normalizePath(result)).toBe(normalizePath(path.join(outside, 'pr2897.thing')));
     });
   });
 });
