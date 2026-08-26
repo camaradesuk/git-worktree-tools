@@ -411,20 +411,47 @@ wt init --local    # Personal repo overrides
 
 ### Configuration Options
 
-| Option            | Type     | Default               | Description                                                                                                                      |
-| ----------------- | -------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `baseBranch`      | string   | `"main"`              | Base branch for new PRs                                                                                                          |
-| `draftPr`         | boolean  | `false`               | Create PRs as drafts by default                                                                                                  |
-| `worktreePattern` | string   | `"{repo}.pr{number}"` | Naming pattern. Placeholders: `{repo}`, `{number}`, `{branch}`, `{slug}`. Doubled/trailing separators are cleaned automatically. |
-| `worktreeParent`  | string   | `".."`                | Parent directory for worktrees. If inside the repo, the directory is auto-created and added to `.gitignore`.                     |
-| `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names                                                                                           |
-| `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for                                                                                       |
-| `preferredEditor` | string   | `"vscode"`            | Editor: `"vscode"`, `"cursor"`, or `"auto"`                                                                                      |
-| `syncPatterns`    | string[] | `[]`                  | Patterns to sync between worktrees                                                                                               |
-| `previewLabel`    | string   | `"preview"`           | Label to highlight in PR browser                                                                                                 |
-| `ai`              | object   | `{}`                  | AI content generation settings                                                                                                   |
-| `hooks`           | object   | `{}`                  | Lifecycle hook commands                                                                                                          |
-| `logging`         | object   | `{}`                  | Logging configuration                                                                                                            |
+| Option                 | Type     | Default               | Description                                                                                                                                                                                             |
+| ---------------------- | -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseBranch`           | string   | `"main"`              | Base branch for new PRs                                                                                                                                                                                 |
+| `draftPr`              | boolean  | `false`               | Create PRs as drafts by default                                                                                                                                                                         |
+| `worktreePattern`      | string   | `"{repo}.pr{number}"` | Naming pattern. Placeholders: `{repo}`, `{number}`, `{branch}`, `{slug}`. Doubled/trailing separators are cleaned automatically.                                                                        |
+| `worktreeParent`       | string   | `".."`                | Parent directory for worktrees. If inside the repo, the directory is auto-created and added to `.gitignore`. See [Bare-repository containers](#bare-repository-containers).                             |
+| `worktreeParentAnchor` | string   | `"main-worktree"`     | What a relative `worktreeParent` is resolved against: `"main-worktree"` (the main worktree root, or the container root for a `.bare/` layout) or `"repo-root"` (the worktree the command was run from). |
+| `branchPrefix`         | string   | `"feat"`              | Prefix for auto-generated branch names                                                                                                                                                                  |
+| `sharedRepos`          | string[] | `[]`                  | Sibling repos to also create worktrees for                                                                                                                                                              |
+| `preferredEditor`      | string   | `"vscode"`            | Editor: `"vscode"`, `"cursor"`, or `"auto"`                                                                                                                                                             |
+| `syncPatterns`         | string[] | `[]`                  | Patterns to sync between worktrees                                                                                                                                                                      |
+| `previewLabel`         | string   | `"preview"`           | Label to highlight in PR browser                                                                                                                                                                        |
+| `ai`                   | object   | `{}`                  | AI content generation settings                                                                                                                                                                          |
+| `hooks`                | object   | `{}`                  | Lifecycle hook commands                                                                                                                                                                                 |
+| `logging`              | object   | `{}`                  | Logging configuration                                                                                                                                                                                   |
+
+### Bare-repository containers
+
+A common layout keeps the object database in `.bare/` and every checkout beside it:
+
+```
+myrepo/                 # container - not a checkout itself
+├── .bare/              # shared git object database
+├── main/               # main-branch worktree
+└── pr/                 # PR worktrees: pr/pr<N>.<slug>
+```
+
+Here the container is the anchor: a relative `worktreeParent` is resolved against
+`myrepo/`, so `"pr"` puts new worktrees in `myrepo/pr/pr<N>.<slug>` no matter which
+worktree the command was run from.
+
+Because the container is the whole point of that layout, a relative `worktreeParent`
+may not escape it. A value such as `"../pr"` — correct before the anchor moved to the
+container, when it was read from `myrepo/main/` — would otherwise silently create the
+worktree in the container's _parent_ directory, dropping the container segment. Leading
+`../` segments are dropped instead (`"../pr"` behaves as `"pr"`) and a warning tells you
+to update the config.
+
+To place worktrees outside a container deliberately, say so unambiguously: use an
+absolute `worktreeParent`, or set `"worktreeParentAnchor": "repo-root"`. Neither is
+clamped.
 
 ### AI Content Generation
 
