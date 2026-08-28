@@ -335,6 +335,23 @@ describe('git', () => {
   });
 
   describe('getMainWorktree', () => {
+    it('preserves the primary checkout in a conventional repository', () => {
+      mockSpawnSync.mockReturnValue(
+        mockSpawnSuccess(
+          'worktree /workspace/repo\n' +
+            'HEAD abc123\n' +
+            'branch refs/heads/feat/current\n' +
+            '\n' +
+            'worktree /workspace/linked-main\n' +
+            'HEAD def456\n' +
+            'branch refs/heads/main\n' +
+            '\n'
+        )
+      );
+
+      expect(git.getMainWorktree('/workspace/repo')?.path).toBe('/workspace/repo');
+    });
+
     it('selects the base-branch checkout in a bare-container layout', () => {
       mockSpawnSync.mockReturnValue(
         mockSpawnSuccess(
@@ -373,6 +390,22 @@ describe('git', () => {
       expect(git.getMainWorktree('/workspace/repo/pr/pr42.feature', 'develop')?.path).toBe(
         '/workspace/repo/develop'
       );
+    });
+
+    it('does not select an arbitrary checkout when the bare base branch is absent', () => {
+      mockSpawnSync.mockReturnValue(
+        mockSpawnSuccess(
+          'worktree /workspace/repo/repository.git\n' +
+            'bare\n' +
+            '\n' +
+            'worktree /workspace/repo/agents/first\n' +
+            'HEAD abc123\n' +
+            'branch refs/heads/agent/first\n' +
+            '\n'
+        )
+      );
+
+      expect(git.getMainWorktree('/workspace/repo/agents/first')).toBeNull();
     });
   });
 
@@ -702,6 +735,12 @@ describe('git', () => {
       const containerPath = path.join('/home', 'chris', 'workspace', 'syrf');
       mockSpawnSync.mockReturnValue(mockSpawnSuccess(path.join(containerPath, '.bare')));
       expect(git.isBareContainerLayout(path.join(containerPath, 'main'))).toBe(true);
+    });
+
+    it('returns true for a bare repository with a custom directory name', () => {
+      const containerPath = path.join('/home', 'chris', 'workspace', 'repo');
+      mockSpawnSync.mockReturnValue(mockSpawnSuccess(path.join(containerPath, 'repository.git')));
+      expect(git.isBareContainerLayout(path.join(containerPath, 'develop'))).toBe(true);
     });
 
     it('returns false when git-common-dir lookup fails', () => {

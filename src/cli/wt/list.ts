@@ -128,6 +128,7 @@ export const listCommand: CommandModule<object, ListArgs> = {
 
       // Pass worktreePattern through to extractPrNumber
       options.worktreePattern = config.worktreePattern;
+      options.baseBranch = config.baseBranch;
 
       // Gather worktree info
       const deps = createDefaultDeps();

@@ -15,6 +15,7 @@ import { green, dim, cyan, yellow, red, bold } from './colors.js';
 import {
   loadConfigWithValidation,
   saveConfig,
+  getConfigPath,
   getDefaultConfig,
   type WorktreeConfig,
   type ResolvedConfig,
@@ -491,13 +492,10 @@ export async function runConfigEditor(repoRoot: string): Promise<ConfigEditorRes
   console.log();
 
   // Load current config
-  const {
-    config: currentConfig,
-    configPath,
-    validation,
-  } = loadConfigWithValidation(repoRoot, {
+  const { config: currentConfig, validation } = loadConfigWithValidation(repoRoot, {
     warnOnErrors: false,
   });
+  const configPath = getConfigPath(repoRoot);
 
   const defaults = getDefaultConfig();
 
@@ -565,7 +563,9 @@ export async function runConfigEditor(repoRoot: string): Promise<ConfigEditorRes
         if (hasChanges) {
           // Save changes
           try {
-            const result = saveConfig(repoRoot, modifiedConfig);
+            const result = saveConfig(repoRoot, modifiedConfig, {
+              configPath: configPath ?? undefined,
+            });
             console.log(green(`\nConfiguration saved to ${result.configPath}`));
             return { saved: true, configPath: result.configPath };
           } catch (error) {
@@ -599,7 +599,9 @@ export async function runConfigEditor(repoRoot: string): Promise<ConfigEditorRes
         const save = await promptConfirm('Save changes before exiting?', true);
         if (save) {
           try {
-            const result = saveConfig(repoRoot, modifiedConfig);
+            const result = saveConfig(repoRoot, modifiedConfig, {
+              configPath: configPath ?? undefined,
+            });
             console.log(green(`\nConfiguration saved to ${result.configPath}`));
             return { saved: true, configPath: result.configPath };
           } catch (saveError) {
@@ -824,6 +826,7 @@ export async function quickEditConfig(
   value?: string
 ): Promise<ConfigEditorResult> {
   const { config: currentConfig } = loadConfigWithValidation(repoRoot, { warnOnErrors: false });
+  const configPath = getConfigPath(repoRoot);
 
   // Find the property definition
   let property: ConfigProperty | undefined;
@@ -877,7 +880,9 @@ export async function quickEditConfig(
 
   // Save
   try {
-    const result = saveConfig(repoRoot, modifiedConfig);
+    const result = saveConfig(repoRoot, modifiedConfig, {
+      configPath: configPath ?? undefined,
+    });
     console.log(green(`Saved to ${result.configPath}`));
     return { saved: true, configPath: result.configPath };
   } catch (error) {

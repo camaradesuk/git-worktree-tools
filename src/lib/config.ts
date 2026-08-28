@@ -491,6 +491,41 @@ function loadSingleConfigFile(
 }
 
 /**
+ * Find the checkout that owns repository-local configuration.
+ *
+ * Conventional repositories always use their primary checkout. Bare-container
+ * layouts normally use the configured base-branch checkout; when that branch is
+ * declared only in a local config, a unique self-describing checkout bootstraps
+ * discovery without falling back to an arbitrary path-sorted worktree.
+ */
+function findCanonicalLocalConfigRoot(repoRoot: string, baseBranch: string): string {
+  try {
+    if (git.isBareContainerLayout(repoRoot)) {
+      const selfDescribingRoots = git
+        .listWorktrees(repoRoot)
+        .filter((worktree) => !worktree.isBare && worktree.branch !== null)
+        .filter((worktree) => {
+          const localPath = findLocalConfigFile(worktree.path);
+          if (!localPath) {
+            return false;
+          }
+          const localSource = loadSingleConfigFile(localPath, 'local', false);
+          return localSource?.config.baseBranch === worktree.branch;
+        })
+        .map((worktree) => worktree.path);
+
+      if (selfDescribingRoots.length === 1) {
+        return selfDescribingRoots[0];
+      }
+    }
+
+    return git.getMainWorktree(repoRoot, baseBranch)?.path ?? repoRoot;
+  } catch {
+    return repoRoot;
+  }
+}
+
+/**
  * Load configuration with full validation result
  * Implements three-tier hierarchy: defaults ← global ← repo ← local
  */
@@ -541,12 +576,7 @@ export function loadConfigWithValidation(
     const baseBranch =
       [...sources].reverse().find((source) => source.config.baseBranch !== undefined)?.config
         .baseBranch ?? defaults.baseBranch;
-    let localConfigRoot = repoRoot;
-    try {
-      localConfigRoot = git.getMainWorktree(repoRoot, baseBranch)?.path ?? repoRoot;
-    } catch {
-      // Preserve config loading for non-git fixtures and partially initialized repos.
-    }
+    const localConfigRoot = findCanonicalLocalConfigRoot(repoRoot, baseBranch);
 
     const localConfigPath = findLocalConfigFile(localConfigRoot);
     if (localConfigPath) {
@@ -661,7 +691,7 @@ function mergeConfigs(base: ResolvedConfig, override: WorktreeConfig): ResolvedC
 export function saveConfig(
   repoRoot: string,
   config: WorktreeConfig,
-  options: { validate?: boolean } = {}
+  options: { validate?: boolean; configPath?: string } = {}
 ): { configPath: string; validation: ValidationResult | null } {
   const { validate = true } = options;
 
@@ -675,7 +705,7 @@ export function saveConfig(
   }
 
   // Find existing config or use default name
-  let configPath = findRepoConfigFile(repoRoot);
+  let configPath = options.configPath ?? findRepoConfigFile(repoRoot);
   if (!configPath) {
     configPath = path.join(repoRoot, CONFIG_FILE_NAMES[0]); // Use .worktreerc
   }
@@ -814,7 +844,9 @@ export function generateWorktreePath(
   } else {
     const anchor =
       config.worktreeParentAnchor === 'repo-root' ? repoRoot : (mainWorktreeRoot ?? repoRoot);
-    parentDir = resolveRelativeWorktreeParent(anchor, config.worktreeParent);
+    const containWithinAnchor =
+      config.worktreeParentAnchor !== 'repo-root' && git.isBareContainerLayout(repoRoot);
+    parentDir = resolveRelativeWorktreeParent(anchor, config.worktreeParent, containWithinAnchor);
   }
 
   return path.join(parentDir, pattern);
@@ -825,18 +857,29 @@ export function generateWorktreePath(
  * container. This keeps legacy checkout-relative overrides such as `../pr`
  * compatible after `main-worktree` anchoring moved to the container root.
  */
-export function resolveRelativeWorktreeParent(anchor: string, worktreeParent: string): string {
+export function resolveRelativeWorktreeParent(
+  anchor: string,
+  worktreeParent: string,
+  containWithinAnchor = false
+): string {
   const resolved = path.resolve(anchor, worktreeParent);
 
-  if (!isBareRepositoryContainer(anchor) || isWithin(anchor, resolved)) {
+  if (!containWithinAnchor || isWithin(anchor, resolved)) {
     return resolved;
   }
 
-  const segments = path.normalize(worktreeParent).split(path.sep).filter(Boolean);
-  while (segments[0] === '.' || segments[0] === '..') {
-    segments.shift();
+  const containedSegments: string[] = [];
+  for (const segment of path.normalize(worktreeParent).split(path.sep)) {
+    if (!segment || segment === '.') {
+      continue;
+    }
+    if (segment === '..') {
+      containedSegments.pop();
+      continue;
+    }
+    containedSegments.push(segment);
   }
-  const containedParent = segments.join(path.sep);
+  const containedParent = containedSegments.join(path.sep);
   const contained = path.resolve(anchor, containedParent);
 
   logger.warn(
@@ -846,15 +889,6 @@ export function resolveRelativeWorktreeParent(anchor: string, worktreeParent: st
   );
 
   return contained;
-}
-
-function isBareRepositoryContainer(dir: string): boolean {
-  try {
-    const bareDir = path.join(dir, '.bare');
-    return fs.statSync(bareDir).isDirectory() && fs.existsSync(path.join(bareDir, 'HEAD'));
-  } catch {
-    return false;
-  }
 }
 
 function isWithin(root: string, candidate: string): boolean {

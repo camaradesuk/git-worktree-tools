@@ -609,9 +609,11 @@ async function checkoutPr(
   }
 
   try {
+    const fullConfig = { ...getDefaultConfig(), ...config };
+
     // Git mutations need a real checkout as cwd, while relative worktree
     // placement uses the stable main-worktree/container anchor.
-    const mainWorktree = git.getMainWorktree();
+    const mainWorktree = git.getMainWorktree(undefined, fullConfig.baseBranch);
     if (!mainWorktree) {
       return {
         success: false,
@@ -623,7 +625,6 @@ async function checkoutPr(
     const repoName = path.basename(mainWorktreeRoot);
 
     // Generate worktree path using config
-    const fullConfig = { ...getDefaultConfig(), ...config };
     const worktreePath = generateWorktreePath(
       fullConfig,
       repoRoot,

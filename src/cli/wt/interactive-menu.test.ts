@@ -193,7 +193,13 @@ describe('Interactive Menu Flows', () => {
 
       expect(gatherWorktreeInfo).toHaveBeenCalledWith(
         '/mock/repo',
-        { verbose: false, json: false, showStatus: false },
+        {
+          verbose: false,
+          json: false,
+          showStatus: false,
+          worktreePattern: '{repo}.pr{number}',
+          baseBranch: 'main',
+        },
         expect.anything()
       );
       expect(runInteractiveMode).toHaveBeenCalled();

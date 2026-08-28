@@ -29,6 +29,7 @@ vi.mock('../git.js', () => ({
   removeWorktree: vi.fn(),
   getMainWorktree: vi.fn(),
   getMainWorktreeRoot: vi.fn(),
+  isBareContainerLayout: vi.fn(() => false),
   addWorktree: vi.fn(),
   deleteBranch: vi.fn(),
   exec: vi.fn(),
@@ -1467,11 +1468,11 @@ describe('lswt/action-executors', () => {
       consoleSpy.mockRestore();
     });
 
-    it('uses the canonical checkout for git and the container for configured placement', async () => {
+    it('uses the configured canonical checkout for git and the container for placement', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       vi.mocked(git.getMainWorktree).mockReturnValue({
-        path: '/workspace/repo/main',
-        branch: 'main',
+        path: '/workspace/repo/develop',
+        branch: 'develop',
         commit: 'abc123',
         isMain: false,
         isBare: false,
@@ -1487,6 +1488,7 @@ describe('lswt/action-executors', () => {
         branch: 'feat/remote-feature',
       });
       const config = makeConfig({
+        baseBranch: 'develop',
         worktreeParent: 'pr',
         worktreePattern: 'pr{number}.{slug}',
       });
@@ -1494,14 +1496,15 @@ describe('lswt/action-executors', () => {
       const result = await executeAction('checkout_pr', worktree, makeEnv(), config, makeDeps());
 
       expect(result.success).toBe(true);
+      expect(git.getMainWorktree).toHaveBeenCalledWith(undefined, 'develop');
       expect(git.exec).toHaveBeenCalledWith(
         ['fetch', 'origin', 'feat/remote-feature:feat/remote-feature'],
-        expect.objectContaining({ cwd: '/workspace/repo/main' })
+        expect.objectContaining({ cwd: '/workspace/repo/develop' })
       );
       expect(git.addWorktree).toHaveBeenCalledWith(
         path.resolve('/workspace/repo/pr/pr42.remote-feature'),
         'feat/remote-feature',
-        expect.objectContaining({ cwd: '/workspace/repo/main' })
+        expect.objectContaining({ cwd: '/workspace/repo/develop' })
       );
       consoleSpy.mockRestore();
     });

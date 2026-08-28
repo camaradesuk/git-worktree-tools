@@ -84,6 +84,26 @@ describe('lswt/worktree-info', () => {
       expect(result.find((worktree) => worktree.path === invokingPr.path)?.type).toBe('pr');
     });
 
+    it('passes the configured base branch when identifying the canonical checkout', async () => {
+      const canonicalDevelop = makeWorktree({
+        path: '/workspace/repo/develop',
+        branch: 'develop',
+      });
+      const getMainWorktree = vi.fn(() => canonicalDevelop);
+      const deps = makeDeps({
+        listWorktrees: () => [canonicalDevelop],
+        getMainWorktree,
+      });
+
+      await gatherWorktreeInfo(
+        '/workspace/repo/pr/pr42.feature',
+        { ...defaultOptions, baseBranch: 'develop' },
+        deps
+      );
+
+      expect(getMainWorktree).toHaveBeenCalledWith('/workspace/repo/pr/pr42.feature', 'develop');
+    });
+
     it('identifies PR worktree from path pattern', async () => {
       const worktrees = [
         makeWorktree({ path: '/home/user/repo', branch: 'main' }),
@@ -539,8 +559,13 @@ describe('lswt/worktree-info', () => {
         vi.mocked(git.getMainWorktree).mockReturnValue(mainWorktree);
 
         const deps = createDefaultDeps();
-        expect(deps.getMainWorktree?.('/workspace/repo/pr/pr42.feature')).toEqual(mainWorktree);
-        expect(git.getMainWorktree).toHaveBeenCalledWith('/workspace/repo/pr/pr42.feature');
+        expect(deps.getMainWorktree?.('/workspace/repo/pr/pr42.feature', 'develop')).toEqual(
+          mainWorktree
+        );
+        expect(git.getMainWorktree).toHaveBeenCalledWith(
+          '/workspace/repo/pr/pr42.feature',
+          'develop'
+        );
       });
     });
 

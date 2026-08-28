@@ -17,6 +17,8 @@ export interface ListOptions {
   noColor?: boolean;
   /** Worktree naming pattern for PR number extraction */
   worktreePattern?: string;
+  /** Configured canonical base branch for main-worktree discovery */
+  baseBranch?: string;
 }
 
 /**

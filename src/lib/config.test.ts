@@ -6,6 +6,7 @@ import {
   loadConfig,
   generateBranchNameAsync,
   generatePRContentAsync,
+  resolveRelativeWorktreeParent,
 } from './config.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -365,6 +366,18 @@ describe('config', () => {
       expect(normalizePath(result)).toBe(
         '/home/user/repos/myproject/.worktrees/pr42.fix-login-bug'
       );
+    });
+
+    it('clamps leading traversal inside a bare-container anchor', () => {
+      expect(normalizePath(resolveRelativeWorktreeParent('/workspace/repo', '../pr', true))).toBe(
+        '/workspace/repo/pr'
+      );
+    });
+
+    it('clamps embedded traversal inside a bare-container anchor', () => {
+      expect(
+        normalizePath(resolveRelativeWorktreeParent('/workspace/repo', 'pr/../../outside', true))
+      ).toBe('/workspace/repo/outside');
     });
   });
 
