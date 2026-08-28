@@ -4,7 +4,16 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import * as git from '../lib/git.js';
-import { getDefaultConfig, generateWorktreePath } from '../lib/config.js';
+import {
+  getDefaultConfig,
+  getConfigPath,
+  generateWorktreePath,
+  loadConfigWithValidation,
+} from '../lib/config.js';
+import {
+  gatherWorktreeInfo,
+  createDefaultDeps as createLswtDeps,
+} from '../lib/lswt/worktree-info.js';
 
 /**
  * Integration tests for worktree layout anchoring against a REAL bare-repository
@@ -36,7 +45,11 @@ describe('worktree layout anchoring integration', () => {
     execSync('git config user.email test@test.com', { cwd: seed });
     execSync('git config user.name Test', { cwd: seed });
     fs.writeFileSync(path.join(seed, 'README.md'), 'seed\n');
-    execSync('git add README.md', { cwd: seed });
+    fs.writeFileSync(
+      path.join(seed, '.worktreerc'),
+      JSON.stringify({ worktreeParent: '.worktrees', worktreePattern: 'pr{number}.{slug}' })
+    );
+    execSync('git add README.md .worktreerc', { cwd: seed });
     execSync('git commit -q -m initial', { cwd: seed });
 
     container = path.join(tempDir, 'container');
@@ -53,6 +66,10 @@ describe('worktree layout anchoring integration', () => {
     execSync(`git worktree add -q -b feat/existing-feature "${prWorktree}" main`, {
       cwd: path.join(container, '.bare'),
     });
+    fs.writeFileSync(
+      path.join(mainWorktree, '.worktreerc.local'),
+      JSON.stringify({ worktreeParent: '../pr' })
+    );
   });
 
   afterAll(() => {
@@ -70,6 +87,63 @@ describe('worktree layout anchoring integration', () => {
 
   it('getMainWorktreeRoot resolves the same container root from a linked pr worktree', () => {
     expect(normalizePath(git.getMainWorktreeRoot(prWorktree))).toBe(normalizePath(container));
+  });
+
+  it('finds the canonical main checkout from a linked pr worktree', () => {
+    expect(normalizePath(git.getMainWorktree(prWorktree)?.path ?? '')).toBe(
+      normalizePath(mainWorktree)
+    );
+  });
+
+  it('loads the main checkout local override when invoked from a linked worktree', () => {
+    const result = loadConfigWithValidation(prWorktree);
+
+    expect(result.config.worktreeParent).toBe('../pr');
+    expect(normalizePath(result.configPath ?? '')).toBe(
+      normalizePath(path.join(mainWorktree, '.worktreerc.local'))
+    );
+  });
+
+  it('selects the canonical local override for config operations from a linked worktree', () => {
+    expect(normalizePath(getConfigPath(prWorktree) ?? '')).toBe(
+      normalizePath(path.join(mainWorktree, '.worktreerc.local'))
+    );
+  });
+
+  it('resolves a canonical local override under the nested workspace container', () => {
+    const config = loadConfigWithValidation(prWorktree).config;
+    const result = generateWorktreePath(
+      config,
+      prWorktree,
+      'container',
+      2600,
+      'feat/new-feature',
+      git.getMainWorktreeRoot(prWorktree)
+    );
+
+    expect(normalizePath(result)).toBe(
+      normalizePath(path.join(container, 'pr', 'pr2600.new-feature'))
+    );
+  });
+
+  it('lists canonical main correctly when invoked from a linked worktree', async () => {
+    const result = await gatherWorktreeInfo(
+      prWorktree,
+      {
+        showStatus: false,
+        json: true,
+        verbose: true,
+        worktreePattern: 'pr{number}.{slug}',
+      },
+      createLswtDeps()
+    );
+
+    expect(
+      result.find((worktree) => normalizePath(worktree.path) === normalizePath(mainWorktree))?.type
+    ).toBe('main');
+    expect(
+      result.find((worktree) => normalizePath(worktree.path) === normalizePath(prWorktree))?.type
+    ).toBe('pr');
   });
 
   it('places a new pr worktree under the container, invoked from main', () => {

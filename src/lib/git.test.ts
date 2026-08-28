@@ -334,6 +334,48 @@ describe('git', () => {
     });
   });
 
+  describe('getMainWorktree', () => {
+    it('selects the base-branch checkout in a bare-container layout', () => {
+      mockSpawnSync.mockReturnValue(
+        mockSpawnSuccess(
+          'worktree /workspace/repo/.bare\n' +
+            'bare\n' +
+            '\n' +
+            'worktree /workspace/repo/agents/first\n' +
+            'HEAD abc123\n' +
+            'branch refs/heads/agent/first\n' +
+            '\n' +
+            'worktree /workspace/repo/main\n' +
+            'HEAD def456\n' +
+            'branch refs/heads/main\n' +
+            '\n'
+        )
+      );
+
+      expect(git.getMainWorktree('/workspace/repo/pr/pr42.feature')?.path).toBe(
+        '/workspace/repo/main'
+      );
+    });
+
+    it('honors a configured non-main base branch', () => {
+      mockSpawnSync.mockReturnValue(
+        mockSpawnSuccess(
+          'worktree /workspace/repo/.bare\n' +
+            'bare\n' +
+            '\n' +
+            'worktree /workspace/repo/develop\n' +
+            'HEAD abc123\n' +
+            'branch refs/heads/develop\n' +
+            '\n'
+        )
+      );
+
+      expect(git.getMainWorktree('/workspace/repo/pr/pr42.feature', 'develop')?.path).toBe(
+        '/workspace/repo/develop'
+      );
+    });
+  });
+
   describe('getCommitRelationship', () => {
     it('returns same when HEAD equals base', () => {
       mockSpawnSync

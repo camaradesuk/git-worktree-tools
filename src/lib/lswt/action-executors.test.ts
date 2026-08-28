@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import path from 'path';
 import {
   executeAction,
   createDefaultExecutorDeps,
@@ -26,6 +27,7 @@ vi.mock('../github.js', () => ({
 vi.mock('../git.js', () => ({
   getRepoRoot: vi.fn(),
   removeWorktree: vi.fn(),
+  getMainWorktree: vi.fn(),
   getMainWorktreeRoot: vi.fn(),
   addWorktree: vi.fn(),
   deleteBranch: vi.fn(),
@@ -1368,7 +1370,7 @@ describe('lswt/action-executors', () => {
     });
 
     it('returns error when repo root cannot be found', async () => {
-      vi.mocked(git.getMainWorktreeRoot).mockReturnValue(null as unknown as string);
+      vi.mocked(git.getMainWorktree).mockReturnValue(null);
 
       const worktree = makeWorktree({
         type: 'remote_pr',
@@ -1391,6 +1393,15 @@ describe('lswt/action-executors', () => {
 
     it('successfully creates worktree for remote PR', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.getMainWorktree).mockReturnValue({
+        path: '/home/user/repo',
+        branch: 'main',
+        commit: 'abc123',
+        isMain: true,
+        isBare: false,
+        isLocked: false,
+        isPrunable: false,
+      });
       vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
       vi.mocked(git.addWorktree).mockImplementation(() => {});
       // Mock git.exec to return empty string (git fetch succeeds)
@@ -1421,6 +1432,15 @@ describe('lswt/action-executors', () => {
 
     it('handles git fetch failure', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.getMainWorktree).mockReturnValue({
+        path: '/home/user/repo',
+        branch: 'main',
+        commit: 'abc123',
+        isMain: true,
+        isBare: false,
+        isLocked: false,
+        isPrunable: false,
+      });
       vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/home/user/repo');
       // Mock git.exec to throw (git fetch fails)
       vi.mocked(git.exec).mockImplementation(() => {
@@ -1444,6 +1464,45 @@ describe('lswt/action-executors', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('Failed to checkout PR');
+      consoleSpy.mockRestore();
+    });
+
+    it('uses the canonical checkout for git and the container for configured placement', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      vi.mocked(git.getMainWorktree).mockReturnValue({
+        path: '/workspace/repo/main',
+        branch: 'main',
+        commit: 'abc123',
+        isMain: false,
+        isBare: false,
+        isLocked: false,
+        isPrunable: false,
+      });
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/workspace/repo');
+      vi.mocked(git.exec).mockReturnValue('');
+
+      const worktree = makeWorktree({
+        type: 'remote_pr',
+        prNumber: 42,
+        branch: 'feat/remote-feature',
+      });
+      const config = makeConfig({
+        worktreeParent: 'pr',
+        worktreePattern: 'pr{number}.{slug}',
+      });
+
+      const result = await executeAction('checkout_pr', worktree, makeEnv(), config, makeDeps());
+
+      expect(result.success).toBe(true);
+      expect(git.exec).toHaveBeenCalledWith(
+        ['fetch', 'origin', 'feat/remote-feature:feat/remote-feature'],
+        expect.objectContaining({ cwd: '/workspace/repo/main' })
+      );
+      expect(git.addWorktree).toHaveBeenCalledWith(
+        path.resolve('/workspace/repo/pr/pr42.remote-feature'),
+        'feat/remote-feature',
+        expect.objectContaining({ cwd: '/workspace/repo/main' })
+      );
       consoleSpy.mockRestore();
     });
   });

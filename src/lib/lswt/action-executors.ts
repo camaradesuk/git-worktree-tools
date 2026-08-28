@@ -609,19 +609,29 @@ async function checkoutPr(
   }
 
   try {
-    // Get repo root and name
-    const repoRoot = git.getMainWorktreeRoot();
-    if (!repoRoot) {
+    // Git mutations need a real checkout as cwd, while relative worktree
+    // placement uses the stable main-worktree/container anchor.
+    const mainWorktree = git.getMainWorktree();
+    if (!mainWorktree) {
       return {
         success: false,
         message: 'Could not find repository root',
       };
     }
-    const repoName = path.basename(repoRoot);
+    const repoRoot = mainWorktree.path;
+    const mainWorktreeRoot = git.getMainWorktreeRoot(repoRoot);
+    const repoName = path.basename(mainWorktreeRoot);
 
     // Generate worktree path using config
     const fullConfig = { ...getDefaultConfig(), ...config };
-    const worktreePath = generateWorktreePath(fullConfig, repoRoot, repoName, prNumber, branch);
+    const worktreePath = generateWorktreePath(
+      fullConfig,
+      repoRoot,
+      repoName,
+      prNumber,
+      branch,
+      mainWorktreeRoot
+    );
 
     console.log(colors.dim('\nFetching PR branch...'));
 

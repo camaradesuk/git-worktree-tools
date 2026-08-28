@@ -6,6 +6,7 @@ import type { ListOptions } from './types.js';
 // Mock git
 vi.mock('../git.js', () => ({
   listWorktrees: vi.fn(),
+  getMainWorktree: vi.fn(),
   getStatusOutput: vi.fn(),
 }));
 
@@ -59,6 +60,28 @@ describe('lswt/worktree-info', () => {
       expect(result).toHaveLength(1);
       expect(result[0].type).toBe('main');
       expect(result[0].name).toBe('repo');
+    });
+
+    it('identifies the canonical main checkout when invoked from a linked worktree', async () => {
+      const canonicalMain = makeWorktree({ path: '/workspace/repo/main', branch: 'main' });
+      const invokingPr = makeWorktree({
+        path: '/workspace/repo/pr/pr42.feature',
+        branch: 'feat/feature',
+        isMain: false,
+      });
+      const deps = makeDeps({
+        listWorktrees: () => [invokingPr, canonicalMain],
+        getMainWorktree: () => canonicalMain,
+      });
+
+      const result = await gatherWorktreeInfo(
+        invokingPr.path,
+        { ...defaultOptions, worktreePattern: 'pr{number}.{slug}' },
+        deps
+      );
+
+      expect(result.find((worktree) => worktree.path === canonicalMain.path)?.type).toBe('main');
+      expect(result.find((worktree) => worktree.path === invokingPr.path)?.type).toBe('pr');
     });
 
     it('identifies PR worktree from path pattern', async () => {
@@ -480,9 +503,11 @@ describe('lswt/worktree-info', () => {
       const deps = createDefaultDeps();
 
       expect(deps).toHaveProperty('listWorktrees');
+      expect(deps).toHaveProperty('getMainWorktree');
       expect(deps).toHaveProperty('hasUncommittedChanges');
       expect(deps).toHaveProperty('getPrInfo');
       expect(typeof deps.listWorktrees).toBe('function');
+      expect(typeof deps.getMainWorktree).toBe('function');
       expect(typeof deps.hasUncommittedChanges).toBe('function');
       expect(typeof deps.getPrInfo).toBe('function');
     });
@@ -497,6 +522,25 @@ describe('lswt/worktree-info', () => {
 
         expect(git.listWorktrees).toHaveBeenCalledWith('/some/path');
         expect(result).toEqual(mockWorktrees);
+      });
+    });
+
+    describe('getMainWorktree', () => {
+      it('calls git.getMainWorktree with provided cwd', () => {
+        const mainWorktree = {
+          path: '/workspace/repo/main',
+          branch: 'main',
+          commit: 'abc',
+          isMain: false,
+          isBare: false,
+          isLocked: false,
+          isPrunable: false,
+        };
+        vi.mocked(git.getMainWorktree).mockReturnValue(mainWorktree);
+
+        const deps = createDefaultDeps();
+        expect(deps.getMainWorktree?.('/workspace/repo/pr/pr42.feature')).toEqual(mainWorktree);
+        expect(git.getMainWorktree).toHaveBeenCalledWith('/workspace/repo/pr/pr42.feature');
       });
     });
 

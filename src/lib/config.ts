@@ -29,6 +29,7 @@ import {
 } from './global-config.js';
 import { logger } from './logger.js';
 import { printStatus } from './ui/index.js';
+import * as git from './git.js';
 
 /**
  * Hook execution defaults configuration
@@ -534,8 +535,20 @@ export function loadConfigWithValidation(
       }
     }
 
-    // 3. Load local config (highest priority)
-    const localConfigPath = findLocalConfigFile(repoRoot);
+    // 3. Load local config (highest priority). A gitignored local config exists
+    // only in one checkout, so commands invoked from another linked worktree
+    // must read it from the canonical base-branch checkout.
+    const baseBranch =
+      [...sources].reverse().find((source) => source.config.baseBranch !== undefined)?.config
+        .baseBranch ?? defaults.baseBranch;
+    let localConfigRoot = repoRoot;
+    try {
+      localConfigRoot = git.getMainWorktree(repoRoot, baseBranch)?.path ?? repoRoot;
+    } catch {
+      // Preserve config loading for non-git fixtures and partially initialized repos.
+    }
+
+    const localConfigPath = findLocalConfigFile(localConfigRoot);
     if (localConfigPath) {
       const localSource = loadSingleConfigFile(localConfigPath, 'local', validate);
       if (localSource) {
@@ -730,15 +743,12 @@ function deepMergeConfigs(base: WorktreeConfig, override: WorktreeConfig): Workt
  * Returns the highest priority config that exists (local > repo)
  */
 export function getConfigPath(repoRoot: string): string | null {
-  // Check local config first (highest priority)
-  const localPath = findLocalConfigFile(repoRoot);
-  if (localPath) return localPath;
-
-  // Then check repo config
-  const repoPath = findRepoConfigFile(repoRoot);
-  if (repoPath) return repoPath;
-
-  return null;
+  const result = loadConfigWithValidation(repoRoot, {
+    validate: false,
+    warnOnErrors: false,
+  });
+  const repositorySources = result.sources.filter((source) => source.level !== 'global');
+  return repositorySources.at(-1)?.path ?? null;
 }
 
 /**
@@ -804,10 +814,52 @@ export function generateWorktreePath(
   } else {
     const anchor =
       config.worktreeParentAnchor === 'repo-root' ? repoRoot : (mainWorktreeRoot ?? repoRoot);
-    parentDir = path.resolve(anchor, config.worktreeParent);
+    parentDir = resolveRelativeWorktreeParent(anchor, config.worktreeParent);
   }
 
   return path.join(parentDir, pattern);
+}
+
+/**
+ * Resolve a relative worktree parent without silently escaping a bare-repository
+ * container. This keeps legacy checkout-relative overrides such as `../pr`
+ * compatible after `main-worktree` anchoring moved to the container root.
+ */
+export function resolveRelativeWorktreeParent(anchor: string, worktreeParent: string): string {
+  const resolved = path.resolve(anchor, worktreeParent);
+
+  if (!isBareRepositoryContainer(anchor) || isWithin(anchor, resolved)) {
+    return resolved;
+  }
+
+  const segments = path.normalize(worktreeParent).split(path.sep).filter(Boolean);
+  while (segments[0] === '.' || segments[0] === '..') {
+    segments.shift();
+  }
+  const containedParent = segments.join(path.sep);
+  const contained = path.resolve(anchor, containedParent);
+
+  logger.warn(
+    `worktreeParent "${worktreeParent}" resolves outside the bare-repository container ` +
+      `"${anchor}"; using "${contained}" instead. Update the relative parent or use an ` +
+      `absolute path / worktreeParentAnchor: "repo-root" to place worktrees outside it.`
+  );
+
+  return contained;
+}
+
+function isBareRepositoryContainer(dir: string): boolean {
+  try {
+    const bareDir = path.join(dir, '.bare');
+    return fs.statSync(bareDir).isDirectory() && fs.existsSync(path.join(bareDir, 'HEAD'));
+  } catch {
+    return false;
+  }
+}
+
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 /**

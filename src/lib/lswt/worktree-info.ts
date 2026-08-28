@@ -34,6 +34,7 @@ export interface RemotePrInfo {
  */
 export interface GatherDeps {
   listWorktrees: (cwd?: string) => Worktree[];
+  getMainWorktree?: (cwd?: string) => Worktree | null;
   hasUncommittedChanges: (worktreePath: string) => boolean;
   getPrInfo: (prNumber: number) => Promise<PrInfoResult>;
   listOpenPrs: () => Promise<RemotePrInfo[]>;
@@ -49,12 +50,13 @@ export async function gatherWorktreeInfo(
   deps: GatherDeps
 ): Promise<WorktreeDisplay[]> {
   const worktrees = deps.listWorktrees(repoRoot);
+  const mainWorktreePath = deps.getMainWorktree?.(repoRoot)?.path ?? repoRoot;
   const result: WorktreeDisplay[] = [];
 
   for (const wt of worktrees) {
     const name = path.basename(wt.path);
     const prNumber = extractPrNumber(wt.path, { worktreePattern: options.worktreePattern });
-    const isMain = isMainWorktree(wt.path, repoRoot);
+    const isMain = isMainWorktree(wt.path, mainWorktreePath);
     const hasChanges = deps.hasUncommittedChanges(wt.path);
 
     let type: WorktreeDisplay['type'];
@@ -139,6 +141,7 @@ async function gatherRemotePrs(
 export function createDefaultDeps(): GatherDeps {
   return {
     listWorktrees: (cwd?: string) => git.listWorktrees(cwd),
+    getMainWorktree: (cwd?: string) => git.getMainWorktree(cwd),
 
     hasUncommittedChanges: (worktreePath: string): boolean => {
       try {

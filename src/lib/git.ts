@@ -423,9 +423,22 @@ export function listWorktrees(cwd?: string): Worktree[] {
 /**
  * Find the main worktree
  */
-export function getMainWorktree(cwd?: string): Worktree | null {
+export function getMainWorktree(
+  cwd?: string,
+  baseBranch: string = DEFAULT_BASE_BRANCH
+): Worktree | null {
   const worktrees = listWorktrees(cwd);
-  return worktrees.find((w) => w.isMain && !w.isBare) || null;
+
+  // In a conventional repository git lists the primary checkout first and
+  // listWorktrees marks it as main. A bare-container layout has no primary
+  // checkout entry, however: the bare repository is first and every checkout
+  // is a linked worktree. In that layout the canonical checkout is the one
+  // carrying the configured base branch (normally `main`).
+  return (
+    worktrees.find((w) => !w.isBare && w.branch === baseBranch) ??
+    worktrees.find((w) => w.isMain && !w.isBare) ??
+    null
+  );
 }
 
 /**
@@ -433,9 +446,11 @@ export function getMainWorktree(cwd?: string): Worktree | null {
  */
 export function isWorktree(cwd?: string): boolean {
   const repoRoot = getRepoRoot(cwd);
-  const worktrees = listWorktrees(cwd);
-  const current = worktrees.find((w) => path.normalize(w.path) === path.normalize(repoRoot));
-  return current ? !current.isMain : false;
+  const mainWorktree = getMainWorktree(cwd);
+  if (!mainWorktree) {
+    return false;
+  }
+  return path.normalize(mainWorktree.path) !== path.normalize(repoRoot);
 }
 
 /**
