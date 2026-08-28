@@ -104,6 +104,7 @@ async function main(): Promise<void> {
   // Load config for worktree pattern
   const config = loadConfig(repoRoot);
   options.worktreePattern = config.worktreePattern;
+  options.baseBranch = config.baseBranch;
 
   // Gather worktree info
   const deps = createDefaultDeps();

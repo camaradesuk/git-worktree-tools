@@ -260,10 +260,17 @@ async function handleListWorktrees(): Promise<FlowResult> {
   console.log();
   try {
     const repoRoot = git.getRepoRoot();
+    const config = loadConfig(repoRoot);
     const deps = createLswtDeps();
     const worktrees = await gatherWorktreeInfo(
       repoRoot,
-      { verbose: false, json: false, showStatus: false },
+      {
+        verbose: false,
+        json: false,
+        showStatus: false,
+        worktreePattern: config.worktreePattern,
+        baseBranch: config.baseBranch,
+      },
       deps
     );
     // Run interactive mode (same as standalone lswt with no args in TTY)

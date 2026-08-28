@@ -18,6 +18,7 @@ import {
 } from '../lib/json-output.js';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
+import { loadConfig } from '../lib/config.js';
 
 /**
  * Information about a single worktree
@@ -116,11 +117,14 @@ export async function listWorktrees(
     }
 
     // Build options for the lib function
+    const config = loadConfig(repoRoot);
     const listOptions: ListOptions = {
       json: true, // We always want structured output
       verbose: true, // Include all info
       showStatus: effectiveShowStatus,
       interactive: false, // Never interactive for API
+      worktreePattern: config.worktreePattern,
+      baseBranch: config.baseBranch,
     };
 
     // Gather worktree info

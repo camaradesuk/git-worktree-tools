@@ -14,6 +14,13 @@ vi.mock('../lib/github.js', () => ({
   isGhInstalled: vi.fn(),
 }));
 
+vi.mock('../lib/config.js', () => ({
+  loadConfig: vi.fn(() => ({
+    baseBranch: 'main',
+    worktreePattern: 'pr{number}.{slug}',
+  })),
+}));
+
 vi.mock('../lib/lswt/index.js', () => ({
   gatherWorktreeInfo: vi.fn(),
   createDefaultDeps: vi.fn(() => ({})),

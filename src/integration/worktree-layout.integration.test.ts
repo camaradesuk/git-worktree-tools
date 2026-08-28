@@ -4,7 +4,16 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import * as git from '../lib/git.js';
-import { getDefaultConfig, generateWorktreePath } from '../lib/config.js';
+import {
+  getDefaultConfig,
+  getConfigPath,
+  generateWorktreePath,
+  loadConfigWithValidation,
+} from '../lib/config.js';
+import {
+  gatherWorktreeInfo,
+  createDefaultDeps as createLswtDeps,
+} from '../lib/lswt/worktree-info.js';
 
 /**
  * Integration tests for worktree layout anchoring against a REAL bare-repository
@@ -21,6 +30,7 @@ function normalizePath(p: string): string {
 
 describe('worktree layout anchoring integration', () => {
   let tempDir: string;
+  let seedRepo: string;
   let container: string;
   let mainWorktree: string;
   let prWorktree: string;
@@ -30,18 +40,22 @@ describe('worktree layout anchoring integration', () => {
 
     // Seed a normal repo with one commit, then clone it bare — the standard
     // way to set up a .bare/ + worktrees layout.
-    const seed = path.join(tempDir, 'seed');
-    fs.mkdirSync(seed);
-    execSync('git init -q -b main', { cwd: seed });
-    execSync('git config user.email test@test.com', { cwd: seed });
-    execSync('git config user.name Test', { cwd: seed });
-    fs.writeFileSync(path.join(seed, 'README.md'), 'seed\n');
-    execSync('git add README.md', { cwd: seed });
-    execSync('git commit -q -m initial', { cwd: seed });
+    seedRepo = path.join(tempDir, 'seed');
+    fs.mkdirSync(seedRepo);
+    execSync('git init -q -b main', { cwd: seedRepo });
+    execSync('git config user.email test@test.com', { cwd: seedRepo });
+    execSync('git config user.name Test', { cwd: seedRepo });
+    fs.writeFileSync(path.join(seedRepo, 'README.md'), 'seed\n');
+    fs.writeFileSync(
+      path.join(seedRepo, '.worktreerc'),
+      JSON.stringify({ worktreeParent: '.worktrees', worktreePattern: 'pr{number}.{slug}' })
+    );
+    execSync('git add README.md .worktreerc', { cwd: seedRepo });
+    execSync('git commit -q -m initial', { cwd: seedRepo });
 
     container = path.join(tempDir, 'container');
     fs.mkdirSync(container);
-    execSync(`git clone --bare -q "${seed}" "${path.join(container, '.bare')}"`);
+    execSync(`git clone --bare -q "${seedRepo}" "${path.join(container, '.bare')}"`);
 
     mainWorktree = path.join(container, 'main');
     execSync(`git worktree add -q "${mainWorktree}" main`, {
@@ -53,6 +67,10 @@ describe('worktree layout anchoring integration', () => {
     execSync(`git worktree add -q -b feat/existing-feature "${prWorktree}" main`, {
       cwd: path.join(container, '.bare'),
     });
+    fs.writeFileSync(
+      path.join(mainWorktree, '.worktreerc.local'),
+      JSON.stringify({ worktreeParent: '../pr' })
+    );
   });
 
   afterAll(() => {
@@ -70,6 +88,123 @@ describe('worktree layout anchoring integration', () => {
 
   it('getMainWorktreeRoot resolves the same container root from a linked pr worktree', () => {
     expect(normalizePath(git.getMainWorktreeRoot(prWorktree))).toBe(normalizePath(container));
+  });
+
+  it('finds the canonical main checkout from a linked pr worktree', () => {
+    expect(normalizePath(git.getMainWorktree(prWorktree)?.path ?? '')).toBe(
+      normalizePath(mainWorktree)
+    );
+  });
+
+  it('loads the main checkout local override when invoked from a linked worktree', () => {
+    const result = loadConfigWithValidation(prWorktree);
+
+    expect(result.config.worktreeParent).toBe('../pr');
+    expect(normalizePath(result.configPath ?? '')).toBe(
+      normalizePath(path.join(mainWorktree, '.worktreerc.local'))
+    );
+  });
+
+  it('selects the canonical local override for config operations from a linked worktree', () => {
+    expect(normalizePath(getConfigPath(prWorktree) ?? '')).toBe(
+      normalizePath(path.join(mainWorktree, '.worktreerc.local'))
+    );
+  });
+
+  it('resolves a canonical local override under the nested workspace container', () => {
+    const config = loadConfigWithValidation(prWorktree).config;
+    const result = generateWorktreePath(
+      config,
+      prWorktree,
+      'container',
+      2600,
+      'feat/new-feature',
+      git.getMainWorktreeRoot(prWorktree)
+    );
+
+    expect(normalizePath(result)).toBe(
+      normalizePath(path.join(container, 'pr', 'pr2600.new-feature'))
+    );
+  });
+
+  it('lists canonical main correctly when invoked from a linked worktree', async () => {
+    const config = loadConfigWithValidation(prWorktree).config;
+    const result = await gatherWorktreeInfo(
+      prWorktree,
+      {
+        showStatus: false,
+        json: true,
+        verbose: true,
+        worktreePattern: 'pr{number}.{slug}',
+        baseBranch: config.baseBranch,
+      },
+      createLswtDeps()
+    );
+
+    expect(
+      result.find((worktree) => normalizePath(worktree.path) === normalizePath(mainWorktree))?.type
+    ).toBe('main');
+    expect(
+      result.find((worktree) => normalizePath(worktree.path) === normalizePath(prWorktree))?.type
+    ).toBe('pr');
+  });
+
+  it('bootstraps a local-only non-default base branch with a custom bare directory', async () => {
+    const developContainer = path.join(tempDir, 'develop-container');
+    const bareRepo = path.join(developContainer, 'repository.git');
+    const developWorktree = path.join(developContainer, 'develop');
+    const featureWorktree = path.join(developContainer, 'pr', 'pr2.feature');
+    fs.mkdirSync(developContainer);
+    execSync(`git clone --bare -q "${seedRepo}" "${bareRepo}"`);
+    execSync('git update-ref refs/heads/develop refs/heads/main', { cwd: bareRepo });
+    execSync('git symbolic-ref HEAD refs/heads/develop', { cwd: bareRepo });
+    execSync('git update-ref -d refs/heads/main', { cwd: bareRepo });
+    execSync(`git worktree add -q "${developWorktree}" develop`, { cwd: bareRepo });
+    fs.mkdirSync(path.dirname(featureWorktree));
+    execSync(`git worktree add -q -b feat/feature "${featureWorktree}" develop`, {
+      cwd: bareRepo,
+    });
+    fs.writeFileSync(
+      path.join(developWorktree, '.worktreerc.local'),
+      JSON.stringify({ baseBranch: 'develop', worktreeParent: '../pr' })
+    );
+
+    const loaded = loadConfigWithValidation(featureWorktree);
+    const worktrees = await gatherWorktreeInfo(
+      featureWorktree,
+      {
+        showStatus: false,
+        json: true,
+        verbose: true,
+        worktreePattern: loaded.config.worktreePattern,
+        baseBranch: loaded.config.baseBranch,
+      },
+      createLswtDeps()
+    );
+    const generatedPath = generateWorktreePath(
+      loaded.config,
+      featureWorktree,
+      'develop-container',
+      2601,
+      'feat/another-feature',
+      git.getMainWorktreeRoot(featureWorktree)
+    );
+
+    expect(loaded.config.baseBranch).toBe('develop');
+    expect(loaded.config.worktreeParent).toBe('../pr');
+    expect(normalizePath(loaded.configPath ?? '')).toBe(
+      normalizePath(path.join(developWorktree, '.worktreerc.local'))
+    );
+    expect(normalizePath(git.getMainWorktree(featureWorktree, 'develop')?.path ?? '')).toBe(
+      normalizePath(developWorktree)
+    );
+    expect(
+      worktrees.find((worktree) => normalizePath(worktree.path) === normalizePath(developWorktree))
+        ?.type
+    ).toBe('main');
+    expect(normalizePath(generatedPath)).toBe(
+      normalizePath(path.join(developContainer, 'pr', 'pr2601.another-feature'))
+    );
   });
 
   it('places a new pr worktree under the container, invoked from main', () => {

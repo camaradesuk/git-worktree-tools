@@ -97,6 +97,7 @@ describe('config-editor', () => {
         configPath: null,
         validation: null,
       });
+      (config.getConfigPath as ReturnType<typeof vi.fn>).mockReturnValueOnce(null);
       (prompts.promptChoice as ReturnType<typeof vi.fn>).mockResolvedValueOnce('__exit__');
 
       await runConfigEditor('/repo');
@@ -252,30 +253,46 @@ describe('config-editor', () => {
     it('sets boolean value directly', async () => {
       const result = await quickEditConfig('/repo', 'draftPr', 'true');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', { draftPr: true });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        { draftPr: true },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
     });
 
     it('sets boolean false with "false"', async () => {
       const result = await quickEditConfig('/repo', 'draftPr', 'false');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', { draftPr: false });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        { draftPr: false },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
     });
 
     it('sets boolean true with "1"', async () => {
       const result = await quickEditConfig('/repo', 'draftPr', '1');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', { draftPr: true });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        { draftPr: true },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
     });
 
     it('sets number value directly', async () => {
       const result = await quickEditConfig('/repo', 'hookDefaults.timeout', '60000');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', {
-        hookDefaults: { timeout: 60000 },
-      });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        {
+          hookDefaults: { timeout: 60000 },
+        },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
     });
 
@@ -289,16 +306,24 @@ describe('config-editor', () => {
     it('sets array value from comma-separated string', async () => {
       const result = await quickEditConfig('/repo', 'sharedRepos', 'repo1,repo2,repo3');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', {
-        sharedRepos: ['repo1', 'repo2', 'repo3'],
-      });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        {
+          sharedRepos: ['repo1', 'repo2', 'repo3'],
+        },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
     });
 
     it('sets string value directly', async () => {
       const result = await quickEditConfig('/repo', 'baseBranch', 'develop');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', { baseBranch: 'develop' });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        { baseBranch: 'develop' },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
     });
 
@@ -341,17 +366,39 @@ describe('config-editor', () => {
     it('sets enum value directly', async () => {
       const result = await quickEditConfig('/repo', 'preferredEditor', 'cursor');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', { preferredEditor: 'cursor' });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        { preferredEditor: 'cursor' },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
     });
 
     it('sets nested AI config value', async () => {
       const result = await quickEditConfig('/repo', 'ai.provider', 'claude');
 
-      expect(config.saveConfig).toHaveBeenCalledWith('/repo', {
-        ai: { provider: 'claude' },
-      });
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/repo',
+        {
+          ai: { provider: 'claude' },
+        },
+        { configPath: '/repo/.worktreerc' }
+      );
       expect(result.saved).toBe(true);
+    });
+
+    it('saves to the canonical active config path', async () => {
+      (config.getConfigPath as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+        '/workspace/repo/main/.worktreerc.local'
+      );
+
+      await quickEditConfig('/workspace/repo/pr/pr42.feature', 'baseBranch', 'develop');
+
+      expect(config.saveConfig).toHaveBeenCalledWith(
+        '/workspace/repo/pr/pr42.feature',
+        { baseBranch: 'develop' },
+        { configPath: '/workspace/repo/main/.worktreerc.local' }
+      );
     });
   });
 
@@ -639,7 +686,8 @@ describe('config-editor', () => {
         expect.objectContaining({
           baseBranch: 'develop',
           branchPrefix: 'fix',
-        })
+        }),
+        { configPath: '/repo/.worktreerc' }
       );
     });
   });
