@@ -1,3 +1,11 @@
+## [1.15.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.15.0...v1.15.1) (2026-08-28)
+
+
+### Bug Fixes
+
+* **config:** address canonical context review edge cases ([adf495b](https://github.com/camaradesuk/git-worktree-tools/commit/adf495b639087ad21146bfad72114107ea6e8b21))
+* **config:** use canonical worktree context ([1a2dbde](https://github.com/camaradesuk/git-worktree-tools/commit/1a2dbde376ecfc4e3884881c4ec457f0a78d7372))
+
 # [1.15.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.14.0...v1.15.0) (2026-08-11)
 
 
