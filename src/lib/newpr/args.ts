@@ -213,8 +213,8 @@ Usage:
 
 Options:
   -b, --base BRANCH     Base branch for PR (default: main)
-  -d, --draft           Create PR as draft
-  -r, --ready           Create PR as ready for review (default)
+  -d, --draft           Create PR as draft (default)
+  -r, --ready           Create PR as ready for review (overrides the draft default)
   -i, --install         Install dependencies after setup
   -c, --code            Open editor to the new worktree
   --no-wtlink           Skip wtlink config sync

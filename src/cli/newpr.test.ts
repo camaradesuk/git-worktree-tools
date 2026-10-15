@@ -439,6 +439,26 @@ describe('cli/newpr', () => {
         expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
       });
 
+      it('creates a draft PR when the config has no draftPr key at all', async () => {
+        const { draftPr: _omit, ...configWithoutDraftPr } = defaultConfig;
+        vi.mocked(newpr.parseArgs).mockReturnValue({
+          kind: 'success',
+          options: { mode: 'branch', branchName: 'my-feature', ...defaultOptions, draft: false },
+        });
+        vi.mocked(github.isGhInstalled).mockReturnValue(true);
+        vi.mocked(github.isAuthenticated).mockReturnValue(true);
+        vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+        vi.mocked(git.getRepoName).mockReturnValue('repo');
+        vi.mocked(loadConfig).mockReturnValue(configWithoutDraftPr as typeof defaultConfig);
+        vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+        vi.mocked(github.getPrByBranch).mockReturnValue(null);
+        vi.mocked(github.createPr).mockReturnValue(makePrInfo({ number: 456 }));
+        vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr456');
+        vi.mocked(fs.existsSync).mockReturnValue(false);
+        await runCli(['--branch', 'my-feature']);
+        expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
+      });
+
       it('explicit config draftPr: false creates a ready PR', async () => {
         await runBranch({ draft: true, draftExplicitlySet: false }, { draftPr: false });
         expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: false }));

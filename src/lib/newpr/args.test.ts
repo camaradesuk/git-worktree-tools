@@ -540,6 +540,17 @@ describe('newpr/args', () => {
     });
   });
 
+  describe('getHelpText draft wording', () => {
+    it('documents draft as the default and --ready as the override', () => {
+      const help = getHelpText();
+      expect(help).toMatch(/-d, --draft\s+Create PR as draft \(default\)/);
+      expect(help).toMatch(
+        /-r, --ready\s+Create PR as ready for review \(overrides the draft default\)/
+      );
+      expect(help).not.toMatch(/ready for review \(default\)/);
+    });
+  });
+
   describe('resolveDraft', () => {
     const parse = (argv: string[]) => {
       const r = parseArgs(argv);

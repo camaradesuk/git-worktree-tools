@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
+import { resolveDraft } from '../lib/newpr/args.js';
 import { loadConfig, generateBranchName, generateWorktreePath } from '../lib/config.js';
 import { ensureWorktreeParentDir } from '../lib/worktree-setup.js';
 import { analyzeGitState, detectScenario, type Scenario } from '../lib/state-detection.js';
@@ -270,7 +271,10 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     const repoName = git.getRepoName(repoRoot);
     const config = loadConfig(repoRoot);
     // Explicit option wins; otherwise config draftPr (default: true)
-    const draft = draftOption ?? config.draftPr ?? true;
+    const draft = resolveDraft(
+      { draft: draftOption ?? true, draftExplicitlySet: draftOption !== undefined },
+      config.draftPr
+    );
     const branchName = customBranchName ?? generateBranchName(config, description);
 
     let mainWorktreeRoot = repoRoot;
