@@ -154,7 +154,7 @@ export const tools: Tool[] = [
         },
         draft: {
           type: 'boolean',
-          description: 'Create as draft PR (default: false)',
+          description: 'Create as draft PR (default: true, or the draftPr config value)',
         },
         baseBranch: {
           type: 'string',
@@ -449,7 +449,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         const action = args?.action as string | undefined;
-        const draft = (args?.draft as boolean) ?? false;
+        const draft = args?.draft as boolean | undefined;
         const baseBranch = (args?.baseBranch as string) ?? 'main';
         const branchName = args?.branchName as string | undefined;
 

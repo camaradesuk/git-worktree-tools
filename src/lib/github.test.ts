@@ -316,6 +316,30 @@ describe('github', () => {
       });
     });
 
+    it('omits --draft when draft is false and includes it when true', () => {
+      const prJson = JSON.stringify({
+        number: 44,
+        title: 'T',
+        state: 'OPEN',
+        url: 'https://github.com/org/repo/pull/44',
+        headRefName: 'feature/x',
+        baseRefName: 'main',
+        isDraft: false,
+      });
+      mockExecSync
+        .mockReturnValueOnce('https://github.com/org/repo/pull/44\n')
+        .mockReturnValueOnce(prJson);
+      github.createPr({ title: 'T', head: 'feature/x', draft: false });
+      expect(String(mockExecSync.mock.calls[0][0])).not.toContain('--draft');
+
+      mockExecSync.mockClear();
+      mockExecSync
+        .mockReturnValueOnce('https://github.com/org/repo/pull/44\n')
+        .mockReturnValueOnce(prJson);
+      github.createPr({ title: 'T', head: 'feature/x', draft: true });
+      expect(String(mockExecSync.mock.calls[0][0])).toContain('--draft');
+    });
+
     it('creates PR with all options', () => {
       mockExecSync.mockReturnValueOnce('https://github.com/org/repo/pull/43\n').mockReturnValueOnce(
         JSON.stringify({

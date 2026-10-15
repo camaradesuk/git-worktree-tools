@@ -378,7 +378,7 @@ export function getDefaultConfig(): ResolvedConfig {
     configVersion: 1,
     sharedRepos: [],
     baseBranch: DEFAULT_BASE_BRANCH,
-    draftPr: false,
+    draftPr: true,
     worktreePattern: DEFAULT_WORKTREE_PATTERN,
     worktreeParent: DEFAULT_WORKTREE_PARENT,
     worktreeParentAnchor: DEFAULT_WORKTREE_PARENT_ANCHOR,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseArgs, getHelpText, getDefaultOptions } from './args.js';
+import { parseArgs, getHelpText, getDefaultOptions, resolveDraft } from './args.js';
 
 describe('newpr/args', () => {
   describe('getDefaultOptions', () => {
@@ -8,7 +8,7 @@ describe('newpr/args', () => {
 
       expect(defaults.mode).toBe('new');
       expect(defaults.baseBranch).toBe('main');
-      expect(defaults.draft).toBe(false);
+      expect(defaults.draft).toBe(true);
       expect(defaults.installDeps).toBe(false);
       expect(defaults.openEditor).toBe(false);
       expect(defaults.runWtlink).toBe(true);
@@ -537,6 +537,34 @@ describe('newpr/args', () => {
       expect(help).toContain('--ready');
       expect(help).toContain('--no-wtlink');
       expect(help).toContain('--help');
+    });
+  });
+
+  describe('resolveDraft', () => {
+    const parse = (argv: string[]) => {
+      const r = parseArgs(argv);
+      if (r.kind !== 'success') throw new Error('expected options');
+      return r.options;
+    };
+
+    it('defaults to draft with no flag and no config value', () => {
+      expect(resolveDraft(parse(['desc']), undefined)).toBe(true);
+    });
+
+    it('defaults to draft when config draftPr is the default (true)', () => {
+      expect(resolveDraft(parse(['desc']), true)).toBe(true);
+    });
+
+    it('--ready gives ready, overriding config draftPr: true', () => {
+      expect(resolveDraft(parse(['desc', '--ready']), true)).toBe(false);
+    });
+
+    it('--draft gives draft, overriding config draftPr: false', () => {
+      expect(resolveDraft(parse(['desc', '--draft']), false)).toBe(true);
+    });
+
+    it('explicit config draftPr: false gives ready', () => {
+      expect(resolveDraft(parse(['desc']), false)).toBe(false);
     });
   });
 });

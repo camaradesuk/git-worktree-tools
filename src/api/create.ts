@@ -239,7 +239,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
   const {
     description,
     action: actionKey,
-    draft = false,
+    draft: draftOption,
     baseBranch = 'main',
     branchName: customBranchName,
     cwd,
@@ -269,6 +269,8 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
 
     const repoName = git.getRepoName(repoRoot);
     const config = loadConfig(repoRoot);
+    // Explicit option wins; otherwise config draftPr (default: true)
+    const draft = draftOption ?? config.draftPr ?? true;
     const branchName = customBranchName ?? generateBranchName(config, description);
 
     let mainWorktreeRoot = repoRoot;

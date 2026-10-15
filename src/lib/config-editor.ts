@@ -140,7 +140,7 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
         label: 'Draft PRs',
         description: 'Create PRs as drafts by default',
         type: 'boolean',
-        defaultValue: false,
+        defaultValue: true,
       },
       {
         key: 'preferredEditor',

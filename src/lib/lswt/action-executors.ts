@@ -443,14 +443,14 @@ async function createPr(worktree: WorktreeDisplay, config: WorktreeConfig): Prom
   ]);
 
   // Prompt for draft status if not configured
-  let isDraft = config.draftPr ?? false;
+  let isDraft = config.draftPr ?? true;
   if (config.draftPr === undefined) {
     const { draft } = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'draft',
         message: 'Create as draft PR?',
-        default: false,
+        default: true,
       },
     ]);
     isDraft = draft;

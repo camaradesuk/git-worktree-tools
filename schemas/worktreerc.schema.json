@@ -27,8 +27,8 @@
     },
     "draftPr": {
       "type": "boolean",
-      "default": false,
-      "description": "Create PRs as drafts by default"
+      "default": true,
+      "description": "Create PRs as drafts by default. Override per run with --ready (ready for review) or --draft; set false to create ready PRs by default"
     },
     "worktreePattern": {
       "type": "string",

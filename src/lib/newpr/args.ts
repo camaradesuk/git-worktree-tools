@@ -6,13 +6,30 @@ import type { Options, ParseResult } from './types.js';
 import { isValidStateActionKey } from '../json-output.js';
 
 /**
+ * Decide whether a PR should be created as a draft.
+ *
+ * Precedence: explicit --draft/--ready flag, then config `draftPr`, then the
+ * default (draft).
+ */
+export function resolveDraft(
+  options: { draft: boolean; draftExplicitlySet?: boolean },
+  configDraftPr?: boolean
+): boolean {
+  if (options.draftExplicitlySet) {
+    return options.draft;
+  }
+  return configDraftPr ?? true;
+}
+
+/**
  * Default options
  */
 export function getDefaultOptions(): Options {
   return {
     mode: 'new',
     baseBranch: 'main',
-    draft: false,
+    // PRs are drafts unless --ready (or config draftPr: false) says otherwise
+    draft: true,
     installDeps: false,
     openEditor: false,
     runWtlink: true,
