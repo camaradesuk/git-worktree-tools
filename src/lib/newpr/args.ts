@@ -6,12 +6,29 @@ import type { Options, ParseResult } from './types.js';
 import { isValidStateActionKey } from '../json-output.js';
 
 /**
+ * Decide whether a PR should be created as a draft.
+ *
+ * Precedence: explicit --draft/--ready flag, then config `draftPr`, then the
+ * default (ready for review).
+ */
+export function resolveDraft(
+  options: { draft?: boolean; draftExplicitlySet?: boolean },
+  configDraftPr?: boolean
+): boolean {
+  if (options.draftExplicitlySet) {
+    return options.draft ?? false;
+  }
+  return configDraftPr ?? false;
+}
+
+/**
  * Default options
  */
 export function getDefaultOptions(): Options {
   return {
     mode: 'new',
     baseBranch: 'main',
+    // PRs are ready for review unless --draft (or config draftPr: true) says otherwise
     draft: false,
     installDeps: false,
     openEditor: false,
@@ -27,6 +44,7 @@ export function getDefaultOptions(): Options {
  */
 export function parseArgs(args: string[]): ParseResult {
   const options = getDefaultOptions();
+  let readyFlag = false;
 
   let i = 0;
   while (i < args.length) {
@@ -85,6 +103,7 @@ export function parseArgs(args: string[]): ParseResult {
 
       case '-r':
       case '--ready':
+        readyFlag = true;
         options.draft = false;
         options.draftExplicitlySet = true;
         break;
@@ -166,6 +185,11 @@ export function parseArgs(args: string[]): ParseResult {
     i++;
   }
 
+  // --ready wins when both --ready and --draft are passed, matching `wt new`
+  if (readyFlag) {
+    options.draft = false;
+  }
+
   // Validate mutual exclusivity of --verbose and --quiet
   if (options.verbose && options.quiet) {
     return { kind: 'error', message: '--verbose and --quiet cannot be used together' };
@@ -197,7 +221,7 @@ Usage:
 Options:
   -b, --base BRANCH     Base branch for PR (default: main)
   -d, --draft           Create PR as draft
-  -r, --ready           Create PR as ready for review (default)
+  -r, --ready           Create PR as ready for review (default; configurable with draftPr)
   -i, --install         Install dependencies after setup
   -c, --code            Open editor to the new worktree
   --no-wtlink           Skip wtlink config sync

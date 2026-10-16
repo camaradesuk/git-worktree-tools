@@ -44,6 +44,7 @@ import {
   type Options,
   type StateAction,
 } from '../lib/newpr/index.js';
+import { resolveDraft } from '../lib/newpr/args.js';
 import {
   createSuccessResult,
   createErrorResult,
@@ -1406,9 +1407,7 @@ export async function runNewprHandler(options: Options): Promise<void> {
   try {
     const repoRoot = git.getRepoRoot();
     const config = loadConfigForRun(repoRoot, options);
-    if (!options.draftExplicitlySet && config.draftPr !== undefined) {
-      options.draft = config.draftPr;
-    }
+    options.draft = resolveDraft(options, config.draftPr);
   } catch {
     // If we can't get repo root yet, config will be loaded later in mode handlers
   }

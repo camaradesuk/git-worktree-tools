@@ -256,3 +256,57 @@ describe('wt new reads --body-file exactly once, before git mutation', () => {
     expect(options.bodyFile).toBeUndefined();
   });
 });
+
+describe('wt new draft/ready flags', () => {
+  beforeEach(() => {
+    runNewprHandler.mockReset();
+  });
+
+  it('defaults to ready and not explicitly set', async () => {
+    const options = await invoke({});
+    expect(options.draft).toBe(false);
+    expect(options.draftExplicitlySet).toBe(false);
+  });
+
+  it('--draft gives draft and is explicit', async () => {
+    const options = await invoke({ draft: true });
+    expect(options.draft).toBe(true);
+    expect(options.draftExplicitlySet).toBe(true);
+  });
+
+  it('--ready gives ready and is explicit', async () => {
+    const options = await invoke({ ready: true });
+    expect(options.draft).toBe(false);
+    expect(options.draftExplicitlySet).toBe(true);
+  });
+
+  it('--ready wins when both --ready and --draft are passed', async () => {
+    const options = await invoke({ ready: true, draft: true });
+    expect(options.draft).toBe(false);
+    expect(options.draftExplicitlySet).toBe(true);
+  });
+
+  it('help text says ready is the default (configurable with draftPr) and --draft opts in', () => {
+    const descriptions: Record<string, string> = {};
+    const fake: unknown = new Proxy(
+      {},
+      {
+        get: (_t, prop) => {
+          if (prop === 'option') {
+            return (name: string, cfg: { description?: string }) => {
+              descriptions[name] = cfg.description ?? '';
+              return fake;
+            };
+          }
+          return () => fake;
+        },
+      }
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (newCommand.builder as any)(fake);
+    expect(descriptions.ready).toBe(
+      'Create PR as ready for review (default; configurable with draftPr)'
+    );
+    expect(descriptions.draft).toBe('Create PR as draft');
+  });
+});

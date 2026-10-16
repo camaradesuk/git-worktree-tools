@@ -168,4 +168,56 @@ describe('createPr', () => {
     );
     expect(result.success).toBe(true);
   });
+
+  describe('draft resolution', () => {
+    const run = async (draft: boolean | undefined, config: Partial<ResolvedConfig>) => {
+      vi.mocked(git.getRepoRoot).mockReturnValue('/container/pr/pr1.other');
+      vi.mocked(git.getRepoName).mockReturnValue('container');
+      vi.mocked(git.getMainWorktreeRoot).mockReturnValue('/container');
+      vi.mocked(loadConfig).mockReturnValue(config as ResolvedConfig);
+      vi.mocked(generateBranchName).mockReturnValue('feat/current');
+      vi.mocked(analyzeGitState).mockReturnValue({
+        currentBranch: 'feat/current',
+      } as unknown as ReturnType<typeof analyzeGitState>);
+      vi.mocked(detectScenario).mockReturnValue('branch_with_changes');
+      const action = { action: 'commit_and_push', branchFrom: 'current' } as unknown as Parameters<
+        typeof isExistingBranchAction
+      >[0];
+      vi.mocked(getScenarioContext).mockReturnValue({
+        message: '',
+        choices: [{ label: 'Commit and push', action }],
+      } as unknown as ReturnType<typeof getScenarioContext>);
+      vi.mocked(isExistingBranchAction).mockReturnValue(true);
+      vi.mocked(createActionDeps).mockReturnValue({} as ReturnType<typeof createActionDeps>);
+      vi.mocked(executeStateAction).mockReturnValue({ success: true, stashRef: null });
+      vi.mocked(git.remoteBranchExists).mockReturnValue(true);
+      vi.mocked(github.getPrByBranch).mockReturnValue(null);
+      vi.mocked(github.createPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/container/pr/pr42.feature-x');
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      await createPr({ description: 'Add feature', draft });
+      return vi.mocked(github.createPr).mock.calls[0][0].draft;
+    };
+
+    it('explicit draft: false gives ready, even when config says draft', async () => {
+      expect(await run(false, { draftPr: true })).toBe(false);
+    });
+
+    it('explicit draft: true gives draft, even when config says ready', async () => {
+      expect(await run(true, { draftPr: false })).toBe(true);
+    });
+
+    it('undefined draft with config draftPr: false gives ready', async () => {
+      expect(await run(undefined, { draftPr: false })).toBe(false);
+    });
+
+    it('undefined draft with config draftPr: true gives draft', async () => {
+      expect(await run(undefined, { draftPr: true })).toBe(true);
+    });
+
+    it('undefined draft with no config value gives ready', async () => {
+      expect(await run(undefined, {})).toBe(false);
+    });
+  });
 });

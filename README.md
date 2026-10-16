@@ -414,7 +414,7 @@ wt init --local    # Personal repo overrides
 | Option            | Type     | Default               | Description                                                                                                                      |
 | ----------------- | -------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `baseBranch`      | string   | `"main"`              | Base branch for new PRs                                                                                                          |
-| `draftPr`         | boolean  | `false`               | Create PRs as drafts by default                                                                                                  |
+| `draftPr`         | boolean  | `false`               | Create PRs as drafts (`true`) or ready for review (`false`, default). `--draft` / `--ready` override per run                     |
 | `worktreePattern` | string   | `"{repo}.pr{number}"` | Naming pattern. Placeholders: `{repo}`, `{number}`, `{branch}`, `{slug}`. Doubled/trailing separators are cleaned automatically. |
 | `worktreeParent`  | string   | `".."`                | Parent directory for worktrees. If inside the repo, the directory is auto-created and added to `.gitignore`.                     |
 | `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names                                                                                           |

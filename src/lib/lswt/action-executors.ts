@@ -5,6 +5,7 @@
 import * as path from 'path';
 import { execSync, spawn, spawnSync } from 'child_process';
 import inquirer from 'inquirer';
+import { resolveDraft } from '../newpr/args.js';
 import * as colors from '../colors.js';
 import * as git from '../git.js';
 import * as github from '../github.js';
@@ -443,7 +444,7 @@ async function createPr(worktree: WorktreeDisplay, config: WorktreeConfig): Prom
   ]);
 
   // Prompt for draft status if not configured
-  let isDraft = config.draftPr ?? false;
+  let isDraft = resolveDraft({}, config.draftPr);
   if (config.draftPr === undefined) {
     const { draft } = await inquirer.prompt([
       {
