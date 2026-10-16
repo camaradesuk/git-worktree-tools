@@ -235,6 +235,20 @@ describe('newpr/args', () => {
         }
       });
 
+      it('lets --ready win over --draft in either order', () => {
+        for (const argv of [
+          ['--ready', '--draft', 'My feature'],
+          ['--draft', '--ready', 'My feature'],
+        ]) {
+          const result = parseArgs(argv);
+          expect(result.kind).toBe('success');
+          if (result.kind === 'success') {
+            expect(result.options.draft).toBe(false);
+            expect(result.options.draftExplicitlySet).toBe(true);
+          }
+        }
+      });
+
       it('parses -r', () => {
         const result = parseArgs(['-r', 'My feature']);
         expect(result.kind).toBe('success');

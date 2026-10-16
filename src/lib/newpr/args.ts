@@ -44,6 +44,7 @@ export function getDefaultOptions(): Options {
  */
 export function parseArgs(args: string[]): ParseResult {
   const options = getDefaultOptions();
+  let readyFlag = false;
 
   let i = 0;
   while (i < args.length) {
@@ -102,6 +103,7 @@ export function parseArgs(args: string[]): ParseResult {
 
       case '-r':
       case '--ready':
+        readyFlag = true;
         options.draft = false;
         options.draftExplicitlySet = true;
         break;
@@ -181,6 +183,11 @@ export function parseArgs(args: string[]): ParseResult {
         }
     }
     i++;
+  }
+
+  // --ready wins when both --ready and --draft are passed, matching `wt new`
+  if (readyFlag) {
+    options.draft = false;
   }
 
   // Validate mutual exclusivity of --verbose and --quiet
