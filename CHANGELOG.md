@@ -1,3 +1,15 @@
+## [1.15.2](https://github.com/camaradesuk/git-worktree-tools/compare/v1.15.1...v1.15.2) (2026-10-16)
+
+
+### Bug Fixes
+
+* **new:** create PRs as drafts by default ([5a3ad8b](https://github.com/camaradesuk/git-worktree-tools/commit/5a3ad8b6095e577c7f98ba197a0ea806f5a1a26d))
+* **new:** drop the --ready yargs default and the unused resolveDraft placeholders ([2fde977](https://github.com/camaradesuk/git-worktree-tools/commit/2fde977de0a206e876d5f2c038e44715288db800))
+* **new:** keep ready-for-review as the default; correct draft help text ([51856ea](https://github.com/camaradesuk/git-worktree-tools/commit/51856ea7297a7f71994a3df7414e9665facae93c))
+* **new:** let --ready win when both --ready and --draft are passed ([ea2ab88](https://github.com/camaradesuk/git-worktree-tools/commit/ea2ab886826b6e911f2bb081ae174967c94eba89))
+* **newpr:** let --ready win over --draft in either order, matching wt new ([73b729f](https://github.com/camaradesuk/git-worktree-tools/commit/73b729fe2787b30585f7c777240606756938ce64))
+* **new:** route API and lswt draft through resolveDraft; fix help text ([34f9587](https://github.com/camaradesuk/git-worktree-tools/commit/34f95874011fe3fb622c1ecf3fdb6ecb3b728193))
+
 ## [1.15.1](https://github.com/camaradesuk/git-worktree-tools/compare/v1.15.0...v1.15.1) (2026-08-28)
 
 
