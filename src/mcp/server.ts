@@ -132,7 +132,7 @@ export const tools: Tool[] = [
       '- data.branch: Branch name used for the PR\n' +
       '- data.worktreePath: Absolute path to the new worktree directory\n\n' +
       'Example success response:\n' +
-      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":true,"scenario":"main_clean_same","actionTaken":"empty_commit","created":true}}',
+      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/add-feature","worktreePath":"/home/user/repo.pr42","draft":false,"scenario":"main_clean_same","actionTaken":"empty_commit","created":true}}',
     annotations: {
       title: 'Create PR with Worktree',
       readOnlyHint: false,
@@ -154,7 +154,7 @@ export const tools: Tool[] = [
         },
         draft: {
           type: 'boolean',
-          description: 'Create as draft PR (default: true, or the draftPr config value)',
+          description: 'Create as draft PR (default: false, or the draftPr config value)',
         },
         baseBranch: {
           type: 'string',
@@ -197,7 +197,7 @@ export const tools: Tool[] = [
       '- data.worktreePath: Absolute path to the new worktree directory\n' +
       '- data.branch: Branch name checked out in the worktree\n\n' +
       'Example success response:\n' +
-      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/existing-feature","worktreePath":"/home/user/repo.pr42","draft":true,"created":false}}',
+      '{"success":true,"command":"newpr","timestamp":"...","data":{"prNumber":42,"prUrl":"https://github.com/owner/repo/pull/42","branch":"feat/existing-feature","worktreePath":"/home/user/repo.pr42","draft":false,"created":false}}',
     annotations: {
       title: 'Setup PR Worktree',
       readOnlyHint: false,

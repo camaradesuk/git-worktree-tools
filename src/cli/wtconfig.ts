@@ -867,7 +867,7 @@ async function runWizardSteps(env: EnvironmentInfo, repoRoot: string | null): Pr
       type: 'confirm',
       name: 'draftPr',
       message: 'Create PRs as drafts by default?',
-      default: true,
+      default: false,
     },
     {
       type: 'list',

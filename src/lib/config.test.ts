@@ -23,7 +23,7 @@ describe('config', () => {
       const config = getDefaultConfig();
 
       expect(config.baseBranch).toBe('main');
-      expect(config.draftPr).toBe(true);
+      expect(config.draftPr).toBe(false);
       expect(config.worktreePattern).toBe('{repo}.pr{number}');
       expect(config.worktreeParent).toBe('..');
       expect(config.worktreeParentAnchor).toBe('main-worktree');
@@ -455,7 +455,7 @@ describe('config', () => {
       // User setting
       expect(config.baseBranch).toBe('develop');
       // All other values should be defaults
-      expect(config.draftPr).toBe(true);
+      expect(config.draftPr).toBe(false);
       expect(config.worktreePattern).toBe('{repo}.pr{number}');
       expect(config.worktreeParent).toBe('..');
       expect(config.sharedRepos).toEqual([]);
@@ -612,7 +612,7 @@ describe('config', () => {
       expect(config.generators?.branchName).toBe('./gen.js');
       expect(config.integrations?.linear?.teamId).toBe('ENG');
       // Defaults should still be present
-      expect(config.draftPr).toBe(true);
+      expect(config.draftPr).toBe(false);
       expect(config.branchPrefix).toBe('feat');
     });
   });

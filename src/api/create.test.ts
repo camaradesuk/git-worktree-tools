@@ -212,8 +212,12 @@ describe('createPr', () => {
       expect(await run(undefined, { draftPr: false })).toBe(false);
     });
 
-    it('undefined draft with no config value gives draft', async () => {
-      expect(await run(undefined, {})).toBe(true);
+    it('undefined draft with config draftPr: true gives draft', async () => {
+      expect(await run(undefined, { draftPr: true })).toBe(true);
+    });
+
+    it('undefined draft with no config value gives ready', async () => {
+      expect(await run(undefined, {})).toBe(false);
     });
   });
 });

@@ -80,7 +80,7 @@ export const newCommand: CommandModule<object, NewArgs> = {
       .option('ready', {
         alias: 'r',
         type: 'boolean',
-        description: 'Create PR as ready for review (default: draft)',
+        description: 'Create PR as ready for review (default; configurable with draftPr)',
         default: false,
       })
       .option('draft', {
@@ -266,12 +266,13 @@ export const newCommand: CommandModule<object, NewArgs> = {
     }
 
     // Determine draft/draftExplicitlySet from argv
-    let draft = true;
+    let draft = false;
     let draftExplicitlySet = false;
-    if (argv.ready) {
-      draft = false;
+    if (argv.draft) {
+      draft = true;
       draftExplicitlySet = true;
-    } else if (argv.draft) {
+    } else if (argv.ready) {
+      draft = false;
       draftExplicitlySet = true;
     }
 

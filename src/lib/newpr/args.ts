@@ -9,7 +9,7 @@ import { isValidStateActionKey } from '../json-output.js';
  * Decide whether a PR should be created as a draft.
  *
  * Precedence: explicit --draft/--ready flag, then config `draftPr`, then the
- * default (draft).
+ * default (ready for review).
  */
 export function resolveDraft(
   options: { draft: boolean; draftExplicitlySet?: boolean },
@@ -18,7 +18,7 @@ export function resolveDraft(
   if (options.draftExplicitlySet) {
     return options.draft;
   }
-  return configDraftPr ?? true;
+  return configDraftPr ?? false;
 }
 
 /**
@@ -28,8 +28,8 @@ export function getDefaultOptions(): Options {
   return {
     mode: 'new',
     baseBranch: 'main',
-    // PRs are drafts unless --ready (or config draftPr: false) says otherwise
-    draft: true,
+    // PRs are ready for review unless --draft (or config draftPr: true) says otherwise
+    draft: false,
     installDeps: false,
     openEditor: false,
     runWtlink: true,
@@ -213,8 +213,8 @@ Usage:
 
 Options:
   -b, --base BRANCH     Base branch for PR (default: main)
-  -d, --draft           Create PR as draft (default)
-  -r, --ready           Create PR as ready for review (overrides the draft default)
+  -d, --draft           Create PR as draft
+  -r, --ready           Create PR as ready for review (default; configurable with draftPr)
   -i, --install         Install dependencies after setup
   -c, --code            Open editor to the new worktree
   --no-wtlink           Skip wtlink config sync

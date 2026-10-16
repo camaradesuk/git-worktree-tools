@@ -392,7 +392,7 @@ describe('cli/newpr', () => {
   });
 
   describe('--branch mode', () => {
-    describe('draft resolution (default is draft)', () => {
+    describe('draft resolution (default is ready)', () => {
       const runBranch = async (
         optionOverrides: Record<string, unknown>,
         configOverrides: Record<string, unknown>
@@ -419,14 +419,9 @@ describe('cli/newpr', () => {
         await runCli(['--branch', 'my-feature']);
       };
 
-      it('creates a draft PR when no flag is given and config draftPr is the default (true)', async () => {
-        await runBranch({ draft: true }, { draftPr: true });
-        expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
-      });
-
-      it('creates a draft PR when options carry no draft preference and config is the default', async () => {
-        await runBranch({ draft: false, draftExplicitlySet: false }, { draftPr: true });
-        expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
+      it('creates a ready PR when no flag is given and config draftPr is the default (false)', async () => {
+        await runBranch({ draft: false }, { draftPr: false });
+        expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: false }));
       });
 
       it('--ready creates a ready PR even when config draftPr is true', async () => {
@@ -439,7 +434,12 @@ describe('cli/newpr', () => {
         expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
       });
 
-      it('creates a draft PR when the config has no draftPr key at all', async () => {
+      it('config draftPr: true creates a draft PR when no flag is given', async () => {
+        await runBranch({ draft: false, draftExplicitlySet: false }, { draftPr: true });
+        expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
+      });
+
+      it('creates a ready PR when the config has no draftPr key at all', async () => {
         const { draftPr: _omit, ...configWithoutDraftPr } = defaultConfig;
         vi.mocked(newpr.parseArgs).mockReturnValue({
           kind: 'success',
@@ -456,11 +456,6 @@ describe('cli/newpr', () => {
         vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr456');
         vi.mocked(fs.existsSync).mockReturnValue(false);
         await runCli(['--branch', 'my-feature']);
-        expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: true }));
-      });
-
-      it('explicit config draftPr: false creates a ready PR', async () => {
-        await runBranch({ draft: true, draftExplicitlySet: false }, { draftPr: false });
         expect(github.createPr).toHaveBeenCalledWith(expect.objectContaining({ draft: false }));
       });
     });

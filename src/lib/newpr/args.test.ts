@@ -8,7 +8,7 @@ describe('newpr/args', () => {
 
       expect(defaults.mode).toBe('new');
       expect(defaults.baseBranch).toBe('main');
-      expect(defaults.draft).toBe(true);
+      expect(defaults.draft).toBe(false);
       expect(defaults.installDeps).toBe(false);
       expect(defaults.openEditor).toBe(false);
       expect(defaults.runWtlink).toBe(true);
@@ -541,13 +541,12 @@ describe('newpr/args', () => {
   });
 
   describe('getHelpText draft wording', () => {
-    it('documents draft as the default and --ready as the override', () => {
+    it('documents ready as the default (configurable with draftPr) and --draft as opt-in', () => {
       const help = getHelpText();
-      expect(help).toMatch(/-d, --draft\s+Create PR as draft \(default\)/);
+      expect(help).toMatch(/-d, --draft\s+Create PR as draft\n/);
       expect(help).toMatch(
-        /-r, --ready\s+Create PR as ready for review \(overrides the draft default\)/
+        /-r, --ready\s+Create PR as ready for review \(default; configurable with draftPr\)/
       );
-      expect(help).not.toMatch(/ready for review \(default\)/);
     });
   });
 
@@ -558,12 +557,12 @@ describe('newpr/args', () => {
       return r.options;
     };
 
-    it('defaults to draft with no flag and no config value', () => {
-      expect(resolveDraft(parse(['desc']), undefined)).toBe(true);
+    it('defaults to ready with no flag and no config value', () => {
+      expect(resolveDraft(parse(['desc']), undefined)).toBe(false);
     });
 
-    it('defaults to draft when config draftPr is the default (true)', () => {
-      expect(resolveDraft(parse(['desc']), true)).toBe(true);
+    it('--draft gives draft', () => {
+      expect(resolveDraft(parse(['desc', '--draft']), undefined)).toBe(true);
     });
 
     it('--ready gives ready, overriding config draftPr: true', () => {
@@ -574,7 +573,11 @@ describe('newpr/args', () => {
       expect(resolveDraft(parse(['desc', '--draft']), false)).toBe(true);
     });
 
-    it('explicit config draftPr: false gives ready', () => {
+    it('config draftPr: true gives draft', () => {
+      expect(resolveDraft(parse(['desc']), true)).toBe(true);
+    });
+
+    it('config draftPr: false gives ready', () => {
       expect(resolveDraft(parse(['desc']), false)).toBe(false);
     });
   });

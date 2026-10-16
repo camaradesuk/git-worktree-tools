@@ -471,8 +471,8 @@ describe.skipIf(!GH_AVAILABLE)('newpr e2e - git state scenarios', () => {
 
   // Test PR draft status
   describe('PR draft status', () => {
-    it('creates draft PR by default', () => {
-      // PRs are drafts by default (config draftPr defaults to true); --ready overrides
+    it('creates ready-for-review PR by default', () => {
+      // Note: PRs are NOT drafts by default in newpr (ready for review)
       const ctx = createTestContext({ scenario: 'main_clean_same' });
 
       try {
@@ -483,13 +483,13 @@ describe.skipIf(!GH_AVAILABLE)('newpr e2e - git state scenarios', () => {
 
         expect(result.exitCode).toBe(0);
 
-        // The gh mock should have been called with --draft (default)
+        // The gh mock should have been called with draft=false (default)
         const mockState = ctx.ghMock?.getState();
         if (mockState) {
-          // Find the created PR - should be a draft
+          // Find the created PR - should NOT be a draft
           for (const [, pr] of mockState.prs) {
             if (pr.headRefName.includes('ready-pr-test') || pr.headRefName.includes('feat')) {
-              expect(pr.isDraft).toBe(true);
+              expect(pr.isDraft).toBe(false);
             }
           }
         }
