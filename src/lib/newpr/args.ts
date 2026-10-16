@@ -12,11 +12,11 @@ import { isValidStateActionKey } from '../json-output.js';
  * default (ready for review).
  */
 export function resolveDraft(
-  options: { draft: boolean; draftExplicitlySet?: boolean },
+  options: { draft?: boolean; draftExplicitlySet?: boolean },
   configDraftPr?: boolean
 ): boolean {
   if (options.draftExplicitlySet) {
-    return options.draft;
+    return options.draft ?? false;
   }
   return configDraftPr ?? false;
 }

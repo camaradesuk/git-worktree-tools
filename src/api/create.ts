@@ -272,7 +272,7 @@ export async function createPr(options: CreatePrOptions): Promise<CreatePrResult
     const config = loadConfig(repoRoot);
     // Explicit option wins; otherwise config draftPr (default: false)
     const draft = resolveDraft(
-      { draft: draftOption ?? false, draftExplicitlySet: draftOption !== undefined },
+      { draft: draftOption, draftExplicitlySet: draftOption !== undefined },
       config.draftPr
     );
     const branchName = customBranchName ?? generateBranchName(config, description);

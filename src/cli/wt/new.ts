@@ -81,7 +81,6 @@ export const newCommand: CommandModule<object, NewArgs> = {
         alias: 'r',
         type: 'boolean',
         description: 'Create PR as ready for review (default; configurable with draftPr)',
-        default: false,
       })
       .option('draft', {
         alias: 'd',
