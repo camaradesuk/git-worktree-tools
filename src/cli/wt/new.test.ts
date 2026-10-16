@@ -280,6 +280,12 @@ describe('wt new draft/ready flags', () => {
     expect(options.draftExplicitlySet).toBe(true);
   });
 
+  it('--ready wins when both --ready and --draft are passed', async () => {
+    const options = await invoke({ ready: true, draft: true });
+    expect(options.draft).toBe(false);
+    expect(options.draftExplicitlySet).toBe(true);
+  });
+
   it('help text says ready is the default (configurable with draftPr) and --draft opts in', () => {
     const descriptions: Record<string, string> = {};
     const fake: unknown = new Proxy(

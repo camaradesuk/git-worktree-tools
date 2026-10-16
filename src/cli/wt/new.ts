@@ -268,11 +268,12 @@ export const newCommand: CommandModule<object, NewArgs> = {
     // Determine draft/draftExplicitlySet from argv
     let draft = false;
     let draftExplicitlySet = false;
-    if (argv.draft) {
-      draft = true;
-      draftExplicitlySet = true;
-    } else if (argv.ready) {
+    if (argv.ready) {
+      // --ready wins if both flags are passed
       draft = false;
+      draftExplicitlySet = true;
+    } else if (argv.draft) {
+      draft = true;
       draftExplicitlySet = true;
     }
 
