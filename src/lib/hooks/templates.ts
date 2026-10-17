@@ -72,7 +72,11 @@ export const vscodeOpenTemplate: HookTemplate = {
   name: 'vscode-open',
   description: 'Open the new worktree in VS Code after creation',
   hooks: {
-    'post-worktree': 'code "{{WORKTREE_PATH}}"',
+    'post-worktree': {
+      command: 'code "{{WORKTREE_PATH}}"',
+      if: 'command:code',
+      failOnError: false,
+    },
   },
 };
 
@@ -83,7 +87,11 @@ export const cursorOpenTemplate: HookTemplate = {
   name: 'cursor-open',
   description: 'Open the new worktree in Cursor after creation',
   hooks: {
-    'post-worktree': 'cursor "{{WORKTREE_PATH}}"',
+    'post-worktree': {
+      command: 'cursor "{{WORKTREE_PATH}}"',
+      if: 'command:cursor',
+      failOnError: false,
+    },
   },
 };
 

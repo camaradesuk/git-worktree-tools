@@ -12,6 +12,7 @@ import {
   suggestHookTemplates,
   autoDepsTemplate,
   vscodeOpenTemplate,
+  cursorOpenTemplate,
 } from './templates.js';
 
 describe('HOOK_TEMPLATES', () => {
@@ -209,9 +210,25 @@ describe('Individual templates', () => {
 
     it('opens worktree path in vscode', () => {
       const hook = vscodeOpenTemplate.hooks['post-worktree'];
-      expect(typeof hook).toBe('string');
-      expect(hook).toContain('code');
-      expect(hook).toContain('{{WORKTREE_PATH}}');
+      expect(hook).toMatchObject({ command: expect.stringContaining('code') });
+      expect((hook as { command: string }).command).toContain('{{WORKTREE_PATH}}');
+    });
+
+    it('skips without failing when code is not on PATH', () => {
+      expect(vscodeOpenTemplate.hooks['post-worktree']).toMatchObject({
+        if: 'command:code',
+        failOnError: false,
+      });
+    });
+  });
+
+  describe('cursorOpenTemplate', () => {
+    it('skips without failing when cursor is not on PATH', () => {
+      expect(cursorOpenTemplate.hooks['post-worktree']).toMatchObject({
+        command: 'cursor "{{WORKTREE_PATH}}"',
+        if: 'command:cursor',
+        failOnError: false,
+      });
     });
   });
 });

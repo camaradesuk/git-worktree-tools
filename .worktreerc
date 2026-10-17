@@ -6,6 +6,7 @@
   "branchPrefix": "feat",
   "sharedRepos": [],
   "syncPatterns": ["node_modules"],
+  "openEditor": true,
   "ai": {
     "provider": "auto",
     "branchName": true,
@@ -14,7 +15,7 @@
     "commitMessage": true
   },
   "hooks": {
-    "post-worktree": "cd {{WORKTREE_PATH}} && pnpm install --frozen-lockfile && code . && wt link link --yes"
+    "post-worktree": "cd {{WORKTREE_PATH}} && pnpm install --frozen-lockfile && wt link link --yes"
   },
   "hookDefaults": {
     "timeout": 60000

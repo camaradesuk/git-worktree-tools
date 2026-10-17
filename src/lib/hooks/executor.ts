@@ -7,6 +7,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { commandExists } from '../ai/cli-provider.js';
 import type {
   HookName,
   HookDefinition,
@@ -235,6 +236,12 @@ function evaluateCondition(condition: string, context: HookContext, cwd: string)
   if (condition.startsWith('env:')) {
     const varName = condition.slice(4);
     return !!process.env[varName];
+  }
+
+  // Handle "command:NAME" condition (check if a command is on PATH)
+  if (condition.startsWith('command:')) {
+    const commandName = condition.slice(8);
+    return commandName.length > 0 && commandExists(commandName);
   }
 
   // Handle "has-changes" condition

@@ -137,6 +137,7 @@ export const KNOWN_CONFIG_KEYS = new Set([
   'syncPatterns',
   'previewLabel',
   'preferredEditor',
+  'openEditor',
   'hooks',
   'hookDefaults',
   'wtlink',

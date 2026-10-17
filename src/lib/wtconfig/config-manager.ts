@@ -305,6 +305,11 @@ export function validateConfig(config: WorktreeConfig): ValidationResult {
     }
   }
 
+  // Validate openEditor
+  if (config.openEditor !== undefined && typeof config.openEditor !== 'boolean') {
+    errors.push({ path: 'openEditor', message: 'Must be a boolean' });
+  }
+
   // Validate sharedRepos
   if (config.sharedRepos !== undefined) {
     if (!Array.isArray(config.sharedRepos)) {

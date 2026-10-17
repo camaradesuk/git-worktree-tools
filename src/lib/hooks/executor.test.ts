@@ -424,6 +424,38 @@ describe('HookExecutor additional coverage', () => {
       expect(result.skipped).toBe(true);
     });
 
+    it('evaluates command: condition (true when on PATH)', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "git found"',
+          if: 'command:git',
+        },
+      };
+      const executor = new HookExecutor(config);
+
+      const result = await executor.executeHook('post-analyze', createTestContext());
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBeFalsy();
+      expect(result.output).toContain('git found');
+    });
+
+    it('evaluates command: condition (false when not on PATH)', async () => {
+      const config: HooksConfig = {
+        'post-worktree': {
+          command: 'nonexistent-editor-xyz-123 .',
+          if: 'command:nonexistent-editor-xyz-123',
+        },
+      };
+      const executor = new HookExecutor(config);
+
+      const result = await executor.executeHook('post-worktree', createTestContext());
+
+      expect(result.success).toBe(true);
+      expect(result.skipped).toBe(true);
+      expect(result.skipReason).toBe('Condition not met: command:nonexistent-editor-xyz-123');
+    });
+
     it('evaluates has-changes condition (true)', async () => {
       const config: HooksConfig = {
         'post-analyze': {

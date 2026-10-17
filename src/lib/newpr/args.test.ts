@@ -10,7 +10,8 @@ describe('newpr/args', () => {
       expect(defaults.baseBranch).toBe('main');
       expect(defaults.draft).toBe(false);
       expect(defaults.installDeps).toBe(false);
-      expect(defaults.openEditor).toBe(false);
+      // undefined defers to config openEditor
+      expect(defaults.openEditor).toBeUndefined();
       expect(defaults.runWtlink).toBe(true);
     });
   });

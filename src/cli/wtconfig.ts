@@ -279,6 +279,7 @@ function formatConfigWithDefaults(
     config.preferredEditor ?? defaults.preferredEditor,
     defaults.preferredEditor
   );
+  addLine('openEditor', config.openEditor ?? defaults.openEditor, defaults.openEditor);
 
   if (config.sharedRepos && config.sharedRepos.length > 0) {
     addLine('sharedRepos', config.sharedRepos, defaults.sharedRepos);
@@ -1366,11 +1367,10 @@ function buildConfigFromState(state: WizardState, env: EnvironmentInfo): Worktre
     hooks.push(getInstallCommand(env.packageManager));
   }
 
+  // The editor is opened by wt itself (openEditor), not chained into the
+  // hook: a missing editor would otherwise abort every later hook command.
   if (state.hooks.openEditor) {
-    const editorCmd = getEditorCommand(env.ide, state.preferredEditor);
-    if (editorCmd) {
-      hooks.push(editorCmd);
-    }
+    config.openEditor = true;
   }
 
   if (hooks.length > 0) {

@@ -832,6 +832,7 @@ Available conditions:
 - `exists:<file>` - File exists
 - `not:<condition>` - Negate condition
 - `env:<VAR_NAME>` - Environment variable is set
+- `command:<name>` - Command is on PATH (e.g. `command:code`)
 - `has-changes` - Has uncommitted changes
 - `has-staged` - Has staged changes
 - `scenario:<name>` - Matches specific scenario

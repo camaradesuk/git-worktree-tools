@@ -31,7 +31,7 @@ export function getDefaultOptions(): Options {
     // PRs are ready for review unless --draft (or config draftPr: true) says otherwise
     draft: false,
     installDeps: false,
-    openEditor: false,
+    openEditor: undefined,
     runWtlink: true,
     json: false,
     nonInteractive: false,
@@ -99,6 +99,10 @@ export function parseArgs(args: string[]): ParseResult {
       case '-c':
       case '--code':
         options.openEditor = true;
+        break;
+
+      case '--no-code':
+        options.openEditor = false;
         break;
 
       case '-r':
@@ -223,7 +227,8 @@ Options:
   -d, --draft           Create PR as draft
   -r, --ready           Create PR as ready for review (default; configurable with draftPr)
   -i, --install         Install dependencies after setup
-  -c, --code            Open editor to the new worktree
+  -c, --code            Open the worktree in preferredEditor after setup
+  --no-code             Don't open the editor, even if config openEditor is true
   --no-wtlink           Skip wtlink config sync
   --no-hooks            Disable lifecycle hooks (for security)
   --confirm-hooks       Prompt before running post-* hooks

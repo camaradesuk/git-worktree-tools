@@ -112,7 +112,7 @@ wt new "Description of the feature"
 wt new --branch my-feature "Feature description"
 wt new --pr 123              # Work on existing PR
 wt new --draft "WIP feature"
-wt new --install --code      # Install deps and open editor
+wt new --install --code      # Install deps and open editor (skipped if not installed)
 ```
 
 **Supplying PR content**: Pass exact title/body instead of generating them (see [AI Content
@@ -395,13 +395,14 @@ wt init --local    # Personal repo overrides
   "draftPr": true,
   "branchPrefix": "feat",
   "preferredEditor": "vscode",
+  "openEditor": true,
   "ai": {
     "provider": "auto",
     "branchName": true,
     "prDescription": true
   },
   "hooks": {
-    "post-worktree": ["npm install", "code ."]
+    "post-worktree": "npm install"
   },
   "logging": {
     "level": "info"
@@ -420,6 +421,7 @@ wt init --local    # Personal repo overrides
 | `branchPrefix`    | string   | `"feat"`              | Prefix for auto-generated branch names                                                                                           |
 | `sharedRepos`     | string[] | `[]`                  | Sibling repos to also create worktrees for                                                                                       |
 | `preferredEditor` | string   | `"vscode"`            | Editor: `"vscode"`, `"cursor"`, or `"auto"`                                                                                      |
+| `openEditor`      | boolean  | `false`               | Open new worktrees in `preferredEditor` after setup. Skipped with a notice if the editor isn't on PATH. `--code` / `--no-code`   |
 | `syncPatterns`    | string[] | `[]`                  | Patterns to sync between worktrees                                                                                               |
 | `previewLabel`    | string   | `"preview"`           | Label to highlight in PR browser                                                                                                 |
 | `ai`              | object   | `{}`                  | AI content generation settings                                                                                                   |
@@ -461,6 +463,8 @@ Run custom commands at various points in the workflow:
   }
 }
 ```
+
+**Opening an editor:** use `"openEditor": true` rather than adding `code .` to a hook. wt opens the editor after linking and the `post-worktree` hook have finished, and skips it with a notice on hosts where the editor isn't installed (CI, SSH, headless machines). A hook such as `"pnpm install && code . && wt link link --yes"` stops at `code: not found` on those hosts, so the steps after it never run.
 
 **Available hooks:** `pre-analyze`, `post-analyze`, `pre-branch`, `post-branch`, `pre-commit`, `post-commit`, `pre-push`, `post-push`, `pre-pr`, `post-pr`, `pre-worktree`, `post-worktree`, `cleanup`
 

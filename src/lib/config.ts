@@ -289,6 +289,15 @@ export interface WorktreeConfig {
   preferredEditor?: 'vscode' | 'cursor' | 'auto';
 
   /**
+   * Open the new worktree in `preferredEditor` once setup (linking and the
+   * post-worktree hook) has finished. Skipped with a notice when the editor
+   * command is not on PATH, so it never fails worktree creation.
+   * Overridden per run by `wt new --code` / `--no-code`.
+   * Default: false
+   */
+  openEditor?: boolean;
+
+  /**
    * AI content generation configuration
    */
   ai?: AIConfig;
@@ -386,6 +395,7 @@ export function getDefaultConfig(): ResolvedConfig {
     branchPrefix: DEFAULT_BRANCH_PREFIX,
     previewLabel: 'preview',
     preferredEditor: 'vscode',
+    openEditor: false,
     ai: DEFAULT_AI_CONFIG,
     hooks: {},
     hookDefaults: {
