@@ -58,6 +58,13 @@ describe('validateConfig', () => {
       expect(result.errors.some((e) => e.path === 'draftPr')).toBe(true);
     });
 
+    it('should validate openEditor type', () => {
+      expect(validateConfig({ openEditor: true }).valid).toBe(true);
+      const result = validateConfig({ openEditor: 'yes' });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.path === 'openEditor')).toBe(true);
+    });
+
     it('should validate preferredEditor enum', () => {
       const result = validateConfig({ preferredEditor: 'vim' });
       expect(result.valid).toBe(false);

@@ -440,6 +440,33 @@ describe('HookExecutor additional coverage', () => {
       expect(result.output).toContain('git found');
     });
 
+    it.skipIf(process.platform === 'win32')(
+      'evaluates command: condition against the hook env PATH',
+      async () => {
+        const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-hook-cmd-'));
+        try {
+          const tool = path.join(binDir, 'repo-local-tool-xyz');
+          fs.writeFileSync(tool, '#!/bin/sh\necho local tool ran\n', { mode: 0o755 });
+          const hookPath = `${binDir}${path.delimiter}${process.env.PATH}`;
+          const config: HooksConfig = {
+            'post-worktree': {
+              command: 'repo-local-tool-xyz',
+              if: 'command:repo-local-tool-xyz',
+              env: { PATH: hookPath },
+            },
+          };
+          const executor = new HookExecutor(config);
+
+          const result = await executor.executeHook('post-worktree', createTestContext());
+
+          expect(result.skipped).toBeFalsy();
+          expect(result.output).toContain('local tool ran');
+        } finally {
+          fs.rmSync(binDir, { recursive: true, force: true });
+        }
+      }
+    );
+
     it('evaluates command: condition (false when not on PATH)', async () => {
       const config: HooksConfig = {
         'post-worktree': {

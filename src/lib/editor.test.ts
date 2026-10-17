@@ -39,30 +39,28 @@ describe('editor', () => {
   });
 
   describe('openInEditor', () => {
-    it('launches the resolved editor with the worktree path', () => {
-      const launch = vi.fn();
+    it('launches the resolved editor with the worktree path', async () => {
+      const launch = vi.fn().mockResolvedValue(undefined);
 
-      const result = openInEditor('/wt/pr1', 'vscode', { isAvailable: only('code'), launch });
+      const result = await openInEditor('/wt/pr1', 'vscode', { isAvailable: only('code'), launch });
 
       expect(result).toEqual({ opened: true, command: 'code' });
       expect(launch).toHaveBeenCalledWith('code', '/wt/pr1');
     });
 
-    it('skips with a reason when no editor is on PATH', () => {
+    it('skips with a reason when no editor is on PATH', async () => {
       const launch = vi.fn();
 
-      const result = openInEditor('/wt/pr1', 'vscode', { isAvailable: only(), launch });
+      const result = await openInEditor('/wt/pr1', 'vscode', { isAvailable: only(), launch });
 
       expect(result).toEqual({ opened: false, reason: "'code' or 'cursor' not found on PATH" });
       expect(launch).not.toHaveBeenCalled();
     });
 
-    it('reports a launch failure instead of throwing', () => {
-      const launch = vi.fn(() => {
-        throw new Error('EACCES');
-      });
+    it('reports a launch failure instead of rejecting', async () => {
+      const launch = vi.fn().mockRejectedValue(new Error('EACCES'));
 
-      const result = openInEditor('/wt/pr1', 'auto', { isAvailable: only('code'), launch });
+      const result = await openInEditor('/wt/pr1', 'auto', { isAvailable: only('code'), launch });
 
       expect(result).toEqual({ opened: false, reason: "failed to launch 'code': EACCES" });
     });
@@ -96,19 +94,32 @@ describe('editor', () => {
       // Keep /usr/bin and /bin so `which` and `sh` still resolve
       process.env.PATH = `${binDir}:/usr/bin:/bin`;
 
-      const result = openInEditor('/some/worktree path', 'vscode');
+      const result = await openInEditor('/some/worktree path', 'vscode');
 
       expect(result).toEqual({ opened: true, command: 'code' });
       expect(await waitForFile(marker)).toBe('/some/worktree path');
     });
 
-    it('skips when neither code nor cursor is on PATH', () => {
+    it('skips when neither code nor cursor is on PATH', async () => {
       binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-editor-'));
       process.env.PATH = binDir;
 
-      const result = openInEditor('/some/worktree', 'vscode');
+      const result = await openInEditor('/some/worktree', 'vscode');
 
       expect(result).toEqual({ opened: false, reason: "'code' or 'cursor' not found on PATH" });
+    });
+
+    it('reports an asynchronous spawn failure instead of claiming success', async () => {
+      // The PATH check passes but the editor is gone by launch time (ENOENT
+      // arrives on the child's 'error' event, not as a throw from spawn)
+      binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-editor-'));
+      process.env.PATH = binDir;
+
+      const result = await openInEditor('/some/worktree', 'vscode', { isAvailable: () => true });
+
+      expect(result.opened).toBe(false);
+      expect(result).toMatchObject({ reason: expect.stringContaining("failed to launch 'code'") });
+      expect(result).toMatchObject({ reason: expect.stringContaining('ENOENT') });
     });
   });
 });

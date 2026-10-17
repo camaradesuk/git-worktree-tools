@@ -220,6 +220,14 @@ describe('newpr/args', () => {
         }
       });
 
+      it('parses --no-code', () => {
+        const result = parseArgs(['--no-code', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.openEditor).toBe(false);
+        }
+      });
+
       it('parses -c', () => {
         const result = parseArgs(['-c', 'My feature']);
         expect(result.kind).toBe('success');

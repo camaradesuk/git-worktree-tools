@@ -599,7 +599,7 @@ async function executePostWorktreeSequence(
 
   // Last, so a missing editor can never cut linking or the hook short.
   if (options.openEditor ?? config.openEditor) {
-    const editor = openInEditor(worktreePath, config.preferredEditor);
+    const editor = await openInEditor(worktreePath, config.preferredEditor);
     if (editor.opened) {
       printStatus('success', `Opened worktree in editor (${editor.command})`);
     } else {

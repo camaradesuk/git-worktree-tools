@@ -6,13 +6,14 @@
  */
 
 import { spawn } from 'child_process';
-import { commandExists } from './ai/cli-provider.js';
+import { commandExists } from './commands.js';
 
 export type PreferredEditor = 'vscode' | 'cursor' | 'auto';
 
 export interface EditorDeps {
   isAvailable: (cmd: string) => boolean;
-  launch: (cmd: string, targetPath: string) => void;
+  /** Resolves once the editor process has started; rejects if it can't */
+  launch: (cmd: string, targetPath: string) => Promise<void>;
 }
 
 export type OpenEditorResult =
@@ -37,17 +38,23 @@ export function resolveEditorCommand(
   return editorCandidates(preferred).find((cmd) => isAvailable(cmd)) ?? null;
 }
 
-function launchDetached(cmd: string, targetPath: string): void {
-  // Windows editor shims are .cmd files, which Node only runs through a shell.
-  const isWindows = process.platform === 'win32';
-  const child = spawn(cmd, [isWindows ? `"${targetPath}"` : targetPath], {
-    detached: true,
-    stdio: 'ignore',
-    shell: isWindows,
+function launchDetached(cmd: string, targetPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Windows editor shims are .cmd files, which Node only runs through a
+    // shell. `"` cannot occur in a Windows path, so plain quoting is enough.
+    const isWindows = process.platform === 'win32';
+    const child = spawn(cmd, [isWindows ? `"${targetPath}"` : targetPath], {
+      detached: true,
+      stdio: 'ignore',
+      shell: isWindows,
+    });
+    // Spawn failures (ENOENT, EACCES) arrive asynchronously as 'error'
+    child.on('error', reject);
+    child.on('spawn', () => {
+      child.unref();
+      resolve();
+    });
   });
-  // A launch error must not crash wt after the worktree is already set up.
-  child.on('error', () => {});
-  child.unref();
 }
 
 const defaultDeps: EditorDeps = {
@@ -56,13 +63,14 @@ const defaultDeps: EditorDeps = {
 };
 
 /**
- * Open targetPath in the preferred editor. Never throws.
+ * Open targetPath in the preferred editor. Never rejects.
  */
-export function openInEditor(
+export async function openInEditor(
   targetPath: string,
   preferred: PreferredEditor | undefined,
-  deps: EditorDeps = defaultDeps
-): OpenEditorResult {
+  overrides: Partial<EditorDeps> = {}
+): Promise<OpenEditorResult> {
+  const deps = { ...defaultDeps, ...overrides };
   const command = resolveEditorCommand(preferred, deps.isAvailable);
   if (!command) {
     const tried = editorCandidates(preferred)
@@ -72,7 +80,7 @@ export function openInEditor(
   }
 
   try {
-    deps.launch(command, targetPath);
+    await deps.launch(command, targetPath);
     return { opened: true, command };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

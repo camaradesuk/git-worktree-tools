@@ -2079,7 +2079,7 @@ describe('cli/newpr', () => {
       vi.mocked(github.getPr).mockReturnValue(makePrInfo());
       vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
       vi.mocked(fs.existsSync).mockReturnValue(false);
-      vi.mocked(openInEditor).mockReturnValue({ opened: true, command: 'code' });
+      vi.mocked(openInEditor).mockResolvedValue({ opened: true, command: 'code' });
     };
 
     it('opens the editor after the post-worktree hook when config openEditor is true', async () => {
@@ -2098,7 +2098,7 @@ describe('cli/newpr', () => {
 
     it('prints a skip notice and still completes when no editor is on PATH', async () => {
       setupPrMode({ openEditor: true });
-      vi.mocked(openInEditor).mockReturnValue({
+      vi.mocked(openInEditor).mockResolvedValue({
         opened: false,
         reason: "'code' or 'cursor' not found on PATH",
       });

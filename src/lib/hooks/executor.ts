@@ -7,7 +7,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { commandExists } from '../ai/cli-provider.js';
+import { commandExists } from '../commands.js';
 import type {
   HookName,
   HookDefinition,
@@ -218,7 +218,12 @@ export function resolveHookCwd(
 /**
  * Evaluate a condition string
  */
-function evaluateCondition(condition: string, context: HookContext, cwd: string): boolean {
+function evaluateCondition(
+  condition: string,
+  context: HookContext,
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
   // Handle "exists:filename" condition
   if (condition.startsWith('exists:')) {
     const fileName = condition.slice(7);
@@ -229,7 +234,7 @@ function evaluateCondition(condition: string, context: HookContext, cwd: string)
   // Handle "not:condition" condition
   if (condition.startsWith('not:')) {
     const innerCondition = condition.slice(4);
-    return !evaluateCondition(innerCondition, context, cwd);
+    return !evaluateCondition(innerCondition, context, cwd, env);
   }
 
   // Handle "env:VAR_NAME" condition (check if env var is set)
@@ -241,7 +246,7 @@ function evaluateCondition(condition: string, context: HookContext, cwd: string)
   // Handle "command:NAME" condition (check if a command is on PATH)
   if (condition.startsWith('command:')) {
     const commandName = condition.slice(8);
-    return commandName.length > 0 && commandExists(commandName);
+    return commandName.length > 0 && commandExists(commandName, env);
   }
 
   // Handle "has-changes" condition
@@ -373,7 +378,9 @@ async function executeComplexHook(
 
   // Check condition if specified
   if (definition.if) {
-    const conditionMet = evaluateCondition(definition.if, context, cwd);
+    // Same environment the command runs with, so command: sees the hook's PATH
+    const hookEnv = { ...process.env, ...contextToEnv(context), ...definition.env };
+    const conditionMet = evaluateCondition(definition.if, context, cwd, hookEnv);
     if (!conditionMet) {
       return {
         hook: hookName,
