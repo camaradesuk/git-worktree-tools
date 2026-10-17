@@ -7,7 +7,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { commandExists } from '../commands.js';
+import { isOnPath } from '../commands.js';
 import type {
   HookName,
   HookDefinition,
@@ -246,7 +246,7 @@ function evaluateCondition(
   // Handle "command:NAME" condition (check if a command is on PATH)
   if (condition.startsWith('command:')) {
     const commandName = condition.slice(8);
-    return commandName.length > 0 && commandExists(commandName, env);
+    return commandName.length > 0 && isOnPath(commandName, env);
   }
 
   // Handle "has-changes" condition

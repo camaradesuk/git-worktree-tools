@@ -6,7 +6,7 @@
  */
 
 import { spawn } from 'child_process';
-import { commandExists } from './commands.js';
+import { isOnPath } from './commands.js';
 
 export type PreferredEditor = 'vscode' | 'cursor' | 'auto';
 
@@ -33,7 +33,7 @@ export function editorCandidates(preferred: PreferredEditor | undefined): string
  */
 export function resolveEditorCommand(
   preferred: PreferredEditor | undefined,
-  isAvailable: (cmd: string) => boolean = commandExists
+  isAvailable: (cmd: string) => boolean = isOnPath
 ): string | null {
   return editorCandidates(preferred).find((cmd) => isAvailable(cmd)) ?? null;
 }
@@ -58,7 +58,7 @@ function launchDetached(cmd: string, targetPath: string): Promise<void> {
 }
 
 const defaultDeps: EditorDeps = {
-  isAvailable: commandExists,
+  isAvailable: isOnPath,
   launch: launchDetached,
 };
 
