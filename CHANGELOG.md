@@ -1,3 +1,17 @@
+# [1.16.0](https://github.com/camaradesuk/git-worktree-tools/compare/v1.15.2...v1.16.0) (2026-10-18)
+
+
+### Bug Fixes
+
+* **editor:** report async spawn failures; resolve command: against hook PATH ([67d0193](https://github.com/camaradesuk/git-worktree-tools/commit/67d0193a0f4543ed69da5b5324a37c0afd484cb0))
+* **hooks:** evaluate env: and command: in the hook's own environment ([ea2e0b1](https://github.com/camaradesuk/git-worktree-tools/commit/ea2e0b1645e629c67c0ae7a22c32e7a491b59fd6))
+* **hooks:** resolve command: by searching PATH directly, not via which ([c14e8ed](https://github.com/camaradesuk/git-worktree-tools/commit/c14e8ed4faa6873fac934d75e20adb54b2610fb0))
+
+
+### Features
+
+* **new:** open the editor after setup via openEditor, skip when not on PATH ([843a15f](https://github.com/camaradesuk/git-worktree-tools/commit/843a15fdceb9e7d6977f44a2387c50291e579330))
+
 ## [1.15.2](https://github.com/camaradesuk/git-worktree-tools/compare/v1.15.1...v1.15.2) (2026-10-16)
 
 
