@@ -7,7 +7,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { isOnPath } from '../commands.js';
+import { getEnvVar, isOnPath } from '../commands.js';
 import type {
   HookName,
   HookDefinition,
@@ -237,16 +237,16 @@ function evaluateCondition(
     return !evaluateCondition(innerCondition, context, cwd, env);
   }
 
-  // Handle "env:VAR_NAME" condition (check if env var is set)
+  // Handle "env:VAR_NAME" condition (check if env var is set in the hook env)
   if (condition.startsWith('env:')) {
     const varName = condition.slice(4);
-    return !!process.env[varName];
+    return !!getEnvVar(env, varName);
   }
 
   // Handle "command:NAME" condition (check if a command is on PATH)
   if (condition.startsWith('command:')) {
     const commandName = condition.slice(8);
-    return commandName.length > 0 && isOnPath(commandName, env);
+    return commandName.length > 0 && isOnPath(commandName, env, cwd);
   }
 
   // Handle "has-changes" condition
@@ -378,7 +378,8 @@ async function executeComplexHook(
 
   // Check condition if specified
   if (definition.if) {
-    // Same environment the command runs with, so command: sees the hook's PATH
+    // Same environment the command runs with, so env: and command: see what
+    // the hook will see (its own env, WT_* context variables, its PATH)
     const hookEnv = { ...process.env, ...contextToEnv(context), ...definition.env };
     const conditionMet = evaluateCondition(definition.if, context, cwd, hookEnv);
     if (!conditionMet) {

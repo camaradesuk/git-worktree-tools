@@ -408,6 +408,28 @@ describe('HookExecutor additional coverage', () => {
       expect(result.skipped).toBeFalsy();
     });
 
+    it('evaluates env: condition against the hook env and context variables', async () => {
+      const config: HooksConfig = {
+        'post-analyze': {
+          command: 'echo "flag set"',
+          if: 'env:WT_HOOK_TEST_FLAG_XYZ',
+          env: { WT_HOOK_TEST_FLAG_XYZ: '1' },
+        },
+        'post-pr': {
+          command: 'echo "has pr"',
+          if: 'env:WT_PR_NUMBER',
+        },
+      };
+      const executor = new HookExecutor(config);
+
+      const flag = await executor.executeHook('post-analyze', createTestContext());
+      const pr = await executor.executeHook('post-pr', createTestContext({ prNumber: 42 }));
+
+      expect(flag.skipped).toBeFalsy();
+      expect(flag.output).toContain('flag set');
+      expect(pr.skipped).toBeFalsy();
+    });
+
     it('evaluates env: condition (false)', async () => {
       const config: HooksConfig = {
         'post-analyze': {

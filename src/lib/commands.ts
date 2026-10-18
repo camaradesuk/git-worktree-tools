@@ -24,10 +24,13 @@ export function commandExists(cmd: string): boolean {
 /**
  * Read an env var the way the OS does: case-insensitively on Windows, where
  * a copied environment object keeps whatever casing it had (`Path`, `PATH`).
+ * The last match wins, so an override spread after process.env applies.
  */
-function getEnvVar(env: NodeJS.ProcessEnv, name: string): string | undefined {
+export function getEnvVar(env: NodeJS.ProcessEnv, name: string): string | undefined {
   if (process.platform !== 'win32') return env[name];
-  const key = Object.keys(env).find((k) => k.toUpperCase() === name);
+  const key = Object.keys(env)
+    .filter((k) => k.toUpperCase() === name.toUpperCase())
+    .pop();
   return key === undefined ? undefined : env[key];
 }
 
@@ -44,21 +47,28 @@ function isExecutableFile(file: string): boolean {
 /**
  * Check whether `cmd` resolves on the PATH in `env`, by searching the PATH
  * directly rather than running `which`. This works even when `env.PATH`
- * is a self-contained tool directory that has no `which` in it.
+ * is a self-contained tool directory that has no `which` in it. Relative
+ * and empty PATH entries resolve against `cwd`, as they would for a shell
+ * started there.
  */
-export function isOnPath(cmd: string, env: NodeJS.ProcessEnv = process.env): boolean {
+export function isOnPath(
+  cmd: string,
+  env: NodeJS.ProcessEnv = process.env,
+  cwd: string = process.cwd()
+): boolean {
   const isWindows = process.platform === 'win32';
   const extensions = isWindows
     ? ['', ...(getEnvVar(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)]
     : [''];
 
   // A name with a directory part is checked as given, like the shell does
-  const dirs =
+  const pathVar = getEnvVar(env, 'PATH');
+  const candidates =
     cmd.includes('/') || (isWindows && cmd.includes('\\'))
-      ? ['']
-      : (getEnvVar(env, 'PATH') ?? '').split(path.delimiter).filter(Boolean);
+      ? [path.resolve(cwd, cmd)]
+      : pathVar
+        ? pathVar.split(path.delimiter).map((dir) => path.resolve(cwd, dir, cmd))
+        : [];
 
-  return dirs.some((dir) =>
-    extensions.some((ext) => isExecutableFile(dir ? path.join(dir, cmd + ext) : cmd + ext))
-  );
+  return candidates.some((base) => extensions.some((ext) => isExecutableFile(base + ext)));
 }

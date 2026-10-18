@@ -357,7 +357,7 @@
             },
             "if": {
               "type": "string",
-              "description": "Condition for running the hook: exists:<file>, not:<condition>, env:<VAR>, command:<name> (on PATH), has-changes, has-staged, scenario:<name>"
+              "description": "Condition for running the hook: exists:<file>, not:<condition>, env:<VAR> (set in the hook environment), command:<name> (on the hook PATH), has-changes, has-staged, scenario:<name>"
             },
             "env": {
               "type": "object",
