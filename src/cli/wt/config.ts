@@ -181,6 +181,7 @@ const PROVENANCE_KEYS = [
   'worktreePattern',
   'worktreeParent',
   'preferredEditor',
+  'openEditor',
   'sharedRepos',
   'ai.provider',
   'ai.fallback',

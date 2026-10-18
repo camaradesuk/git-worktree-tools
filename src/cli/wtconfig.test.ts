@@ -1537,14 +1537,10 @@ describe('cli/wtconfig', () => {
 
       await runCli(['init']);
 
-      expect(wtconfig.saveRepoConfig).toHaveBeenCalledWith(
-        '/repo',
-        expect.objectContaining({
-          hooks: expect.objectContaining({
-            'post-worktree': 'code',
-          }),
-        })
-      );
+      // The editor is opened by wt (openEditor), never chained into a hook
+      const saved = vi.mocked(wtconfig.saveRepoConfig).mock.calls[0][1];
+      expect(saved.openEditor).toBe(true);
+      expect(saved.hooks).toBeUndefined();
     });
 
     it('builds config with multiple hooks', async () => {
@@ -1563,9 +1559,8 @@ describe('cli/wtconfig', () => {
       expect(wtconfig.saveRepoConfig).toHaveBeenCalledWith(
         '/repo',
         expect.objectContaining({
-          hooks: expect.objectContaining({
-            'post-worktree': expect.arrayContaining(['npm install', 'code']),
-          }),
+          openEditor: true,
+          hooks: { 'post-worktree': 'npm install' },
         })
       );
     });

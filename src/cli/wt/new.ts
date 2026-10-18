@@ -74,8 +74,8 @@ export const newCommand: CommandModule<object, NewArgs> = {
       .option('code', {
         alias: 'c',
         type: 'boolean',
-        description: 'Open editor to the new worktree',
-        default: false,
+        description:
+          'Open the new worktree in preferredEditor after setup (default: config openEditor; --no-code to skip)',
       })
       .option('ready', {
         alias: 'r',
@@ -285,7 +285,7 @@ export const newCommand: CommandModule<object, NewArgs> = {
       draft,
       draftExplicitlySet,
       installDeps: !!argv.install,
-      openEditor: !!argv.code,
+      openEditor: argv.code,
       runWtlink: !argv['no-wtlink'],
       json: !!argv.json,
       nonInteractive: !!argv['non-interactive'],

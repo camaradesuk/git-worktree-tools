@@ -65,7 +65,12 @@
       "type": "string",
       "enum": ["vscode", "cursor", "auto"],
       "default": "vscode",
-      "description": "Preferred editor for 'Open in editor' action in lswt interactive mode"
+      "description": "Preferred editor for 'Open in editor' actions and for openEditor"
+    },
+    "openEditor": {
+      "type": "boolean",
+      "default": false,
+      "description": "Open the new worktree in preferredEditor after setup (wtlink and the post-worktree hook) completes. Skipped with a notice when the editor command is not on PATH; never fails worktree creation. Overridden per run by wt new --code / --no-code."
     },
     "ai": {
       "$ref": "#/definitions/AIConfig"
@@ -352,7 +357,7 @@
             },
             "if": {
               "type": "string",
-              "description": "Condition for running the hook"
+              "description": "Condition for running the hook: exists:<file>, not:<condition>, env:<VAR> (set in the hook environment), command:<name> (on the hook PATH), has-changes, has-staged, scenario:<name>"
             },
             "env": {
               "type": "object",

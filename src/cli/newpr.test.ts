@@ -105,6 +105,10 @@ vi.mock('../lib/wtlink/link-configs.js', () => ({
   run: vi.fn(),
 }));
 
+vi.mock('../lib/editor.js', () => ({
+  openInEditor: vi.fn(),
+}));
+
 // Import after mocking
 import * as git from '../lib/git.js';
 import * as github from '../lib/github.js';
@@ -122,6 +126,7 @@ import fs from 'fs';
 import { getEnabledFiles } from '../lib/wtlink/config-manifest.js';
 import { run as runWtlink } from '../lib/wtlink/link-configs.js';
 import { setJsonMode } from '../lib/ui/output.js';
+import { openInEditor } from '../lib/editor.js';
 
 describe('cli/newpr', () => {
   let mockConsoleLog: ReturnType<typeof vi.spyOn>;
@@ -2055,6 +2060,80 @@ describe('cli/newpr', () => {
       // report "AI skipped (--skip-ai)" rather than the misleading
       // "ai.provider = 'none'".
       expect(configPassed.ai.provider).toBe('claude');
+    });
+  });
+  describe('open editor after setup (openEditor / --code)', () => {
+    const setupPrMode = (
+      optionOverrides: { openEditor?: boolean } = {},
+      configOverrides: Record<string, unknown> = {}
+    ) => {
+      vi.mocked(newpr.parseArgs).mockReturnValue({
+        kind: 'success',
+        options: { mode: 'pr', prNumber: 123, ...defaultOptions, ...optionOverrides },
+      });
+      vi.mocked(github.isGhInstalled).mockReturnValue(true);
+      vi.mocked(github.isAuthenticated).mockReturnValue(true);
+      vi.mocked(git.getRepoRoot).mockReturnValue('/repo');
+      vi.mocked(git.getRepoName).mockReturnValue('repo');
+      vi.mocked(loadConfig).mockReturnValue({ ...defaultConfig, ...configOverrides });
+      vi.mocked(github.getPr).mockReturnValue(makePrInfo());
+      vi.mocked(generateWorktreePath).mockReturnValue('/repo.pr123');
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      vi.mocked(openInEditor).mockResolvedValue({ opened: true, command: 'code' });
+    };
+
+    it('opens the editor after the post-worktree hook when config openEditor is true', async () => {
+      setupPrMode({ openEditor: undefined }, { openEditor: true });
+
+      await runCli(['--pr', '123']);
+
+      expect(openInEditor).toHaveBeenCalledWith('/repo.pr123', 'auto');
+      expect(mockHookRunner.runHook).toHaveBeenCalledWith('post-worktree');
+      const hookOrder = mockHookRunner.runHook.mock.invocationCallOrder.at(-1)!;
+      expect(vi.mocked(openInEditor).mock.invocationCallOrder[0]).toBeGreaterThan(hookOrder);
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Opened worktree in editor (code)')
+      );
+    });
+
+    it('prints a skip notice and still completes when no editor is on PATH', async () => {
+      setupPrMode({ openEditor: true });
+      vi.mocked(openInEditor).mockResolvedValue({
+        opened: false,
+        reason: "'code' or 'cursor' not found on PATH",
+      });
+
+      await runCli(['--pr', '123']);
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining("Editor skipped: 'code' or 'cursor' not found on PATH")
+      );
+      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('PR #123'));
+      expect(mockProcessExit).not.toHaveBeenCalledWith(1);
+    });
+
+    it('--code opens the editor even when config openEditor is false', async () => {
+      setupPrMode({ openEditor: true }, { openEditor: false });
+
+      await runCli(['--pr', '123']);
+
+      expect(openInEditor).toHaveBeenCalledWith('/repo.pr123', 'auto');
+    });
+
+    it('--no-code skips the editor even when config openEditor is true', async () => {
+      setupPrMode({ openEditor: false }, { openEditor: true });
+
+      await runCli(['--pr', '123']);
+
+      expect(openInEditor).not.toHaveBeenCalled();
+    });
+
+    it('does not open the editor by default', async () => {
+      setupPrMode({ openEditor: undefined });
+
+      await runCli(['--pr', '123']);
+
+      expect(openInEditor).not.toHaveBeenCalled();
     });
   });
 });

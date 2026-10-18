@@ -16,6 +16,7 @@ import { logger, initializeLogger, setAuditContext } from '../lib/logger.js';
 import { promptChoiceIndex, promptConfirm, withSpinner } from '../lib/prompts.js';
 import { getEnabledFiles } from '../lib/wtlink/config-manifest.js';
 import { run as runWtlink } from '../lib/wtlink/link-configs.js';
+import { openInEditor } from '../lib/editor.js';
 import {
   loadConfig,
   generateBranchNameAsync,
@@ -567,6 +568,7 @@ async function handlePlanGeneration(
  * Execute the unified post-worktree sequence:
  * 1. Plan generation (if enabled)
  * 2. Post-worktree hook
+ * 3. Open the editor (if --code or config openEditor)
  *
  * This ensures consistent behavior across all three newpr modes.
  */
@@ -593,6 +595,16 @@ async function executePostWorktreeSequence(
   if (hookRunner) {
     hookRunner.updateContext({ worktreePath });
     await hookRunner.runHook('post-worktree');
+  }
+
+  // Last, so a missing editor can never cut linking or the hook short.
+  if (options.openEditor ?? config.openEditor) {
+    const editor = await openInEditor(worktreePath, config.preferredEditor);
+    if (editor.opened) {
+      printStatus('success', `Opened worktree in editor (${editor.command})`);
+    } else {
+      printStatus('info', `Editor skipped: ${editor.reason}`);
+    }
   }
 
   return result;

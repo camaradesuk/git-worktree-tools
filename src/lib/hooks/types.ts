@@ -129,7 +129,10 @@ export interface ComplexHookDef {
   /** Whether to fail on error (default: true) */
   failOnError?: boolean;
 
-  /** Condition for running the hook */
+  /**
+   * Condition for running the hook: exists:<file>, not:<condition>,
+   * env:<VAR>, command:<name>, has-changes, has-staged, scenario:<name>
+   */
   if?: string;
 
   /** Additional environment variables */

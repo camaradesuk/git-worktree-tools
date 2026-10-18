@@ -90,6 +90,7 @@ const KNOWN_TOP_LEVEL_KEYS = [
   'branchPrefix',
   'previewLabel',
   'preferredEditor',
+  'openEditor',
   'ai',
   'hooks',
   'hookDefaults',
@@ -239,6 +240,11 @@ export function validateConfig(config: unknown): ValidationResult {
   // Validate wtlink config
   if (obj.wtlink !== undefined) {
     validateWtlinkConfig(obj.wtlink, errors);
+  }
+
+  // Validate openEditor
+  if (obj.openEditor !== undefined && typeof obj.openEditor !== 'boolean') {
+    errors.push({ path: 'openEditor', message: 'openEditor must be a boolean' });
   }
 
   // Validate linkConfigFiles

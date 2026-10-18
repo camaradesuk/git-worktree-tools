@@ -10,7 +10,8 @@ describe('newpr/args', () => {
       expect(defaults.baseBranch).toBe('main');
       expect(defaults.draft).toBe(false);
       expect(defaults.installDeps).toBe(false);
-      expect(defaults.openEditor).toBe(false);
+      // undefined defers to config openEditor
+      expect(defaults.openEditor).toBeUndefined();
       expect(defaults.runWtlink).toBe(true);
     });
   });
@@ -216,6 +217,14 @@ describe('newpr/args', () => {
         expect(result.kind).toBe('success');
         if (result.kind === 'success') {
           expect(result.options.openEditor).toBe(true);
+        }
+      });
+
+      it('parses --no-code', () => {
+        const result = parseArgs(['--no-code', 'My feature']);
+        expect(result.kind).toBe('success');
+        if (result.kind === 'success') {
+          expect(result.options.openEditor).toBe(false);
         }
       });
 

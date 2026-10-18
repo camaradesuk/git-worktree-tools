@@ -22,7 +22,8 @@ export interface Options {
   /** Tracks if draft was explicitly set via CLI flag (--draft or --ready) */
   draftExplicitlySet?: boolean;
   installDeps: boolean;
-  openEditor: boolean;
+  /** Open the editor after setup (--code / --no-code); undefined = config openEditor */
+  openEditor?: boolean;
   runWtlink: boolean;
 
   // AI-friendly options (Phase 1)

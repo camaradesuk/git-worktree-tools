@@ -12,21 +12,9 @@ import * as crypto from 'crypto';
 import type { AIGenerationResult } from './types.js';
 import { DEFAULT_AI_TIMEOUT_MS } from './types.js';
 import { BaseAIProvider, createSuccessResult, createErrorResult } from './base-provider.js';
+import { commandExists } from '../commands.js';
 
-/**
- * Check if a command exists in PATH
- */
-export function commandExists(cmd: string): boolean {
-  try {
-    const result = spawnSync(process.platform === 'win32' ? 'where' : 'which', [cmd], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      encoding: 'utf-8',
-    });
-    return result.status === 0;
-  } catch {
-    return false;
-  }
-}
+export { commandExists };
 
 /**
  * Execute a CLI command and capture output

@@ -150,6 +150,13 @@ export const CONFIG_CATEGORIES: ConfigCategory[] = [
         enumValues: ['vscode', 'cursor', 'auto'],
         defaultValue: 'vscode',
       },
+      {
+        key: 'openEditor',
+        label: 'Open Editor',
+        description: 'Open new worktrees in the preferred editor (skipped if not installed)',
+        type: 'boolean',
+        defaultValue: false,
+      },
     ],
   },
   {

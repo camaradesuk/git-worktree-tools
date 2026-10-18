@@ -398,7 +398,10 @@ async function handleNewPRFromDescription(): Promise<FlowResult> {
 
     // Optional: open in editor
     const editorName = getEditorDisplayName(config.preferredEditor);
-    const shouldOpenEditor = await promptConfirm(`Open in ${editorName}?`, false);
+    const shouldOpenEditor = await promptConfirm(
+      `Open in ${editorName}?`,
+      config.openEditor ?? false
+    );
 
     // Build Options object for direct call
     const options: NewprOptions = {
@@ -449,10 +452,12 @@ async function handleNewPRFromExisting(): Promise<FlowResult> {
 
     // Load config for editor preference
     let editorName = 'VS Code';
+    let openEditorDefault = false;
     try {
       const repoRoot = git.getRepoRoot();
       const config = loadConfig(repoRoot);
       editorName = getEditorDisplayName(config.preferredEditor);
+      openEditorDefault = config.openEditor ?? false;
     } catch {
       // Not in a repo, use default
     }
@@ -461,7 +466,7 @@ async function handleNewPRFromExisting(): Promise<FlowResult> {
     const shouldInstall = await promptConfirm('Install dependencies after setup?', false);
 
     // Optional: open in editor
-    const shouldOpenEditor = await promptConfirm(`Open in ${editorName}?`, false);
+    const shouldOpenEditor = await promptConfirm(`Open in ${editorName}?`, openEditorDefault);
 
     // Build Options object for direct call
     const options: NewprOptions = {
@@ -559,7 +564,7 @@ async function handleNewPRFromBranch(): Promise<FlowResult> {
       draft: isDraft,
       draftExplicitlySet: true,
       installDeps: false,
-      openEditor: false,
+      openEditor: undefined,
       runWtlink: true,
       json: false,
       nonInteractive: false,

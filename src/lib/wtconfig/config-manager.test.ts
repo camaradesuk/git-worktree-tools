@@ -389,6 +389,13 @@ describe('config-manager', () => {
       });
     });
 
+    it('returns error for invalid openEditor type', () => {
+      const config = { openEditor: 'yes' as unknown as boolean };
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toContainEqual({ path: 'openEditor', message: 'Must be a boolean' });
+    });
+
     it('returns error for invalid draftPr type', () => {
       const config = { draftPr: 'yes' as unknown as boolean };
       const result = validateConfig(config);
