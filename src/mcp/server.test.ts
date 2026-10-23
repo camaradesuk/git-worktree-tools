@@ -45,8 +45,39 @@ import { listWorktrees } from '../api/list.js';
 import { cleanWorktrees } from '../api/clean.js';
 import { createPr, setupPrWorktree } from '../api/create.js';
 import { isValidStateActionKey, type StateActionKey, ErrorCode } from '../lib/json-output.js';
-// Import tools array for definition tests (safe because SDK is mocked)
-import { tools } from './server.js';
+// Import tools array for definition tests, and handleToolCall to exercise the
+// actual dispatch logic (safe because the SDK's Server is mocked above).
+import { tools, handleToolCall } from './server.js';
+import { isJsonMode, print } from '../lib/ui/index.js';
+
+/** Extract and parse the JSON text body a handleToolCall response carries. */
+function parseToolResult(response: {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+}): { success: boolean; data?: Record<string, unknown>; error?: { code: string } } {
+  return JSON.parse(response.content[0].text);
+}
+
+// stdout on the MCP server process IS the JSON-RPC channel, so a stray
+// console.log corrupts the protocol. Routing PR creation through
+// resolvePRContent made printStatus reachable here for the first time (an
+// AI-backed generation emits a status line on success AND failure), so the
+// server enables JSON mode at startup. Importing ./server.js runs main().
+describe('MCP Server stdout protocol safety', () => {
+  it('enables JSON mode at startup so nothing can leak onto stdout', () => {
+    expect(isJsonMode()).toBe(true);
+  });
+
+  it('suppresses print() output, which would otherwise corrupt JSON-RPC', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      print('this must never reach stdout');
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
 
 describe('MCP Server', () => {
   beforeEach(() => {
@@ -341,6 +372,12 @@ describe('MCP Server', () => {
   });
 
   describe('worktree_create_pr handler', () => {
+    // These tests drive handleToolCall(...) directly — the real dispatch
+    // function the MCP server's request handler delegates to — rather than
+    // calling the mocked createPr() ourselves. Calling the mock directly
+    // would only prove the test file can call a mock; it would not detect
+    // the handler failing to forward its args, which is the exact bug this
+    // suite exists to catch.
     it('calls createPr with required options', async () => {
       const mockResult = {
         success: true,
@@ -358,7 +395,7 @@ describe('MCP Server', () => {
 
       vi.mocked(createPr).mockResolvedValue(mockResult);
 
-      const result = await createPr({
+      const response = await handleToolCall('worktree_create_pr', {
         description: 'Add new feature',
         baseBranch: 'main',
         draft: false,
@@ -366,9 +403,17 @@ describe('MCP Server', () => {
 
       expect(createPr).toHaveBeenCalledWith({
         description: 'Add new feature',
-        baseBranch: 'main',
+        action: undefined,
         draft: false,
+        baseBranch: 'main',
+        branchName: undefined,
+        title: undefined,
+        body: undefined,
+        bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
       });
+      const result = parseToolResult(response);
       expect(result.success).toBe(true);
       expect(result.data?.prNumber).toBe(42);
     });
@@ -393,7 +438,7 @@ describe('MCP Server', () => {
       vi.mocked(createPr).mockResolvedValue(mockResult);
 
       const action: StateActionKey = 'commit_staged';
-      const result = await createPr({
+      const response = await handleToolCall('worktree_create_pr', {
         description: 'Commit staged changes',
         action,
         draft: true,
@@ -405,7 +450,14 @@ describe('MCP Server', () => {
         action: 'commit_staged',
         draft: true,
         baseBranch: 'develop',
+        branchName: undefined,
+        title: undefined,
+        body: undefined,
+        bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
       });
+      const result = parseToolResult(response);
       expect(result.success).toBe(true);
       expect(result.data?.draft).toBe(true);
     });
@@ -427,7 +479,7 @@ describe('MCP Server', () => {
 
       vi.mocked(createPr).mockResolvedValue(mockResult);
 
-      const result = await createPr({
+      const response = await handleToolCall('worktree_create_pr', {
         description: 'Custom branch PR',
         branchName: 'custom/my-branch',
         baseBranch: 'main',
@@ -436,12 +488,157 @@ describe('MCP Server', () => {
 
       expect(createPr).toHaveBeenCalledWith({
         description: 'Custom branch PR',
+        action: undefined,
         branchName: 'custom/my-branch',
         baseBranch: 'main',
         draft: false,
+        title: undefined,
+        body: undefined,
+        bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
       });
+      const result = parseToolResult(response);
       expect(result.success).toBe(true);
       expect(result.data?.branch).toBe('custom/my-branch');
+    });
+
+    it('calls createPr with supplied title/body and reports provenance', async () => {
+      const mockResult = {
+        success: true,
+        command: 'newpr',
+        timestamp: '2026-01-02T00:00:00.000Z',
+        data: {
+          prNumber: 45,
+          prUrl: 'https://github.com/test/repo/pull/45',
+          branch: 'feat/exact-content',
+          worktreePath: '/test/repo.pr45',
+          draft: false,
+          created: true,
+          titleSource: 'flag' as const,
+          bodySource: 'flag' as const,
+          aiProvider: null,
+          aiError: null,
+        },
+      };
+
+      vi.mocked(createPr).mockResolvedValue(mockResult);
+
+      const response = await handleToolCall('worktree_create_pr', {
+        description: 'Add exact-content feature',
+        baseBranch: 'main',
+        draft: false,
+        title: 'Exact PR title',
+        body: 'Exact PR body',
+      });
+
+      expect(createPr).toHaveBeenCalledWith({
+        description: 'Add exact-content feature',
+        action: undefined,
+        branchName: undefined,
+        baseBranch: 'main',
+        draft: false,
+        title: 'Exact PR title',
+        body: 'Exact PR body',
+        bodyFile: undefined,
+        forceAi: undefined,
+        skipAi: undefined,
+      });
+      const result = parseToolResult(response);
+      expect(result.success).toBe(true);
+      expect(result.data?.titleSource).toBe('flag');
+      expect(result.data?.bodySource).toBe('flag');
+    });
+
+    it('calls createPr with bodyFile', async () => {
+      const mockResult = {
+        success: true,
+        command: 'newpr',
+        timestamp: '2026-01-02T00:00:00.000Z',
+        data: {
+          prNumber: 46,
+          prUrl: 'https://github.com/test/repo/pull/46',
+          branch: 'feat/body-file',
+          worktreePath: '/test/repo.pr46',
+          draft: false,
+          created: true,
+        },
+      };
+
+      vi.mocked(createPr).mockResolvedValue(mockResult);
+
+      const response = await handleToolCall('worktree_create_pr', {
+        description: 'Add body-file feature',
+        baseBranch: 'main',
+        draft: false,
+        bodyFile: '/tmp/pr-body.md',
+      });
+
+      expect(createPr).toHaveBeenCalledWith({
+        description: 'Add body-file feature',
+        action: undefined,
+        branchName: undefined,
+        baseBranch: 'main',
+        draft: false,
+        title: undefined,
+        body: undefined,
+        bodyFile: '/tmp/pr-body.md',
+        forceAi: undefined,
+        skipAi: undefined,
+      });
+      const result = parseToolResult(response);
+      expect(result.success).toBe(true);
+    });
+
+    it('calls createPr with forceAi and skipAi', async () => {
+      const mockResult = {
+        success: true,
+        command: 'newpr',
+        timestamp: '2026-01-02T00:00:00.000Z',
+        data: {
+          prNumber: 47,
+          prUrl: 'https://github.com/test/repo/pull/47',
+          branch: 'feat/ai-flags',
+          worktreePath: '/test/repo.pr47',
+          draft: false,
+          created: true,
+        },
+      };
+
+      vi.mocked(createPr).mockResolvedValue(mockResult);
+
+      const response = await handleToolCall('worktree_create_pr', {
+        description: 'Add AI-flag feature',
+        baseBranch: 'main',
+        draft: false,
+        forceAi: true,
+        skipAi: false,
+      });
+
+      expect(createPr).toHaveBeenCalledWith({
+        description: 'Add AI-flag feature',
+        action: undefined,
+        branchName: undefined,
+        baseBranch: 'main',
+        draft: false,
+        title: undefined,
+        body: undefined,
+        bodyFile: undefined,
+        forceAi: true,
+        skipAi: false,
+      });
+      const result = parseToolResult(response);
+      expect(result.success).toBe(true);
+    });
+
+    it('requires a description', async () => {
+      const response = await handleToolCall('worktree_create_pr', {});
+
+      expect(createPr).not.toHaveBeenCalled();
+      const result = parseToolResult(response);
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('INVALID_ARGUMENT');
+      expect(response.isError).toBe(true);
     });
   });
 
@@ -589,6 +786,41 @@ describe('MCP Server', () => {
       expect(tool!.annotations!.readOnlyHint).toBe(false);
       expect(tool!.annotations!.destructiveHint).toBe(false);
       expect(tool!.annotations!.openWorldHint).toBe(true);
+    });
+
+    it('worktree_create_pr input schema exposes title/body/bodyFile/forceAi/skipAi properties', () => {
+      const tool = tools.find((t) => t.name === 'worktree_create_pr');
+      expect(tool).toBeDefined();
+      const inputSchema = tool!.inputSchema as unknown as {
+        properties: Record<string, { type: string; description?: string }>;
+        required: string[];
+      };
+
+      expect(inputSchema.properties.title).toBeDefined();
+      expect(inputSchema.properties.title.type).toBe('string');
+      expect(inputSchema.properties.body).toBeDefined();
+      expect(inputSchema.properties.body.type).toBe('string');
+      expect(inputSchema.properties.bodyFile).toBeDefined();
+      expect(inputSchema.properties.bodyFile.type).toBe('string');
+      expect(inputSchema.properties.forceAi).toBeDefined();
+      expect(inputSchema.properties.forceAi.type).toBe('boolean');
+      expect(inputSchema.properties.skipAi).toBeDefined();
+      expect(inputSchema.properties.skipAi.type).toBe('boolean');
+      // Only description stays required; content overrides remain optional.
+      expect(inputSchema.required).toEqual(['description']);
+    });
+
+    it('worktree_create_pr output schema exposes content provenance fields', () => {
+      const tool = tools.find((t) => t.name === 'worktree_create_pr');
+      expect(tool).toBeDefined();
+      const outputSchema = tool!.outputSchema as unknown as {
+        properties: { data: { properties: Record<string, unknown> } };
+      };
+
+      expect(outputSchema.properties.data.properties.titleSource).toBeDefined();
+      expect(outputSchema.properties.data.properties.bodySource).toBeDefined();
+      expect(outputSchema.properties.data.properties.aiProvider).toBeDefined();
+      expect(outputSchema.properties.data.properties.aiError).toBeDefined();
     });
 
     it('worktree_list is annotated as read-only with open world', () => {
