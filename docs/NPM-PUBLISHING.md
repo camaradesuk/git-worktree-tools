@@ -25,7 +25,7 @@ Use the filename alone, not `.github/workflows/release.yml`. Keep token publishi
 access and the existing `NPM_TOKEN` secret until a real OIDC release is verified.
 Saving the trusted publisher does not itself prove that publication works.
 
-The workflow runs on GitHub-hosted Ubuntu with Node 24 and npm 11.11.0. The lockfile
+The workflow runs on GitHub-hosted Ubuntu with Node 22 (at least 22.14.0) and npm 11.11.0. The lockfile
 already includes semantic-release 25.0.3 and its OIDC-capable npm plugin 13.1.4.
 The workflow explicitly installs npm because the plugin launches the npm CLI from
 PATH; its transitive npm dependency is not a top-level pnpm executable.

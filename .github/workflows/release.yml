@@ -10,15 +10,14 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: npm-release
-  cancel-in-progress: false
-
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: npm-release
+      cancel-in-progress: false
     permissions:
       contents: write # Release commit, tag, and GitHub release
       issues: write # Notify released issues
@@ -43,7 +42,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 22
           cache: 'pnpm'
 
       # Pin the CLI used by the npm plugin; OIDC requires npm >=11.5.1.
