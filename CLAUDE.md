@@ -33,40 +33,17 @@
 - [x] Unit tests (231 tests passing)
 - [x] CI/CD workflows:
   - `.github/workflows/ci.yml` - Cross-platform testing (Ubuntu/macOS/Windows, Node 18/20/22)
-  - `.github/workflows/release.yml` - npm publish on version tags
+  - `.github/workflows/release.yml` - semantic-release with npm trusted publishing
   - `.github/workflows/claude.yml` - `@claude` mentions on issues/PRs (maintainers only)
   - `.github/workflows/claude-code-review.yml` - Automatic Claude review on every PR
   - `.github/workflows/self-approve.yml` - `/approve` and `/unapprove` comment commands (admins only)
 
-### Pending: npm Publishing
+### npm Publishing
 
-To publish to npm, the user needs to:
-
-1. **Create npm account** (if not already done) at https://www.npmjs.com/signup
-
-2. **Generate npm access token**:
-   - Go to https://www.npmjs.com/settings/~/tokens
-   - Click "Generate New Token" → "Classic Token"
-   - Select "Automation" type
-   - Copy the token
-
-3. **Add token to GitHub repository secrets**:
-   - Go to https://github.com/camaradesuk/git-worktree-tools/settings/secrets/actions
-   - Click "New repository secret"
-   - Name: `NPM_TOKEN`
-   - Value: (paste the npm token)
-
-4. **Create a version tag to trigger release**:
-
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-
-5. The release workflow will automatically:
-   - Build and test
-   - Publish to npm with provenance
-   - Create a GitHub Release with auto-generated release notes
+Releases use semantic-release after successful main-branch CI, or a manual run of
+`release.yml` on `main`. npm authenticates using OIDC trusted publishing; see
+[the publishing runbook](docs/NPM-PUBLISHING.md) for account setup, verification,
+and credential retirement. Do not create version tags to force a release.
 
 ## Project Structure
 
@@ -187,7 +164,7 @@ The goal is genuine test coverage, not artificially inflated metrics.
 ## Notes for Continuation
 
 - All tests pass locally and in CI (Ubuntu, macOS, Windows)
-- The npm publish workflow requires `NPM_TOKEN` secret to be set
+- npm publishing requires the trusted publisher configured for `release.yml`
 - CI uses Node 18/20/22 matrix testing
 - Path handling has been fixed for cross-platform compatibility
 - The package uses ESM modules (`"type": "module"`)
