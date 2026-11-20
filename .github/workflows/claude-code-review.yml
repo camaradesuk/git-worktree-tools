@@ -43,6 +43,7 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
 
             You are reviewing this PR and producing comments only. You MUST NOT
             modify files, create files, commit, push, or call any write API
@@ -162,8 +163,25 @@ jobs:
               concisely. When a fix is obvious, embed a ```suggestion block
               inside the comment so the author can one-click apply it.
             - Use `gh pr comment` ONCE at the end for the overall summary: top 3
-              things to address, plus an explicit verdict (approve / request
-              changes / comment only).
+              things to address. End the summary with these parts, in this
+              order, each on its own line:
+              1. `Reviewed commit: <sha>`, copying the full 40-character
+                 HEAD SHA given at the top of this prompt verbatim (never a
+                 diff `index` line, a blob hash or an older commit).
+              2. `Verdict: <verdict>` containing only the verdict words,
+                 with no bold, brackets or reasons on that line. The verdict
+                 is exactly one of:
+                 - `approve`: nothing blocks the merge. Findings that are
+                   wanted but not blocking go with this verdict.
+                 - `request changes`: at least one finding must be fixed
+                   before the merge.
+                 - `comment only`: you could not complete the review (for
+                   example a tool failure or a diff you could not read).
+                   Never use it for non-blocking findings.
+              3. One sentence of reasoning for the verdict.
+              4. `[Review run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }})`,
+                 exactly once, and nowhere else in the comment.
+              The merge gate parses these lines, so do not reword them.
             - Never write to the repository. Do not create, edit, or push files;
               do not call any `gh api` endpoint that mutates state. Findings
               travel as comments and suggestions only — the PR author applies
